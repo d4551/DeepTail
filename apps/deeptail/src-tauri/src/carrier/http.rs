@@ -12,8 +12,6 @@ pub enum CarrierError {
     BadPath(String),
     #[error("request method {0:?} is not a valid HTTP method")]
     BadMethod(String),
-    #[error("host rejected the device token (HTTP {0}); pair this host again")]
-    Unauthorized(u16),
 }
 
 /// One unary call the webview asked us to make, mirroring the `RpcFetch` seam
@@ -60,9 +58,13 @@ fn resolve_api_url(origin: &str, path: &str) -> Result<Url, CarrierError> {
 
 /// Perform one authenticated call against a host.
 ///
+/// A refusal is not an error here: an authentication failure is something the
+/// caller must be able to read and act on, so it is returned as the status it
+/// is rather than raised as a transport failure.
+///
 /// # Errors
-/// Returns [`CarrierError`] when the path is not a relative `/api` path, the
-/// transport fails, or the host rejects the device token.
+/// Returns [`CarrierError`] when the path is not a relative `/api` path or the
+/// transport fails.
 pub async fn call(
     client: &reqwest::Client,
     host: &HostRecord,
@@ -86,10 +88,13 @@ pub async fn call(
         .await
         .map_err(|source| CarrierError::Transport { origin: host.origin.clone(), source })?;
 
+    // Every status the host answers with is carried to the webview as a status,
+    // including the ones it refuses on. Turning 401 into a transport failure
+    // here made a revoked token indistinguishable from an unreachable host, so
+    // the one state the operator can actually clear — pair this host again —
+    // could never be reached: the surface that offers it reads the status, and
+    // the status never arrived.
     let status = response.status();
-    if status == reqwest::StatusCode::UNAUTHORIZED {
-        return Err(CarrierError::Unauthorized(status.as_u16()));
-    }
     let headers = response
         .headers()
         .iter()
@@ -106,8 +111,47 @@ pub async fn call(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
 
     const ORIGIN: &str = "https://harness.example:3080";
+
+    /// Answer one request with the given status line and an empty body.
+    ///
+    /// The point of the test below is what crosses the IPC boundary, so the
+    /// host is a real socket rather than a stubbed client: a status the code
+    /// swallows cannot be faked back into existence.
+    async fn serve_once(status: &'static str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind a loopback port");
+        let origin = format!("http://{}", listener.local_addr().expect("read the bound port"));
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept one request");
+            let mut scratch = [0_u8; 1024];
+            let _ = socket.read(&mut scratch).await;
+            let reply = format!("HTTP/1.1 {status}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n");
+            let _ = socket.write_all(reply.as_bytes()).await;
+            let _ = socket.shutdown().await;
+        });
+        origin
+    }
+
+    #[tokio::test]
+    async fn carries_a_refused_status_to_the_webview_rather_than_failing() {
+        let origin = serve_once("401 Unauthorized").await;
+        let host = HostRecord { id: "h-1".to_owned(), label: "Test host".to_owned(), origin };
+        let request = FetchRequest {
+            path: "/api/session/list".to_owned(),
+            method: "POST".to_owned(),
+            headers: Vec::new(),
+            body: None,
+        };
+        let response = call(&reqwest::Client::new(), &host, "stale-token", request)
+            .await
+            .expect("a refusal is a response, not a transport failure");
+        // The surface that offers re-pairing reads this number. Raising instead
+        // would leave a revoked token looking exactly like an offline host.
+        assert_eq!(response.status, 401);
+    }
 
     #[test]
     fn admits_an_ordinary_api_path() {

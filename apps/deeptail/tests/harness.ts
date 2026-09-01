@@ -74,6 +74,11 @@ export interface Harness {
   /** Every Remote call the page has issued, in order. */
   calls(page: Page): Promise<readonly RecordedCall[]>
   /**
+   * Every Tauri command the page has invoked, in order.
+   * @param page - the page to read from.
+   */
+  commands(page: Page): Promise<readonly string[]>
+  /**
    * Forward one roster event to a page whose mux is open, at the moment the
    * caller chooses rather than in the opening burst.
    * @param page - the page to forward to.
@@ -214,6 +219,8 @@ export async function startHarness(): Promise<Harness> {
       page.evaluate(
         () => (window as unknown as { deeptailRecordedCalls?: RecordedCall[] }).deeptailRecordedCalls ?? [],
       ),
+    commands: (page) =>
+      page.evaluate(() => (window as unknown as { deeptailInvokedCommands?: string[] }).deeptailInvokedCommands ?? []),
     async stop() {
       await browser.close()
       await new Promise<void>((done) => {

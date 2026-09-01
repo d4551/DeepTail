@@ -65,7 +65,7 @@ pub async fn pair_host(
         .await
         .map_err(|e| pairing::PairingError::Malformed(e.to_string()).to_string())?;
 
-    let record = HostRecord { id: grant.device_id.clone(), label, origin, last_seen: None };
+    let record = HostRecord { id: grant.device_id.clone(), label, origin };
     // Store the secret first: a registry entry whose token failed to save would
     // present as a paired host that can never connect.
     state.secrets.store(&grant.device_id, &grant.token).map_err(|e| e.to_string())?;

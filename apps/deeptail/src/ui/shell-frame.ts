@@ -34,7 +34,7 @@ export interface ShellFrame {
 export function mountShellFrame(container: HTMLElement, t: Translate): ShellFrame {
   const shell = el('div', { className: 'shell', data: { deeptailShell: '' } })
   const scrim = el('div', { className: 'drawer-scrim' })
-  const sidebar = el('nav', { className: 'sidebar', attrs: { 'aria-label': t('shell.sessions') } })
+  const sidebar = el('nav', { className: 'sidebar', aria: { label: t('shell.sessions') } })
   sidebar.id = SIDEBAR_ID
   const brandRow = el('div', { className: 'brand-row' })
   // A wordmark, not the page's heading: the sidebar it sits in is hidden on a
@@ -47,7 +47,7 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
   const header = el('div', { className: 'main-header' })
   const body = el('div', { className: 'main-body' })
   body.append(el('div', { className: 'placeholder', text: t('shell.pickSession') }))
-  const live = el('div', { className: 'visually-hidden', attrs: { role: 'status' } })
+  const live = el('div', { className: 'visually-hidden', role: 'status' })
   main.append(header, body, live)
 
   shell.append(scrim, sidebar, main)
@@ -65,7 +65,7 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
       live.textContent = text
     },
     showError: (message) => {
-      const strip = el('div', { className: 'error', text: message, attrs: { role: 'alert' } })
+      const strip = el('div', { className: 'error', text: message, role: 'alert' })
       strip.dataset.deeptailState = 'shell-error'
       body.replaceChildren(strip)
     },
@@ -112,6 +112,20 @@ function followDrawer(sidebar: HTMLElement, toggle: HTMLButtonElement, open: boo
 }
 
 /**
+ * Whether the sidebar is currently a drawer.
+ *
+ * The drawer only exists on the narrow layout; on the wide one the sidebar is a
+ * permanent column and must never be made inert. Which layout is showing is the
+ * stylesheet's decision, taken at a width written only there and published as a
+ * flag: a width restated in script is a second breakpoint waiting to disagree
+ * with the first.
+ * @returns true while the narrow layout is showing.
+ */
+function isDrawerLayout(): boolean {
+  return getComputedStyle(document.documentElement).getPropertyValue('--dsh-drawer').trim() === '1'
+}
+
+/**
  * Wire the drawer: the sidebar is a permanent column on the wide layout and a
  * dismissible overlay on the narrow one, dismissed by the scrim, by Escape,
  * and by the toggle that reports its state.
@@ -121,11 +135,6 @@ function followDrawer(sidebar: HTMLElement, toggle: HTMLButtonElement, open: boo
  */
 function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
   const { shell, sidebar, scrim } = regions
-  // The drawer only exists below this width; above it the sidebar is permanent
-  // and must never be made inert.
-  // Read from the stylesheet rather than restated here: one width, one source.
-  const breakpoint = getComputedStyle(document.documentElement).getPropertyValue('--dsh-drawer-breakpoint').trim()
-  const drawerLayout = globalThis.matchMedia(`(max-width: ${breakpoint})`)
   const setDrawer = (open: boolean, moveFocus = false): void => {
     shell.dataset.drawer = open ? 'open' : 'closed'
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
@@ -133,8 +142,9 @@ function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
 
     // A translated drawer still holds its controls in the tab order, so the
     // closed one is taken out of the tree rather than merely moved off screen.
-    sidebar.inert = !open && drawerLayout.matches
-    if (moveFocus && drawerLayout.matches) followDrawer(sidebar, toggle, open)
+    const drawer = isDrawerLayout()
+    sidebar.inert = !open && drawer
+    if (moveFocus && drawer) followDrawer(sidebar, toggle, open)
   }
   const toggle = button('drawer-toggle', t('shell.openSessions'), () => {
     setDrawer(shell.dataset.drawer !== 'open', true)
@@ -153,14 +163,17 @@ function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
   const onLayoutChange = (): void => {
     setDrawer(shell.dataset.drawer === 'open')
   }
-  drawerLayout.addEventListener('change', onLayoutChange)
+  // The flag changes when the viewport crosses the width the stylesheet named,
+  // which is exactly when the document's own box changes.
+  const watchLayout = new ResizeObserver(onLayoutChange)
+  watchLayout.observe(document.documentElement)
   setDrawer(false)
 
   return {
     toggle,
     dispose: () => {
       document.removeEventListener('keydown', onShellKeyDown)
-      drawerLayout.removeEventListener('change', onLayoutChange)
+      watchLayout.disconnect()
     },
   }
 }

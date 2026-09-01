@@ -115,7 +115,7 @@ function buildSpawnForm(hosts: readonly HostRecord[], t: Translate): SpawnForm {
   const host = buildHostField(hosts, t)
   const preset = buildTextField(t('spawn.preset'), t('spawn.presetPlaceholder'), 'preset')
   const cwd = buildTextField(t('spawn.cwd'), t('spawn.cwdPlaceholder'), 'cwd')
-  const failure = el('div', { className: 'error', attrs: { role: 'alert' }, data: { deeptailState: 'spawn-error' } })
+  const failure = el('div', { className: 'error', role: 'alert', data: { deeptailState: 'spawn-error' } })
   failure.hidden = true
   return {
     fields: [host.field, preset.field, cwd.field, failure],

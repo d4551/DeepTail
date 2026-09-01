@@ -119,6 +119,48 @@ it('meets the platform touch minimum on every control a finger can reach', async
   await page.close()
 })
 
+/**
+ * Wait for the drawer to come to rest wholly outside the viewport, which is
+ * true of neither the open position nor any point along the way.
+ * @param page - the page under test.
+ * @param width - the viewport width.
+ */
+async function waitForClosedDrawer(page: Page, width: number): Promise<void> {
+  await page.waitForFunction((viewport: number) => {
+    const sidebar = document.querySelector('#deeptail-sidebar')
+    if (sidebar === null) return false
+    const box = sidebar.getBoundingClientRect()
+    return Math.round(box.right) <= 0 || Math.round(box.x) >= viewport
+  }, width)
+}
+
+/**
+ * Wait for the drawer to come to rest wholly inside the viewport.
+ * @param page - the page under test.
+ */
+async function waitForOpenDrawer(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const sidebar = document.querySelector('#deeptail-sidebar')
+    if (sidebar === null) return false
+    const box = sidebar.getBoundingClientRect()
+    return Math.round(box.x) >= 0 && Math.round(box.right) <= window.innerWidth
+  })
+}
+
+/**
+ * The sidebar's box, as the page reports it now.
+ * @param page - the page under test.
+ * @returns its left and right edges, rounded.
+ */
+function sidebarBox(page: Page): Promise<{ x: number; right: number }> {
+  return page.evaluate(() => {
+    const sidebar = document.querySelector('#deeptail-sidebar')
+    if (sidebar === null) return { x: 0, right: 0 }
+    const box = sidebar.getBoundingClientRect()
+    return { x: Math.round(box.x), right: Math.round(box.right) }
+  })
+}
+
 it('slides the drawer in from the inline start in either direction', async () => {
   const measured = await Promise.all(
     (['ltr', 'rtl'] as const).map(async (direction) => {
@@ -126,26 +168,16 @@ it('slides the drawer in from the inline start in either direction', async () =>
       await page.waitForSelector('[data-deeptail-shell]')
       const width = page.viewportSize()?.width ?? 0
       // Closed, the drawer waits entirely outside the viewport past the inline
-      // start: off the left edge under LTR, off the right under RTL.
-      const closed = await page.evaluate(() => {
-        const sidebar = document.querySelector('#deeptail-sidebar')
-        if (sidebar === null) return { x: 0, right: 0 }
-        const box = sidebar.getBoundingClientRect()
-        return { x: Math.round(box.x), right: Math.round(box.right) }
-      })
+      // start: off the left edge under LTR, off the right under RTL. It slides
+      // to get there, so both positions are measured once they have come to
+      // rest rather than somewhere along the way.
+      await waitForClosedDrawer(page, width)
+      const closed = await sidebarBox(page)
       await page.locator('[data-deeptail-action="drawer"]').click()
       await page
         .locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]')
         .waitFor({ state: 'visible' })
-      // It slides, so measure once it has come to rest. Resting means wholly
-      // inside the viewport, which is the one condition true of neither the
-      // closed position nor any point along the way, in either direction.
-      await page.waitForFunction(() => {
-        const sidebar = document.querySelector('#deeptail-sidebar')
-        if (sidebar === null) return false
-        const box = sidebar.getBoundingClientRect()
-        return Math.round(box.x) >= 0 && Math.round(box.right) <= window.innerWidth
-      })
+      await waitForOpenDrawer(page)
       const box = await page.locator('#deeptail-sidebar').boundingBox()
       await page.close()
       return [

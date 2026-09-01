@@ -45,10 +45,11 @@ export interface MenuPanel {
 export function buildConnectionMenu(options: MenuPanelOptions): MenuPanel {
   const menu = el('div', {
     className: 'menu',
-    attrs: { role: 'menu', 'aria-label': options.t('shell.switchHost') },
+    role: 'menu',
+    aria: { label: options.t('shell.switchHost') },
     data: { deeptailConnection: 'menu' },
   })
-  const items = el('div', { className: 'menu-items', attrs: { role: 'none' } })
+  const items = el('div', { className: 'menu-items', role: 'none' })
   const rows = options.hosts.map((host) => appendHostRow(items, host, options))
   menu.append(items)
   const footer = buildFooter(options)
@@ -74,12 +75,13 @@ function appendHostRow(items: HTMLElement, host: HostRecord, options: MenuPanelO
   const state = ports.stateOf(host.id)
   const item = el('button', {
     className: 'menu-item menu-choice',
-    attrs: { role: 'menuitemradio', 'aria-checked': host.id === activeHostId ? 'true' : 'false' },
+    role: 'menuitemradio',
+    aria: { checked: host.id === activeHostId ? 'true' : 'false' },
     data: { deeptailHost: host.id },
   })
   item.type = 'button'
   item.append(
-    el('span', { className: 'dot', attrs: { 'aria-hidden': 'true' }, data: { state } }),
+    el('span', { className: 'dot', aria: { hidden: 'true' }, data: { state } }),
     el('span', { className: 'menu-label', text: host.label }),
     screenReaderText(hostStateLabel(t, state)),
   )
@@ -116,7 +118,7 @@ function repairItem(hostId: string, options: MenuPanelOptions): HTMLButtonElemen
  */
 function buildFooter(options: MenuPanelOptions): HTMLElement {
   const { hosts, activeHostId, ports, t, dismiss } = options
-  const footer = el('div', { className: 'menu-footer', attrs: { role: 'none' } })
+  const footer = el('div', { className: 'menu-footer', role: 'none' })
   footer.append(
     menuItem('menu-item', t('action.pair'), () => {
       dismiss()

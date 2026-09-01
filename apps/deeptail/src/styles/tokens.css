@@ -18,10 +18,12 @@
    * flow-relative everywhere it can be; a transform cannot be, so it reads the
    * direction from here. */
   --dsh-inline-direction: 1;
-  /* The width below which the sidebar becomes a drawer. Read by the stylesheet
-   * and by the script that makes the closed drawer inert, so the two cannot
-   * describe different layouts. */
-  --dsh-drawer-breakpoint: 720px;
+  /* Whether the sidebar is currently a drawer. The width that decides it is
+   * written once, in the media query that switches the layout, and this is how
+   * that decision reaches the script that makes a closed drawer inert — a
+   * width cannot be read out of a media query, and a width restated in script
+   * is a second breakpoint waiting to disagree with the first. */
+  --dsh-drawer: 0;
 }
 
 :root:dir(rtl) {

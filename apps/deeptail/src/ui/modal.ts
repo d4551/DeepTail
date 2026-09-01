@@ -49,11 +49,12 @@ interface DialogFrame {
  * @returns the parts to mount and fill.
  */
 function buildDialogFrame(title: string): DialogFrame {
-  const root = el('div', { className: 'modal-root', attrs: { role: 'presentation' } })
-  const mask = el('div', { className: 'modal-mask', attrs: { 'aria-hidden': 'true' } })
+  const root = el('div', { className: 'modal-root', role: 'presentation' })
+  const mask = el('div', { className: 'modal-mask', aria: { hidden: 'true' } })
   const dialog = el('div', {
     className: 'modal-dialog',
-    attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+    role: 'dialog',
+    aria: { modal: 'true', label: title },
     data: { deeptailDialog: '' },
   })
   const heading = el('h2', { className: 'modal-title', text: title })

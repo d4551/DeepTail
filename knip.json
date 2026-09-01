@@ -16,8 +16,8 @@
       ]
     },
     ".": {
-      "entry": ["scripts/*.ts"],
-      "project": ["scripts/**/*.ts"]
+      "entry": ["scripts/*.ts", "tests/*.spec.ts"],
+      "project": ["scripts/**/*.ts", "tests/**/*.ts"]
     }
   }
 }

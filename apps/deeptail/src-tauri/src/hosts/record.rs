@@ -11,9 +11,6 @@ pub struct HostRecord {
     pub label: String,
     /// Canonical origin, always scheme + authority with no path (`https://harness.example:3080`).
     pub origin: String,
-    /// Epoch milliseconds of the last successful connection, absent until one succeeds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_seen: Option<u64>,
 }
 
 /// Why an origin was refused when adding a host.
@@ -117,7 +114,6 @@ mod tests {
             id: "a".into(),
             label: "a".into(),
             origin: "https://harness.example".into(),
-            last_seen: None,
         };
         assert_eq!(secure.socket_origin(), "wss://harness.example");
     }

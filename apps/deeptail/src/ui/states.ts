@@ -27,7 +27,7 @@ export type Phase =
  * @returns the row.
  */
 export function loadingRow(t: Translate, key: 'status.loading' | 'sessions.loading'): HTMLElement {
-  const row = el('div', { className: 'centered', data: { deeptailState: 'loading' }, attrs: { role: 'status' } })
+  const row = el('div', { className: 'centered', data: { deeptailState: 'loading' }, role: 'status' })
   row.append(el('div', { className: 'spinner' }), el('div', { className: 'status', text: t(key) }))
   return row
 }
@@ -38,7 +38,7 @@ export function loadingRow(t: Translate, key: 'status.loading' | 'sessions.loadi
  * @returns the row.
  */
 export function emptyRow(text: string): HTMLElement {
-  return el('div', { className: 'status', text, data: { deeptailState: 'empty' }, attrs: { role: 'status' } })
+  return el('div', { className: 'status', text, data: { deeptailState: 'empty' }, role: 'status' })
 }
 
 /**
@@ -56,7 +56,7 @@ export function warningRow(message: string, retryLabel: string, onRetry: () => v
     className: 'error warning',
     text: message,
     data: { deeptailState: 'partial' },
-    attrs: { role: 'status' },
+    role: 'status',
   })
   strip.append(button('retry', retryLabel, onRetry))
   return strip

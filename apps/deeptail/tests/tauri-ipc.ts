@@ -97,6 +97,8 @@ export interface RecordedCall {
 interface IpcState {
   readonly channels: Map<string, ScriptChannel>
   readonly recorded: RecordedCall[]
+  /** Every Tauri command name the page has invoked, in order. */
+  readonly commands: string[]
 }
 
 /**
@@ -215,6 +217,10 @@ function deeptailInvoke(
   args: Record<string, object>,
   state: IpcState,
 ): Promise<object | null> {
+  // Every command is recorded, not only the remote calls. A surface that says
+  // it re-reads the registry is making a claim about a command, and a claim
+  // about a command needs a record of commands to be checked against.
+  state.commands.push(cmd)
   switch (cmd) {
     case 'list_hosts':
       return script.listError === undefined
@@ -250,9 +256,10 @@ function deeptailInvoke(
 function installTauriInternals(script: AnswerTable): void {
   // Recorded so a case can assert what actually reached the host. Without it a
   // test can only see that a dialog closed, which a no-op satisfies.
-  const state: IpcState = { channels: new Map<string, ScriptChannel>(), recorded: [] }
+  const state: IpcState = { channels: new Map<string, ScriptChannel>(), recorded: [], commands: [] }
   Object.assign(window, {
     deeptailRecordedCalls: state.recorded,
+    deeptailInvokedCommands: state.commands,
     __TAURI_INTERNALS__: {
       invoke: (cmd: string, args?: Record<string, object>) => deeptailInvoke(script, cmd, args ?? {}, state),
       transformCallback: (callback: () => object) => callback,

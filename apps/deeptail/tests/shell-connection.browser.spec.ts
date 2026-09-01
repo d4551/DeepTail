@@ -143,3 +143,33 @@ it('dismisses the menu when focus leaves it', async () => {
   expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
   await page.close()
 })
+
+it('lets Tab out of the open menu rather than cycling inside it', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  const where = () =>
+    page.evaluate(() => {
+      const active = document.activeElement
+      if (active === null || active === document.body) return 'nowhere'
+      return active.closest('[data-deeptail-connection="menu"]') === null ? 'outside the menu' : 'inside the menu'
+    })
+  expect(await where()).toBe('inside the menu')
+  // The rest of the sidebar is inert while the menu covers it, so without a
+  // way out the tab sequence runs menu, document, trigger, menu for ever. One
+  // Tab has to end it: the menu closes and focus carries on past the trigger.
+  await page.keyboard.press('Tab')
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
+  expect(await where()).toBe('outside the menu')
+  expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
+  // And it stays out: three more presses must never land back in a menu. Each
+  // press depends on where the one before it landed, so they run in sequence.
+  const walked = await [1, 2, 3].reduce(async (sofar: Promise<string[]>) => {
+    const seen = await sofar
+    await page.keyboard.press('Tab')
+    return [...seen, await where()]
+  }, Promise.resolve([]))
+  expect(walked).not.toContain('inside the menu')
+  await page.close()
+})

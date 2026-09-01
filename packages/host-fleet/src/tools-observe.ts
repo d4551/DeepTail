@@ -101,7 +101,12 @@ async function listSessions(
   signal: AbortSignal,
 ): Promise<{ sessions: FleetSessionSummary[]; total: number }> {
   const listed = await controller.list({}, signal)
-  const rows = listed.items.filter((row) => args.runningOnly !== true || row.running)
+  const rows = listed.items
+    .filter((row) => args.runningOnly !== true || row.running)
+    // The tool promises newest activity first, and the row budget is applied
+    // after this rather than before it: a caller asking for five rows wants the
+    // five most recent sessions, not five of whatever order the store returned.
+    .toSorted((left, right) => right.updatedAt - left.updatedAt)
   const limit = args.limit ?? limits.listLimit
   if (limit <= 0) throw new Error('sessions_list: limit must be a positive number')
   return { sessions: rows.slice(0, limit).map((row) => summarize(row)), total: rows.length }

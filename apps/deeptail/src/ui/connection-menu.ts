@@ -103,7 +103,7 @@ export function mountConnectionMenu(
 function triggerContent(active: HostRecord | undefined, ports: ConnectionPorts, t: Translate): HTMLElement[] {
   const state = active === undefined ? 'unknown' : ports.stateOf(active.id)
   return [
-    el('span', { className: 'dot', attrs: { 'aria-hidden': 'true' }, data: { state } }),
+    el('span', { className: 'dot', aria: { hidden: 'true' }, data: { state } }),
     el('span', { className: 'connection-label', text: active?.label ?? t('status.empty') }),
     screenReaderText(hostStateLabel(t, state)),
   ]
@@ -128,12 +128,68 @@ function wireTriggerActivation(trigger: HTMLButtonElement, ports: ConnectionPort
   })
 }
 
+/** The handlers an open menu listens to the document with. */
+interface DismissalHandlers {
+  /** A pointer or focus landing away from the menu. */
+  readonly onOutside: (event: Event) => void
+  /** Escape, which closes, and Tab, which leaves. */
+  readonly onKeyDown: (event: KeyboardEvent) => void
+}
+
+/**
+ * Attach or detach the dismissal listeners.
+ *
+ * They sit on the document only while the menu is open, so a closed switcher
+ * never intercepts a pointer or a key the rest of the app wants.
+ * @param handlers - what to attach.
+ * @param on - true to attach them, false to remove them.
+ */
+function listenForDismissal(handlers: DismissalHandlers, on: boolean): void {
+  const bind = on ? document.addEventListener.bind(document) : document.removeEventListener.bind(document)
+  bind('pointerdown', handlers.onOutside)
+  bind('keydown', handlers.onKeyDown)
+  bind('focusin', handlers.onOutside)
+}
+
+/**
+ * The handlers that dismiss one open menu.
+ *
+ * A pointer or focus landing outside dismisses it: an open menu overlaps what
+ * is behind it, so leaving it open once the operator has moved on covers the
+ * content they are now working in. Focus reaching the document body raises no
+ * event at all, which is why leaving by keyboard is handled on the key rather
+ * than waiting to be told where focus went.
+ * @param root - the subtree a pointer may land in without dismissing the menu.
+ * @param close - dismisses the menu.
+ * @returns the handlers.
+ */
+function dismissalHandlers(root: HTMLElement, close: () => void): DismissalHandlers {
+  return {
+    onOutside: (event: Event): void => {
+      if (event.target instanceof Node && root.contains(event.target)) return
+      close()
+    },
+    onKeyDown: (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        close()
+        return
+      }
+      // Tab leaves the menu rather than cycling inside it. The rest of the
+      // sidebar is inert while the menu is over it, so without this the tab
+      // sequence runs menu, document, trigger, menu — a ring with no way out,
+      // which is the one thing a keyboard must never be put in. Closing here
+      // returns focus to the trigger before the browser acts on the key, so it
+      // continues the sequence from where the operator opened the menu.
+      if (event.key === 'Tab') close()
+    },
+  }
+}
+
 /**
  * Own whether the menu is showing.
  *
- * The dismissal listeners sit on the document only while the menu is open, so a
- * closed switcher never intercepts a pointer or a key the rest of the app wants,
- * and closing hands focus back to the trigger the operator came from.
+ * The dismissal listeners sit on the document only while the menu is open, and
+ * closing hands focus back to the trigger the operator came from.
  * @param trigger - the button whose `aria-expanded` mirrors the state.
  * @param root - the subtree a pointer may land in without dismissing the menu.
  * @param render - redraws the switcher once the state has changed.
@@ -146,32 +202,18 @@ function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render:
     if (!open) return
     open = false
     trigger.setAttribute('aria-expanded', 'false')
-    document.removeEventListener('pointerdown', onOutside)
-    document.removeEventListener('keydown', onKeyDown)
-    document.removeEventListener('focusin', onOutside)
+    listenForDismissal(handlers, false)
     render()
     trigger.focus()
   }
 
-  // A pointer or focus landing outside dismisses it: an open menu overlaps what
-  // is behind it, so leaving it open once the operator has moved on covers the
-  // content they are now working in.
-  function onOutside(event: Event): void {
-    if (event.target instanceof Node && root.contains(event.target)) return
-    closeMenu()
-  }
-
-  function onKeyDown(event: KeyboardEvent): void {
-    if (event.key === 'Escape') closeMenu()
-  }
+  const handlers = dismissalHandlers(root, closeMenu)
 
   const openMenu = (): void => {
     if (open) return
     open = true
     trigger.setAttribute('aria-expanded', 'true')
-    document.addEventListener('pointerdown', onOutside)
-    document.addEventListener('keydown', onKeyDown)
-    document.addEventListener('focusin', onOutside)
+    listenForDismissal(handlers, true)
     render()
   }
 
@@ -183,9 +225,7 @@ function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render:
       else openMenu()
     },
     dispose: () => {
-      document.removeEventListener('focusin', onOutside)
-      document.removeEventListener('pointerdown', onOutside)
-      document.removeEventListener('keydown', onKeyDown)
+      listenForDismissal(handlers, false)
     },
   }
 }

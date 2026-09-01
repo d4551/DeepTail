@@ -8,18 +8,49 @@
  * @module
  */
 
-/** Attributes an element may be created with. */
+/**
+ * The accessible state an element is created with.
+ *
+ * These are the only attributes any surface sets through this factory. Naming
+ * them one by one is what lets every `setAttribute` below carry a literal, so
+ * the inline-style gate can read every attribute this product writes — a bag
+ * of free-form names would be a hole in it, and a route by which any caller
+ * could set any attribute at all.
+ */
+interface AriaOptions {
+  /** `aria-label`, for a region or control whose name is not its text. */
+  readonly label?: string
+  /** `aria-hidden`, for decoration that duplicates adjacent text. */
+  readonly hidden?: 'true'
+  /** `aria-checked`, for one choice within a set. */
+  readonly checked?: 'true' | 'false'
+  /** `aria-expanded`, for a control that discloses something. */
+  readonly expanded?: 'true' | 'false'
+  /** `aria-modal`, for a dialog that holds focus. */
+  readonly modal?: 'true'
+  /** `aria-haspopup`, naming what a trigger opens. */
+  readonly haspopup?: 'menu' | 'dialog'
+  /** `aria-controls`, naming the element a control governs. */
+  readonly controls?: string
+  /** `aria-live`, for a region whose changes are announced. */
+  readonly live?: 'polite' | 'assertive'
+}
+
+/** What an element may be created with. */
 export interface ElementOptions {
   readonly className?: string
   readonly text?: string
-  readonly attrs?: Readonly<Record<string, string>>
+  /** The element's ARIA role. */
+  readonly role?: string
+  /** The element's accessible state. */
+  readonly aria?: AriaOptions
   readonly data?: Readonly<Record<string, string>>
 }
 
 /**
  * Create an element.
  * @param tag - the tag name.
- * @param options - class, text, attributes and data attributes.
+ * @param options - class, text, role, accessible state and data attributes.
  * @returns the element.
  */
 export function el<K extends keyof HTMLElementTagNameMap>(
@@ -29,9 +60,26 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   const node = document.createElement(tag)
   if (options.className !== undefined) node.className = options.className
   if (options.text !== undefined) node.textContent = options.text
-  for (const [name, value] of Object.entries(options.attrs ?? {})) node.setAttribute(name, value)
+  if (options.role !== undefined) node.setAttribute('role', options.role)
+  applyAria(node, options.aria ?? {})
   for (const [name, value] of Object.entries(options.data ?? {})) node.dataset[name] = value
   return node
+}
+
+/**
+ * Write the accessible state an element was asked for.
+ * @param node - the element being built.
+ * @param aria - the state to write.
+ */
+function applyAria(node: Element, aria: AriaOptions): void {
+  if (aria.label !== undefined) node.setAttribute('aria-label', aria.label)
+  if (aria.hidden !== undefined) node.setAttribute('aria-hidden', aria.hidden)
+  if (aria.checked !== undefined) node.setAttribute('aria-checked', aria.checked)
+  if (aria.expanded !== undefined) node.setAttribute('aria-expanded', aria.expanded)
+  if (aria.modal !== undefined) node.setAttribute('aria-modal', aria.modal)
+  if (aria.haspopup !== undefined) node.setAttribute('aria-haspopup', aria.haspopup)
+  if (aria.controls !== undefined) node.setAttribute('aria-controls', aria.controls)
+  if (aria.live !== undefined) node.setAttribute('aria-live', aria.live)
 }
 
 /**

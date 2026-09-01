@@ -13,6 +13,4 @@ export interface HostRecord {
   readonly label: string
   /** Canonical origin: scheme and authority, no path. */
   readonly origin: string
-  /** Epoch milliseconds of the last successful connection, absent until one succeeds. */
-  readonly lastSeen?: number
 }

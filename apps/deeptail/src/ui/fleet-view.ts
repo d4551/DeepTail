@@ -175,7 +175,7 @@ function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterVie
 function groupHeading(entry: HostEntry): HTMLElement {
   const heading = el('div', { className: 'group-title' })
   heading.append(
-    el('span', { className: 'dot', attrs: { 'aria-hidden': 'true' }, data: { state: entry.state } }),
+    el('span', { className: 'dot', aria: { hidden: 'true' }, data: { state: entry.state } }),
     el('span', { className: 'group-name', text: entry.host.label }),
   )
   if (entry.phase.kind === 'ready') {
@@ -193,9 +193,9 @@ function groupHeading(entry: HostEntry): HTMLElement {
  * @returns the list.
  */
 function sessionList(entry: HostEntry, stops: HTMLButtonElement[], view: RosterView): HTMLElement {
-  const list = el('div', { attrs: { role: 'list', 'aria-label': entry.host.label } })
+  const list = el('div', { role: 'list', aria: { label: entry.host.label } })
   for (const session of entry.sessions) {
-    const seat = el('span', { attrs: { role: 'listitem' } })
+    const seat = el('span', { role: 'listitem' })
     seat.append(sessionRow(entry.host.id, session, view.t, rowHandlers(entry, session, view), stops))
     list.append(seat)
   }

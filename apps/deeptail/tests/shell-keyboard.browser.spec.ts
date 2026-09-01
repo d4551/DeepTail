@@ -76,6 +76,23 @@ it('keeps the closed drawer out of the tab order', async () => {
   await page.close()
 })
 
+it('leaves the permanent sidebar in the tab order on the wide layout', async () => {
+  const page = await harness.open(oneHost())
+  await page.waitForSelector('[data-deeptail-shell]')
+  // Above the drawer width the sidebar is a column, not an overlay, so nothing
+  // may take it out of the tree. A layout flag stuck on would make the whole
+  // roster unreachable here while every narrow case still passed.
+  expect(
+    await page.evaluate(() => {
+      const sidebar = document.querySelector<HTMLElement>('#deeptail-sidebar')
+      const first = sidebar?.querySelector('button')
+      first?.focus()
+      return document.activeElement === first
+    }),
+  ).toBe(true)
+  await page.close()
+})
+
 it('moves focus into the drawer it opens and back to the toggle on Escape', async () => {
   const page = await harness.open(oneHost(), { mobile: true })
   await page.waitForSelector('[data-deeptail-shell]')
@@ -104,5 +121,25 @@ it('keeps the whole roster to one stop in the page tab order, on touch too', asy
     return [...roster.querySelectorAll<HTMLButtonElement>('button')].filter((node) => node.tabIndex >= 0).length
   })
   expect(stops).toBe(1)
+  await page.close()
+})
+
+it('walks the row the way it is drawn when the script runs right to left', async () => {
+  const page = await harness.open(oneHost(), { direction: 'rtl' })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
+  const send = page.getByRole('button', { name: 'Send' }).first()
+  await send.waitFor({ state: 'visible' })
+  // Mirrored, the actions sit to the *left* of the row's own control, so the
+  // key that reaches them is the one pointing at them. Following the markup
+  // instead would walk every right-to-left reader backwards along the row.
+  const box = await send.boundingBox()
+  const openBox = await page.locator('[data-deeptail-session="s-running"] .session-open').boundingBox()
+  expect((box?.x ?? 0) < (openBox?.x ?? 0)).toBe(true)
+  await page.keyboard.press('ArrowLeft')
+  expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toBe('Send')
+  // And the key pointing away from them goes back, rather than deeper in.
+  await page.keyboard.press('ArrowRight')
+  expect(await page.evaluate(() => document.activeElement?.className ?? null)).toBe('session-open')
   await page.close()
 })

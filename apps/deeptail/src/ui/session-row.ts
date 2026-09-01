@@ -64,6 +64,11 @@ export function sessionRow(
  * The actions share the row's single tab stop, so a fleet of a hundred sessions
  * is a hundred stops rather than three hundred. Reaching them is the same
  * gesture a toolbar uses: along the row to enter, back to leave.
+ *
+ * An arrow key names a direction on the screen, not a position in the markup,
+ * so under a right-to-left script — where the row is drawn mirrored — the two
+ * keys swap. Following the markup instead would walk the row backwards for
+ * every reader of Arabic or Hebrew.
  * @param row - the row to wire.
  */
 function wireRowKeys(row: HTMLElement): void {
@@ -74,7 +79,8 @@ function wireRowKeys(row: HTMLElement): void {
     )
     const here = controls.indexOf(document.activeElement as HTMLButtonElement)
     if (here === -1) return
-    const next = controls[here + (event.key === 'ArrowRight' ? 1 : -1)]
+    const forwards = event.key === (row.matches(':dir(rtl)') ? 'ArrowLeft' : 'ArrowRight')
+    const next = controls[here + (forwards ? 1 : -1)]
     if (next === undefined) return
     event.preventDefault()
     next.focus()
@@ -98,7 +104,7 @@ function openControl(session: SessionSummary, t: Translate, onOpen: () => void):
   open.append(
     el('span', {
       className: 'dot',
-      attrs: { 'aria-hidden': 'true' },
+      aria: { hidden: 'true' },
       data: { state: running ? 'online' : 'unknown' },
     }),
     el('span', {

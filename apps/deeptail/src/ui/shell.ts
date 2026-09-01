@@ -227,7 +227,7 @@ function handOff(host: HostRecord, sessionId: string, ports: ShellPorts, frame: 
   frame.body.replaceChildren(el('div', { className: 'placeholder', text: t('shell.opening', { label: host.label }) }))
   void ports.open(host, sessionId).catch((reason: unknown) => {
     const message = reason instanceof Error ? reason.message : String(reason)
-    const failure = el('div', { className: 'error', text: message, attrs: { role: 'alert' } })
+    const failure = el('div', { className: 'error', text: message, role: 'alert' })
     failure.dataset.deeptailState = 'open-error'
     frame.body.replaceChildren(failure)
   })

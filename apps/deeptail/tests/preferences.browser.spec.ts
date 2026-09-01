@@ -48,28 +48,52 @@ it('keeps every state visible when the platform replaces the palette', async () 
   await page.close()
 })
 
+/** One host unreachable and one refusing the token, so both marks are drawn. */
+const bothUnreachable = () =>
+  fleet({
+    remoteErrors: { 'dev-1:session/list': 'host unreachable' },
+    remoteStatuses: { 'lab-2:session/list': 401 },
+  })
+
 it('tells the two unreachable states apart when there is no palette to spend', async () => {
-  const page = await harness.open(fleet({ remoteStatuses: { 'lab-2:session/list': 401 } }), { forcedColors: true })
+  const page = await harness.open(bothUnreachable(), { forcedColors: true })
   await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
   const looks = await page.evaluate(() =>
     ['offline', 'unauthorized'].map((state) => {
-      const node = document.querySelector(`.dot[data-state="${state}"]`)
+      const node = document.querySelector(`[data-deeptail-connection="menu"] .dot[data-state="${state}"]`)
       if (node === null) return 'absent'
       const style = getComputedStyle(node)
       return `${style.backgroundColor}/${style.borderTopStyle}`
     }),
   )
   // One of them the operator can act on; high contrast must not flatten them
-  // into the same mark.
+  // into the same mark. Both dots have to be on the page for that comparison to
+  // mean anything — with one missing, two different strings prove nothing.
+  expect(looks).not.toContain('absent')
   expect(looks[1]).not.toBe(looks[0])
   await page.close()
 })
 
 it('distinguishes the two unreachable states without relying on colour', async () => {
-  const page = await harness.open(fleet({ remoteStatuses: { 'lab-2:session/list': 401 } }), { forcedColors: true })
+  const page = await harness.open(bothUnreachable(), { forcedColors: true })
   await page.waitForSelector('[data-deeptail-shell]')
-  // The dot is decorative in every mode; the state is spoken beside it.
-  expect(await page.locator('.connection-trigger .visually-hidden').first().textContent()).toBeTruthy()
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  // The dot is decorative in every mode, so the difference has to survive with
+  // no colour at all: each row says which state it is in, in words, and the two
+  // sentences differ. Reading one of them and finding it non-empty would pass
+  // with both rows saying the same thing.
+  const spoken = await page.evaluate(() =>
+    ['dev-1', 'lab-2'].map(
+      (host) =>
+        document.querySelector(`[data-deeptail-host="${host}"] .visually-hidden`)?.textContent?.trim() ?? 'absent',
+    ),
+  )
+  expect(spoken).not.toContain('absent')
+  expect(spoken[0]).not.toBe(spoken[1])
+  expect(spoken[1]).toBe('Needs re-pairing')
   await page.close()
 })
 

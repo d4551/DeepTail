@@ -29,6 +29,7 @@ async function expectSuppressionListsUnchanged(): Promise<void> {
     if (name === 'apps/deeptail') continue
     expect([name, workspace.ignoreDependencies]).toEqual([name, undefined])
   }
+  await expectIgnoredDependenciesAreSuppliedToTheClient(knip.workspaces?.['apps/deeptail']?.ignoreDependencies ?? [])
 
   const biome = JSON.parse(await readFile('biome.json', 'utf8')) as {
     files?: { includes?: string[] }
@@ -46,6 +47,34 @@ async function expectSuppressionListsUnchanged(): Promise<void> {
   )
   expect(levels.filter((level) => level === 'off')).toEqual([])
   expect(biome.linter?.enabled).not.toBe(false)
+}
+
+/**
+ * Assert that nothing sits in knip's ignore list on its own say-so.
+ *
+ * These are the modules the harness client leaves for the host application to
+ * supply: it builds against them and externalises them, so they are declared
+ * here, resolved at runtime, and imported by nothing in this repository. That
+ * is a fact about the client's manifest rather than a claim, so it is read
+ * from the client's manifest — a name that cannot be found there is a name
+ * that has no business being excused.
+ * @param ignored - the names the ignore list holds.
+ */
+async function expectIgnoredDependenciesAreSuppliedToTheClient(ignored: readonly string[]): Promise<void> {
+  const client = JSON.parse(
+    await readFile('apps/deeptail/node_modules/@deepseek-ai/dsh-client-web/package.json', 'utf8'),
+  ) as Record<string, Record<string, string> | undefined>
+  const externalised = new Set(
+    ['dependencies', 'devDependencies', 'peerDependencies'].flatMap((kind) => Object.keys(client[kind] ?? {})),
+  )
+  expect(ignored.filter((name) => !externalised.has(name))).toEqual([])
+  expect(ignored.length).toBeGreaterThan(0)
+
+  const app = JSON.parse(await readFile('apps/deeptail/package.json', 'utf8')) as {
+    dependencies?: Record<string, string>
+  }
+  // A name excused but no longer declared is a stale excuse.
+  expect(ignored.filter((name) => app.dependencies?.[name] === undefined)).toEqual([])
 }
 
 it('keeps every suppression list at its agreed contents', async () => {

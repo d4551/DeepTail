@@ -64,7 +64,7 @@ function buildComposeFields(t: Translate): ComposeFields {
   const failure = el('div', {
     className: 'error',
     data: { deeptailState: 'compose-error' },
-    attrs: { role: 'alert' },
+    role: 'alert',
   })
   failure.hidden = true
 

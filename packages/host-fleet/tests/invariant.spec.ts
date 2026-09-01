@@ -26,9 +26,15 @@ async function check(present: readonly string[]): Promise<string | undefined> {
     },
     tools: { get: (tool: string) => (present.includes(tool) ? {} : undefined) },
   } as unknown as Context
-  await apply(ctx)
+  const dispose = await apply(ctx)
+  // Registering is half the contract, so it is asserted rather than assumed:
+  // calling the installer optionally would let every case below pass without
+  // one, which is exactly the failure this companion exists to catch.
+  expect(typeof installer).toBe('function')
+  expect(typeof dispose).toBe('function')
   let failure: string | undefined
-  installer?.(ctx, ((message: string) => {
+  const install = installer as (ctx: Context, fail: (message: string) => never) => void
+  install(ctx, ((message: string) => {
     failure = message
     return null
   }) as unknown as (message: string) => never)

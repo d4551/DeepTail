@@ -603,6 +603,12 @@
 /* Below the harness's own sidebar breakpoint the column becomes a drawer, so a
    phone gets the whole width for the roster. */
 @media (width <= 720px) {
+  /* The one place the drawer breakpoint is written. The script reads this
+     flag rather than the width, so there is nothing for it to disagree with. */
+  :root {
+    --dsh-drawer: 1;
+  }
+
   .shell {
     grid-template-columns: minmax(0, 1fr);
   }
