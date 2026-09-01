@@ -156,7 +156,9 @@ describe('shell', () => {
   })
 
   it('spawns with a typed preset and reports the ids a host does have', async () => {
-    const page = await harness.open(oneHost())
+    const page = await harness.open(
+      oneHost({ remote: { 'session/list': { items: SESSIONS }, 'session/create': { sessionId: 's-new' } } }),
+    )
     await page.waitForSelector('[data-deeptail-shell]')
     await page.locator('[data-deeptail-action="new-session"]').click()
     // No host publishes a preset listing, so the field is typed and optional.
