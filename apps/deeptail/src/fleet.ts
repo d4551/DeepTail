@@ -216,12 +216,16 @@ async function pairAndFinish(run: PickerRuntime, hosts: readonly HostRecord[], d
  * @param container - mount point, owned entirely by the picker until it resolves.
  * @param ports - the native surface to call.
  * @param translate - copy source; defaults to the browser's locale.
+ * @param repairing - the label of a host being paired again, which opens the
+ * form directly with that name in place so the record is replaced rather than
+ * a second one written beside it.
  * @returns the chosen host.
  */
 export function renderHostPicker(
   container: HTMLElement,
   ports: PickerPorts = tauriPorts,
   translate: Translate = createTranslate(),
+  repairing?: string,
 ): Promise<HostRecord> {
   return new Promise<HostRecord>((resolve) => {
     const run: PickerRuntime = {
@@ -234,6 +238,25 @@ export function renderHostPicker(
         resolve(host)
       },
     }
-    void loadRoster(run)
+    if (repairing === undefined) {
+      void loadRoster(run)
+      return
+    }
+    void repairHost(run, repairing)
+  })
+}
+
+/**
+ * Open the pairing form for a host that already exists, with its name in place.
+ * @param run - the picker's runtime.
+ * @param label - the name the host is filed under.
+ */
+async function repairHost(run: PickerRuntime, label: string): Promise<void> {
+  const read = await settled(run.ports.listHosts())
+  toPhase(run, {
+    kind: 'pairing',
+    hosts: read.ok ? read.value : [],
+    busy: false,
+    draft: { link: '', label },
   })
 }

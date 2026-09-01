@@ -30,7 +30,6 @@
     "build": "tsc --build tsconfig.json"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-jobs": "0.1.2-alpha.2",
     "@deepseek-ai/dsh-util-values": "0.1.2-alpha.2",
     "@deepseek-ai/schemastery": "3.18.2"
   },

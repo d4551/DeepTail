@@ -112,10 +112,10 @@ function mountControlPlane(hosts: readonly HostRecord[], notice?: string): void 
       pair: () => {
         void pairAnother()
       },
-      repair: () => {
-        // Re-pairing is the same gesture as pairing: the picker writes a fresh
-        // device token over the revoked one under the same host id.
-        void pairAnother()
+      repair: (hostId) => {
+        // Re-pairing is pairing the same host again, so the form opens under the
+        // name it is already filed under rather than blank.
+        void pairAnother(hosts.find((host) => host.id === hostId)?.label)
       },
       unpair: async (hostId) => {
         // The socket is closed before the token is forgotten, so an unpaired
@@ -168,9 +168,9 @@ function reasonOf(reason: unknown): string {
 }
 
 /** Pair a host, then come back to the control plane over the new registry. */
-async function pairAnother(): Promise<void> {
+async function pairAnother(repairing?: string): Promise<void> {
   await clearPage()
-  await renderHostPicker(container)
+  await renderHostPicker(container, undefined, undefined, repairing)
   mountControlPlane(await knownHosts())
 }
 

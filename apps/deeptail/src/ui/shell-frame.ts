@@ -142,7 +142,7 @@ function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
   toggle.setAttribute('aria-expanded', 'false')
 
   scrim.addEventListener('click', () => {
-    setDrawer(false)
+    setDrawer(false, true)
   })
   const onShellKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape' && shell.dataset.drawer === 'open') setDrawer(false, true)

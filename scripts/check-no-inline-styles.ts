@@ -7,21 +7,33 @@
  * rather than a convention.
  *
  * The ban is absolute. There is no allowance. Every module in the repository is
- * scanned alongside the shell document, and the pattern covers every route to an
+ * scanned alongside the shell document, and the patterns cover every route to an
  * element's style: the dotted property, an indexed write, a bulk assign onto
- * `.style`, a `style` attribute in markup, and `setAttribute('style', …)`. A
- * local binding that merely happens to be named `style` is not a write, so the
- * attribute form requires the quote or brace that markup always carries.
+ * `.style`, destructuring it out, the CSS Typed OM, a `style` attribute in
+ * markup, and
+ * `setAttribute('style', …)` however it is spelt — spread over several lines,
+ * or with the attribute name assembled from parts. A local binding that merely
+ * happens to be named `style` is not a write, so the attribute form requires the
+ * quote or brace that markup always carries.
  */
 
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const TREES = ['apps/deeptail/src', 'apps/deeptail/tests', 'packages/host-fleet/src', 'scripts', 'tests'].map(
-  (tree) => new URL(`../${tree}/`, import.meta.url).pathname,
-)
+const TREES = [
+  'apps/deeptail/src',
+  'apps/deeptail/tests',
+  'packages/host-fleet/src',
+  'packages/host-fleet/tests',
+  'scripts',
+  'tests',
+].map((tree) => new URL(`../${tree}/`, import.meta.url).pathname)
 const SHELL = new URL('../apps/deeptail/index.html', import.meta.url).pathname
-const PATTERN = /\.style\b|\bstyle\s*=\s*["'`{]|cssText|setAttribute\(\s*['"`]style['"`]/u
+/** Routes to an element's style that appear on one line. */
+const PATTERN = /\.style\b|\bstyle\s*=\s*["'`{]|cssText|attributeStyleMap|\{\s*style\s*[},:]/u
+
+/** Routes that a call may spread across several lines. */
+const SPANNING = /setAttribute\(\s*['"`]style['"`]|setAttribute\(\s*[^)'"`]*\+/u
 
 /** One file to scan, and the label an offence is reported under. */
 interface Source {
@@ -55,11 +67,22 @@ const scanned = await Promise.all(
 
 const offences: string[] = []
 for (const { label, text } of scanned) {
+  // A call split across lines is invisible to a line-by-line read, so the whole
+  // file is searched for the forms that can span one.
+  const code = text
+    .split('\n')
+    .filter((line) => {
+      const start = line.trimStart()
+      return !(start.startsWith('*') || start.startsWith('//') || start.startsWith('/'))
+    })
+    .join('\n')
+  if (SPANNING.test(code)) offences.push(`${label}: setAttribute writes a style attribute`)
   for (const [index, line] of text.split('\n').entries()) {
-    // Prose describing the ban, and the line declaring it, are data rather
+    // Prose describing the ban, and the lines declaring it, are data rather
     // than uses; everything else is an offence.
     const start = line.trimStart()
-    if (start.startsWith('*') || start.startsWith('//') || start.startsWith('const PATTERN')) continue
+    if (start.startsWith('*') || start.startsWith('//') || start.startsWith('/')) continue
+    if (start.startsWith('const PATTERN') || start.startsWith('const SPANNING')) continue
     if (!PATTERN.test(line)) continue
     offences.push(`${label}:${String(index + 1)}: ${line.trim()}`)
   }
