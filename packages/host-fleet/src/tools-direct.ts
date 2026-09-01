@@ -21,10 +21,13 @@ import type { FleetSendResult } from './types.ts'
  * since ended still spent the operator's intent.
  */
 interface SpawnBudget {
-  /** Whether the budget has no room left for another creation. */
-  exhausted(): boolean
-  /** Charge one creation against the budget. */
-  spend(): void
+  /**
+   * Charge one creation, refusing when the budget has no room left.
+   * @throws Error when the process has already spent its whole budget.
+   */
+  claim(): void
+  /** Return a charge whose creation did not happen. */
+  refund(): void
 }
 
 /** The owning agent as `sessions_send` reads it: the session it speaks for. */
@@ -40,9 +43,19 @@ interface OwningAgent {
 function spawnBudget(max: number): SpawnBudget {
   let spawned = 0
   return {
-    exhausted: () => spawned >= max,
-    spend: () => {
+    claim: () => {
+      // Charged before the creation is attempted rather than after it returns.
+      // Two executions interleaving across that await would otherwise both read
+      // the same remaining slot and both take it.
+      if (spawned >= max) {
+        throw new Error(
+          `sessions_spawn: this process already created ${String(max)} sessions, its configured maxSpawnsPerProcess budget`,
+        )
+      }
       spawned += 1
+    },
+    refund: () => {
+      spawned -= 1
     },
   }
 }
@@ -90,16 +103,18 @@ function sessionsSpawnTool(controller: SessionController, limits: FleetLimits, b
       const task = args.task.trim()
       if (task === '') throw new Error('sessions_spawn: task must not be empty')
       if (exec.agent === undefined) throw new Error('sessions_spawn requires an owning agent session')
-      if (budget.exhausted()) {
-        throw new Error(
-          `sessions_spawn: this process already created ${String(limits.maxSpawnsPerProcess)} sessions, its configured maxSpawnsPerProcess budget`,
-        )
-      }
-      const created = await controller.create({
-        agentPreset: args.agentPreset ?? limits.defaultPreset,
-        ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
-      })
-      budget.spend()
+      budget.claim()
+      // No session comes of a failed creation, so the charge is returned. One
+      // that succeeded keeps its charge even if the opening task fails to land.
+      const created = await controller
+        .create({
+          agentPreset: args.agentPreset ?? limits.defaultPreset,
+          ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
+        })
+        .catch((reason: unknown) => {
+          budget.refund()
+          throw reason
+        })
       await sendPrompt(controller, { sessionId: created.sessionId, text: task, mode: 'queue' }, limits.promptTimeoutMs)
       return {
         sessionId: created.sessionId,

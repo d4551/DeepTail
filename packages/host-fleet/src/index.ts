@@ -26,11 +26,14 @@ export const name = 'host-fleet'
 
 /**
  * Services required before the tools can register. `sessionController` owns
- * every session operation used here; `subagents` is injected so the plugin
- * refuses to load on a host with no delegation registry, where a spawned
- * session would have no owner to report back to.
+ * every session operation used here, and `tools` is what they register on.
+ *
+ * The delegation registry is deliberately absent: `sessions_spawn` creates a
+ * peer through the session controller, which takes no parent, so a spawned
+ * session is not a subagent and requiring that service would refuse hosts these
+ * tools work perfectly well on.
  */
-export const inject = ['tools', 'sessionController', 'subagents']
+export const inject = ['tools', 'sessionController']
 
 /** The plugin config schema cordis validates against. */
 export const Config = fleetLimits
