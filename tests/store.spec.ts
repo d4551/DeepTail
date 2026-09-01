@@ -125,3 +125,66 @@ it('removes a row on a forwarded removal and reports the running flag', async ()
   store.applyEvent('dev-1', 'api-session/status', ['s-a', true])
   expect(store.getState().entries[0]?.sessions[0]?.running).toBe(true)
 })
+
+it('notifies the subscribers it had, not the ones a notification adds', () => {
+  const host = deferredHost()
+  const store = createFleetStore(HOSTS, { apiFor: () => host.api })
+  // Re-subscribing from inside a notification is what a surface that rebuilds
+  // on every change does. Iterating the live set would hand the same round to
+  // each listener the round itself adds, so a surface that resubscribes every
+  // time is never finished being told about one change. The ceiling is only so
+  // that a store which does that ends the test rather than the process.
+  let calls = 0
+  const holder = { drop: (): void => {} }
+  const rebuild = (): void => {
+    holder.drop = store.subscribe(() => {
+      calls += 1
+      holder.drop()
+      if (calls < 20) rebuild()
+    })
+  }
+  rebuild()
+  store.setHostState('dev-1', 'online')
+  expect(calls).toBe(1)
+})
+
+it('ignores a change addressed to a host it does not hold', () => {
+  const host = deferredHost()
+  const store = createFleetStore(HOSTS, { apiFor: () => host.api })
+  let told = 0
+  store.subscribe(() => {
+    told += 1
+  })
+  // Events arrive on a mux that outlives an unpairing, so a row that is gone
+  // must be a no-op rather than a row conjured back with no host on it.
+  store.setHostState('gone-9', 'online')
+  store.applyEvent('gone-9', 'api-session/added', [session('s-1')])
+  expect(store.getState().entries.map((entry) => entry.host.id)).toEqual(['dev-1'])
+  expect(told).toBe(0)
+})
+
+it('re-reads the roster when an event cannot be applied honestly', async () => {
+  let reads = 0
+  const answers: SessionSummary[][] = [[session('s-1')], [session('s-1'), session('s-2', 5)]]
+  const api = {
+    listSessions: () => {
+      const answer = answers[Math.min(reads, answers.length - 1)] ?? []
+      reads += 1
+      return Promise.resolve(answer)
+    },
+    prompt: () => Promise.resolve(),
+    cancel: () => Promise.resolve(),
+    createSession: () => Promise.resolve('s-new'),
+  } satisfies HostApi
+  const store = createFleetStore(HOSTS, { apiFor: () => api })
+  await store.refresh('dev-1')
+  expect([reads, rows(store)]).toEqual([1, ['s-1']])
+  // A status for an id the roster does not hold cannot be applied — the host
+  // emits an agent id at one of its emit sites — so the rows are read again
+  // rather than guessed at.
+  store.applyEvent('dev-1', 'api-session/status', ['agent-7', true])
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(reads).toBe(2)
+  expect(rows(store)).toEqual(['s-2', 's-1'])
+})

@@ -10,8 +10,9 @@
 
 import type { HostApi, SessionSummary } from '../api.ts'
 import type { Translate } from '../locales.ts'
+import { messageOf } from '../reason.ts'
 import type { FleetStore, HostEntry } from '../store.ts'
-import { el, moveRovingFocus } from './dom.ts'
+import { bindRovingFocus, el } from './dom.ts'
 import { focusedControl, restoreFocus } from './roster-focus.ts'
 import { type RowHandlers, sessionRow } from './session-row.ts'
 import { emptyRow, loadingRow, warningRow } from './states.ts'
@@ -108,20 +109,6 @@ function renderRoster(root: HTMLElement, view: RosterView): void {
   }
   bindRovingFocus(stops)
   restoreFocus(root, focused)
-}
-
-/**
- * Keep the whole roster to a single stop in the page's tab order, with the
- * arrow keys moving between rows.
- * @param stops - every row's open control, in display order.
- */
-function bindRovingFocus(stops: readonly HTMLButtonElement[]): void {
-  for (const [index, stop] of stops.entries()) {
-    stop.tabIndex = index === 0 ? 0 : -1
-    stop.addEventListener('keydown', (event) => {
-      moveRovingFocus(event, stops, index)
-    })
-  }
 }
 
 /**
@@ -247,20 +234,11 @@ async function cancelSession(entry: HostEntry, session: SessionSummary, view: Ro
   } catch (reason) {
     // Swallowed deliberately: the operator is told in the roster instead, and
     // an escaping rejection here would be unhandled and silent.
-    mutations.failures.set(entry.host.id, view.t('sessions.stopFailed', { message: describe(reason) }))
+    mutations.failures.set(entry.host.id, view.t('sessions.stopFailed', { message: messageOf(reason) }))
   } finally {
     mutations.busy = false
     view.render()
   }
   // Outside the catch so a refresh failure cannot replace the stop failure.
   await view.store.refresh(entry.host.id)
-}
-
-/**
- * The message a failure should be reported with.
- * @param reason - whatever was thrown.
- * @returns the text to show.
- */
-function describe(reason: unknown): string {
-  return reason instanceof Error ? reason.message : String(reason)
 }

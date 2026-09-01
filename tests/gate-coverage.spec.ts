@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
+import { structureCheckSource } from '../apps/deeptail/tests/structure.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
@@ -55,5 +56,49 @@ describe('the file list both gates read', () => {
       }),
     )
     expect(offences.flat()).toEqual([])
+  })
+})
+
+describe('the structure checks the browser suite evaluates', () => {
+  it('carries the floor each pointer is measured against into the page', () => {
+    // The checks are shipped to the page as their own source text and close
+    // over nothing, so everything they measure against travels in the call. A
+    // value left behind would be a type error where they are written; that it
+    // arrives at all is what is checked here, because the two floors differ and
+    // shipping the wrong one would pass every case on one pointer.
+    expect(structureCheckSource(true)).toContain('"target":44')
+    expect(structureCheckSource(false)).toContain('"target":24')
+    for (const source of [structureCheckSource(true), structureCheckSource(false)]) {
+      expect(source).toContain('a[href], button, input, select, textarea, summary')
+    }
+  })
+})
+
+describe('the design tokens', () => {
+  it('declares none that nothing reads', async () => {
+    const sheets = repositoryFiles(['.css']).filter((file) => file.label.startsWith('apps/deeptail/src/styles/'))
+    const sheetText = (await Promise.all(sheets.map((sheet) => readFile(sheet.path, 'utf8')))).join('\n')
+    const scripts = (
+      await Promise.all(
+        repositoryFiles(['.ts'])
+          .filter((file) => file.label.startsWith('apps/deeptail/src/'))
+          .map((file) => readFile(file.path, 'utf8')),
+      )
+    ).join('\n')
+    // The harness client renders into this same document and reads these tokens
+    // from its own stylesheets, so it counts as a reader; a token neither it
+    // nor this product reads is a value carried for nobody.
+    const client = await readFile(
+      'apps/deeptail/node_modules/@deepseek-ai/dsh-client-web/lib/boot-page.module.css',
+      'utf8',
+    )
+    const declared = new Set([...sheetText.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gmu)].map((match) => match[1] ?? ''))
+    const read = new Set([
+      ...[...sheetText.matchAll(/var\(\s*(--[a-z0-9-]+)/gu)].map((match) => match[1] ?? ''),
+      ...[...scripts.matchAll(/(--[a-z0-9-]+)/gu)].map((match) => match[1] ?? ''),
+      ...[...client.matchAll(/(--[a-z0-9-]+)/gu)].map((match) => match[1] ?? ''),
+    ])
+    expect([...declared].filter((token) => !read.has(token)).toSorted()).toEqual([])
+    expect(declared.size).toBeGreaterThan(20)
   })
 })

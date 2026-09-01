@@ -68,10 +68,9 @@ function buildDialogFrame(title: string): DialogFrame {
 /**
  * Open a dialog.
  * @param title - accessible name and visible heading.
- * @param onClose - called after the dialog closes, however it closed.
  * @returns the dialog's seats and its close handle.
  */
-export function openDialog(title: string, onClose: () => void): Dialog {
+export function openDialog(title: string): Dialog {
   const { root, mask, dialog, body, actions } = buildDialogFrame(title)
 
   const appRoot = document.querySelector<HTMLElement>('#root')
@@ -87,7 +86,6 @@ export function openDialog(title: string, onClose: () => void): Dialog {
     root.remove()
     if (appRoot !== null) appRoot.inert = false
     if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-    onClose()
   }
 
   function onKeyDown(event: KeyboardEvent): void {

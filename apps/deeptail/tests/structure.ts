@@ -17,6 +17,23 @@ export interface StructureFinding {
   readonly detail: string
 }
 
+/**
+ * What the checks measure against, handed to them rather than closed over.
+ *
+ * The checks are shipped to the page as their own source text, so a value they
+ * close over has to arrive with them. Passing it means the compiler is what
+ * guarantees that: a value left behind is a type error here rather than a
+ * `ReferenceError` in the browser — or worse, nothing at all, because a
+ * transpiler that folds a literal into the text hides the omission until the
+ * day the value stops being a literal.
+ */
+interface StructureLimits {
+  /** The smallest target this pointer admits, in CSS pixels. */
+  readonly target: number
+  /** Elements that take focus or activation without a `tabindex`. */
+  readonly interactive: string
+}
+
 /** The smallest touch target Apple's Human Interface Guidelines admit, in CSS pixels. */
 const MINIMUM_TOUCH_TARGET = 44
 
@@ -56,10 +73,11 @@ function checkDuplicateIds(add: Report): void {
  * An interactive element inside another is invalid, and breaks both the tab
  * order and what assistive technology reports.
  * @param add - collects a finding.
+ * @param limits - what the checks measure against.
  */
-function checkNestedInteractive(add: Report): void {
-  for (const node of document.querySelectorAll(INTERACTIVE)) {
-    const outer = node.parentElement?.closest(INTERACTIVE)
+function checkNestedInteractive(add: Report, limits: StructureLimits): void {
+  for (const node of document.querySelectorAll(limits.interactive)) {
+    const outer = node.parentElement?.closest(limits.interactive)
     if (outer !== null && outer !== undefined)
       add('nested-interactive', `${describe(node)} sits inside ${describe(outer)}`)
   }
@@ -141,10 +159,11 @@ function checkClipping(add: Report): void {
 /**
  * Every control a finger reaches clears the platform minimum.
  * @param add - collects a finding.
+ * @param limits - what the checks measure against.
  */
-function checkTouchTargets(add: Report, coarsePointer: boolean): void {
-  const floor = coarsePointer ? MINIMUM_TOUCH_TARGET : MINIMUM_POINTER_TARGET
-  for (const node of document.querySelectorAll(INTERACTIVE)) {
+function checkTouchTargets(add: Report, limits: StructureLimits): void {
+  const floor = limits.target
+  for (const node of document.querySelectorAll(limits.interactive)) {
     // An inert subtree is not reachable, so its geometry is not a target.
     if (node.closest('[inert]') !== null) continue
     const box = node.getBoundingClientRect()
@@ -161,41 +180,41 @@ function checkTouchTargets(add: Report, coarsePointer: boolean): void {
 /**
  * Every structural defect on the current page.
  *
- * Runs in the browser, so it may only use DOM APIs.
- * @param coarsePointer - whether the platform minimum touch target applies.
+ * Runs in the browser, so it may only use DOM APIs and what it is handed.
+ * @param limits - what the checks measure against.
  * @returns every finding, empty when the page conforms.
  */
-function findStructureDefects(coarsePointer: boolean): StructureFinding[] {
+function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   const findings: StructureFinding[] = []
   const add: Report = (rule, detail) => {
     findings.push({ rule, detail })
   }
   checkDuplicateIds(add)
-  checkNestedInteractive(add)
+  checkNestedInteractive(add, limits)
   checkHeadingOrder(add)
   checkAriaReferences(add)
   checkListOwnership(add)
   checkHorizontalOverflow(add)
   checkClipping(add)
-  checkTouchTargets(add, coarsePointer)
+  checkTouchTargets(add, limits)
   return findings
 }
 
 /**
  * The source a page evaluates to run these checks.
  *
- * The checks run in the browser, where nothing from this module exists, so the
- * source of every constant and helper they need is emitted alongside the call.
- * That is what lets them be written as ordinary typed functions rather than one
- * closure that may reference nothing outside itself.
+ * The checks run in the browser, where nothing from this module exists, so
+ * their source is emitted and everything they measure against is passed in the
+ * call. Nothing is closed over, so nothing can be left behind: what the page
+ * receives is exactly what the compiler checked.
  * @param coarsePointer - whether the platform minimum touch target applies.
  * @returns the source to evaluate.
  */
 export function structureCheckSource(coarsePointer: boolean): string {
-  const constants = [
-    `const MINIMUM_TOUCH_TARGET = ${String(MINIMUM_TOUCH_TARGET)}`,
-    `const INTERACTIVE = ${JSON.stringify(INTERACTIVE)}`,
-  ]
+  const limits: StructureLimits = {
+    target: coarsePointer ? MINIMUM_TOUCH_TARGET : MINIMUM_POINTER_TARGET,
+    interactive: INTERACTIVE,
+  }
   const functions = [
     describe,
     checkDuplicateIds,
@@ -208,5 +227,5 @@ export function structureCheckSource(coarsePointer: boolean): string {
     checkTouchTargets,
     findStructureDefects,
   ].map(String)
-  return `${[...constants, ...functions].join('\n\n')}\nreturn findStructureDefects(${String(coarsePointer)})`
+  return `${functions.join('\n\n')}\nreturn findStructureDefects(${JSON.stringify(limits)})`
 }

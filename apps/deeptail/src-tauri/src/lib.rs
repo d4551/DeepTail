@@ -18,7 +18,6 @@ mod hosts;
 mod pairing;
 mod secrets;
 
-pub use hosts::HostRecord;
 
 /// How long to wait for a TCP+TLS handshake with a host.
 const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);

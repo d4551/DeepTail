@@ -10,6 +10,7 @@
 
 import type { HostApi } from '../api.ts'
 import type { Translate } from '../locales.ts'
+import { messageOf } from '../reason.ts'
 import { button, el } from './dom.ts'
 import { type Dialog, openDialog } from './modal.ts'
 
@@ -104,7 +105,7 @@ function buildComposeActions(t: Translate, dismiss: () => void, submit: (mode: P
  * @param report - where the outcome is told.
  */
 function reportSendFailure(reason: unknown, report: ComposeReport): void {
-  const message = reason instanceof Error ? reason.message : String(reason)
+  const message = messageOf(reason)
   if (!report.dialog.isOpen()) {
     report.announce(report.t('chat.sendFailed', { message }))
     return
@@ -162,7 +163,7 @@ function sendOnEnter(textarea: HTMLTextAreaElement, send: () => void): void {
  * @param announce - live-region announcer for the success case.
  */
 export function openComposeSheet(target: ComposeTarget, t: Translate, announce: (text: string) => void): void {
-  const dialog = openDialog(target.title, () => {})
+  const dialog = openDialog(target.title)
   const { textarea, failure } = buildComposeFields(t)
   dialog.body.append(textarea, failure)
 

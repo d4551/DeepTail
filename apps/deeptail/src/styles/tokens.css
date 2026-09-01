@@ -3,7 +3,10 @@
  *
  * Source: deepseek-harness/packages/client/ui-theme/src/styles/base.css and
  * design-platform.css. The alias values below are the resolved rungs of that
- * sheet's static scale, inlined because DeepTail needs only this subset.
+ * sheet's static scale, inlined because DeepTail needs only this subset — and
+ * the subset is exactly what something reads: this product's own sheets and
+ * scripts, or the harness client's, which renders into the same document and
+ * takes its palette from here.
  *
  * Light/dark follows the harness mechanism exactly: `body[data-ds-dark-theme]`
  * carries the dark palette, and `prefers-color-scheme` is read once in script
@@ -43,29 +46,24 @@
     "Microsoft YaHei";
   --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ds-transition-duration: 0.2s;
-  --ds-transition-duration-fast: 0.1s;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --ds-transition-duration: 0.01ms;
-    --ds-transition-duration-fast: 0.01ms;
   }
 }
 
 body {
   --dsw-alias-bg-base: rgb(255, 255, 255);
-  --dsw-alias-bg-layer-1: rgb(255, 255, 255);
   --dsw-alias-bg-layer-2: rgb(255, 255, 255);
   --dsw-alias-bg-module-platform: rgb(245, 246, 247);
   --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.24);
-  --dsw-alias-bg-skeleton: rgba(0, 0, 0, 0.04);
   --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
   --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
   --dsw-alias-border-inverted: rgba(0, 0, 0, 0);
   --dsw-alias-label-primary: rgb(15, 17, 21);
   --dsw-alias-label-secondary: rgb(97, 102, 107);
-  --dsw-alias-label-dimmed: rgb(225, 229, 238);
   --dsw-alias-label-primary-foreground: rgb(255, 255, 255);
   --dsw-alias-label-error: rgb(198, 16, 16);
   --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
@@ -77,7 +75,6 @@ body {
   --dsw-alias-state-business-primary: rgb(65, 118, 230);
   --dsw-alias-state-success-primary: rgb(34, 197, 94);
   --dsw-alias-state-warn-primary: rgb(245, 158, 11);
-  --dsw-alias-state-error-primary: rgb(236, 19, 19);
   --dsw-specific-sidebar-fill: rgb(249, 250, 251);
   --dsw-specific-menu: rgb(255, 255, 255);
   /* The two elevation rungs coincide in this theme: upstream points both at
@@ -89,24 +86,20 @@ body {
   --dsw-alias-scrollbar-hover-l2: rgb(212, 212, 212);
   --dsw-alias-button-floating-hover: rgb(241, 243, 245);
   --dsw-alias-button-elevated-fill: rgb(255, 255, 255);
-  --dsw-shadow-lv2: 0 4px 12px 0 rgba(0, 0, 0, 0.02), 0 2px 8px 0 rgba(0, 0, 0, 0.04);
   --dsw-mask-blur: blur(2px);
   --dsw-shadow-lv3: 0 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 4px 0 rgba(0, 0, 0, 0.02), 0 12px 32px 0 rgba(0, 0, 0, 0.08);
 }
 
 body[data-ds-dark-theme] {
   --dsw-alias-bg-base: rgb(21, 21, 23);
-  --dsw-alias-bg-layer-1: rgb(35, 35, 36);
   --dsw-alias-bg-layer-2: rgb(44, 44, 46);
   --dsw-alias-bg-module-platform: rgb(53, 54, 56);
   --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.5);
-  --dsw-alias-bg-skeleton: rgba(255, 255, 255, 0.08);
   --dsw-alias-border-l1: rgba(255, 255, 255, 0.06);
   --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
   --dsw-alias-border-inverted: rgba(255, 255, 255, 0.06);
   --dsw-alias-label-primary: rgb(249, 250, 251);
   --dsw-alias-label-secondary: rgb(207, 211, 214);
-  --dsw-alias-label-dimmed: rgb(67, 69, 74);
   --dsw-alias-label-primary-foreground: rgb(15, 17, 21);
   --dsw-alias-label-error: rgb(250, 150, 150);
   --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
@@ -118,25 +111,14 @@ body[data-ds-dark-theme] {
   --dsw-alias-state-business-primary: rgb(103, 158, 254);
   --dsw-alias-state-success-primary: rgb(34, 197, 94);
   --dsw-alias-state-warn-primary: rgb(245, 158, 11);
-  --dsw-alias-state-error-primary: rgb(242, 90, 90);
   --dsw-specific-sidebar-fill: rgb(27, 27, 28);
-  --dsw-specific-selector: rgb(53, 54, 56);
-  --dsw-specific-tip: rgb(53, 54, 56);
-  --dsw-specific-input-major: rgb(44, 44, 46);
   --dsw-specific-menu: rgb(53, 54, 56);
   --dsw-alias-scrollbar-bg-l1: rgb(60, 60, 61);
   --dsw-alias-scrollbar-bg-l2: rgb(84, 85, 87);
   --dsw-alias-scrollbar-hover-l1: rgb(84, 85, 87);
   --dsw-alias-scrollbar-hover-l2: rgb(101, 103, 107);
-  --dsw-alias-button-floating-fill: rgb(44, 44, 46);
   --dsw-alias-button-floating-hover: rgb(53, 54, 56);
   --dsw-alias-button-elevated-fill: rgb(67, 69, 74);
-  --dsw-alias-interactive-bg-hover-solid: rgb(53, 54, 56);
-  --dsw-alias-border-l2-darkmode-thin: rgba(255, 255, 255, 0.06);
-  --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
-  --dsw-alias-state-warn-tertiary: rgb(39, 36, 31);
-  --dsw-alias-state-warn-secondary: rgb(247, 173, 49);
-  --dsw-alias-state-business-tertiary: rgb(52, 65, 91);
 }
 
 /* Source: ui-theme/src/styles/scrollbar.css:18-21. The l1 pair is the

@@ -14,12 +14,10 @@
  */
 
 import { cancelFrame, type HostEvent, openFrame, readSocketFrame } from './frames.ts'
+import { SOCKET_OPEN } from './socket-state.ts'
 import type { CarrierHooks, MuxSocketLike } from './transport.ts'
 
 export type { HostEvent }
-
-/** `WebSocket.OPEN`. */
-const SOCKET_OPEN = 1
 
 /** First reconnect delay; each further attempt doubles it. */
 const RETRY_BASE_MS = 500
@@ -50,12 +48,17 @@ interface StreamHandlers {
  * How long to wait before opening the next connection.
  *
  * Exponential with a cap, jittered so a whole fleet does not return in lockstep
- * and give the hosts a synchronised thundering herd.
+ * and give the hosts a synchronised thundering herd. The cap is what keeps a
+ * long outage retrying at all rather than doubling into hours.
+ *
+ * Exported because it is the reconnection policy rather than an implementation
+ * detail: a ceiling and a spread are properties worth stating and worth
+ * checking, and neither is observable from the connection that uses them.
  *
  * @param attempt - how many reconnects have already been scheduled.
  * @returns the delay in milliseconds.
  */
-function retryDelay(attempt: number): number {
+export function retryDelay(attempt: number): number {
   const backoff = Math.min(RETRY_CEILING_MS, RETRY_BASE_MS * 2 ** attempt)
   return backoff * (0.8 + Math.random() * 0.4)
 }
@@ -117,11 +120,16 @@ function openEventStream(carrier: CarrierHooks, sinks: RosterSinks): () => void 
   let ready = false
   let closed = false
 
-  /** Cancel the stream, close the socket, and latch the connection shut. */
+  /**
+   * Cancel the stream, close the socket, and latch the connection shut.
+   *
+   * The latch is what silences the connection: every callback reads it, so
+   * detaching listeners as well would only be a second way of saying the same
+   * thing, and a second thing to keep in step.
+   */
   function close(): void {
     if (closed) return
     closed = true
-    socket.removeEventListener('message', receive)
     if (socket.readyState === SOCKET_OPEN) socket.send(cancelFrame(streamId))
     socket.close()
   }
@@ -204,9 +212,10 @@ export function subscribeRoster(carrier: CarrierHooks, sinks: RosterSinks): () =
   connect()
 
   return () => {
-    // Disposal is final: the live connection is latched shut and the pending
-    // retry is cleared, so nothing this subscription owns can reopen after this
-    // returns.
+    // Disposal is final. The latch is what makes reconnection impossible —
+    // a timer that fires after it finds `disposed` set and returns — and
+    // clearing the timer is what stops it outliving the subscription that
+    // scheduled it.
     disposed = true
     if (retry !== undefined) clearTimeout(retry)
     retry = undefined

@@ -17,6 +17,7 @@ import { renderHostPicker } from './fleet.ts'
 import type { HostRecord } from './host.ts'
 import { followAppLifecycle } from './lifecycle.ts'
 import { createTranslate } from './locales.ts'
+import { messageOf } from './reason.ts'
 import { applyTheme } from './theme.ts'
 import { type CarrierHooks, createCarrier } from './transport.ts'
 import { button, el } from './ui/dom.ts'
@@ -152,19 +153,10 @@ async function openSession(host: HostRecord, sessionId: string): Promise<void> {
     // on screen. The control plane goes back up carrying the reason, rather
     // than a blank window with the reason only in the console.
     await clearPage()
-    mountControlPlane(await knownHosts(), reasonOf(reason))
+    mountControlPlane(await knownHosts(), messageOf(reason))
   } finally {
     opening = false
   }
-}
-
-/**
- * The message a failure should be reported with.
- * @param reason - whatever was thrown.
- * @returns the text to show.
- */
-function reasonOf(reason: unknown): string {
-  return reason instanceof Error ? reason.message : String(reason)
 }
 
 /** Pair a host, then come back to the control plane over the new registry. */

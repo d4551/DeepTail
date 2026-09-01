@@ -101,5 +101,3 @@ export async function teardownHost(booted: BootedHost, host: HostRecord): Promis
   Reflect.deleteProperty(globalThis, TRANSPORT_KEY)
   Reflect.deleteProperty(globalThis, BOOT_READY_KEY)
 }
-
-export type { HostRecord } from './host.ts'

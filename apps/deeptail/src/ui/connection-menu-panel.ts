@@ -12,7 +12,7 @@
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
 import type { ConnectionPorts } from './connection-menu.ts'
-import { button, el, moveRovingFocus, screenReaderText } from './dom.ts'
+import { bindRovingFocus, button, el, screenReaderText } from './dom.ts'
 import { hostStateLabel } from './states.ts'
 
 /** Everything one open menu is drawn from. */
@@ -56,7 +56,7 @@ export function buildConnectionMenu(options: MenuPanelOptions): MenuPanel {
   menu.append(footer)
   // Arrow keys walk everything the menu owns, and the whole menu is one stop in
   // the page's tab order, so a row and a pinned action are reached the same way.
-  wireRovingFocus([...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"], [role="menuitemradio"]')])
+  bindRovingFocus([...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"], [role="menuitemradio"]')])
   return { menu, initialFocus: rows[0] }
 }
 
@@ -148,18 +148,4 @@ function menuItem(className: string, text: string, onClick: () => void): HTMLBut
   const item = button(className, text, onClick)
   item.setAttribute('role', 'menuitem')
   return item
-}
-
-/**
- * Give the host rows one roving tab stop, so the arrow keys walk the menu and
- * Tab leaves it.
- * @param stops - every row in display order.
- */
-function wireRovingFocus(stops: readonly HTMLButtonElement[]): void {
-  for (const [index, stop] of stops.entries()) {
-    stop.tabIndex = index === 0 ? 0 : -1
-    stop.addEventListener('keydown', (event) => {
-      moveRovingFocus(event, stops, index)
-    })
-  }
 }

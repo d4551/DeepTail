@@ -131,12 +131,29 @@ function nextIndex(key: string, index: number, length: number): number | undefin
 }
 
 /**
+ * Give a set of controls one roving tab stop.
+ *
+ * The first control carries the page's tab stop and the rest are reached with
+ * the arrow keys, so a list of a hundred rows is one stop rather than a
+ * hundred. Every list that does this does it the same way, from here.
+ * @param stops - every control in display order.
+ */
+export function bindRovingFocus(stops: readonly HTMLElement[]): void {
+  for (const [index, stop] of stops.entries()) {
+    stop.tabIndex = index === 0 ? 0 : -1
+    stop.addEventListener('keydown', (event) => {
+      moveRovingFocus(event, stops, index)
+    })
+  }
+}
+
+/**
  * Move a roving tab stop between rows.
  * @param event - the keydown.
  * @param rows - every row in display order.
  * @param index - the row the event came from.
  */
-export function moveRovingFocus(event: KeyboardEvent, rows: readonly HTMLElement[], index: number): void {
+function moveRovingFocus(event: KeyboardEvent, rows: readonly HTMLElement[], index: number): void {
   if (event.target !== event.currentTarget) return
   const target = nextIndex(event.key, index, rows.length)
   if (target === undefined) return

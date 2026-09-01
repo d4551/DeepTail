@@ -9,7 +9,7 @@
  */
 
 import { expect, it } from 'bun:test'
-import { subscribeRoster } from '../apps/deeptail/src/stream.ts'
+import { retryDelay, subscribeRoster } from '../apps/deeptail/src/stream.ts'
 import type { CarrierHooks, MuxSocketLike } from '../apps/deeptail/src/transport.ts'
 
 /** `WebSocket.OPEN`. */
@@ -206,5 +206,63 @@ it('discards a malformed frame instead of throwing', () => {
     sockets[0]?.dispatchEvent(new MessageEvent('message', { data: '{not json' }))
   }).not.toThrow()
   expect(seen.lost).toEqual([])
+  dispose()
+})
+
+it('spreads its reconnection delays and caps them', () => {
+  // A fleet whose hosts all drop together must not come back in lockstep, and a
+  // long outage must keep retrying rather than doubling into hours.
+  const first = Array.from({ length: 200 }, () => retryDelay(0))
+  expect(Math.min(...first)).toBeGreaterThanOrEqual(400)
+  expect(Math.max(...first)).toBeLessThanOrEqual(600)
+  // Jitter: the same attempt must not always produce the same delay.
+  expect(new Set(first).size).toBeGreaterThan(1)
+  // Growth: each attempt waits about twice as long as the one before it.
+  expect(Math.min(...Array.from({ length: 200 }, () => retryDelay(3)))).toBeGreaterThan(Math.max(...first))
+  // Ceiling: however long the outage runs, the wait stops growing.
+  for (const attempt of [8, 12, 20, 60]) {
+    expect([attempt, retryDelay(attempt) <= 36_000]).toEqual([attempt, true])
+  }
+})
+
+it('sends nothing on a socket that opens after the subscription was disposed', () => {
+  const { carrier, sockets } = fakeCarrier()
+  const seen = recorder()
+  const dispose = subscribeRoster(carrier, seen.sinks)
+  dispose()
+  // The socket lost its race with disposal. Opening the stream now would claim
+  // a stream id on a host nothing is listening to, and leave it open.
+  sockets[0]?.open()
+  expect(sockets[0]?.sent.filter((frame) => JSON.parse(frame).type === 'open')).toEqual([])
+  expect(seen.ready).toBe(0)
+})
+
+it('starts the backoff again once a connection has been established', async () => {
+  const { carrier, sockets } = fakeCarrier()
+  const seen = recorder()
+  const dispose = subscribeRoster(carrier, seen.sinks)
+  // Two failures in a row, so the next wait is the third rung of the backoff.
+  sockets[0]?.open()
+  sockets[0]?.drop()
+  await new Promise<void>((settle) => {
+    setTimeout(settle, 800)
+  })
+  sockets.at(-1)?.open()
+  sockets.at(-1)?.drop()
+  await new Promise<void>((settle) => {
+    setTimeout(settle, 1_400)
+  })
+  const established = sockets.length
+  // This one reaches the host. A subsequent drop is a fresh outage, so it must
+  // wait the first rung again rather than the third: without the reset the next
+  // socket would be about two seconds away, and this would still be waiting.
+  sockets.at(-1)?.open()
+  sockets.at(-1)?.deliver({ type: 'ready', clientId: 'c', host: 'h' })
+  expect(seen.ready).toBe(1)
+  sockets.at(-1)?.drop()
+  await new Promise<void>((settle) => {
+    setTimeout(settle, 900)
+  })
+  expect(sockets.length).toBeGreaterThan(established)
   dispose()
 })

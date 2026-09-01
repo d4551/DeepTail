@@ -16,7 +16,7 @@
 
 import type { HostRecord } from './host.ts'
 import type { PickerKey, Translate } from './locales.ts'
-import { el, moveRovingFocus } from './ui/dom.ts'
+import { bindRovingFocus, el } from './ui/dom.ts'
 import type { HostState } from './ui/states.ts'
 
 /** The localized key for one host state's spoken label. */
@@ -113,7 +113,6 @@ function hostRow(
   const row = el('button', { className: 'row' })
   row.type = 'button'
   row.dataset.deeptailHost = host.id
-  row.tabIndex = 0
 
   const reachability = ctx.states.get(host.id) ?? 'unknown'
   const dot = el('span', { className: 'dot' })
@@ -135,24 +134,10 @@ function hostRow(
 }
 
 /**
- * Keep the whole list to a single stop in the page's tab order, with the arrow
- * keys moving between rows.
- *
- * The rows are bound once the list is complete so the keys move over the final
- * ordering rather than a partial one.
- * @param rows - every host row, in display order.
- * @returns nothing.
- */
-function bindRovingFocus(rows: readonly HTMLButtonElement[]): void {
-  for (const [index, row] of rows.entries()) {
-    row.addEventListener('keydown', (event) => {
-      moveRovingFocus(event, rows, index)
-    })
-  }
-}
-
-/**
  * The host list, with roving focus and the pair-another footer.
+ *
+ * The rows are bound once the list is complete, so the arrow keys move over the
+ * final ordering rather than a partial one.
  * @param ctx - the hosts to lay out and what their controls invoke.
  * @returns the lede, the list and the footer.
  */
@@ -166,7 +151,6 @@ export function listView(ctx: ListContext): HTMLElement[] {
   const rows: HTMLButtonElement[] = []
   for (const host of ctx.hosts) {
     const { row, seat } = hostRow(ctx, host, ctx.pick)
-    if (rows.length > 0) row.tabIndex = -1
     rows.push(row)
     list.append(seat)
   }

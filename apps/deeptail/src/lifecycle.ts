@@ -24,16 +24,16 @@ import type { CarrierHooks } from './transport.ts'
  * holds a socket per paired host long before any of them is booted, and those
  * are exactly the sockets an OS suspend kills silently.
  *
+ * The watch lasts as long as the document does, which is as long as the app
+ * does: there is no unmount to tear it down for, so there is no disposer to
+ * hand back and nothing that would ever call one.
+ *
  * @param carriers - supplies the carriers open at the moment the page hides.
- * @returns a disposer that stops watching.
  */
-export function followAppLifecycle(carriers: () => Iterable<CarrierHooks>): () => void {
+export function followAppLifecycle(carriers: () => Iterable<CarrierHooks>): void {
   const onVisibilityChange = (): void => {
     if (document.visibilityState !== 'hidden') return
     for (const carrier of carriers()) carrier.suspendMuxSocket()
   }
   document.addEventListener('visibilitychange', onVisibilityChange)
-  return () => {
-    document.removeEventListener('visibilitychange', onVisibilityChange)
-  }
 }

@@ -16,6 +16,7 @@
 import { type HostApi, RemoteError } from '../api.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
+import { messageOf } from '../reason.ts'
 import { button, el } from './dom.ts'
 import { type Dialog, openDialog } from './modal.ts'
 
@@ -159,7 +160,7 @@ async function spawnSession(
     report.dialog.close()
     report.announce(report.t('spawn.created', { label: host.label }))
   } catch (reason) {
-    const message = reason instanceof Error ? reason.message : String(reason)
+    const message = messageOf(reason)
     if (!report.dialog.isOpen()) {
       report.announce(report.t('spawn.failed', { message }))
       return
@@ -200,7 +201,7 @@ function describeSpawnFailure(reason: unknown, message: string, t: Translate): s
  * @param announce - live-region announcer.
  */
 export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text: string) => void): void {
-  const dialog = openDialog(t('shell.newSession'), () => {})
+  const dialog = openDialog(t('shell.newSession'))
   const { fields, host: hostSelect, preset, cwd, failure } = buildSpawnForm(ports.hosts, t)
   dialog.body.append(...fields)
 

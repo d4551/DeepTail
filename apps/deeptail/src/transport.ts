@@ -10,6 +10,7 @@
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core'
+import { SOCKET_CLOSED, SOCKET_OPEN } from './socket-state.ts'
 
 /** One frame from the Rust-held mux socket. */
 type MuxFrame =
@@ -24,11 +25,6 @@ interface CarrierResponse {
   readonly headers: readonly (readonly [string, string])[]
   readonly body: string
 }
-
-/** `WebSocket.OPEN`; the harness mux client compares `readyState` against it. */
-const OPEN = 1
-/** `WebSocket.CLOSED`. */
-const CLOSED = 3
 
 /**
  * Perform one unary `/api` call through Rust.
@@ -122,7 +118,7 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
       this.#receive(frame)
     })
     invoke('carrier_open_mux', { host, channel }).catch((reason: unknown) => {
-      this.#readyState = CLOSED
+      this.#readyState = SOCKET_CLOSED
       this.dispatchEvent(new Event('error'))
       // The harness client treats an error before open as a carrier failure and
       // retries with backoff; the close keeps its bookkeeping consistent.
@@ -144,8 +140,8 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
       // The Rust side rejects exactly when no socket is open for this host, so
       // swallowing it would leave `readyState` reporting OPEN while every write
       // vanished — the failure this adapter exists to make visible.
-      if (this.#readyState === CLOSED) return
-      this.#readyState = CLOSED
+      if (this.#readyState === SOCKET_CLOSED) return
+      this.#readyState = SOCKET_CLOSED
       this.dispatchEvent(new Event('error'))
       this.dispatchEvent(new CloseEvent('close', { code: 1006, reason: String(reason) }))
     })
@@ -157,8 +153,8 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
    * silent close would leave it waiting on a socket that is already gone.
    */
   close(): void {
-    if (this.#readyState === CLOSED) return
-    this.#readyState = CLOSED
+    if (this.#readyState === SOCKET_CLOSED) return
+    this.#readyState = SOCKET_CLOSED
     void invoke('carrier_close_mux', { host: this.#host })
     this.dispatchEvent(new CloseEvent('close', { code: 1000, reason: 'suspended' }))
   }
@@ -166,7 +162,7 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
   #receive(frame: MuxFrame): void {
     switch (frame.type) {
       case 'open':
-        this.#readyState = OPEN
+        this.#readyState = SOCKET_OPEN
         this.dispatchEvent(new Event('open'))
         return
       case 'message':
@@ -176,7 +172,7 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
         this.dispatchEvent(new Event('error'))
         return
       case 'close':
-        this.#readyState = CLOSED
+        this.#readyState = SOCKET_CLOSED
         this.dispatchEvent(new CloseEvent('close', { code: frame.code, reason: frame.reason }))
         return
       default:

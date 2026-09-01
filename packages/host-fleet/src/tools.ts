@@ -11,8 +11,6 @@ import type { FleetLimits } from './limits.ts'
 import { registerSessionsCancel, registerSessionsSend, registerSessionsSpawn } from './tools-direct.ts'
 import { registerSessionsFollow, registerSessionsList } from './tools-observe.ts'
 
-export type { FleetLimits } from './limits.ts'
-
 /**
  * Register every fleet tool on `ctx.tools`.
  * @param ctx - host context carrying `tools` and `sessionController`.

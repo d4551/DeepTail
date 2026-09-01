@@ -11,6 +11,7 @@
 
 import { type HostApi, RemoteError, type SessionSummary, UNAUTHORIZED } from './api.ts'
 import type { HostRecord } from './host.ts'
+import { messageOf } from './reason.ts'
 import { type HeldEvent, readRosterEvent, sortByActivity } from './roster.ts'
 import type { HostState, Phase } from './ui/states.ts'
 
@@ -178,7 +179,7 @@ async function readRoster(
  * @returns the phase and reachability to write to the host's row.
  */
 function failedRead(reason: unknown): Partial<HostEntry> {
-  const message = reason instanceof Error ? reason.message : String(reason)
+  const message = messageOf(reason)
   const unauthorized = reason instanceof RemoteError && reason.code === UNAUTHORIZED
   return { phase: { kind: 'failed', message }, state: unauthorized ? 'unauthorized' : 'offline' }
 }

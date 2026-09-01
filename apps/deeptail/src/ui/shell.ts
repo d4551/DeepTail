@@ -20,6 +20,7 @@ import { mountShellFrame, type ShellFrame } from './shell-frame.ts'
 import '../styles/tokens.css'
 import '../styles/picker.css'
 import '../styles/shell.css'
+import { messageOf } from '../reason.ts'
 
 /** What the shell needs from the application. */
 export interface ShellPorts {
@@ -143,7 +144,7 @@ function mountHostSwitcher(
       repair: ports.repair,
       unpair: (hostId) => {
         void ports.unpair(hostId).catch((reason: unknown) => {
-          frame.showError(reason instanceof Error ? reason.message : String(reason))
+          frame.showError(messageOf(reason))
         })
       },
     },
@@ -226,7 +227,7 @@ function createFleetPorts(
 function handOff(host: HostRecord, sessionId: string, ports: ShellPorts, frame: ShellFrame, t: Translate): void {
   frame.body.replaceChildren(el('div', { className: 'placeholder', text: t('shell.opening', { label: host.label }) }))
   void ports.open(host, sessionId).catch((reason: unknown) => {
-    const message = reason instanceof Error ? reason.message : String(reason)
+    const message = messageOf(reason)
     const failure = el('div', { className: 'error', text: message, role: 'alert' })
     failure.dataset.deeptailState = 'open-error'
     frame.body.replaceChildren(failure)

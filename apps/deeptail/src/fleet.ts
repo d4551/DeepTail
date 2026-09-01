@@ -17,6 +17,7 @@ import { mountPickerFrame, type Phase, type PickerActions, type PickerFrame, pai
 import type { HostState } from './ui/states.ts'
 import './styles/tokens.css'
 import './styles/picker.css'
+import { messageOf } from './reason.ts'
 
 /** How the picker reaches the native side; replaced wholesale in tests. */
 export interface PickerPorts {
@@ -24,10 +25,6 @@ export interface PickerPorts {
   pairHost(link: string, label: string): Promise<HostRecord>
   hostState(host: HostRecord): Promise<HostState>
 }
-
-/** Render a rejected promise reason as message text. */
-const messageOf = (reason: PromiseRejectedResult['reason']): string =>
-  reason instanceof Error ? reason.message : String(reason)
 
 /** Read a promise as data: success keeps its value, failure keeps its message. */
 const settled = async <T>(
@@ -219,23 +216,23 @@ async function pairAndFinish(run: PickerRuntime, hosts: readonly HostRecord[], d
  * @param repairing - the label of a host being paired again, which opens the
  * form directly with that name in place so the record is replaced rather than
  * a second one written beside it.
- * @returns the chosen host.
+ * @returns a promise that settles when the operator has chosen.
  */
 export function renderHostPicker(
   container: HTMLElement,
   ports: PickerPorts = tauriPorts,
   translate: Translate = createTranslate(),
   repairing?: string,
-): Promise<HostRecord> {
-  return new Promise<HostRecord>((resolve) => {
+): Promise<void> {
+  return new Promise<void>((resolve) => {
     const run: PickerRuntime = {
       ports,
       t: translate,
       model: { phase: { kind: 'loading' }, states: new Map() },
       frame: mountPickerFrame(container),
-      finish: (host) => {
+      finish: () => {
         container.replaceChildren()
-        resolve(host)
+        resolve()
       },
     }
     if (repairing === undefined) {
