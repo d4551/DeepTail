@@ -106,3 +106,47 @@ it('meets the platform touch minimum on every control a finger can reach', async
   expect(await defects(page, true)).toBe('')
   await page.close()
 })
+
+it('has no structural defects with the document direction reversed', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  // Layout is flow-relative, so reversing the direction must not overflow the
+  // viewport or clip a label. This is what a future right-to-left locale meets.
+  await page.evaluate(() => {
+    document.documentElement.dir = 'rtl'
+  })
+  await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'attached' })
+  expect(await defects(page)).toBe('')
+  await page.close()
+})
+
+it('slides the drawer in from the inline start in either direction', async () => {
+  const measured = await Promise.all(
+    (['ltr', 'rtl'] as const).map(async (direction) => {
+      const page = await harness.open(fleet(), { mobile: true })
+      await page.waitForSelector('[data-deeptail-shell]')
+      await page.evaluate((value) => {
+        document.documentElement.dir = value
+      }, direction)
+      await page.locator('[data-deeptail-action="drawer"]').click()
+      await page
+        .locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]')
+        .waitFor({ state: 'visible' })
+      // The drawer slides, so measure once it has come to rest rather than part
+      // way through the transition.
+      await page.waitForFunction(() => {
+        const sidebar = document.querySelector('#deeptail-sidebar')
+        return sidebar !== null && Math.round(sidebar.getBoundingClientRect().x) >= 0
+      })
+      const box = await page.locator('#deeptail-sidebar').boundingBox()
+      const width = page.viewportSize()?.width ?? 0
+      await page.close()
+      // Whichever edge it comes from, the opened drawer sits inside the viewport.
+      return [direction, Math.round(box?.x ?? -1) >= 0, Math.round((box?.x ?? 0) + (box?.width ?? 0)) <= width]
+    }),
+  )
+  expect(measured).toEqual([
+    ['ltr', true, true],
+    ['rtl', true, true],
+  ])
+})

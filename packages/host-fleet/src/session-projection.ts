@@ -13,7 +13,7 @@ import type { FleetSessionSummary } from './types.ts'
 type JsonObject = { readonly [key: string]: JsonValue }
 
 /** A content block carrying text, as narrowed from the JSON wire form. */
-interface TextBlock {
+type TextBlock = {
   readonly type: 'text'
   readonly text: string
 }
@@ -67,10 +67,7 @@ export function recentLines(records: readonly SessionHistoryRecord[]): string[] 
 function previewOf(data: JsonValue): string {
   const content = messageContent(data)
   const text = content
-    .filter(
-      (block): block is TextBlock =>
-        isObject(block) && block.type === 'text' && typeof block.text === 'string',
-    )
+    .filter((block): block is TextBlock => isObject(block) && block.type === 'text' && typeof block.text === 'string')
     .map((block) => block.text)
     .join(' ')
   const collapsed = text.replaceAll(/\s+/gu, ' ').trim()
@@ -87,8 +84,9 @@ function messageContent(data: JsonValue): readonly JsonValue[] {
   const direct = data.content
   if (Array.isArray(direct)) return direct
   const nested = data.message
-  if (isObject(nested) && Array.isArray(nested.content)) return nested.content
-  return []
+  if (nested === undefined || !isObject(nested)) return []
+  const inner = nested.content
+  return Array.isArray(inner) ? inner : []
 }
 
 /**

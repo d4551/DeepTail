@@ -65,7 +65,7 @@
   border-radius: 10px;
   background: transparent;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   line-height: 20px;
@@ -288,7 +288,7 @@
   color: var(--dsw-alias-label-primary);
   /* The state has to survive both a contrast floor and a colourblind reader, so
    * it is carried by a rule the text colour does not have to encode. */
-  border-left: 3px solid var(--dsw-alias-state-warn-primary);
+  border-inline-start: 3px solid var(--dsw-alias-state-warn-primary);
 }
 
 .retry {
@@ -347,5 +347,12 @@
   .actions {
     flex-direction: column-reverse;
     align-items: stretch;
+  }
+}
+
+@media (forced-colors: active) {
+  .warning,
+  .error {
+    border: 1px solid CanvasText;
   }
 }

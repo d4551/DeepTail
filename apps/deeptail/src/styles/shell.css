@@ -26,7 +26,7 @@
   padding: 6px 12px;
   box-sizing: border-box;
   background: var(--dsw-specific-sidebar-fill);
-  border-right: 1px solid var(--dsw-alias-border-l1);
+  border-inline-end: 1px solid var(--dsw-alias-border-l1);
   /* Elevated surface: the thumb steps up a rung against the sidebar fill. */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
@@ -112,7 +112,7 @@
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   line-height: 22px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -134,8 +134,7 @@
   max-height: min(420px, calc(100vh - 24px));
   position: absolute;
   top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   z-index: 100;
   box-sizing: border-box;
   display: flex;
@@ -160,7 +159,7 @@
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   line-height: 22px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -181,7 +180,7 @@
   color: var(--dsw-alias-label-primary);
   font-size: 12px;
   line-height: 18px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -233,7 +232,7 @@
   align-items: center;
   gap: 4px;
   height: 36px;
-  padding-left: 4px;
+  padding-inline-start: 4px;
   margin-bottom: 4px;
   box-sizing: border-box;
   color: var(--dsw-alias-label-secondary);
@@ -254,8 +253,8 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  margin-left: -4px;
-  padding-left: 4px;
+  margin-inline-start: -4px;
+  padding-inline-start: 4px;
   padding-bottom: 16px;
   /* Rows never shift sideways when the bar reveals. */
   scrollbar-gutter: stable;
@@ -325,7 +324,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -437,7 +436,7 @@
   }
 
   .row-actions {
-    margin-left: 14px;
+    margin-inline-start: 14px;
   }
 
   /* Every control a finger reaches clears the platform minimum, not only the
@@ -601,13 +600,15 @@
 
   .sidebar {
     position: fixed;
-    inset: 0 auto 0 0;
+    inset-block: 0;
+    inset-inline-start: 0;
     z-index: 200;
     width: min(300px, 86vw);
     padding-top: max(6px, env(safe-area-inset-top));
     padding-bottom: max(6px, env(safe-area-inset-bottom));
     padding-left: max(12px, env(safe-area-inset-left));
-    transform: translateX(-100%);
+    /* Off screen past the inline start, which is the right edge under RTL. */
+    transform: translateX(calc(-100% * var(--dsh-inline-direction)));
     visibility: hidden;
     /* Hiding waits for the slide to finish; revealing does not wait at all, so
        focus can enter the drawer on the frame it opens. */
@@ -653,5 +654,43 @@
 @media (prefers-reduced-motion: reduce) {
   .sidebar {
     transition: none;
+  }
+}
+
+/* ── forced colours ───────────────────────────────────────────────────────── */
+
+/* Windows high contrast substitutes the whole palette, so a state carried by a
+ * background or a token colour is simply not shown. Each one is restated
+ * against the system colour keywords the mode guarantees. */
+@media (forced-colors: active) {
+  .sidebar {
+    border-inline-end: 1px solid CanvasText;
+  }
+
+  .menu,
+  .modal-dialog {
+    border: 1px solid CanvasText;
+  }
+
+  .dot {
+    border: 1px solid CanvasText;
+    forced-color-adjust: none;
+  }
+
+  .dot[data-state="online"] {
+    background: Highlight;
+  }
+
+  .dot[data-state="offline"],
+  .dot[data-state="unauthorized"] {
+    background: Mark;
+  }
+
+  .session-row:hover,
+  .menu-item:hover,
+  .session-open:focus-visible,
+  .row-action:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 }
