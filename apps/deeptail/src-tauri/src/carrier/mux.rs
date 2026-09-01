@@ -57,7 +57,12 @@ impl MuxRegistry {
         let (socket, _) = tokio_tungstenite::connect_async(request).await.map_err(|e| e.to_string())?;
         let (mut write, mut read) = socket.split();
         let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
-        self.senders.lock().expect("mux registry mutex poisoned").insert(host.id.clone(), tx);
+        // Re-opening a host replaces its socket. Close the one being displaced
+        // rather than dropping its sender: an orphaned pump task would hold the
+        // old connection open against the host for as long as it stayed alive.
+        if let Some(previous) = self.senders()?.insert(host.id.clone(), tx) {
+            let _ = previous.send(Message::Close(None));
+        }
 
         let _ = channel.send(MuxFrame::Open);
 
@@ -105,23 +110,31 @@ impl MuxRegistry {
         Ok(())
     }
 
+    /// Take the socket table, mapping poisoning to an ordinary error.
+    fn senders(&self) -> Result<std::sync::MutexGuard<'_, HashMap<String, mpsc::UnboundedSender<Message>>>, String> {
+        self.senders.lock().map_err(|_| "mux socket table lock was poisoned by an earlier panic".to_owned())
+    }
+
     /// Send one text frame on an open socket.
     ///
     /// # Errors
     /// Returns an error when no socket is open for that host, or when the pump
     /// task has already exited.
     pub fn send(&self, host_id: &str, data: String) -> Result<(), String> {
-        let senders = self.senders.lock().expect("mux registry mutex poisoned");
+        let senders = self.senders()?;
         let sender = senders.get(host_id).ok_or_else(|| format!("no open mux socket for host {host_id}"))?;
         sender.send(Message::text(data)).map_err(|_| format!("mux socket for host {host_id} is closed"))
     }
 
     /// Close and forget the socket for one host. Closing an absent socket is
     /// not an error — the caller's intent is already satisfied.
-    pub fn close(&self, host_id: &str) {
-        let mut senders = self.senders.lock().expect("mux registry mutex poisoned");
-        if let Some(sender) = senders.remove(host_id) {
+    ///
+    /// # Errors
+    /// Returns an error when the socket table lock is poisoned.
+    pub fn close(&self, host_id: &str) -> Result<(), String> {
+        if let Some(sender) = self.senders()?.remove(host_id) {
             let _ = sender.send(Message::Close(None));
         }
+        Ok(())
     }
 }

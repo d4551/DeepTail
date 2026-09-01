@@ -1,16 +1,7 @@
 /**
- * Page-side interpreter for the harness's index-injection table.
- *
- * TEMPORARY OWNER. The harness already has this interpreter — it is
- * `applyIndexInjections` in `dsh-experimental-webworker-runtime`, the mirror of
- * the served `renderIndexInjections`. That package is under
- * `packages/experimental/`, which the harness marks private and excludes from
- * releases, so it is not on the registry and DeepTail cannot import it.
- *
- * Seam (d) of the harness work this app depends on promotes that function into
- * `@deepseek-ai/dsh-client-modules/client`, beside the `bootInjections`
- * producer. When it lands, delete this file and import it from there: the table
- * must not have two interpreters for longer than it takes to land that PR.
+ * Page-side interpreter for the harness's index-injection table: the ordered
+ * boot rows a served page carries in its HTML. Mirrors the harness's
+ * `renderIndexInjections`, which renders the same table into markup.
  *
  * @module
  */
@@ -34,41 +25,51 @@ export type IndexInjection =
  * @param loadScript - executes one `script-src` row; DeepTail's carrier, because
  * the row URLs are host paths that only an authenticated request can reach.
  */
-export async function applyIndexInjections(
+export function applyIndexInjections(
   rows: readonly IndexInjection[],
   loadScript: (src: string) => Promise<void>,
 ): Promise<void> {
-  for (const row of rows) {
-    switch (row.kind) {
-      case 'global':
-        Object.assign(globalThis, { [row.name]: row.value })
-        break
-      case 'script': {
-        const element = document.createElement('script')
-        element.textContent = row.text
-        ;(row.placement === 'head' ? document.head : document.body).append(element)
-        break
-      }
-      case 'script-src':
-        await loadScript(row.src)
-        break
-      case 'script-preload':
-        // Nothing to warm: our carrier has no browser-visible URL to prefetch,
-        // and the matching `script-src` row performs the real request.
-        break
-      case 'style': {
-        const element = document.createElement('style')
-        element.textContent = row.text
-        document.head.append(element)
-        break
-      }
-      case 'html':
-        ;(row.placement === 'head' ? document.head : document.body).insertAdjacentHTML('beforeend', row.html)
-        break
-      default:
-        // The union is closed by the host that produced it; an unknown tag
-        // means the two halves disagree, which must be loud.
-        throw new Error(`deeptail: unknown index injection row ${JSON.stringify(row)}`)
+  // Sequential by construction: each row's promise is chained onto the previous
+  // one, so a `global` row always lands before the scripts that read it.
+  return rows.reduce<Promise<void>>(
+    (previous, row) => previous.then(() => applyRow(row, loadScript)),
+    Promise.resolve(),
+  )
+}
+
+/**
+ * Execute one row.
+ * @param row - the row to apply.
+ * @param loadScript - executes a `script-src` row through the carrier.
+ */
+async function applyRow(row: IndexInjection, loadScript: (src: string) => Promise<void>): Promise<void> {
+  switch (row.kind) {
+    case 'global':
+      Object.assign(globalThis, { [row.name]: row.value })
+      return
+    case 'script': {
+      const element = document.createElement('script')
+      element.textContent = row.text
+      ;(row.placement === 'head' ? document.head : document.body).append(element)
+      return
     }
+    case 'script-src':
+      await loadScript(row.src)
+      return
+    case 'script-preload':
+      // Our carrier has no browser-visible URL to warm; the matching
+      // `script-src` row performs the real request.
+      return
+    case 'style': {
+      const element = document.createElement('style')
+      element.textContent = row.text
+      document.head.append(element)
+      return
+    }
+    case 'html':
+      ;(row.placement === 'head' ? document.head : document.body).insertAdjacentHTML('beforeend', row.html)
+      return
+    default:
+      throw new Error(`deeptail: unknown index injection row ${JSON.stringify(row)}`)
   }
 }

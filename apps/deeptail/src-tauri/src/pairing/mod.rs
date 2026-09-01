@@ -27,6 +27,7 @@ pub enum PairingError {
 
 /// The host's answer to a pairing request.
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PairingGrant {
     /// Stable identity the host filed this device under.
     pub device_id: String,

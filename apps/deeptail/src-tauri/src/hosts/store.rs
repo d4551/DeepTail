@@ -15,6 +15,8 @@ pub enum HostStoreError {
     NoDataDir,
     #[error("no host is registered under id {0:?}")]
     Unknown(String),
+    #[error("host registry lock was poisoned by an earlier panic")]
+    Poisoned,
 }
 
 /// The non-secret host registry, persisted as one JSON file in the app data
@@ -47,9 +49,17 @@ impl HostStore {
     }
 
     /// Every registered host, in insertion order.
-    #[must_use]
-    pub fn list(&self) -> Vec<HostRecord> {
-        self.hosts.lock().expect("host registry mutex poisoned").clone()
+    ///
+    /// # Errors
+    /// Returns [`HostStoreError::Poisoned`] when an earlier panic left the lock
+    /// unusable. A command reports that; it does not take the process down.
+    pub fn list(&self) -> Result<Vec<HostRecord>, HostStoreError> {
+        Ok(self.locked()?.clone())
+    }
+
+    /// Take the registry lock, mapping poisoning to an ordinary error.
+    fn locked(&self) -> Result<std::sync::MutexGuard<'_, Vec<HostRecord>>, HostStoreError> {
+        self.hosts.lock().map_err(|_| HostStoreError::Poisoned)
     }
 
     /// One host by id.
@@ -57,9 +67,7 @@ impl HostStore {
     /// # Errors
     /// Returns [`HostStoreError::Unknown`] when no host carries that id.
     pub fn get(&self, id: &str) -> Result<HostRecord, HostStoreError> {
-        self.hosts
-            .lock()
-            .expect("host registry mutex poisoned")
+        self.locked()?
             .iter()
             .find(|host| host.id == id)
             .cloned()
@@ -71,7 +79,7 @@ impl HostStore {
     /// # Errors
     /// Returns [`HostStoreError`] when the registry cannot be written.
     pub fn upsert(&self, record: HostRecord) -> Result<(), HostStoreError> {
-        let mut hosts = self.hosts.lock().expect("host registry mutex poisoned");
+        let mut hosts = self.locked()?;
         match hosts.iter_mut().find(|host| host.id == record.id) {
             Some(existing) => *existing = record,
             None => hosts.push(record),
@@ -85,7 +93,7 @@ impl HostStore {
     /// # Errors
     /// Returns [`HostStoreError`] when the registry cannot be written.
     pub fn remove(&self, id: &str) -> Result<(), HostStoreError> {
-        let mut hosts = self.hosts.lock().expect("host registry mutex poisoned");
+        let mut hosts = self.locked()?;
         hosts.retain(|host| host.id != id);
         Self::persist(&self.path, &hosts)
     }

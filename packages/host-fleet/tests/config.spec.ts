@@ -11,7 +11,8 @@ describe('host-fleet config', () => {
     expect(resolved.defaultPreset).toBe('standard')
     expect(resolved.maxPromptChars).toBe(8192)
     expect(resolved.listLimit).toBe(50)
-    expect(resolved.maxSpawned).toBe(8)
+    expect(resolved.maxSpawnsPerProcess).toBe(8)
+    expect(resolved.promptTimeoutMs).toBe(30_000)
   })
 
   it('rejects a non-positive list limit', () => {
@@ -20,5 +21,13 @@ describe('host-fleet config', () => {
 
   it('rejects a non-positive prompt budget', () => {
     expect(() => new Config({ maxPromptChars: 0 })).toThrow()
+  })
+
+  it('rejects a non-positive prompt timeout', () => {
+    expect(() => new Config({ promptTimeoutMs: 0 })).toThrow()
+  })
+
+  it('rejects a non-positive spawn budget', () => {
+    expect(() => new Config({ maxSpawnsPerProcess: 0 })).toThrow()
   })
 })

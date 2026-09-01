@@ -14,19 +14,11 @@ export const name = 'host-fleet-invariant'
 export const inject = ['invariants']
 
 /**
- * Every `fleet/route` this package appends must name a session that the
- * persistence layer can still locate, so a replayed transcript never points at
- * a target that was never created.
+ * No runtime invariant: this package appends no session event and owns no
+ * mutable state an independent companion could observe. Its tools' guards are
+ * checked at the call boundary and covered by unit tests.
  */
-const install: InvariantInstaller = (ctx) => {
-  ctx.on('session/event', (session, event) => {
-    if (event.type !== 'fleet/route') return
-    const target = event.data.target
-    if (target === session.id) {
-      throw new Error(`${PACKAGE_NAME}: fleet/route target ${target} is the routing session itself`)
-    }
-  })
-}
+const install: InvariantInstaller = () => {}
 
 /**
  * Register this package's invariant companion.

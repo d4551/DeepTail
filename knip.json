@@ -5,8 +5,21 @@
       "project": ["src/**/*.ts"]
     },
     "apps/deeptail": {
-      "entry": ["src/fleet.ts", "tests/*.spec.ts"],
-      "project": ["src/**/*.ts", "tests/**/*.ts"]
+      "entry": ["tests/*.spec.ts"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"],
+      "ignoreDependencies": [
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    },
+    ".": {
+      "entry": ["scripts/*.ts"],
+      "project": ["scripts/**/*.ts"]
     }
   }
 }

@@ -26,7 +26,8 @@
     - id: host-fleet
       name: './lib/index.js'
       config:
-        maxSpawned: 8
+        maxSpawnsPerProcess: 8
         defaultPreset: standard
         maxPromptChars: 8192
         listLimit: 50
+        promptTimeoutMs: 30000

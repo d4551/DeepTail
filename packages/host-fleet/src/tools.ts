@@ -11,16 +11,18 @@ import type {
   SessionRequestId,
   SessionSummary,
 } from '@deepseek-ai/dsh-api-session-controller/types'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId as SessionIdType } from '@deepseek-ai/dsh-session/types'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { FleetSendResult, FleetSessionSummary } from './types.ts'
 
 /** Resolved plugin config after schemastery applied its defaults. */
 export interface FleetLimits {
-  readonly maxSpawned: number
+  readonly maxSpawnsPerProcess: number
   readonly defaultPreset: string
   readonly maxPromptChars: number
   readonly listLimit: number
+  readonly promptTimeoutMs: number
 }
 
 /**
@@ -49,6 +51,24 @@ function summarize(row: SessionSummary): FleetSessionSummary {
     ...(typeof title === 'string' ? { title } : {}),
     ...(row.parentSessionId === undefined ? {} : { parentSessionId: row.parentSessionId }),
   }
+}
+
+/**
+ * Admit a model-supplied session id.
+ *
+ * The harness treats a session id as opaque, so this validates what a tool
+ * boundary can: a non-empty single-line token. Rejecting here keeps a malformed
+ * argument from reaching the controller as a branded value it will trust.
+ * @param raw - the `sessionId` argument exactly as the model supplied it.
+ * @param tool - the calling tool, named in the failure message.
+ * @returns the branded session id.
+ */
+function admitSessionId(raw: string, tool: string): SessionIdType {
+  const trimmed = raw.trim()
+  if (trimmed === '' || /\s/u.test(trimmed)) {
+    throw new Error(`${tool}: ${JSON.stringify(raw)} is not a session id`)
+  }
+  return SessionId(trimmed)
 }
 
 /**
@@ -162,9 +182,9 @@ export function applyFleetTools(ctx: Context, limits: FleetLimits): void {
             const task = args.task.trim()
             if (task === '') throw new Error('sessions_spawn: task must not be empty')
             if (exec.agent === undefined) throw new Error('sessions_spawn requires an owning agent session')
-            if (spawned >= limits.maxSpawned) {
+            if (spawned >= limits.maxSpawnsPerProcess) {
               throw new Error(
-                `sessions_spawn: this process already created ${String(limits.maxSpawned)} sessions, its configured maxSpawned budget`,
+                `sessions_spawn: this process already created ${String(limits.maxSpawnsPerProcess)} sessions, its configured maxSpawnsPerProcess budget`,
               )
             }
             const created = await controller.create({
@@ -173,7 +193,6 @@ export function applyFleetTools(ctx: Context, limits: FleetLimits): void {
             })
             spawned += 1
             await sendPrompt(created.sessionId, task, 'queue')
-            exec.agent.session.append('fleet/route', { target: created.sessionId, reason: 'spawned', prompt: task })
             return {
               sessionId: created.sessionId,
               ...(created.agentPreset === undefined ? {} : { agentPreset: created.agentPreset }),
@@ -218,12 +237,10 @@ export function applyFleetTools(ctx: Context, limits: FleetLimits): void {
               )
             }
             if (exec.agent === undefined) throw new Error('sessions_send requires an owning agent session')
-            const target = args.sessionId as SessionId
+            const target = admitSessionId(args.sessionId, 'sessions_send')
             if (target === exec.agent.session.id) throw new Error('sessions_send: a session cannot address itself')
             const mode = args.mode === 'steer' ? 'steer' : 'queue'
-            const result = await sendPrompt(target, message, mode)
-            exec.agent.session.append('fleet/route', { target, reason: 'user-request', prompt: message })
-            return result
+            return sendPrompt(target, message, mode)
           },
           presentCall: (args) => ({
             card: 'generic',
@@ -254,7 +271,7 @@ export function applyFleetTools(ctx: Context, limits: FleetLimits): void {
             ],
           },
           execute(args) {
-            const accepted = controller.cancel({ sessionId: args.sessionId as SessionId })
+            const accepted = controller.cancel({ sessionId: admitSessionId(args.sessionId, 'sessions_cancel') })
             return Promise.resolve({ cancelled: accepted.accepted })
           },
           presentCall: (args) => ({ card: 'generic', title: `Cancel ${args.sessionId}`, kind: 'other' }),
@@ -297,7 +314,7 @@ export function applyFleetTools(ctx: Context, limits: FleetLimits): void {
             ],
           },
           async execute(args, exec) {
-            const address = { kind: 'session', sessionId: args.sessionId as SessionId } as const
+            const address = { kind: 'session', sessionId: admitSessionId(args.sessionId, 'sessions_follow') } as const
             // `page` needs a `throughSeq` that only a follow opening frame supplies,
             // so the snapshot frame is the entry point for a one-shot read: take it
             // and stop, leaving no live stream behind.
@@ -329,7 +346,7 @@ export function applyFleetTools(ctx: Context, limits: FleetLimits): void {
    * @param mode - queue after current work, or steer into the live turn.
    * @returns the correlation the controller accepted.
    */
-  async function sendPrompt(sessionId: SessionId, text: string, mode: 'queue' | 'steer'): Promise<FleetSendResult> {
+  async function sendPrompt(sessionId: SessionIdType, text: string, mode: 'queue' | 'steer'): Promise<FleetSendResult> {
     const id = requestId(crypto.randomUUID())
     await controller.prompt(
       {
@@ -338,7 +355,7 @@ export function applyFleetTools(ctx: Context, limits: FleetLimits): void {
         mode,
         content: [{ type: 'text', text }],
       },
-      AbortSignal.timeout(30_000),
+      AbortSignal.timeout(limits.promptTimeoutMs),
     )
     return { sessionId, mode, requestId: id }
   }
@@ -363,12 +380,47 @@ function recentLines(records: readonly SessionHistoryRecord[]): string[] {
 }
 
 /**
- * Best-effort one-line preview of a logged message payload.
- * @param data - the event payload, whose message shape varies by event type.
- * @returns a trimmed single-line preview, or a placeholder when no text is present.
+ * One-line preview of a logged message.
+ *
+ * Reads the `text` of every `TextBlock` in the message content — `user/message`
+ * carries its content directly, `assistant/message` nests it under `message` —
+ * and joins them. Reasoning, images, and tool blocks are deliberately skipped:
+ * this is the line a person scans in a session list.
+ * @param data - the `user/message` or `assistant/message` event payload.
+ * @returns a trimmed single-line preview, empty when the message carries no text.
  */
 function previewOf(data: unknown): string {
-  const text = JSON.stringify(data) ?? ''
+  const content = messageContent(data)
+  const text = content
+    .filter(
+      (block): block is { type: 'text'; text: string } =>
+        isRecord(block) && block.type === 'text' && typeof block.text === 'string',
+    )
+    .map((block) => block.text)
+    .join(' ')
   const collapsed = text.replaceAll(/\s+/gu, ' ').trim()
   return collapsed.length > 160 ? `${collapsed.slice(0, 157)}...` : collapsed
+}
+
+/**
+ * The content array of a logged message payload, from either shape.
+ * @param data - the event payload.
+ * @returns the content blocks, or an empty list when the payload carries none.
+ */
+function messageContent(data: unknown): readonly unknown[] {
+  if (!isRecord(data)) return []
+  const direct = data.content
+  if (Array.isArray(direct)) return direct
+  const nested = data.message
+  if (isRecord(nested) && Array.isArray(nested.content)) return nested.content
+  return []
+}
+
+/**
+ * Whether a value is a plain object with string keys.
+ * @param value - the value to test.
+ * @returns true when the value can be indexed by key.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

@@ -18,8 +18,8 @@ type CommandResult<T> = Result<T, String>;
 
 /// Every paired host.
 #[tauri::command]
-pub fn list_hosts(state: State<'_, AppState>) -> Vec<HostRecord> {
-    state.hosts.list()
+pub fn list_hosts(state: State<'_, AppState>) -> CommandResult<Vec<HostRecord>> {
+    state.hosts.list().map_err(|e| e.to_string())
 }
 
 /// Resolve one host for the frontend's boot sequence. Proves a device token is
@@ -144,8 +144,8 @@ pub fn carrier_send_mux(state: State<'_, AppState>, host: String, data: String) 
 /// mobile suspends the process, and a socket the OS silently killed would
 /// otherwise look open until the first failed send.
 #[tauri::command]
-pub fn carrier_close_mux(state: State<'_, AppState>, host: String) {
-    state.sockets.close(&host);
+pub fn carrier_close_mux(state: State<'_, AppState>, host: String) -> CommandResult<()> {
+    state.sockets.close(&host)
 }
 
 /// Resolve a host and its token, then make the call.

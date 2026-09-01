@@ -21,8 +21,6 @@
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "noImplicitReturns": true,
-    "erasableSyntaxOnly": false,
-    "skipLibCheck": true
+    "noImplicitReturns": true
   }
 }

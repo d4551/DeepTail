@@ -15,19 +15,22 @@
 
 import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 import { invoke } from '@tauri-apps/api/core'
+import type { HostRecord } from './host.ts'
 import { applyIndexInjections, type IndexInjection } from './injections.ts'
-import { createCarrier } from './transport.ts'
+import { type CarrierHooks, createCarrier } from './transport.ts'
 
-/** One paired host, as the registry reports it. */
-export interface HostRecord {
-  readonly id: string
-  readonly label: string
-  readonly origin: string
-  readonly lastSeen?: number
+/** Names owned by the harness's page-boot protocol. */
+const BOOT_READY_KEY = '__DSH_BOOT_READY__'
+const TRANSPORT_KEY = '__DSH_TRANSPORT__'
+
+/** A running shell and the carrier feeding it. */
+export interface BootedHost {
+  readonly entry: AppWebEntry
+  readonly carrier: CarrierHooks
 }
 
 interface BootReadyGlobal {
-  __DSH_BOOT_READY__?: PromiseWithResolvers<void>
+  [BOOT_READY_KEY]?: PromiseWithResolvers<void>
 }
 
 /**
@@ -37,10 +40,10 @@ interface BootReadyGlobal {
  */
 function bootReadyGate(): PromiseWithResolvers<void> {
   const page = globalThis as BootReadyGlobal
-  const existing = page.__DSH_BOOT_READY__
+  const existing = page[BOOT_READY_KEY]
   if (existing !== undefined) return existing
   const created = Promise.withResolvers<void>()
-  page.__DSH_BOOT_READY__ = created
+  page[BOOT_READY_KEY] = created
   return created
 }
 
@@ -49,26 +52,28 @@ function bootReadyGate(): PromiseWithResolvers<void> {
  *
  * @param host - the host to connect to.
  * @param container - mount point handed to the shell's UI renderer.
- * @returns the live shell entry; dispose it before booting another host.
+ * @returns the live shell entry and its carrier; tear down before booting another host.
  */
-export async function bootHost(host: HostRecord, container: HTMLElement): Promise<AppWebEntry> {
+export async function bootHost(host: HostRecord, container: HTMLElement): Promise<BootedHost> {
   const ready = bootReadyGate()
-  // The handshake may fail before the entry awaits the promise; this no-op
-  // subscription keeps that from surfacing as an unhandled rejection.
   void ready.promise.catch(() => {})
+  const carrier = createCarrier(host.id)
   try {
-    const carrier = createCarrier(host.id)
-    Object.assign(globalThis, { __DSH_TRANSPORT__: carrier })
+    Object.assign(globalThis, { [TRANSPORT_KEY]: carrier })
     const injections = await invoke<readonly IndexInjection[]>('boot_injections', { host: host.id })
     await applyIndexInjections(injections, (src: string) => carrier.loadBundle(src))
     ready.resolve()
   } catch (reason) {
+    // The transport global is installed before the table is applied, so a
+    // failure here must remove it: a half-booted page that still advertises a
+    // carrier would let a retry attach to a host it never finished reaching.
+    Reflect.deleteProperty(globalThis, TRANSPORT_KEY)
     ready.reject(reason)
     throw reason
   }
   const entry = new AppWebEntry(container)
   await entry.run()
-  return entry
+  return { entry, carrier }
 }
 
 /**
@@ -79,12 +84,15 @@ export async function bootHost(host: HostRecord, container: HTMLElement): Promis
  * `ctx.connection` refuses a second generation source in one client runtime,
  * so one shell at a time is the only shape that works on every target.
  *
- * @param entry - the shell entry to dispose.
+ * @param booted - the shell entry and carrier to dispose.
  * @param host - the host whose mux socket should be closed with it.
  */
-export async function teardownHost(entry: AppWebEntry, host: HostRecord): Promise<void> {
-  await entry.dispose()
+export async function teardownHost(booted: BootedHost, host: HostRecord): Promise<void> {
+  booted.carrier.suspendMuxSocket()
+  await booted.entry.dispose()
   await invoke('carrier_close_mux', { host: host.id })
-  Reflect.deleteProperty(globalThis, '__DSH_TRANSPORT__')
-  Reflect.deleteProperty(globalThis, '__DSH_BOOT_READY__')
+  Reflect.deleteProperty(globalThis, TRANSPORT_KEY)
+  Reflect.deleteProperty(globalThis, BOOT_READY_KEY)
 }
+
+export type { HostRecord } from './host.ts'

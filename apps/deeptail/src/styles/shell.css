@@ -1,0 +1,560 @@
+/* The control-plane shell: sidebar, connection menu, fleet roster, dialogs.
+ *
+ * Geometry and interaction states follow the harness web client so the two
+ * products read as one. Sources, per block: ui-layout/AppFrame.module.css,
+ * ui-sidebar/SidebarRoot.module.css, ui-workspace/rows/Rows.module.css and
+ * WorkspaceBrowser.module.css, ui-primitives/Menu.module.css and
+ * Modal.module.css.
+ */
+
+/* ── frame ────────────────────────────────────────────────────────────────── */
+
+.shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-rows: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+}
+
+.sidebar {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 6px 12px;
+  box-sizing: border-box;
+  background: var(--dsw-specific-sidebar-fill);
+  border-right: 1px solid var(--dsw-alias-border-l1);
+  /* Elevated surface: the thumb steps up a rung against the sidebar fill. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── sidebar head ─────────────────────────────────────────────────────────── */
+
+.brand-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 60px;
+  padding: 8px 0 8px 4px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.brand-name {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.04em;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* New session: 38px bar, 12px radius, elevated fill. */
+.new-session {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 8px 16px;
+  margin: 0 2px 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.new-session:hover:not(:disabled) {
+  background: var(--dsw-alias-button-floating-hover);
+}
+
+.new-session:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* ── connection menu ──────────────────────────────────────────────────────── */
+
+.connection {
+  position: relative;
+  flex: none;
+  margin-bottom: 8px;
+}
+
+.connection-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 22px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.connection-trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.connection-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Elevated card: hairline is transparent in light, visible in dark, because
+   the shadow alone cannot separate a dark card from a dark ground. */
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  border-radius: 12px;
+  background: var(--dsw-specific-menu);
+  box-shadow: var(--dsw-shadow-lv3);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 22px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item:hover:not([aria-disabled="true"]) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.menu-item[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Selection is a trailing check, never a fill. */
+.menu-check {
+  flex: none;
+  color: var(--dsw-alias-label-primary);
+}
+
+.menu-danger {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.menu-danger:hover:not([aria-disabled="true"]) {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.menu-footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+
+/* ── roster ───────────────────────────────────────────────────────────────── */
+
+.section-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding-left: 4px;
+  margin-bottom: 4px;
+  box-sizing: border-box;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.roster {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-left: -4px;
+  padding-left: 4px;
+  padding-bottom: 16px;
+  /* Rows never shift sideways when the bar reveals. */
+  scrollbar-gutter: stable;
+}
+
+.host-group + .host-group {
+  margin-top: 4px;
+}
+
+.host-group > * + * {
+  margin-top: 2px;
+}
+
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.group-count {
+  flex: none;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+
+.session-row:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* The roster clips both axes, so the ring is drawn inward or it is cut off. */
+.session-row:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+}
+
+.session-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.session-time {
+  flex: none;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.row-actions {
+  flex: none;
+  display: none;
+  align-items: center;
+  gap: 12px;
+}
+
+.icon-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+  color: var(--dsw-alias-label-primary);
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* Hover reveal on pointers that have hover; the timestamp yields its place. */
+@media (hover: hover) {
+  .session-row:hover .row-actions,
+  .session-row:focus-within .row-actions {
+    display: inline-flex;
+  }
+
+  .session-row:hover .session-time,
+  .session-row:focus-within .session-time {
+    display: none;
+  }
+}
+
+/* Touch never fires :hover, so the controls stay put. */
+@media not (hover: hover) {
+  .row-actions {
+    display: inline-flex;
+  }
+}
+
+/* ── main pane ────────────────────────────────────────────────────────────── */
+
+.main-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 12px 20px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.main-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.main-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* ── dialogs ──────────────────────────────────────────────────────────────── */
+
+.modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal-mask {
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-bg-mask-1);
+  backdrop-filter: var(--dsw-mask-blur);
+}
+
+.modal-dialog {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(420px, 100%);
+  padding: 22px 24px 24px;
+  box-sizing: border-box;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  border-radius: 24px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-shadow-lv3);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  /* 14 lines at 24px, matching the harness composer cap. Growth is capped and
+     scrolled rather than measured, so no height is ever written from script. */
+  max-height: 336px;
+  padding: 10px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 16px;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.textarea::placeholder {
+  color: var(--dsw-alias-label-caption);
+}
+
+.textarea:focus {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.select:focus {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+/* ── responsive ───────────────────────────────────────────────────────────── */
+
+/* The scrim is declared once, hidden, so the rule that reveals it is never
+   overridden by a later, lower-specificity one. */
+.drawer-scrim {
+  display: none;
+}
+
+.drawer-toggle {
+  display: none;
+}
+
+/* Below the harness's own sidebar breakpoint the column becomes a drawer, so a
+   phone gets the whole width for the roster. */
+@media (max-width: 720px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .drawer-toggle {
+    display: inline-flex;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 200;
+    width: min(300px, 86vw);
+    padding-top: max(6px, env(safe-area-inset-top));
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+    transform: translateX(-100%);
+    transition: transform var(--ds-transition-duration) var(--ds-ease-in-out);
+  }
+
+  .shell[data-drawer="open"] .sidebar {
+    transform: translateX(0);
+  }
+
+  .shell[data-drawer="open"] .drawer-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    background: var(--dsw-alias-bg-mask-1);
+  }
+
+  .main-body {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+}

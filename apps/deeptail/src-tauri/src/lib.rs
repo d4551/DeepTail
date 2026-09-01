@@ -20,6 +20,11 @@ mod secrets;
 
 pub use hosts::HostRecord;
 
+/// How long to wait for a TCP+TLS handshake with a host.
+const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// How long any single `/api` call may take end to end.
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Shared state every command reads: the host registry, the secret store, and
 /// the live mux sockets keyed by host.
 pub struct AppState {
@@ -40,6 +45,10 @@ pub fn run() {
     let secrets = secrets::SecretStore::initialize().expect("secure credential store unavailable");
     let http = reqwest::Client::builder()
         .user_agent(concat!("DeepTail/", env!("CARGO_PKG_VERSION")))
+        // Without these a black-holed host hangs the IPC call, and with it the
+        // screen that would otherwise report the host unreachable.
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
         .build()
         .expect("failed to build the HTTP client");
 

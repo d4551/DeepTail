@@ -1,103 +1,126 @@
 # DeepTail
 
-A Tauri 2 client — desktop, iOS, and Android — that connects to a
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) host,
-monitors its agent sessions live, answers approvals out of band, and gives one
-agent the tools to orchestrate the others.
+A Tauri 2 client — desktop, iOS, and Android — that connects to
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) hosts and
+gives you one control plane over the agent sessions running on all of them.
 
-> Status: scaffold. The shape below is real and the Rust carrier is
-> implemented, but three of the four harness-side seams it depends on are not
-> upstream yet. See [Harness seams](#harness-seams).
+![The fleet roster across two hosts](apps/deeptail/tests/screenshots/fleet-multi-host.png)
+
+## What it does
+
+**DeepTail is the control plane; the harness client is the reader.** Everything
+DeepTail does is a unary call that works over its own carrier today. Reading a
+conversation is a stream, and that belongs to the client already built for it.
+
+| DeepTail | The harness client |
+|---|---|
+| Pair, switch and unpair hosts | Transcripts and tool cards |
+| One roster across every paired host, live | Approvals, projects, plans |
+| Spawn a session from an agent preset | Everything session-local |
+| Message or steer a session | |
+| Stop a running turn | |
+
+Choosing a session hands off: DeepTail boots that host's own client. It opens at
+the client's default view — nothing in its boot surface takes a session id — and
+the copy says so rather than implying a deep link it cannot deliver.
 
 ## How it fits together
 
 ```
 ┌── DeepTail (Tauri) ─────────────────┐        ┌── dsh host ──────────────┐
-│  webview: the harness web client    │        │                          │
+│  webview: control plane + shell     │        │                          │
 │    __DSH_TRANSPORT__ ──┐            │        │  /api          (unary)   │
-│                        │ IPC        │        │  /api/boot     (table)   │
-│  Rust: registry, token,│            │ HTTPS  │  /api/remote.mux (streams)│
-│        reqwest, mux ───┴────────────┼───────▶│  /plugins/<id>/client.js │
+│                        │ IPC        │ HTTPS  │  /api/remote.mux (streams)│
+│  Rust: registry, token,│            ├───────▶│  /plugins/<id>/client.js │
+│        reqwest, mux ───┴────────────┤        │                          │
 └─────────────────────────────────────┘        └──────────────────────────┘
 ```
 
-**The webview never opens a network connection.** That is load-bearing, not
-stylistic: Tauri serves the page from a secure-context origin, so it cannot
-open a `ws://` socket at all, and it cannot attach an `Authorization` header to
-a WebSocket handshake even when it can reach one. Holding the wire in Rust
-removes both limits, keeps the device token out of JavaScript, and lets the
+**The webview never opens a network connection.** Tauri serves the page from a
+secure-context origin, so it cannot open a `ws://` socket at all and cannot
+attach an `Authorization` header to a WebSocket handshake. Holding the wire in
+Rust removes both limits, keeps the device token out of JavaScript, and lets the
 app ship a CSP that names no host:
 
 ```
 default-src 'self'; script-src 'self' blob:; connect-src ipc: http://ipc.localhost
 ```
 
-**DeepTail ships no harness UI.** The client plugins are fetched from whichever
-host you paired with, so client and host can never drift — which matters
-because `SESSION_FORMAT_VERSION` is pinned at `0` with no migration path.
+## Design
+
+The UI is plain DOM — it paints before any harness bundle loads — but not a
+separate design language. `src/styles/tokens.css` holds the harness's own
+resolved `--dsw-alias-*` and `--dsw-specific-*` values and its
+`body[data-ds-dark-theme]` mechanism; geometry follows `ui-sidebar`,
+`ui-primitives/Menu`, `ui-primitives/Modal` and `ui-workspace/rows`.
+
+**No inline styles.** Every visual is a class, enforced by
+`scripts/check-no-inline-styles.ts` in `validate`. One line is permitted, and it
+is the same one the harness's `boot-theme.ts` writes: `documentElement.style.colorScheme`,
+which switches native UA chrome and has no class equivalent.
+
+| | |
+|---|---|
+| ![Connection menu](apps/deeptail/tests/screenshots/connection-menu.png) | ![Dark](apps/deeptail/tests/screenshots/shell-dark.png) |
+| Host switcher — selection is a trailing check, never a fill | The harness dark palette |
+| ![Compose](apps/deeptail/tests/screenshots/compose-sheet.png) | ![Mobile](apps/deeptail/tests/screenshots/shell-mobile.png) |
+| Message or steer a session | 390×844, sidebar as a drawer |
+
+Every state is built and screenshotted: loading, empty-after-settled, error,
+partial failure (one host down, the rest still listed), unauthorized, and
+offline. `apps/deeptail/tests/screenshots/` holds all fifteen.
 
 ## Layout
 
 ```
-apps/deeptail/          the Tauri app
-  src/                  boot sequence, carrier, lifecycle, host picker
-  src-tauri/            the entire network and credential surface
-packages/host-fleet/    the Cordis plugin: sessions_* orchestration tools
-profile/                the dsh profile DeepTail installs on a host
+apps/deeptail/
+  src/            shell, connection menu, roster, dialogs, carrier, stream client
+  src-tauri/      the entire network and credential surface
+packages/host-fleet/   Cordis plugin: sessions_* orchestration tools
+profile/               the dsh profile DeepTail installs on a host
 ```
 
 ## Credentials
 
-One device token per host, in the platform's own credential store. The
-all-in-one `keyring` crate is desktop-only in its default feature, so this uses
-`keyring-core` with exactly one native store linked per target — which is what
-makes iOS and Android work:
+One device token per host in the platform's own store. The all-in-one `keyring`
+crate is desktop-only in its default feature, so this uses `keyring-core` with
+one native store per target — which is what makes iOS and Android work:
+`apple-native-keyring-store`, `android-native-keyring-store` (Keystore +
+SharedPreferences), `windows-native-keyring-store`,
+`dbus-secret-service-keyring-store`.
 
-| Target | Store |
-|---|---|
-| macOS, iOS | `apple-native-keyring-store` |
-| Android | `android-native-keyring-store` (Keystore + SharedPreferences) |
-| Windows | `windows-native-keyring-store` |
-| Linux | `dbus-secret-service-keyring-store` |
-
-Pairing spends the launch token `dsh web` already prints — pasted on desktop,
-scanned as a QR code on mobile — for a long-lived device grant. Plaintext
-pairing is refused off loopback.
+Pairing spends the launch token `dsh web` already prints. Plaintext pairing is
+refused off loopback.
 
 ## Harness seams
 
-DeepTail needs four changes in `deepseek-harness`. Each is a gap in the
-harness's own carrier-override story rather than a DeepTail special case; the
-only existing override is the in-process WebWorker preview, which sidesteps all
-four by running the host locally.
+Reading a conversation needs the harness client, and that client cannot boot
+until three changes land upstream. The control plane does not depend on them.
 
-| # | Seam | Why |
-|---|---|---|
-| a | A socket factory on `ClientTransportHooks` | `remoteStreamUrl()` derives the mux authority from `location.origin`, and a secure-context page cannot open `ws://` |
-| b | A device-credential tier beside `BrowserAuth` | The carrier accepts no `Authorization` header today |
-| c | `collectIndexInjections()` over an authenticated `/api` route | The boot table is only reachable as injected HTML |
-| d | Promote `applyIndexInjections` out of `packages/experimental/` | A non-served shell needs it, and experimental packages are unpublished |
-
-Until (a)–(d) land, the app builds and the Rust carrier works, but the shell
-cannot complete a boot against a host.
+| Seam | Why |
+|---|---|
+| A socket factory on `ClientTransportHooks` | `remoteStreamUrl()` derives the mux authority from `location.origin`, and a secure-context page cannot open `ws://` |
+| `collectIndexInjections()` over an authenticated `/api` route | the boot table is reachable only as injected HTML |
+| Promote `applyIndexInjections` out of `packages/experimental/` | a non-served shell needs it, and that package is not published |
 
 ## Development
 
 ```sh
 bun install
-bun run validate          # lint, typecheck, test, knip
+bun run validate          # lint, styles gate, typecheck, tests, knip, clippy, cargo test, browser
 bun run tauri dev         # desktop
-bun run tauri android dev # requires Android Studio, JAVA_HOME, ANDROID_HOME, NDK_HOME
+bun run tauri android dev # Android Studio, JAVA_HOME, ANDROID_HOME, NDK_HOME
 bun run tauri ios dev     # macOS + Xcode + CocoaPods only
 ```
 
-`cargo test` in `apps/deeptail/src-tauri` covers origin canonicalization and
-pairing-link parsing, including the cases that must be refused.
+Browser tests drive the real built bundle in Chromium and substitute only the
+Tauri IPC boundary, which no browser provides. They assert on rendered text and
+roles and write every screenshot above.
 
 ## Toolchain
 
-TypeScript 7.0.2 · Bun 1.4.0 · Node 24 LTS (26 for development) · Tauri 2.11 ·
-Rust edition 2024 · Vite 8.
+TypeScript 7.0.2 · Bun 1.4 · Node 24 LTS · Tauri 2.11 · Rust edition 2024 ·
+Vite 8 · Playwright 1.62.1.
 
 ## License
 

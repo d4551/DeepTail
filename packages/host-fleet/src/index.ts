@@ -12,9 +12,9 @@
  * @module @deeptail/host-fleet
  */
 
+/// <reference types="@deepseek-ai/dsh-api-session-controller" />
+/// <reference types="@deepseek-ai/dsh-tools" />
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-api-session-controller'
-import type {} from '@deepseek-ai/dsh-tools'
 import z from '@deepseek-ai/schemastery'
 import { applyFleetTools, type FleetLimits } from './tools.ts'
 
@@ -33,21 +33,24 @@ export const inject = ['tools', 'sessionController', 'subagents']
 
 /** Deployment-varying limits; none of these are compiled in. */
 export interface Config {
-  /** Maximum sessions this orchestrator may create in one process lifetime. */
-  maxSpawned?: number
+  /** Sessions this orchestrator may create over one process lifetime. */
+  maxSpawnsPerProcess?: number
   /** Agent preset composed for a session created without an explicit one. */
   defaultPreset?: string
   /** Longest message `sessions_send` will admit, in characters. */
   maxPromptChars?: number
   /** Default row budget for `sessions_list`. */
   listLimit?: number
+  /** How long a delivered prompt may take to be admitted, in milliseconds. */
+  promptTimeoutMs?: number
 }
 
 export const Config: z<Config> = z.object({
-  maxSpawned: z.natural().min(1).default(8),
+  maxSpawnsPerProcess: z.natural().min(1).default(8),
   defaultPreset: z.string().default('standard'),
   maxPromptChars: z.natural().min(1).default(8192),
   listLimit: z.natural().min(1).default(50),
+  promptTimeoutMs: z.natural().min(1).default(30_000),
 })
 
 /**
@@ -59,10 +62,11 @@ export function apply(ctx: Context, config: Config): void {
   // Schemastery `.default()` guarantees every field after validation, but a
   // hand-built test context may mount this plugin with no config at all.
   const limits: FleetLimits = {
-    maxSpawned: config.maxSpawned ?? 8,
+    maxSpawnsPerProcess: config.maxSpawnsPerProcess ?? 8,
     defaultPreset: config.defaultPreset ?? 'standard',
     maxPromptChars: config.maxPromptChars ?? 8192,
     listLimit: config.listLimit ?? 50,
+    promptTimeoutMs: config.promptTimeoutMs ?? 30_000,
   }
   if (limits.defaultPreset.trim() === '') {
     throw new Error('host-fleet: defaultPreset must name an agent preset')

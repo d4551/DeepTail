@@ -118,10 +118,9 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
   constructor(host: string) {
     super()
     this.#host = host
-    const channel = new Channel<MuxFrame>()
-    channel.onmessage = (frame) => {
+    const channel = new Channel<MuxFrame>((frame) => {
       this.#receive(frame)
-    }
+    })
     invoke('carrier_open_mux', { host, channel }).catch((reason: unknown) => {
       this.#readyState = CLOSED
       this.dispatchEvent(new Event('error'))
@@ -144,11 +143,16 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
     void invoke('carrier_send_mux', { host: this.#host, data })
   }
 
-  /** Close the socket. Codes and reasons are carried for parity only; Rust closes cleanly either way. */
+  /**
+   * Close the socket and report it. The `close` event is what the harness
+   * stream client watches to retire the generation and start reconnecting; a
+   * silent close would leave it waiting on a socket that is already gone.
+   */
   close(): void {
     if (this.#readyState === CLOSED) return
     this.#readyState = CLOSED
     void invoke('carrier_close_mux', { host: this.#host })
+    this.dispatchEvent(new CloseEvent('close', { code: 1000, reason: 'suspended' }))
   }
 
   #receive(frame: MuxFrame): void {
@@ -192,6 +196,14 @@ export interface CarrierHooks {
   fetch(input: URL, init: RequestInit): Promise<Response>
   loadBundle(url: string): Promise<void>
   openMuxSocket(): MuxSocketLike
+  /**
+   * Close the live mux socket through its adapter.
+   *
+   * Closing it by invoking the native command directly would drop the
+   * connection without dispatching a `close` event, leaving the harness stream
+   * client believing the socket is still open until its first failed send.
+   */
+  suspendMuxSocket(): void
 }
 
 /**
@@ -200,9 +212,17 @@ export interface CarrierHooks {
  * @returns hooks to install as `__DSH_TRANSPORT__` before the shell boots.
  */
 export function createCarrier(host: string): CarrierHooks {
+  let live: CarrierMuxSocket | undefined
   return {
     fetch: (input, init) => carrierFetch(host, input, init),
     loadBundle: (url) => carrierLoadBundle(host, url),
-    openMuxSocket: () => new CarrierMuxSocket(host),
+    openMuxSocket: () => {
+      live = new CarrierMuxSocket(host)
+      return live
+    },
+    suspendMuxSocket: () => {
+      live?.close()
+      live = undefined
+    },
   }
 }

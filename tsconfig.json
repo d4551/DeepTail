@@ -1,5 +1,5 @@
 {
-  // Solution file: the whole-repo graph for `tsgo --build tsconfig.json`.
+  // Solution file: the whole-repo graph for `tsc --build tsconfig.json`.
   // `files: []` keeps it program-less so the Host and Client Cordis Context
   // merges never meet in one program. Add references, never include/files.
   "extends": "./tsconfig.base.json",

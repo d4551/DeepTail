@@ -8,9 +8,6 @@
 
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
-/** Why the orchestrator directed work at one session. */
-export type FleetRouteReason = 'spawned' | 'delegated' | 'resumed' | 'user-request'
-
 /**
  * One session the orchestrator can see, projected from the controller's
  * `SessionSummary`. Title is not a field on that row — it arrives through the
@@ -40,21 +37,4 @@ export interface FleetSendResult {
   readonly mode: 'queue' | 'steer'
   /** Caller-visible correlation for the admitted prompt. */
   readonly requestId: string
-}
-
-declare module '@deepseek-ai/dsh-session/types' {
-  interface SessionEventMap {
-    /**
-     * The orchestrator directed work at another session. Logged because the
-     * routing decision is model-visible on replay: without it a resumed
-     * transcript cannot explain why a child session exists. Whole-value
-     * append; there is no fold.
-     */
-    'fleet/route': {
-      readonly target: SessionId
-      readonly reason: FleetRouteReason
-      /** The prompt text as admitted, already trimmed to the tool's limit. */
-      readonly prompt: string
-    }
-  }
 }

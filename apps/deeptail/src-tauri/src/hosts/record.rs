@@ -3,6 +3,7 @@ use url::Url;
 
 /// One harness host this installation has paired with.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HostRecord {
     /// Stable local identity; also the secret-store account name.
     pub id: String,

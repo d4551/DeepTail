@@ -5,33 +5,7 @@
   "rules": {
     "typescript/no-explicit-any": "error",
     "no-console": "error",
-    "eqeqeq": "error",
-    "no-underscore-dangle": [
-      "error",
-      {
-        "allow": ["__DSH_BOOT_READY__", "__DSH_TRANSPORT__", "__DSH_BOOT__", "__ModuleLoader__"]
-      }
-    ]
+    "eqeqeq": "error"
   },
-  "overrides": [
-    {
-      "files": ["packages/host-fleet/src/index.ts"],
-      "rules": {
-        "unicorn/require-module-specifiers": "off"
-      }
-    },
-    {
-      "files": ["apps/deeptail/src/injections.ts"],
-      "rules": {
-        "no-await-in-loop": "off"
-      }
-    },
-    {
-      "files": ["apps/deeptail/src/transport.ts"],
-      "rules": {
-        "unicorn/prefer-add-event-listener": "off"
-      }
-    }
-  ],
   "ignorePatterns": ["**/lib/**", "**/dist/**", "**/gen/**", "**/target/**"]
 }
