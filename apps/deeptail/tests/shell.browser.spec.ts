@@ -154,6 +154,49 @@ describe('shell', () => {
     await page.locator('[data-deeptail-field="message"]').fill('please rerun the tests')
     await page.locator('[data-deeptail-action="compose-send"]').click()
     await dialog.waitFor({ state: 'detached' })
+    // A closed dialog is satisfied by a no-op, so assert what reached the host.
+    const sent = (await harness.calls(page)).filter((call) => call.endpoint === 'session/prompt')
+    expect(sent.length).toBe(1)
+    expect(sent[0]?.host).toBe('dev-1')
+    expect(sent[0]?.args.sessionId).toBe('s-running')
+    expect(sent[0]?.args.mode).toBe('queue')
+    expect(sent[0]?.args.content).toEqual([{ type: 'text', text: 'please rerun the tests' }])
+    expect(typeof sent[0]?.args.requestId).toBe('string')
+    await page.close()
+  })
+
+  it('steers rather than queues when Steer is chosen', async () => {
+    const page = await harness.open(oneHost())
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-session="s-running"]').hover()
+    await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-message"]').click()
+    await page.locator('[data-deeptail-field="message"]').fill('stop what you are doing')
+    await page.locator('[data-deeptail-action="compose-steer"]').click()
+    await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
+    // The mode is the only behavioural difference between the two buttons.
+    const sent = (await harness.calls(page)).filter((call) => call.endpoint === 'session/prompt')
+    expect(sent.map((call) => call.args.mode)).toEqual(['steer'])
+    await page.close()
+  })
+
+  it('stops a running session and clears the row once the host confirms', async () => {
+    const page = await harness.open(oneHost())
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-session="s-running"]').hover()
+    await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-stop"]').click()
+    const stopped = (await harness.calls(page)).filter((call) => call.endpoint === 'session/cancel')
+    expect(stopped.length).toBe(1)
+    expect(stopped[0]?.args.sessionId).toBe('s-running')
+    await page.close()
+  })
+
+  it('reports a failed stop in the roster instead of dropping it', async () => {
+    const page = await harness.open(oneHost({ remoteErrors: { 'session/cancel': 'agent already gone' } }))
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-session="s-running"]').hover()
+    await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-stop"]').click()
+    // The failure belongs on screen; a voided rejection would show nothing.
+    expect(await textOf(page, '[data-deeptail-state="partial"]')).toContain('agent already gone')
     await page.close()
   })
 

@@ -115,10 +115,19 @@ interface OpenOptions {
   readonly locale?: string
 }
 
+/** One Remote call the page issued, as the scripted IPC saw it. */
+interface RecordedCall {
+  readonly host: string
+  readonly endpoint: string
+  readonly args: Readonly<Record<string, unknown>>
+}
+
 /** A running harness. */
 export interface Harness {
   open(table: AnswerTable, options?: OpenOptions): Promise<Page>
   shoot(page: Page, name: string): Promise<void>
+  /** Every Remote call the page has issued, in order. */
+  calls(page: Page): Promise<readonly RecordedCall[]>
   stop(): Promise<void>
 }
 
@@ -172,6 +181,10 @@ export async function startHarness(): Promise<Harness> {
       })
       await context.addInitScript((script: AnswerTable) => {
         const muxChannels = new Map<string, ScriptChannel>()
+        // Recorded so a case can assert what actually reached the host. Without
+        // it a test can only see that a dialog closed, which a no-op satisfies.
+        const recorded: { host: string; endpoint: string; args: Record<string, unknown> }[] = []
+        Object.assign(window, { deeptailRecordedCalls: recorded })
         const internals = {
           invoke(cmd: string, args?: Record<string, object>): Promise<object | null> {
             switch (cmd) {
@@ -193,8 +206,13 @@ export async function startHarness(): Promise<Harness> {
                 // Answer a Typert Remote call with a server-response envelope.
                 const request = args?.request as { path?: string; body?: string } | undefined
                 const endpoint = (request?.path ?? '').replace(/^\/api\//u, '').split('?')[0] ?? ''
-                const rpcId = (JSON.parse(request?.body ?? '{}') as { rpcId?: string }).rpcId ?? '0'
+                const envelope = JSON.parse(request?.body ?? '{}') as {
+                  rpcId?: string
+                  payload?: { args?: Record<string, unknown> }
+                }
+                const rpcId = envelope.rpcId ?? '0'
                 const host = typeof args?.host === 'string' ? args.host : ''
+                recorded.push({ host, endpoint, args: envelope.payload?.args ?? {} })
                 const scoped = `${host}:${endpoint}`
                 if ((script.remotePending ?? []).some((key) => key === scoped || key === endpoint)) {
                   // Never settles, so the read stays in flight and the surface
@@ -278,6 +296,11 @@ export async function startHarness(): Promise<Harness> {
     },
     async shoot(page, name) {
       await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true })
+    },
+    async calls(page) {
+      return page.evaluate(
+        () => (window as unknown as { deeptailRecordedCalls?: RecordedCall[] }).deeptailRecordedCalls ?? [],
+      )
     },
     async stop() {
       await browser.close()
