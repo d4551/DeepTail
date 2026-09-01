@@ -95,6 +95,21 @@ describe('shell', () => {
     await page.close()
   })
 
+  it('shows loading, never empty, while a roster read is still in flight', async () => {
+    const page = await harness.open({
+      hosts: HOSTS.slice(0, 1),
+      remote: { 'session/list': { items: [] } },
+      remotePending: ['session/list'],
+    })
+    await page.waitForSelector('[data-deeptail-shell]')
+    // The read never settles, so the anti-flash rule is observable: an empty
+    // roster must read as loading until its list actually resolves.
+    expect(await textOf(page, '[data-deeptail-state="loading"]')).toBe('Loading sessions…')
+    expect(await page.locator('[data-deeptail-state="empty"]').count()).toBe(0)
+    await harness.shoot(page, 'fleet-loading')
+    await page.close()
+  })
+
   it('reads an empty roster as loading until it settles', async () => {
     const page = await harness.open({ hosts: HOSTS.slice(0, 1), remote: { 'session/list': { items: [] } } })
     await page.waitForSelector('[data-deeptail-state="empty"]')

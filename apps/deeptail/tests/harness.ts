@@ -196,6 +196,12 @@ export async function startHarness(): Promise<Harness> {
                 const rpcId = (JSON.parse(request?.body ?? '{}') as { rpcId?: string }).rpcId ?? '0'
                 const host = typeof args?.host === 'string' ? args.host : ''
                 const scoped = `${host}:${endpoint}`
+                if ((script.remotePending ?? []).some((key) => key === scoped || key === endpoint)) {
+                  // Never settles, so the read stays in flight and the surface
+                  // waiting on it holds its pending state for the whole case.
+                  const pending = Promise.withResolvers<object>()
+                  return pending.promise
+                }
                 const failure = script.remoteErrors?.[scoped] ?? script.remoteErrors?.[endpoint]
                 const result =
                   failure === undefined

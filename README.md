@@ -68,7 +68,8 @@ which switches native UA chrome and has no class equivalent.
 
 Every state is built and screenshotted: loading, empty-after-settled, error,
 partial failure (one host down, the rest still listed), unauthorized, and
-offline. `apps/deeptail/tests/screenshots/` holds all fifteen.
+offline. `apps/deeptail/tests/screenshots/` holds all seventeen, and each is
+written by the case that asserts the state, so none can drift from the code.
 
 ## Layout
 
@@ -115,7 +116,16 @@ bun run tauri ios dev     # macOS + Xcode + CocoaPods only
 
 Browser tests drive the real built bundle in Chromium and substitute only the
 Tauri IPC boundary, which no browser provides. They assert on rendered text and
-roles and write every screenshot above.
+roles and write every screenshot above. The scripted IPC covers the mux socket
+as well as unary calls, so the live roster — a row arriving over `$events`, a
+removal, a status flip, a dropped stream — is exercised rather than assumed.
+
+Playwright resolves the Chromium it installed. An image that pre-ships one at a
+fixed path instead names it in `apps/deeptail/tests/chromium.json`:
+
+```json
+{ "executablePath": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" }
+```
 
 ## Toolchain
 
