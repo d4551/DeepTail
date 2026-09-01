@@ -530,69 +530,24 @@
   min-width: 0;
 }
 
+/* Shares `.input`'s chrome; only the shape a multi-line field needs differs. */
 .textarea {
-  box-sizing: border-box;
-  width: 100%;
   min-height: 96px;
-  /* 14 lines at 24px, matching the harness composer cap. Growth is capped and
-     scrolled rather than measured, so no height is ever written from script. */
   max-height: 336px;
-  padding: 10px 14px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  padding: 11px 14px;
   border-radius: 16px;
-  outline: none;
   resize: none;
   overflow-y: auto;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
   font-family: inherit;
-  font-size: 14px;
   line-height: 24px;
 }
 
-.textarea::placeholder {
-  color: var(--dsw-alias-label-caption);
-}
-
-.textarea:focus {
-  border-color: var(--dsw-alias-state-business-primary);
-}
-
 .select {
-  box-sizing: border-box;
-  width: 100%;
   height: 40px;
   padding: 0 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
-  outline: none;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
   font-family: inherit;
-  font-size: 14px;
-  line-height: 22px;
   cursor: pointer;
-}
-
-.select:focus {
-  border-color: var(--dsw-alias-state-business-primary);
-}
-
-/* ── return bar ───────────────────────────────────────────────────────────── */
-
-/* Sits over the booted harness client, which owns the container entirely, so
- * this is the only DeepTail surface left on the page. */
-.return-bar {
-  position: fixed;
-  z-index: 300;
-  left: max(12px, env(safe-area-inset-left));
-  bottom: max(12px, env(safe-area-inset-bottom));
-}
-
-.return-button {
-  min-height: 40px;
-  box-shadow: var(--dsw-shadow-lv3);
-  background: var(--dsw-alias-bg-layer-1);
 }
 
 /* ── responsive ───────────────────────────────────────────────────────────── */

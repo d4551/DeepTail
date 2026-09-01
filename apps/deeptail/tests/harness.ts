@@ -34,11 +34,51 @@ async function chromiumPath(): Promise<string | undefined> {
   return path === '' ? undefined : path
 }
 
+/** A JSON value carried by a scripted roster event. */
+type MuxEventValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly MuxEventValue[]
+  | { readonly [key: string]: MuxEventValue }
+
+/** One frame the scripted mux socket delivers to the client. */
+type ScriptFrame =
+  | { readonly type: 'open' }
+  | { readonly type: 'message'; readonly data: string }
+  | { readonly type: 'close'; readonly code: number; readonly reason: string }
+
+/** The mux channel handle `carrier_open_mux` receives. */
+interface ScriptChannel {
+  onmessage?: (frame: ScriptFrame) => void
+}
+
 /** One paired host as the fleet table reports it. */
 type HostFixture = {
   readonly id: string
   readonly label: string
   readonly origin: string
+}
+
+/** The failure context a host attaches to a rejection. */
+export interface FailureDetails {
+  readonly available?: readonly string[]
+}
+
+/** One session as the roster reports it over the wire. */
+export interface SessionFixture {
+  readonly sessionId: string
+  readonly updatedAt: number
+  readonly running: boolean
+  readonly blank: boolean
+  readonly projections?: { readonly values?: { readonly title?: string } }
+}
+
+/** One roster event the mux forwards, with the argument tuple the host sends. */
+export interface ForwardedEvent {
+  readonly event: string
+  readonly args: readonly (string | number | boolean | SessionFixture)[]
 }
 
 /** One scripted answer table for `window.__TAURI_INTERNALS__.invoke`. */
@@ -52,13 +92,24 @@ export type AnswerTable = {
   readonly remote?: Readonly<Record<string, object>>
   /** Endpoints that should fail, keyed the same way. */
   readonly remoteErrors?: Readonly<Record<string, string>>
+  /** Endpoints that never answer, keyed the same way. A pending `session/list`
+   *  is what the roster's loading state looks like. */
+  readonly remotePending?: readonly string[]
   /** HTTP statuses to answer with, keyed the same way. A 401 or 403 is how a
    *  revoked device token reaches the client. */
   readonly remoteStatuses?: Readonly<Record<string, number>>
   /** Failure codes for the endpoints in `remoteErrors`, keyed the same way. */
   readonly remoteErrorCodes?: Readonly<Record<string, string>>
   /** Failure details for those endpoints, such as the presets a host does have. */
-  readonly remoteErrorDetails?: Readonly<Record<string, unknown>>
+  readonly remoteErrorDetails?: Readonly<Record<string, MuxEventValue>>
+  /** Hosts whose `$events` mux answers. Anything not listed keeps the silent,
+   *  never-opening socket, which is what an unreachable stream looks like. */
+  readonly muxHosts?: readonly string[]
+  /** Roster events the mux forwards once the stream is open, in order. Each is
+   *  delivered to every host in `muxHosts`. */
+  readonly muxEvents?: readonly { readonly event: string; readonly args: readonly MuxEventValue[] }[]
+  /** Hosts whose mux closes right after opening, so the roster reports it lost. */
+  readonly muxClose?: readonly string[]
 }
 
 /** How a page should be opened. */
@@ -124,6 +175,7 @@ export async function startHarness(): Promise<Harness> {
         locale: options.locale ?? 'en-GB',
       })
       await context.addInitScript((script: AnswerTable) => {
+        const muxChannels = new Map<string, ScriptChannel>()
         const internals = {
           invoke(cmd: string, args?: Record<string, object>): Promise<object | null> {
             switch (cmd) {
@@ -167,11 +219,46 @@ export async function startHarness(): Promise<Harness> {
                 })
               }
               case 'carrier_open_mux': {
-                // No socket in the browser: the roster stays on its unary read,
-                // which is exactly what an unreachable stream looks like. The
-                // deferred is deliberately never settled — that is the signal.
-                const socket = Promise.withResolvers<null>()
-                return socket.promise
+                const host = typeof args?.host === 'string' ? args.host : ''
+                const channel = args?.channel as ScriptChannel | undefined
+                if (channel === undefined || !(script.muxHosts ?? []).includes(host)) {
+                  // No socket for this host: the deferred is deliberately never
+                  // settled, which is what an unreachable stream looks like.
+                  const silent = Promise.withResolvers<null>()
+                  return silent.promise
+                }
+                muxChannels.set(host, channel)
+                // The open frame is what makes the socket report OPEN, which is
+                // what lets the subscription send its `open` request.
+                queueMicrotask(() => {
+                  channel.onmessage?.({ type: 'open' })
+                })
+                return Promise.resolve(null)
+              }
+              case 'carrier_send_mux': {
+                const host = typeof args?.host === 'string' ? args.host : ''
+                const channel = muxChannels.get(host)
+                const data = typeof args?.data === 'string' ? args.data : ''
+                const frame = JSON.parse(data) as { type?: string; streamId?: string }
+                if (channel === undefined || frame.type !== 'open' || typeof frame.streamId !== 'string') {
+                  return Promise.resolve(null)
+                }
+                const streamId = frame.streamId
+                const send = (value: MuxEventValue): void => {
+                  channel.onmessage?.({ type: 'message', data: JSON.stringify({ type: 'item', streamId, value }) })
+                }
+                // The Gateway answers an opened `$events` stream with its ready
+                // frame before anything else; nothing may be published first.
+                queueMicrotask(() => {
+                  send({ type: 'ready', clientId: 'test-client', host })
+                  for (const forwarded of script.muxEvents ?? []) {
+                    send({ type: 'emit', event: forwarded.event, args: forwarded.args })
+                  }
+                  if ((script.muxClose ?? []).includes(host)) {
+                    channel.onmessage?.({ type: 'close', code: 1006, reason: 'host went away' })
+                  }
+                })
+                return Promise.resolve(null)
               }
               default:
                 return Promise.resolve(null)

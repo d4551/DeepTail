@@ -140,7 +140,15 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
    * @param data - a serialized mux message.
    */
   send(data: string): void {
-    void invoke('carrier_send_mux', { host: this.#host, data })
+    invoke('carrier_send_mux', { host: this.#host, data }).catch((reason: unknown) => {
+      // The Rust side rejects exactly when no socket is open for this host, so
+      // swallowing it would leave `readyState` reporting OPEN while every write
+      // vanished — the failure this adapter exists to make visible.
+      if (this.#readyState === CLOSED) return
+      this.#readyState = CLOSED
+      this.dispatchEvent(new Event('error'))
+      this.dispatchEvent(new CloseEvent('close', { code: 1006, reason: String(reason) }))
+    })
   }
 
   /**

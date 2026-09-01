@@ -256,6 +256,73 @@ describe('shell', () => {
     await page.close()
   })
 
+  it('adds a row from a forwarded roster event without re-reading the list', async () => {
+    const page = await harness.open(
+      oneHost({
+        muxHosts: ['dev-1'],
+        muxEvents: [
+          {
+            event: 'api-session/added',
+            args: [
+              {
+                sessionId: 's-live',
+                updatedAt: Date.now(),
+                running: false,
+                blank: false,
+                projections: { values: { title: 'Arrived over the stream' } },
+              },
+            ],
+          },
+        ],
+      }),
+    )
+    await page.waitForSelector('[data-deeptail-shell]')
+    // The row can only come from the mux: session/list never returned it.
+    expect(await textOf(page, '[data-deeptail-session="s-live"] .session-title')).toBe('Arrived over the stream')
+    await page.close()
+  })
+
+  it('removes a row when the host forwards a removal', async () => {
+    const page = await harness.open(
+      oneHost({
+        muxHosts: ['dev-1'],
+        muxEvents: [{ event: 'api-session/removed', args: ['s-idle'] }],
+      }),
+    )
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-session="s-idle"]').waitFor({ state: 'detached' })
+    expect(await page.locator('[data-deeptail-session="s-running"]').count()).toBe(1)
+    await page.close()
+  })
+
+  it('reports a host online once its stream is ready, and unreachable when it drops', async () => {
+    const ready = await harness.open(oneHost({ muxHosts: ['dev-1'] }))
+    await ready.waitForSelector('[data-deeptail-shell]')
+    expect(await textOf(ready, '.connection-trigger')).toContain('Online')
+    await ready.close()
+
+    const dropped = await harness.open(oneHost({ muxHosts: ['dev-1'], muxClose: ['dev-1'] }))
+    await dropped.waitForSelector('[data-deeptail-shell]')
+    expect(await textOf(dropped, '.connection-trigger')).toContain('Unreachable')
+    await dropped.close()
+  })
+
+  it('turns a running row idle when the host forwards its status', async () => {
+    const page = await harness.open(
+      oneHost({
+        muxHosts: ['dev-1'],
+        muxEvents: [{ event: 'api-session/status', args: ['s-running', false] }],
+      }),
+    )
+    await page.waitForSelector('[data-deeptail-shell]')
+    // Stop is offered only while a session runs, so its absence is the proof.
+    await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-stop"]').waitFor({
+      state: 'detached',
+    })
+    expect(await textOf(page, '[data-deeptail-session="s-running"] .visually-hidden')).toBe('Idle')
+    await page.close()
+  })
+
   it('renders the dark palette and the sidebar fill from the harness tokens', async () => {
     const page = await harness.open(oneHost(), { dark: true })
     await page.waitForSelector('[data-deeptail-shell]')

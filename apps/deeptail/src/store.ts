@@ -56,6 +56,10 @@ export function createFleetStore(hosts: readonly HostRecord[], ports: FleetPorts
   // Only the newest read for a host may publish: an earlier, slower one would
   // otherwise overwrite it with stale rows.
   const generations = new Map<string, number>()
+  // Roster events that arrive while a read is in flight describe a world newer
+  // than the read does, so applying them first would let the read's older
+  // snapshot overwrite them. They are held and replayed once it lands.
+  const buffered = new Map<string, { event: string; args: readonly unknown[] }[]>()
 
   const publish = (): void => {
     for (const listener of new Set(listeners)) listener()
@@ -84,11 +88,16 @@ export function createFleetStore(hosts: readonly HostRecord[], ports: FleetPorts
       const generation = (generations.get(hostId) ?? 0) + 1
       generations.set(hostId, generation)
       patch(hostId, { phase: { kind: 'pending' } })
+      buffered.set(hostId, [])
       try {
         const sessions = await ports.apiFor(entry.host).listSessions()
         if (generations.get(hostId) !== generation) return
+        const held = buffered.get(hostId) ?? []
+        buffered.delete(hostId)
         patch(hostId, { phase: { kind: 'ready' }, sessions: sortByActivity(sessions) })
+        for (const event of held) store.applyEvent(hostId, event.event, event.args)
       } catch (reason) {
+        buffered.delete(hostId)
         if (generations.get(hostId) !== generation) return
         const message = reason instanceof Error ? reason.message : String(reason)
         // A revoked token and an unreachable host look alike in a roster read,
@@ -103,6 +112,11 @@ export function createFleetStore(hosts: readonly HostRecord[], ports: FleetPorts
     applyEvent(hostId, event, args) {
       const entry = entries.get(hostId)
       if (entry === undefined) return
+      const holding = buffered.get(hostId)
+      if (holding !== undefined) {
+        holding.push({ event, args })
+        return
+      }
       switch (event) {
         case 'api-session/added': {
           const added = args[0]
@@ -130,12 +144,27 @@ export function createFleetStore(hosts: readonly HostRecord[], ports: FleetPorts
           })
           return
         }
-        case 'api-session/status':
+        case 'api-session/status': {
+          // Upstream declares this as (sessionId, running) and its own client
+          // reads it that way, but the Host emits an AGENT id at one of the two
+          // emit sites, and a summary carries no agent id. So the flag is
+          // applied directly when the id names a row we hold, and only the
+          // unrecognised case pays for a re-read. Answering every status event
+          // with a list read would put the whole fleet on a refresh treadmill.
+          const [id, running] = args
+          if (typeof id !== 'string' || typeof running !== 'boolean') return
+          if (entry.sessions.some((session) => session.sessionId === id)) {
+            patch(hostId, {
+              sessions: entry.sessions.map((session) => (session.sessionId === id ? { ...session, running } : session)),
+            })
+            return
+          }
+          void store.refresh(hostId)
+          return
+        }
         case 'api-session/error':
-          // These two are keyed by AGENT id, not session id, and a summary
-          // carries no agent id — so the row cannot be identified from the
-          // payload. Re-reading the host's list is the only correct response;
-          // it is unary, cheap, and activates no agent.
+          // Carries (id, message) with the same ambiguity, and no field on a
+          // summary records it, so the roster is re-read rather than guessed at.
           void store.refresh(hostId)
           return
         default:
