@@ -19,13 +19,21 @@ export class RemoteError extends Error {
   readonly code: string
 
   /**
+   * Host-supplied context. An unknown agent preset carries the ids the host
+   * does have under `available`, which is the only place that list is published.
+   */
+  readonly details: Readonly<Record<string, unknown>>
+
+  /**
    * @param code - the host's failure code.
    * @param message - the host's message.
+   * @param details - the host's failure context, when it sent any.
    */
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, details: Readonly<Record<string, unknown>> = {}) {
     super(message)
     this.name = 'RemoteError'
     this.code = code
+    this.details = details
   }
 }
 
@@ -40,13 +48,6 @@ export interface SessionSummary {
   readonly projections?: { readonly values?: { readonly title?: string } }
 }
 
-/** One agent preset a new session may be composed from. */
-export interface AgentPreset {
-  readonly id: string
-  readonly name: string
-  readonly description?: string
-}
-
 /**
  * The subset of a host's Remote surface DeepTail drives.
  *
@@ -56,7 +57,6 @@ export interface AgentPreset {
  */
 export interface HostApi {
   listSessions(): Promise<readonly SessionSummary[]>
-  listPresets(): Promise<readonly AgentPreset[]>
   prompt(sessionId: string, text: string, mode: 'queue' | 'steer'): Promise<void>
   cancel(sessionId: string): Promise<void>
   createSession(input: { cwd?: string; agentPreset?: string }): Promise<string>
@@ -67,7 +67,7 @@ interface ServerResponse {
   readonly result?: {
     readonly ok?: boolean
     readonly value?: unknown
-    readonly error?: { code?: string; message?: string }
+    readonly error?: { code?: string; message?: string; details?: Record<string, unknown> }
   }
 }
 
@@ -104,7 +104,11 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
     const result = envelope.result
     if (result === undefined) throw new RemoteError('protocol', `${endpoint} returned no result`)
     if (result.ok !== true) {
-      throw new RemoteError(result.error?.code ?? 'internal', result.error?.message ?? `${endpoint} failed`)
+      throw new RemoteError(
+        result.error?.code ?? 'internal',
+        result.error?.message ?? `${endpoint} failed`,
+        result.error?.details ?? {},
+      )
     }
     return result.value
   }
@@ -112,10 +116,6 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
   return {
     async listSessions() {
       const value = (await call('session', 'list', {})) as { items?: readonly SessionSummary[] }
-      return value.items ?? []
-    },
-    async listPresets() {
-      const value = (await call('agentPresets', 'list', {})) as { items?: readonly AgentPreset[] }
       return value.items ?? []
     },
     async prompt(sessionId, text, mode) {

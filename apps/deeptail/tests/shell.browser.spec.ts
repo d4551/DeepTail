@@ -155,26 +155,36 @@ describe('shell', () => {
     await page.close()
   })
 
-  it('offers the presets a host reports when spawning', async () => {
+  it('spawns with a typed preset and reports the ids a host does have', async () => {
+    const page = await harness.open(oneHost())
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-action="new-session"]').click()
+    // No host publishes a preset listing, so the field is typed and optional.
+    await page.locator('[data-deeptail-field="preset"]').fill('ptc')
+    await page.locator('[data-deeptail-field="cwd"]').fill('/srv/work')
+    await harness.shoot(page, 'new-session')
+    await page.locator('[data-deeptail-action="spawn-create"]').click()
+    await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
+    await page.close()
+  })
+
+  it('names the available presets when the host rejects the one typed', async () => {
     const page = await harness.open(
       oneHost({
-        remote: {
-          'session/list': { items: SESSIONS },
-          'agentPresets/list': {
-            items: [
-              { id: 'standard', name: 'Standard' },
-              { id: 'ptc', name: 'PTC' },
-            ],
-          },
-        },
+        remoteErrors: { 'session/create': 'no such preset' },
+        remoteErrorCodes: { 'session/create': 'agent-preset-not-found' },
+        remoteErrorDetails: { 'session/create': { available: ['standard', 'ptc'] } },
       }),
     )
     await page.waitForSelector('[data-deeptail-shell]')
     await page.locator('[data-deeptail-action="new-session"]').click()
-    // An <option> is never "visible" to Playwright; wait for it in the DOM.
-    await page.waitForSelector('[data-deeptail-field="preset"] option', { state: 'attached' })
-    expect(await page.locator('[data-deeptail-field="preset"] option').allTextContents()).toEqual(['Standard', 'PTC'])
-    await harness.shoot(page, 'new-session')
+    await page.locator('[data-deeptail-field="preset"]').fill('nope')
+    await page.locator('[data-deeptail-action="spawn-create"]').click()
+    const strip = await textOf(page, '[data-deeptail-state="spawn-error"]')
+    expect(strip).toContain('standard, ptc')
+    // The dialog stays open so the operator can correct the id in place.
+    expect(await page.locator('[data-deeptail-dialog]').count()).toBe(1)
+    expect(await page.locator('[data-deeptail-field="preset"]').inputValue()).toBe('nope')
     await page.close()
   })
 

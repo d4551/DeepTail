@@ -55,6 +55,10 @@ export type AnswerTable = {
   /** HTTP statuses to answer with, keyed the same way. A 401 or 403 is how a
    *  revoked device token reaches the client. */
   readonly remoteStatuses?: Readonly<Record<string, number>>
+  /** Failure codes for the endpoints in `remoteErrors`, keyed the same way. */
+  readonly remoteErrorCodes?: Readonly<Record<string, string>>
+  /** Failure details for those endpoints, such as the presets a host does have. */
+  readonly remoteErrorDetails?: Readonly<Record<string, unknown>>
 }
 
 /** How a page should be opened. */
@@ -148,7 +152,14 @@ export async function startHarness(): Promise<Harness> {
                 const result =
                   failure === undefined
                     ? { ok: true, value: script.remote?.[endpoint] ?? {} }
-                    : { ok: false, error: { code: 'internal', message: failure, details: {} } }
+                    : {
+                        ok: false,
+                        error: {
+                          code: script.remoteErrorCodes?.[scoped] ?? script.remoteErrorCodes?.[endpoint] ?? 'internal',
+                          message: failure,
+                          details: script.remoteErrorDetails?.[scoped] ?? script.remoteErrorDetails?.[endpoint] ?? {},
+                        },
+                      }
                 return Promise.resolve({
                   status: script.remoteStatuses?.[scoped] ?? script.remoteStatuses?.[endpoint] ?? 200,
                   headers: [['content-type', 'application/json']],
