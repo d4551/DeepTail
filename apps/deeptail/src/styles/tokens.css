@@ -51,8 +51,6 @@ body {
   --dsw-alias-border-inverted: rgba(0, 0, 0, 0);
   --dsw-alias-label-primary: rgb(15, 17, 21);
   --dsw-alias-label-secondary: rgb(97, 102, 107);
-  --dsw-alias-label-tertiary: rgb(129, 133, 140);
-  --dsw-alias-label-caption: rgb(173, 178, 184);
   --dsw-alias-label-dimmed: rgb(225, 229, 238);
   --dsw-alias-label-primary-foreground: rgb(255, 255, 255);
   --dsw-alias-label-error: rgb(198, 16, 16);
@@ -65,7 +63,6 @@ body {
   --dsw-alias-state-business-primary: rgb(65, 118, 230);
   --dsw-alias-state-success-primary: rgb(34, 197, 94);
   --dsw-alias-state-warn-primary: rgb(245, 158, 11);
-  --dsw-alias-state-warn-label: rgb(221, 134, 41);
   --dsw-alias-state-error-primary: rgb(236, 19, 19);
   --dsw-specific-sidebar-fill: rgb(249, 250, 251);
   --dsw-specific-menu: rgb(255, 255, 255);
@@ -95,8 +92,6 @@ body[data-ds-dark-theme] {
   --dsw-alias-border-inverted: rgba(255, 255, 255, 0.06);
   --dsw-alias-label-primary: rgb(249, 250, 251);
   --dsw-alias-label-secondary: rgb(207, 211, 214);
-  --dsw-alias-label-tertiary: rgb(173, 178, 184);
-  --dsw-alias-label-caption: rgb(129, 133, 140);
   --dsw-alias-label-dimmed: rgb(67, 69, 74);
   --dsw-alias-label-primary-foreground: rgb(15, 17, 21);
   --dsw-alias-label-error: rgb(250, 150, 150);
@@ -109,7 +104,6 @@ body[data-ds-dark-theme] {
   --dsw-alias-state-business-primary: rgb(103, 158, 254);
   --dsw-alias-state-success-primary: rgb(34, 197, 94);
   --dsw-alias-state-warn-primary: rgb(245, 158, 11);
-  --dsw-alias-state-warn-label: rgb(221, 134, 41);
   --dsw-alias-state-error-primary: rgb(242, 90, 90);
   --dsw-specific-sidebar-fill: rgb(27, 27, 28);
   --dsw-specific-selector: rgb(53, 54, 56);

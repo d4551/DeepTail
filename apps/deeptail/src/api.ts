@@ -79,38 +79,19 @@ interface ServerResponse {
 export function createHostApi(carrier: CarrierHooks): HostApi {
   let correlation = 0
 
+  /**
+   * Perform one unary call, correlated within this host's surface so a reply
+   * can be matched to the request that produced it.
+   * @param namespace - the Remote namespace, such as `session`.
+   * @param method - the method on it.
+   * @param args - the method's arguments.
+   * @returns whatever the method returned.
+   */
   const call = async (namespace: string, method: string, args: Readonly<Record<string, unknown>>): Promise<unknown> => {
     correlation += 1
     const endpoint = `${namespace}/${method}`
-    const response = await carrier.fetch(new URL(`/api/${endpoint}`, 'http://dsh.internal'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-request',
-        rpcId: `deeptail-${String(correlation)}`,
-        method: endpoint,
-        payload: { args },
-      }),
-    })
-    if (!response.ok) {
-      // A revoked or expired device token is the one failure the operator can
-      // act on, so it is reported apart from a plain outage.
-      if (response.status === 401 || response.status === 403) {
-        throw new RemoteError('unauthorized', `${endpoint} returned HTTP ${String(response.status)}`)
-      }
-      throw new RemoteError('transport', `${endpoint} returned HTTP ${String(response.status)}`)
-    }
-    const envelope = (await response.json()) as ServerResponse
-    const result = envelope.result
-    if (result === undefined) throw new RemoteError('protocol', `${endpoint} returned no result`)
-    if (result.ok !== true) {
-      throw new RemoteError(
-        result.error?.code ?? 'internal',
-        result.error?.message ?? `${endpoint} failed`,
-        result.error?.details ?? {},
-      )
-    }
-    return result.value
+    const envelope = await post(carrier, endpoint, `deeptail-${String(correlation)}`, args)
+    return unwrap(envelope, endpoint)
   }
 
   return {
@@ -135,4 +116,67 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
       return value.sessionId
     },
   }
+}
+
+/**
+ * Send one `client-request` envelope and read the reply.
+ * @param carrier - the transport reaching one paired host.
+ * @param endpoint - `<namespace>/<method>`.
+ * @param rpcId - what the reply is correlated by.
+ * @param args - the method's arguments.
+ * @returns the `server-response` envelope the host sent back.
+ */
+async function post(
+  carrier: CarrierHooks,
+  endpoint: string,
+  rpcId: string,
+  args: Readonly<Record<string, unknown>>,
+): Promise<ServerResponse> {
+  const response = await carrier.fetch(new URL(`/api/${endpoint}`, 'http://dsh.internal'), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      type: 'client-request',
+      rpcId,
+      method: endpoint,
+      payload: { args },
+    }),
+  })
+  if (!response.ok) throw transportFailure(endpoint, response.status)
+  return (await response.json()) as ServerResponse
+}
+
+/**
+ * The failure an HTTP-level rejection is reported as.
+ *
+ * A revoked or expired device token is the one failure the operator can act on,
+ * so it is reported apart from a plain outage.
+ * @param endpoint - `<namespace>/<method>`.
+ * @param status - the status the host answered with.
+ * @returns the failure to raise.
+ */
+function transportFailure(endpoint: string, status: number): RemoteError {
+  const message = `${endpoint} returned HTTP ${String(status)}`
+  if (status === 401 || status === 403) return new RemoteError(UNAUTHORIZED, message)
+  return new RemoteError('transport', message)
+}
+
+/**
+ * Read a reply, raising the host's own failure when it carries one so its code
+ * and details reach the caller intact.
+ * @param envelope - the reply.
+ * @param endpoint - `<namespace>/<method>`.
+ * @returns whatever the method returned.
+ */
+function unwrap(envelope: ServerResponse, endpoint: string): unknown {
+  const result = envelope.result
+  if (result === undefined) throw new RemoteError('protocol', `${endpoint} returned no result`)
+  if (result.ok !== true) {
+    throw new RemoteError(
+      result.error?.code ?? 'internal',
+      result.error?.message ?? `${endpoint} failed`,
+      result.error?.details ?? {},
+    )
+  }
+  return result.value
 }

@@ -10,7 +10,8 @@
 
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
-import { button, el, moveRovingFocus, screenReaderText } from './dom.ts'
+import { buildConnectionMenu, MENU_ID } from './connection-menu-panel.ts'
+import { el, screenReaderText } from './dom.ts'
 import { type HostState, hostStateLabel } from './states.ts'
 
 /** What the menu needs from the shell. */
@@ -23,6 +24,18 @@ export interface ConnectionPorts {
   /** Pair this host again, which is the only way out of `unauthorized`. */
   repair(hostId: string): void
   unpair(hostId: string): void
+}
+
+/** Whether the menu is showing, and how it is dismissed while it is. */
+interface MenuToggle {
+  /** Whether the menu is on the page. */
+  isOpen(): boolean
+  /** Close an open menu, returning focus to the trigger. */
+  close(): void
+  /** Open a closed menu, close an open one. */
+  toggle(): void
+  /** Drop the dismissal listeners when the switcher leaves the page. */
+  dispose(): void
 }
 
 /**
@@ -43,7 +56,92 @@ export function mountConnectionMenu(
   trigger.setAttribute('aria-haspopup', 'menu')
   trigger.setAttribute('aria-expanded', 'false')
 
-  const menuId = 'deeptail-connection-menu'
+  const popover = createMenuToggle(trigger, root, () => {
+    render()
+  })
+
+  const render = (): void => {
+    const hosts = ports.hosts()
+    const activeHostId = ports.activeHostId()
+    const active = hosts.find((host) => host.id === activeHostId)
+    const open = popover.isOpen()
+
+    trigger.replaceChildren(...triggerContent(active, ports, t))
+    // The relationship only exists while there is a menu to point at.
+    if (open) trigger.setAttribute('aria-controls', MENU_ID)
+    else trigger.removeAttribute('aria-controls')
+
+    root.replaceChildren(trigger)
+    if (!open) return
+
+    const panel = buildConnectionMenu({ hosts, activeHostId, ports, t, dismiss: popover.close })
+    root.append(panel.menu)
+    panel.initialFocus?.focus()
+  }
+
+  wireTriggerActivation(trigger, ports, popover)
+  container.append(root)
+  render()
+
+  return {
+    render,
+    dispose: () => {
+      popover.dispose()
+      root.remove()
+    },
+  }
+}
+
+/**
+ * The trigger's contents.
+ *
+ * With no host selected there is still a state to show, and `unknown` is the
+ * honest one: nothing has answered yet.
+ * @param active - the selected host, when the fleet has one.
+ * @param ports - shell callbacks.
+ * @param t - copy source.
+ * @returns the dot, the label, and the state as announced text.
+ */
+function triggerContent(active: HostRecord | undefined, ports: ConnectionPorts, t: Translate): HTMLElement[] {
+  const state = active === undefined ? 'unknown' : ports.stateOf(active.id)
+  return [
+    el('span', { className: 'dot', attrs: { 'aria-hidden': 'true' }, data: { state } }),
+    el('span', { className: 'connection-label', text: active?.label ?? t('status.empty') }),
+    screenReaderText(hostStateLabel(t, state)),
+  ]
+}
+
+/**
+ * Wire the trigger's gesture.
+ *
+ * With nothing paired there is nothing to choose between, so the gesture *is*
+ * the pair action rather than a one-row popover.
+ * @param trigger - the switcher's button.
+ * @param ports - shell callbacks.
+ * @param popover - the menu's open state.
+ */
+function wireTriggerActivation(trigger: HTMLButtonElement, ports: ConnectionPorts, popover: MenuToggle): void {
+  trigger.addEventListener('click', () => {
+    if (ports.hosts().length === 0) {
+      ports.pair()
+      return
+    }
+    popover.toggle()
+  })
+}
+
+/**
+ * Own whether the menu is showing.
+ *
+ * The dismissal listeners sit on the document only while the menu is open, so a
+ * closed switcher never intercepts a pointer or a key the rest of the app wants,
+ * and closing hands focus back to the trigger the operator came from.
+ * @param trigger - the button whose `aria-expanded` mirrors the state.
+ * @param root - the subtree a pointer may land in without dismissing the menu.
+ * @param render - redraws the switcher once the state has changed.
+ * @returns the open state and its dismissal.
+ */
+function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render: () => void): MenuToggle {
   let open = false
 
   const closeMenu = (): void => {
@@ -74,130 +172,16 @@ export function mountConnectionMenu(
     render()
   }
 
-  trigger.addEventListener('click', () => {
-    const hosts = ports.hosts()
-    // With nothing paired there is nothing to choose between, so the gesture
-    // *is* the pair action rather than a one-row popover.
-    if (hosts.length === 0) {
-      ports.pair()
-      return
-    }
-    if (open) closeMenu()
-    else openMenu()
-  })
-
-  const render = (): void => {
-    const hosts = ports.hosts()
-    const activeId = ports.activeHostId()
-    const active = hosts.find((host) => host.id === activeId)
-
-    trigger.replaceChildren()
-    const state = active === undefined ? 'unknown' : ports.stateOf(active.id)
-    const dot = el('span', { className: 'dot', attrs: { 'aria-hidden': 'true' }, data: { state } })
-    trigger.append(
-      dot,
-      el('span', { className: 'connection-label', text: active?.label ?? t('status.empty') }),
-      screenReaderText(hostStateLabel(t, state)),
-    )
-    if (open) trigger.setAttribute('aria-controls', menuId)
-    else trigger.removeAttribute('aria-controls')
-
-    root.replaceChildren(trigger)
-    if (!open) return
-
-    const menu = el('div', {
-      className: 'menu',
-      attrs: { role: 'menu', 'aria-label': t('shell.switchHost'), id: menuId },
-      data: { deeptailConnection: 'menu' },
-    })
-    const items = el('div', { className: 'menu-items', attrs: { role: 'none' } })
-    const stops: HTMLButtonElement[] = []
-    for (const host of hosts) {
-      const item = el('button', {
-        className: 'menu-item',
-        attrs: { role: 'menuitem' },
-        data: { deeptailHost: host.id },
-      })
-      item.type = 'button'
-      const hostState = ports.stateOf(host.id)
-      item.append(
-        el('span', { className: 'dot', attrs: { 'aria-hidden': 'true' }, data: { state: hostState } }),
-        el('span', { className: 'menu-label', text: host.label }),
-        screenReaderText(hostStateLabel(t, hostState)),
-      )
-      if (host.id === activeId) {
-        item.append(el('span', { className: 'menu-check', text: '✓', attrs: { 'aria-hidden': 'true' } }))
-        item.setAttribute('aria-current', 'true')
-      }
-      item.addEventListener('click', () => {
-        closeMenu()
-        ports.select(host.id)
-      })
-      if (hostState === 'unauthorized') {
-        // The one state the operator cannot clear by waiting, so the row offers
-        // the only action that does clear it.
-        const repair = button('menu-repair', t('shell.repair'), () => {
-          closeMenu()
-          ports.repair(host.id)
-        })
-        repair.setAttribute('role', 'menuitem')
-        repair.dataset.deeptailAction = 'repair'
-        items.append(item, repair)
-      } else {
-        items.append(item)
-      }
-      stops.push(item)
-    }
-    menu.append(items)
-    for (const [index, stop] of stops.entries()) {
-      stop.tabIndex = index === 0 ? 0 : -1
-      stop.addEventListener('keydown', (event) => {
-        moveRovingFocus(event, stops, index)
-      })
-    }
-
-    const footer = el('div', { className: 'menu-footer', attrs: { role: 'none' } })
-    footer.append(
-      menuItem('menu-item', t('action.pair'), () => {
-        closeMenu()
-        ports.pair()
-      }),
-    )
-    if (active !== undefined) {
-      footer.append(
-        menuItem('menu-item menu-danger', t('shell.unpair'), () => {
-          closeMenu()
-          ports.unpair(active.id)
-        }),
-      )
-    }
-    menu.append(footer)
-    root.append(menu)
-    stops[0]?.focus()
-  }
-
-  container.append(root)
-  render()
-
   return {
-    render,
+    isOpen: () => open,
+    close: closeMenu,
+    toggle: () => {
+      if (open) closeMenu()
+      else openMenu()
+    },
     dispose: () => {
       document.removeEventListener('pointerdown', onOutside)
       document.removeEventListener('keydown', onKeyDown)
-      root.remove()
     },
   }
-}
-
-/**
- * A footer control that is a real menu item, so `role="menu"` owns it.
- * @param className - the item's classes.
- * @param text - its label.
- * @param onClick - its activation handler.
- * @returns the item.
- */
-function menuItem(className: string, text: string, onClick: () => void): HTMLButtonElement {
-  const item = button(className, text, onClick)
-  item.setAttribute('role', 'menuitem')
-  return item
 }

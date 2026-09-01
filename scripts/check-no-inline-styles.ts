@@ -6,16 +6,20 @@
  * rule for `element.style.x = …` in plain DOM, so the ban is an executed gate
  * rather than a convention.
  *
- * The ban is absolute. There is no allowance, and the shell document is scanned
- * alongside the modules so a `style=` attribute cannot enter through the HTML.
+ * The ban is absolute. There is no allowance. Every module in the repository is
+ * scanned alongside the shell document, and the pattern covers every route to an
+ * element's style: the dotted property, an indexed write, a bulk assign onto
+ * `.style`, a `style=` attribute, and `setAttribute('style', …)`.
  */
 
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const SRC = new URL('../apps/deeptail/src/', import.meta.url).pathname
+const TREES = ['apps/deeptail/src', 'apps/deeptail/tests', 'packages/host-fleet/src', 'scripts', 'tests'].map(
+  (tree) => new URL(`../${tree}/`, import.meta.url).pathname,
+)
 const SHELL = new URL('../apps/deeptail/index.html', import.meta.url).pathname
-const PATTERN = /\.style\.|style=|cssText/u
+const PATTERN = /\.style\b|style\s*=|cssText|setAttribute\(\s*['"`]style['"`]/u
 
 /** One file to scan, and the label an offence is reported under. */
 interface Source {
@@ -29,7 +33,7 @@ interface Source {
  * @param prefix - the label prefix for nested entries.
  * @returns every `.ts` file below it.
  */
-async function modules(dir: string, prefix = ''): Promise<Source[]> {
+async function modules(dir: string, prefix = dir.split('/').filter(Boolean).slice(-2).join('/')): Promise<Source[]> {
   const entries = await readdir(dir, { withFileTypes: true })
   const nested = await Promise.all(
     entries.map((entry) => {
@@ -41,7 +45,8 @@ async function modules(dir: string, prefix = ''): Promise<Source[]> {
   return nested.flat()
 }
 
-const files: Source[] = [...(await modules(SRC)), { label: 'index.html', path: SHELL }]
+const trees = await Promise.all(TREES.map((tree) => modules(tree)))
+const files: Source[] = [...trees.flat(), { label: 'index.html', path: SHELL }]
 const scanned = await Promise.all(
   files.map(async (source) => ({ label: source.label, text: await readFile(source.path, 'utf8') })),
 )
@@ -49,6 +54,10 @@ const scanned = await Promise.all(
 const offences: string[] = []
 for (const { label, text } of scanned) {
   for (const [index, line] of text.split('\n').entries()) {
+    // Prose describing the ban, and the line declaring it, are data rather
+    // than uses; everything else is an offence.
+    const start = line.trimStart()
+    if (start.startsWith('*') || start.startsWith('//') || start.startsWith('const PATTERN')) continue
     if (!PATTERN.test(line)) continue
     offences.push(`${label}:${String(index + 1)}: ${line.trim()}`)
   }

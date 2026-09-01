@@ -26,13 +26,29 @@ export interface Dialog {
   close(): void
 }
 
+/** The dialog's parts, before any of them reach the page. */
+interface DialogFrame {
+  /** The portalled wrapper holding the mask and the dialog. */
+  readonly root: HTMLElement
+  /** The backdrop, which closes the dialog when it is clicked. */
+  readonly mask: HTMLElement
+  /** The named surface that takes focus. */
+  readonly dialog: HTMLElement
+  /** The body to fill. */
+  readonly body: HTMLElement
+  /** The footer that holds the actions. */
+  readonly actions: HTMLElement
+}
+
 /**
- * Open a dialog.
+ * Build the dialog's structure.
+ *
+ * The wrapper is presentational and the mask is hidden, so the one thing
+ * assistive technology finds inside is the named `role="dialog"`.
  * @param title - accessible name and visible heading.
- * @param onClose - called after the dialog closes, however it closed.
- * @returns the dialog's seats and its close handle.
+ * @returns the parts to mount and fill.
  */
-export function openDialog(title: string, onClose: () => void): Dialog {
+function buildDialogFrame(title: string): DialogFrame {
   const root = el('div', { className: 'modal-root', attrs: { role: 'presentation' } })
   const mask = el('div', { className: 'modal-mask', attrs: { 'aria-hidden': 'true' } })
   const dialog = el('div', {
@@ -45,6 +61,17 @@ export function openDialog(title: string, onClose: () => void): Dialog {
   const actions = el('div', { className: 'actions' })
   dialog.append(heading, body, actions)
   root.append(mask, dialog)
+  return { root, mask, dialog, body, actions }
+}
+
+/**
+ * Open a dialog.
+ * @param title - accessible name and visible heading.
+ * @param onClose - called after the dialog closes, however it closed.
+ * @returns the dialog's seats and its close handle.
+ */
+export function openDialog(title: string, onClose: () => void): Dialog {
+  const { root, mask, dialog, body, actions } = buildDialogFrame(title)
 
   const appRoot = document.querySelector<HTMLElement>('#root')
   // Focus is moved into the dialog, so the control that opened it has to be

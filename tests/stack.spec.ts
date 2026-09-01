@@ -53,6 +53,15 @@ function parseJsonc(text: string): Record<string, unknown> {
   return JSON.parse(stripped) as Record<string, unknown>
 }
 
+/**
+ * Every translation key a dictionary body declares.
+ * @param body - the dictionary's source text.
+ * @returns the keys, ordered.
+ */
+function keysOf(body: string): string[] {
+  return [...body.matchAll(/^\s{2}'([^']+)':/gmu)].map((match) => match[1] ?? '').toSorted((a, b) => a.localeCompare(b))
+}
+
 /** Every file under a directory matching an extension. */
 async function walk(dir: string, ext: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true })
@@ -92,10 +101,12 @@ function version(range: string): readonly [number, number] {
 
 describe('stack floors', () => {
   it('pins every tool at or above its floor', async () => {
-    const manifests = ['package.json', 'apps/deeptail/package.json', 'packages/host-fleet/package.json']
+    const manifests = await Promise.all(
+      ['package.json', 'apps/deeptail/package.json', 'packages/host-fleet/package.json'].map(declared),
+    )
     const found = new Map<string, string>()
     for (const manifest of manifests) {
-      for (const [name, range] of Object.entries(await declared(manifest))) found.set(name, range)
+      for (const [name, range] of Object.entries(manifest)) found.set(name, range)
     }
     const behind: string[] = []
     for (const [name, [major, minor]] of Object.entries(FLOORS)) {
@@ -131,23 +142,60 @@ describe('stack floors', () => {
     }
     // A rule switched off is a defect hidden rather than fixed.
     expect(Object.values(config.rules ?? {}).filter((level) => level === 'off')).toEqual([])
+    // oxlint may skip build output and nothing else.
+    expect(config.ignorePatterns ?? []).toEqual(['**/lib/**', '**/dist/**', '**/gen/**', '**/target/**'])
+    expect(config.overrides).toBeUndefined()
+  })
+
+  it('keeps every suppression list at its agreed contents', async () => {
+    // Each of these can silence a real finding, so each is pinned rather than
+    // merely present: growing one has to be a deliberate edit to this test.
+    const knip = JSON.parse(await readFile('knip.json', 'utf8')) as {
+      workspaces?: Record<string, { ignoreDependencies?: string[] }>
+    }
+    expect(knip.workspaces?.['apps/deeptail']?.ignoreDependencies ?? []).toEqual([
+      'react',
+      'react-dom',
+      '@deepseek-ai/dsh-client-store',
+      '@deepseek-ai/dsh-client-ui-primitives',
+      '@deepseek-ai/dsh-client-ui-slots',
+    ])
+    for (const [name, workspace] of Object.entries(knip.workspaces ?? {})) {
+      if (name === 'apps/deeptail') continue
+      expect([name, workspace.ignoreDependencies]).toEqual([name, undefined])
+    }
+
+    const biome = JSON.parse(await readFile('biome.json', 'utf8')) as {
+      files?: { includes?: string[] }
+      linter?: { rules?: Record<string, unknown> }
+      overrides?: unknown
+    }
+    expect(biome.overrides).toBeUndefined()
+    expect(biome.files?.includes ?? []).toEqual(['**', '!**/dist', '!**/lib', '!**/gen', '!**/target', '!**/*.min.js'])
   })
 })
 
 describe('legacy patterns', () => {
   it('has none in the application or plugin source', async () => {
-    const files = [
-      ...(await walk('apps/deeptail/src', '.ts')),
-      ...(await walk('packages/host-fleet/src', '.ts')),
-      ...(await walk('scripts', '.ts')),
-    ]
+    const trees = await Promise.all(
+      [
+        'apps/deeptail/src',
+        'apps/deeptail/tests',
+        'packages/host-fleet/src',
+        'packages/host-fleet/tests',
+        'scripts',
+        'tests',
+      ].map((tree) => walk(tree, '.ts')),
+    )
+    const files = trees.flat()
+    const scanned = await Promise.all(files.map(async (file) => ({ file, text: await readFile(file, 'utf8') })))
     const offences: string[] = []
-    for (const file of files) {
-      const text = await readFile(file, 'utf8')
+    for (const { file, text } of scanned) {
       for (const [index, line] of text.split('\n').entries()) {
-        // The bans describe code, so a line that only mentions one in prose is
-        // not an offence.
-        if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) continue
+        // The bans describe code. Prose that mentions one, and the table that
+        // declares them, are data rather than uses.
+        const start = line.trimStart()
+        if (start.startsWith('*') || start.startsWith('//') || start.startsWith('{ pattern:')) continue
         for (const { pattern, why } of BANNED) {
           if (pattern.test(line)) offences.push(`${file}:${String(index + 1)}: ${why} — ${line.trim()}`)
         }
@@ -185,7 +233,6 @@ describe('translations', () => {
     const source = await readFile('apps/deeptail/src/locales.ts', 'utf8')
     const dictionaries = [...source.matchAll(/const (zh|en) = \{([\s\S]*?)\n\} satisfies/gu)]
     expect(dictionaries.length).toBe(2)
-    const keysOf = (body: string): string[] => [...body.matchAll(/^\s{2}'([^']+)':/gmu)].map((m) => m[1] ?? '').sort()
     const [first, second] = dictionaries
     expect(keysOf(first?.[2] ?? '')).toEqual(keysOf(second?.[2] ?? ''))
   })

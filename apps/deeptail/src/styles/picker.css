@@ -286,6 +286,9 @@
 .warning {
   background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-label-primary);
+  /* The state has to survive both a contrast floor and a colourblind reader, so
+   * it is carried by a rule the text colour does not have to encode. */
+  border-left: 3px solid var(--dsw-alias-state-warn-primary);
 }
 
 .retry {

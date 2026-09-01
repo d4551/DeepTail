@@ -22,22 +22,42 @@ import { type CarrierHooks, createCarrier } from './transport.ts'
 import { button, el } from './ui/dom.ts'
 import { mountShell } from './ui/shell.ts'
 
-const mount = document.querySelector<HTMLElement>('#root')
-if (mount === null) throw new Error('deeptail: missing #root')
-// Bound after the check so closures below keep the narrowing.
+const mount = document.querySelector('#root')
+// Narrowed rather than asserted: the generic form of `querySelector` is a cast,
+// and a `#root` that is not an element would fail later and further away.
+if (!(mount instanceof HTMLElement)) throw new Error('deeptail: missing #root')
 const container: HTMLElement = mount
 
 applyTheme()
 const t = createTranslate()
 
-/** Pair a first host when the registry is empty; otherwise go straight in. */
-async function resolveHosts(): Promise<void> {
-  // An unreadable registry is not a fatal boot: the picker owns that failure and
-  // renders it with a retry. Letting the rejection escape here would leave the
-  // window blank with the error only in the console.
-  const known = await invoke<HostRecord[]>('list_hosts').catch(() => undefined)
-  if (known !== undefined && known.length > 0) return
+/**
+ * Read the host registry, handing any failure to the picker.
+ *
+ * An unreadable registry is not a fatal boot. The picker reads the registry
+ * itself and renders the host's own message with a retry, so every path that
+ * needs the list goes through here rather than letting a rejection escape and
+ * leave the window blank with the reason only in the console.
+ * @returns every paired host.
+ */
+async function knownHosts(): Promise<readonly HostRecord[]> {
+  try {
+    return await invoke<HostRecord[]>('list_hosts')
+  } catch {
+    await renderHostPicker(container)
+    return invoke<HostRecord[]>('list_hosts')
+  }
+}
+
+/**
+ * The hosts to mount over, pairing a first one when the registry is empty.
+ * @returns every paired host.
+ */
+async function resolveHosts(): Promise<readonly HostRecord[]> {
+  const known = await knownHosts()
+  if (known.length > 0) return known
   await renderHostPicker(container)
+  return knownHosts()
 }
 
 /** Carriers the control plane holds open, one per paired host. */
@@ -71,9 +91,11 @@ async function clearPage(): Promise<void> {
   container.replaceChildren()
 }
 
-/** Mount the control plane over the registry as it now stands. */
-async function mountControlPlane(): Promise<void> {
-  const hosts = await invoke<HostRecord[]>('list_hosts')
+/**
+ * Mount the control plane over a set of hosts.
+ * @param hosts - the registry as it now stands.
+ */
+function mountControlPlane(hosts: readonly HostRecord[]): void {
   disposeShell = mountShell(
     container,
     {
@@ -97,7 +119,7 @@ async function mountControlPlane(): Promise<void> {
         // host cannot keep an authenticated stream open for the process's life.
         await clearPage()
         await invoke('forget_host', { host: hostId })
-        await mountControlPlane()
+        mountControlPlane(await knownHosts())
       },
     },
     t,
@@ -130,7 +152,13 @@ async function openSession(host: HostRecord, sessionId: string): Promise<void> {
 async function pairAnother(): Promise<void> {
   await clearPage()
   await renderHostPicker(container)
-  await mountControlPlane()
+  mountControlPlane(await knownHosts())
+}
+
+/** Tear the booted client down and put the control plane back. */
+async function returnToFleet(): Promise<void> {
+  await clearPage()
+  mountControlPlane(await knownHosts())
 }
 
 /**
@@ -143,7 +171,7 @@ function showReturnBar(): void {
   const bar = el('div', { className: 'return-bar' })
   bar.append(
     button('button button-outline return-button', t('shell.backToFleet'), () => {
-      void clearPage().then(mountControlPlane)
+      void returnToFleet()
     }),
   )
   bar.dataset.deeptailReturn = ''
@@ -151,8 +179,7 @@ function showReturnBar(): void {
   returnBar = bar
 }
 
-await resolveHosts()
-await mountControlPlane()
+mountControlPlane(await resolveHosts())
 
 // A clean close beats a dropped connection the host has to time out.
 globalThis.addEventListener(

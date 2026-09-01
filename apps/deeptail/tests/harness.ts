@@ -165,14 +165,14 @@ const TYPES: Readonly<Record<string, string>> = {
  * @returns the harness.
  */
 async function serve(rel: string, res: ServerResponse): Promise<void> {
-  try {
-    const body = await readFile(join(DIST, rel))
-    res.writeHead(200, { 'content-type': TYPES[extname(rel)] ?? 'application/octet-stream' })
-    res.end(body)
-  } catch {
+  const body = await readFile(join(DIST, rel)).catch(() => undefined)
+  if (body === undefined) {
     res.writeHead(404)
     res.end('not found')
+    return
   }
+  res.writeHead(200, { 'content-type': TYPES[extname(rel)] ?? 'application/octet-stream' })
+  res.end(body)
 }
 
 export async function startHarness(): Promise<Harness> {
@@ -306,7 +306,7 @@ export async function startHarness(): Promise<Harness> {
             }
           },
           transformCallback: (callback: () => object) => callback,
-          unregisterCallback: () => null,
+          unregisterCallback: () => {},
           convertFileSrc: (path: string) => path,
         }
         Object.assign(window, { __TAURI_INTERNALS__: internals })
@@ -320,11 +320,14 @@ export async function startHarness(): Promise<Harness> {
     },
     async audit(page) {
       const result = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze()
-      return result.violations.map((violation) => ({
-        id: violation.id,
-        impact: violation.impact ?? 'unknown',
-        help: violation.help,
-        nodes: violation.nodes.map((node) => node.html),
+      // `incomplete` is axe reporting that it could not decide — the state
+      // colour-contrast lands in when a background cannot be resolved. Treating
+      // it as a pass would let a real failure hide behind an undecided one.
+      return [...result.violations, ...result.incomplete].map((finding) => ({
+        id: finding.id,
+        impact: finding.impact ?? 'unknown',
+        help: finding.help,
+        nodes: finding.nodes.map((node) => node.html),
       }))
     },
     calls(page) {

@@ -21,7 +21,7 @@
     "lint:ox": "oxlint . --deny-warnings",
     "knip": "knip",
     "test": "bun test packages/host-fleet/tests tests",
-    "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests/picker.browser.spec.ts --timeout 30000 && bun test apps/deeptail/tests/shell.browser.spec.ts --timeout 30000 && bun test apps/deeptail/tests/a11y.browser.spec.ts --timeout 60000",
+    "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests --timeout 60000",
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
     "lint:rust": "cd apps/deeptail/src-tauri && cargo clippy --all-targets -- -D warnings",
     "tauri": "tauri",

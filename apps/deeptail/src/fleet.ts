@@ -2,54 +2,27 @@
  * The host picker: the one screen DeepTail draws itself. Everything after a
  * host is chosen is the harness's own web client, served by that host.
  *
- * Framework-free by necessity — it paints before any harness bundle has
- * loaded — so it builds DOM directly, in the idiom the harness boot page uses:
- * `textContent` never `innerHTML`, and `replaceChildren` for whole-state swaps.
+ * This is the picker's engine — the native surface it calls, the phase it
+ * moves through, and the promise a chosen host settles. Which phase paints
+ * which views is decided in `./picker-screen.ts`.
  *
  * @module
  */
 
 import { invoke } from '@tauri-apps/api/core'
 import type { HostRecord } from './host.ts'
-import { createTranslate, type PickerKey, type Translate } from './locales.ts'
-import { el, moveRovingFocus } from './ui/dom.ts'
+import { createTranslate, type Translate } from './locales.ts'
+import type { PairDraft } from './picker-pair-form.ts'
+import { mountPickerFrame, type Phase, type PickerActions, type PickerFrame, paintScreen } from './picker-screen.ts'
 import type { HostState } from './ui/states.ts'
 import './styles/tokens.css'
 import './styles/picker.css'
-
-/**
- * What the picker is doing. An empty list is only empty once `ready` — until
- * then it reads as loading, so a cold start never flashes "no hosts".
- */
-type Phase =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'ready'; readonly hosts: readonly HostRecord[] }
-  | { readonly kind: 'failed'; readonly message: string }
-  | {
-      readonly kind: 'pairing'
-      readonly hosts: readonly HostRecord[]
-      readonly error?: string
-      readonly busy: boolean
-      /** What the viewer has typed, carried across re-renders so a failure never discards it. */
-      readonly draft: { readonly link: string; readonly label: string }
-    }
-
-/** The pairing phase of {@link Phase}. */
-type PairingPhase = Extract<Phase, { kind: 'pairing' }>
 
 /** How the picker reaches the native side; replaced wholesale in tests. */
 export interface PickerPorts {
   listHosts(): Promise<HostRecord[]>
   pairHost(link: string, label: string): Promise<HostRecord>
   hostState(host: HostRecord): Promise<HostState>
-}
-
-/** The localized key for one host state's spoken label. */
-const STATE_KEYS: Readonly<Record<HostState, PickerKey>> = {
-  online: 'host.state.online',
-  offline: 'host.state.offline',
-  unauthorized: 'host.state.unauthorized',
-  unknown: 'host.state.unknown',
 }
 
 /** Render a rejected promise reason as message text. */
@@ -81,206 +54,160 @@ const tauriPorts: PickerPorts = {
 /** A pairing form with nothing typed into it yet. */
 const EMPTY_DRAFT = { link: '', label: '' } as const
 
-/** What every picker view needs from its surroundings. */
-interface PickerContext {
-  /** Copy source. */
-  readonly t: Translate
+/** What the picker knows, which its phases are painted from. */
+interface PickerModel {
+  /** The phase on screen. */
+  phase: Phase
   /** Reachability per host, filled in as probes settle. */
-  readonly states: ReadonlyMap<string, HostState>
-}
-
-/** What the host-list view needs beyond {@link PickerContext}. */
-interface ListContext extends PickerContext {
-  /** The hosts to lay out. */
-  readonly hosts: readonly HostRecord[]
-  /** Called with the host a viewer activated. */
-  pick(host: HostRecord): void
-  /** Called when the viewer asks to pair another host. */
-  startPairing(hosts: readonly HostRecord[]): void
-}
-
-/** What the pairing form needs beyond {@link PickerContext}. */
-interface PairContext extends PickerContext {
-  /** The phase driving this render. */
-  readonly current: PairingPhase
-  /** Called with the typed draft when the form is submitted. */
-  submit(hosts: readonly HostRecord[], draft: { link: string; label: string }): void
-  /** Called when the viewer abandons pairing. */
-  cancel(hosts: readonly HostRecord[]): void
-}
-
-/** The loading announcement. */
-const loadingView = (t: Translate): HTMLElement => {
-  const row = el('div', { className: 'centered' })
-  row.dataset.deeptailState = 'loading'
-  row.append(el('div', { className: 'spinner' }), el('div', { className: 'status', text: t('status.loading') }))
-  return row
-}
-
-/** The failed-read strip, carrying its own retry. */
-const failedView = (t: Translate, message: string, onRetry: () => void): HTMLElement => {
-  const strip = el('div', { className: 'error', text: message })
-  strip.dataset.deeptailState = 'error'
-  strip.setAttribute('role', 'alert')
-  const retry = el('button', { className: 'retry', text: t('action.retry') })
-  retry.type = 'button'
-  retry.addEventListener('click', onRetry)
-  strip.append(retry)
-  return strip
+  readonly states: Map<string, HostState>
 }
 
 /**
- * The nothing-paired call to action: with nothing paired there is nothing to
- * choose between, so the screen is the pairing call to action rather than an
- * empty list beside a button.
+ * One running picker: the native surface it calls, the copy it speaks, what it
+ * knows, the frame it paints into, and how it hands back a chosen host.
  */
-const emptyView = (t: Translate, onPair: () => void): HTMLElement[] => {
-  const status = el('div', { className: 'status', text: t('status.empty') })
-  status.dataset.deeptailState = 'empty'
-  status.setAttribute('role', 'status')
-  const lede = el('p', { className: 'lede', text: t('empty.lede') })
-  const add = el('button', { className: 'button button-primary', text: t('action.pair') })
-  add.type = 'button'
-  add.addEventListener('click', onPair)
-  const actions = el('div', { className: 'actions' })
-  actions.append(add)
-  return [status, lede, actions]
+interface PickerRuntime {
+  readonly ports: PickerPorts
+  readonly t: Translate
+  readonly model: PickerModel
+  readonly frame: PickerFrame
+  /** Hand the chosen host back and take the picker down. */
+  finish(host: HostRecord): void
 }
 
-/** One host row: decorative dot, label, origin, and the spoken state beside it. */
-const hostRow = (
-  ctx: PickerContext,
-  host: HostRecord,
-  onPick: (host: HostRecord) => void,
-): { readonly row: HTMLButtonElement; readonly seat: HTMLElement } => {
-  const seat = el('span')
-  seat.setAttribute('role', 'listitem')
-  const row = el('button', { className: 'row' })
-  row.type = 'button'
-  row.dataset.deeptailHost = host.id
-  row.tabIndex = 0
-
-  const reachability = ctx.states.get(host.id) ?? 'unknown'
-  const dot = el('span', { className: 'dot' })
-  dot.dataset.state = reachability
-  dot.setAttribute('aria-hidden', 'true')
-
-  const text = el('span', { className: 'row-text' })
-  text.append(
-    el('span', { className: 'row-label', text: host.label }),
-    el('span', { className: 'row-origin', text: host.origin }),
-  )
-
-  // The dot is decorative; the state is announced as text beside it.
-  const spoken = el('span', { className: 'visually-hidden', text: ctx.t(STATE_KEYS[reachability]) })
-  row.append(dot, text, spoken)
-  row.addEventListener('click', () => onPick(host))
-  seat.append(row)
-  return { row, seat }
+/**
+ * Repaint the card for the phase the picker is in.
+ * @param run - the running picker.
+ * @returns nothing.
+ */
+function repaint(run: PickerRuntime): void {
+  paintScreen(run.frame, run.model.phase, { t: run.t, states: run.model.states }, pickerActions(run))
 }
 
-/** The host list, with roving focus and the pair-another footer. */
-const listView = (ctx: ListContext): HTMLElement[] => {
-  const lede = el('p', { className: 'lede', text: ctx.t('picker.lede') })
-  const list = el('div', { className: 'list' })
-  list.dataset.deeptailState = 'ready'
-  list.setAttribute('role', 'list')
-  list.setAttribute('aria-label', ctx.t('picker.aria'))
+/**
+ * Move the picker to a phase and repaint.
+ * @param run - the running picker.
+ * @param next - the phase to show.
+ * @returns nothing.
+ */
+function toPhase(run: PickerRuntime, next: Phase): void {
+  run.model.phase = next
+  repaint(run)
+}
 
-  const rows: HTMLButtonElement[] = []
-  for (const host of ctx.hosts) {
-    const { row, seat } = hostRow(ctx, host, ctx.pick)
-    if (rows.length > 0) row.tabIndex = -1
-    rows.push(row)
-    list.append(seat)
+/**
+ * The commands the painted controls invoke, bound to one running picker.
+ * @param run - the running picker.
+ * @returns the command surface.
+ */
+function pickerActions(run: PickerRuntime): PickerActions {
+  return {
+    reload: () => {
+      void loadRoster(run)
+    },
+    beginPairing: (hosts) => {
+      toPhase(run, { kind: 'pairing', hosts, busy: false, draft: EMPTY_DRAFT })
+    },
+    cancelPairing: (hosts) => {
+      toPhase(run, { kind: 'ready', hosts })
+    },
+    submitPairing: (hosts, draft) => {
+      void pairAndFinish(run, hosts, draft)
+    },
+    choose: run.finish,
   }
-  // Bind each row's index after the list is built so arrow keys move over
-  // the final ordering rather than the partial one.
-  for (const [index, row] of rows.entries()) {
-    row.addEventListener('keydown', (event) => {
-      moveRovingFocus(event, rows, index)
-    })
-  }
-
-  const add = el('button', { className: 'button button-outline', text: ctx.t('action.pair') })
-  add.type = 'button'
-  add.addEventListener('click', () => {
-    ctx.startPairing(ctx.hosts)
-  })
-  const footer = el('div', { className: 'footer' })
-  footer.append(add)
-  return [lede, list, footer]
 }
 
-/** One labeled input in the pairing form. */
-const pairField = (
-  label: string,
-  input: HTMLInputElement,
-  initial: string,
-  onInput: (value: string) => void,
-): HTMLElement => {
-  const field = el('label', { className: 'field' })
-  field.append(el('span', { className: 'label', text: label }))
-  input.value = initial
-  input.addEventListener('input', () => {
-    onInput(input.value)
-  })
-  field.append(input)
-  return field
+/**
+ * The phase a roster read lands in.
+ *
+ * A registry that refuses without saying why still owes the operator an
+ * explanation, so the generic message stands in for an empty one.
+ * @param ports - the native surface.
+ * @param t - copy source.
+ * @returns the phase to move to.
+ */
+async function readRoster(ports: PickerPorts, t: Translate): Promise<Phase> {
+  const read = await settled(ports.listHosts())
+  return read.ok
+    ? { kind: 'ready', hosts: read.value }
+    : { kind: 'failed', message: read.message === '' ? t('error.listFailed') : read.message }
 }
 
-/** The pairing form: link, name, and the cancel/submit actions. */
-const pairView = (ctx: PairContext): HTMLElement[] => {
-  const { t, current } = ctx
-  const draft = { link: current.draft.link, label: current.draft.label }
-  const form = el('form')
-  form.append(el('p', { className: 'lede', text: t('pair.title') }))
-
-  const link = el('input', { className: 'input' })
-  link.type = 'url'
-  link.placeholder = t('pair.linkPlaceholder')
-  link.dataset.deeptailField = 'link'
-  form.append(
-    pairField(t('pair.linkLabel'), link, current.draft.link, (value) => {
-      draft.link = value
+/**
+ * Learn every host's reachability at once.
+ * @param ports - the native surface.
+ * @param hosts - the roster to probe.
+ * @param states - where each answer is recorded.
+ * @returns when every probe has settled.
+ */
+async function probeHosts(
+  ports: PickerPorts,
+  hosts: readonly HostRecord[],
+  states: Map<string, HostState>,
+): Promise<void> {
+  await Promise.all(
+    hosts.map(async (host) => {
+      states.set(host.id, await ports.hostState(host))
     }),
   )
+}
 
-  const name = el('input', { className: 'input' })
-  name.type = 'text'
-  name.placeholder = t('pair.namePlaceholder')
-  name.dataset.deeptailField = 'name'
-  form.append(
-    pairField(t('pair.nameLabel'), name, current.draft.label, (value) => {
-      draft.label = value
-    }),
-  )
+/**
+ * Read the roster, paint it, then settle its dots.
+ *
+ * The list goes up before the probes answer, so one unreachable host holds up
+ * its own dot rather than the whole screen; and the probes only repaint if the
+ * list is still what the viewer is looking at.
+ * @param run - the running picker.
+ * @returns when the roster and every probe have settled.
+ */
+async function loadRoster(run: PickerRuntime): Promise<void> {
+  toPhase(run, { kind: 'loading' })
+  run.frame.live.textContent = run.t('status.loading')
+  toPhase(run, await readRoster(run.ports, run.t))
 
-  if (current.error !== undefined) {
-    const strip = el('div', { className: 'error', text: current.error })
-    strip.dataset.deeptailState = 'pair-error'
-    strip.setAttribute('role', 'alert')
-    form.append(strip)
+  const listed = run.model.phase
+  if (listed.kind !== 'ready') return
+  await probeHosts(run.ports, listed.hosts, run.model.states)
+  if (run.model.phase.kind === 'ready') repaint(run)
+}
+
+/**
+ * The name a host is paired under: it has to be listed as something, so one
+ * left blank is paired as "Harness".
+ * @param typed - the name as typed.
+ * @returns the label to pair with.
+ */
+function pairLabel(typed: string): string {
+  const trimmed = typed.trim()
+  return trimmed === '' ? 'Harness' : trimmed
+}
+
+/**
+ * Pair the host the draft describes, and finish with it.
+ *
+ * Both refusals come back to the form still holding what was typed, so a
+ * mistyped link costs a correction rather than the whole paste.
+ * @param run - the running picker.
+ * @param hosts - the roster the form was opened over.
+ * @param draft - what the viewer typed.
+ * @returns when the attempt has settled.
+ */
+async function pairAndFinish(run: PickerRuntime, hosts: readonly HostRecord[], draft: PairDraft): Promise<void> {
+  const { t } = run
+  if (draft.link.trim() === '') {
+    toPhase(run, { kind: 'pairing', hosts, error: t('error.linkRequired'), busy: false, draft })
+    return
   }
-
-  const cancel = el('button', { className: 'button button-outline', text: t('action.cancel') })
-  cancel.type = 'button'
-  cancel.disabled = current.busy
-  cancel.addEventListener('click', () => {
-    ctx.cancel(current.hosts)
-  })
-  const submit = el('button', { className: 'button button-primary', text: t('action.pair') })
-  submit.type = 'submit'
-  submit.disabled = current.busy
-  submit.dataset.deeptailAction = 'pair-submit'
-  const actions = el('div', { className: 'actions' })
-  actions.append(cancel, submit)
-  form.append(actions)
-  form.addEventListener('submit', (event) => {
-    event.preventDefault()
-    ctx.submit(current.hosts, draft)
-  })
-  return [form]
+  toPhase(run, { kind: 'pairing', hosts, busy: true, draft })
+  const added = await settled(run.ports.pairHost(draft.link.trim(), pairLabel(draft.label)))
+  if (!added.ok) {
+    const error = t('error.pairFailed', { message: added.message })
+    toPhase(run, { kind: 'pairing', hosts, error, busy: false, draft })
+    return
+  }
+  run.finish(added.value)
 }
 
 /**
@@ -297,120 +224,16 @@ export function renderHostPicker(
   translate: Translate = createTranslate(),
 ): Promise<HostRecord> {
   return new Promise<HostRecord>((resolve) => {
-    const t = translate
-    const states = new Map<string, HostState>()
-    const ctxBase: PickerContext = { t, states }
-    let phase: Phase = { kind: 'loading' }
-
-    const root = el('main', { className: 'picker' })
-    root.dataset.deeptailPicker = ''
-    const card = el('div', { className: 'card' })
-    root.append(card)
-    container.replaceChildren(root)
-
-    /** Announce state changes without stealing focus. */
-    const live = el('div', { className: 'visually-hidden' })
-    live.setAttribute('role', 'status')
-
-    const finish = (host: HostRecord): void => {
-      container.replaceChildren()
-      resolve(host)
+    const run: PickerRuntime = {
+      ports,
+      t: translate,
+      model: { phase: { kind: 'loading' }, states: new Map() },
+      frame: mountPickerFrame(container),
+      finish: (host) => {
+        container.replaceChildren()
+        resolve(host)
+      },
     }
-
-    /** Move to a phase and repaint. */
-    const to = (next: Phase): void => {
-      phase = next
-      render()
-    }
-
-    const runLoad = async (): Promise<void> => {
-      phase = { kind: 'loading' }
-      render()
-      live.textContent = t('status.loading')
-      const read = await settled(ports.listHosts())
-      if (!read.ok) {
-        phase = { kind: 'failed', message: read.message === '' ? t('error.listFailed') : read.message }
-        render()
-        return
-      }
-      const hosts = read.value
-      phase = { kind: 'ready', hosts }
-      render()
-      await Promise.all(
-        hosts.map(async (host) => {
-          states.set(host.id, await ports.hostState(host))
-        }),
-      )
-      if (phase.kind === 'ready') render()
-    }
-
-    const runPair = async (
-      hosts: readonly HostRecord[],
-      draft: { readonly link: string; readonly label: string },
-    ): Promise<void> => {
-      if (draft.link.trim() === '') {
-        to({ kind: 'pairing', hosts, error: t('error.linkRequired'), busy: false, draft })
-        return
-      }
-      to({ kind: 'pairing', hosts, busy: true, draft })
-      const trimmedLabel = draft.label.trim()
-      const added = await settled(ports.pairHost(draft.link.trim(), trimmedLabel === '' ? 'Harness' : trimmedLabel))
-      if (!added.ok) {
-        to({ kind: 'pairing', hosts, error: t('error.pairFailed', { message: added.message }), busy: false, draft })
-        return
-      }
-      finish(added.value)
-    }
-
-    const render = (): void => {
-      card.replaceChildren(el('h1', { className: 'wordmark', text: t('app.name') }))
-      switch (phase.kind) {
-        case 'loading':
-          card.append(loadingView(t))
-          break
-        case 'failed':
-          card.append(
-            failedView(t, phase.message, () => {
-              runLoad()
-            }),
-          )
-          break
-        case 'ready':
-          card.append(
-            ...(phase.hosts.length === 0
-              ? emptyView(t, () => {
-                  to({ kind: 'pairing', hosts: [], busy: false, draft: EMPTY_DRAFT })
-                })
-              : listView({
-                  ...ctxBase,
-                  hosts: phase.hosts,
-                  pick: finish,
-                  startPairing: (hosts) => {
-                    to({ kind: 'pairing', hosts, busy: false, draft: EMPTY_DRAFT })
-                  },
-                })),
-          )
-          break
-        case 'pairing':
-          card.append(
-            ...pairView({
-              ...ctxBase,
-              current: phase,
-              submit: (hosts, draft) => {
-                runPair(hosts, draft)
-              },
-              cancel: (hosts) => {
-                to({ kind: 'ready', hosts })
-              },
-            }),
-          )
-          break
-        default:
-          throw new Error('deeptail: unreachable picker phase')
-      }
-      card.append(live)
-    }
-
-    runLoad()
+    void loadRoster(run)
   })
 }
