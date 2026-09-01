@@ -266,3 +266,26 @@ it('starts the backoff again once a connection has been established', async () =
   expect(sockets.length).toBeGreaterThan(established)
   dispose()
 })
+
+it('is already shut when it says why it ended, so a subscriber cannot re-enter it', () => {
+  const { carrier, sockets } = fakeCarrier()
+  const seen = recorder()
+  let reported = 0
+  const dispose = subscribeRoster(carrier, {
+    ...seen.sinks,
+    onLost: (reason: string) => {
+      reported += 1
+      // Being told the host is gone is exactly when a surface tears down what
+      // it had, and a teardown can touch the socket. Reporting before latching
+      // would let that come straight back in here and report the same loss
+      // again, so the host would read as lost twice from one drop.
+      sockets[0]?.dispatchEvent(new Event('error'))
+      seen.sinks.onLost(reason)
+    },
+  })
+  sockets[0]?.open()
+  sockets[0]?.deliver({ type: 'ready', clientId: 'c', host: 'h' })
+  sockets[0]?.drop()
+  expect(reported).toBe(1)
+  dispose()
+})
