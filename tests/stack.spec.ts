@@ -42,6 +42,8 @@ const BANNED_SUPPRESSIONS: readonly Ban[] = [
   { pattern: /(?:eslint|oxlint|biome|knip)-(?:disable|ignore)/u, why: 'suppressing a rule hides the defect' },
   { pattern: /(?:istanbul|c8|v8)\s+ignore/u, why: 'excluding a line from coverage hides the gap' },
   { pattern: /@?biome-ignore/u, why: 'suppressing a rule hides the defect' },
+  { pattern: /@public\b/u, why: 'marking an unused export public hides that nothing imports it' },
+  { pattern: /#!?\[allow\(/u, why: 'suppressing a Rust lint hides the defect' },
 ]
 
 /** Source idioms the project has moved past, and what to use instead. */
@@ -193,27 +195,26 @@ describe('stack floors', () => {
  */
 async function legacyOffences(): Promise<string[]> {
   const trees = await Promise.all(
-    [
-      'apps/deeptail/src',
-      'apps/deeptail/tests',
-      'packages/host-fleet/src',
-      'packages/host-fleet/tests',
-      'scripts',
-      'tests',
-    ].map((tree) => walk(tree, '.ts')),
+    ['apps/deeptail', 'packages/host-fleet', 'scripts', 'tests'].map((tree) => walk(tree, '.ts')),
   )
   const scanned = await Promise.all(trees.flat().map(async (file) => ({ file, text: await readFile(file, 'utf8') })))
   const offences: string[] = []
   for (const { file, text } of scanned) {
+    let declaring = false
     for (const [index, line] of text.split('\n').entries()) {
-      // The bans describe code. Prose that mentions one, and the table that
-      // declares them, are data rather than uses.
+      // The tables that declare the bans are data. Their extent is tracked
+      // rather than inferred from a line's shape, so a directive written to
+      // look like a table row is still an offence.
+      if (line.startsWith('const BANNED')) declaring = true
+      else if (declaring && line === ']') declaring = false
+      if (declaring) continue
+
       const start = line.trimStart()
-      // The table that declares a ban is data, not a use of it.
-      if (start.startsWith('{ pattern:')) continue
+      // A directive is only ever a comment, so every line is searched for one.
       for (const { pattern, why } of BANNED_SUPPRESSIONS) {
         if (pattern.test(line)) offences.push(`${file}:${String(index + 1)}: ${why} — ${line.trim()}`)
       }
+      // An idiom named in prose is prose.
       if (start.startsWith('*') || start.startsWith('//')) continue
       for (const { pattern, why } of BANNED) {
         if (pattern.test(line)) offences.push(`${file}:${String(index + 1)}: ${why} — ${line.trim()}`)

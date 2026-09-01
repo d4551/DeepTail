@@ -606,7 +606,10 @@
     width: min(300px, 86vw);
     padding-top: max(6px, env(safe-area-inset-top));
     padding-bottom: max(6px, env(safe-area-inset-bottom));
+    /* The drawer enters from the inline start, which is the right edge under
+       RTL, so both physical insets are honoured rather than the left one only. */
     padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
     /* Off screen past the inline start, which is the right edge under RTL. */
     transform: translateX(calc(-100% * var(--dsh-inline-direction)));
     visibility: hidden;
@@ -681,9 +684,15 @@
     background: Highlight;
   }
 
-  .dot[data-state="offline"],
+  .dot[data-state="offline"] {
+    background: GrayText;
+  }
+
+  /* Distinguished by shape, because the mode leaves too few colours to spend
+     one on a state the operator can act on. */
   .dot[data-state="unauthorized"] {
     background: Mark;
+    border-style: dashed;
   }
 
   .session-row:hover,

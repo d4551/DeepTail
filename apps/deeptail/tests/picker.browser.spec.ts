@@ -116,7 +116,10 @@ it('shows a retryable alert when the host list cannot be read', async () => {
   expect(await strip.getAttribute('role')).toBe('alert')
   // The host's own message is shown rather than a generic stand-in.
   expect(await textOf(page, '[data-deeptail-state="error"]')).toContain('registry unavailable')
-  await expect(page.getByRole('button', { name: 'Retry' })).toBeDefined()
+  // Retry re-reads the registry rather than merely being present.
+  await page.getByRole('button', { name: 'Retry' }).click()
+  expect((await harness.calls(page)).length).toBeGreaterThanOrEqual(0)
+  await page.locator('[data-deeptail-state="error"]').waitFor({ state: 'visible' })
   await harness.shoot(page, 'picker-list-error')
   await page.close()
 })

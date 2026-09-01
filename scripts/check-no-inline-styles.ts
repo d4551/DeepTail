@@ -20,20 +20,16 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const TREES = [
-  'apps/deeptail/src',
-  'apps/deeptail/tests',
-  'packages/host-fleet/src',
-  'packages/host-fleet/tests',
-  'scripts',
-  'tests',
-].map((tree) => new URL(`../${tree}/`, import.meta.url).pathname)
+const TREES = ['apps/deeptail', 'packages/host-fleet', 'scripts', 'tests'].map(
+  (tree) => new URL(`../${tree}/`, import.meta.url).pathname,
+)
 const SHELL = new URL('../apps/deeptail/index.html', import.meta.url).pathname
 /** Routes to an element's style that appear on one line. */
-const PATTERN = /\.style\b|\bstyle\s*=\s*["'`{]|cssText|attributeStyleMap|\{\s*style\s*[},:]/u
+const PATTERN =
+  /(?<!\.)\.style\b|\[\s*['"`]style['"`]\s*\]|\bstyle\s*=\s*["'`{]|cssText|attributeStyleMap|setNamedItem\s*\(|\{\s*style\s*[},:]/u
 
-/** Routes that a call may spread across several lines. */
-const SPANNING = /setAttribute\(\s*['"`]style['"`]|setAttribute\(\s*[^)'"`]*\+/u
+/** Routes that a call or a destructuring may spread across several lines. */
+const SPANNING = /setAttribute(?:NS)?\([^)]*['"`]style['"`]|setAttribute(?:NS)?\([^)]*\+|\{[^}]*\bstyle\b[^}]*\}\s*=/gu
 
 /** One file to scan, and the label an offence is reported under. */
 interface Source {
@@ -76,7 +72,9 @@ for (const { label, text } of scanned) {
       return !(start.startsWith('*') || start.startsWith('//') || start.startsWith('/'))
     })
     .join('\n')
-  if (SPANNING.test(code)) offences.push(`${label}: setAttribute writes a style attribute`)
+  for (const spanning of code.matchAll(SPANNING)) {
+    offences.push(`${label}: ${spanning[0].split('\n')[0]?.trim() ?? ''}`)
+  }
   for (const [index, line] of text.split('\n').entries()) {
     // Prose describing the ban, and the lines declaring it, are data rather
     // than uses; everything else is an offence.

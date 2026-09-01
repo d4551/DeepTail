@@ -5,9 +5,8 @@
  * state, and cancel a running turn.
  *
  * It is a Consumer only. Session identity, persistence, delegation, and the
- * live registry stay where they already are — `ctx.sessionController`,
- * `ctx.sessionPersistence`, and `ctx.subagents` — so nothing here becomes a
- * second source of truth for session state.
+ * live registry stay where they already are, behind `ctx.sessionController`, so
+ * nothing here becomes a second source of truth for session state.
  *
  * @module @deeptail/host-fleet
  */
@@ -40,7 +39,7 @@ export const Config = fleetLimits
 
 /**
  * Register the fleet tools on this host.
- * @param ctx - host context carrying `tools`, `sessionController`, and `subagents`.
+ * @param ctx - host context carrying `tools` and `sessionController`.
  * @param config - plugin config; the schema fills anything a caller omitted.
  */
 export function apply(ctx: Context, config: Partial<FleetLimits> = {}): void {

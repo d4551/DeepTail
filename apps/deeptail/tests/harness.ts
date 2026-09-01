@@ -40,6 +40,16 @@ async function chromiumPath(): Promise<string | undefined> {
 
 /** A JSON value carried by a scripted roster event. */
 interface OpenOptions {
+  /**
+   * Writing direction the document loads under. A real right-to-left locale
+   * arrives this way, before any style is resolved, rather than being switched
+   * on a live page.
+   */
+  readonly direction?: 'ltr' | 'rtl'
+  /** Emulate the platform's high-contrast mode, which replaces every colour. */
+  readonly forcedColors?: boolean
+  /** Emulate a viewer who has asked for less motion. */
+  readonly reducedMotion?: boolean
   readonly dark?: boolean
   readonly mobile?: boolean
   readonly locale?: string
@@ -140,8 +150,21 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
     // device rather than merely a narrow window.
     ...(options.mobile === true ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } : {}),
     locale: options.locale ?? 'en-GB',
+    ...(options.forcedColors === true ? { forcedColors: 'active' as const } : {}),
+    ...(options.reducedMotion === true ? { reducedMotion: 'reduce' as const } : {}),
   })
   await context.addInitScript({ content: initScriptSource(table) })
+  if (options.direction !== undefined) {
+    await context.addInitScript((value) => {
+      // An init script runs before the parser has created the root element,
+      // so the direction is applied again once it exists.
+      const apply = (): void => {
+        document.documentElement?.setAttribute('dir', value)
+      }
+      apply()
+      document.addEventListener('DOMContentLoaded', apply)
+    }, options.direction)
+  }
   const page = await context.newPage()
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
   return page

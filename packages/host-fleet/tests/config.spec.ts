@@ -1,6 +1,7 @@
 /**
- * Behaviour tests for the fleet tools' own guards. The controller itself is
- * not re-tested here: these cover the rules this package adds on top of it.
+ * The plugin's config schema: the defaults it applies and the values it refuses.
+ *
+ * What the tools do with those limits is covered in `fleet-tools.spec.ts`.
  */
 import { describe, expect, it } from 'bun:test'
 import { Config } from '../src/index.ts'
