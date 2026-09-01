@@ -72,6 +72,7 @@ export function mountConnectionMenu(
     else trigger.removeAttribute('aria-controls')
 
     root.replaceChildren(trigger)
+    setSurroundingsInert(root, open)
     if (!open) return
 
     const panel = buildConnectionMenu({ hosts, activeHostId, ports, t, dismiss: popover.close })
@@ -183,5 +184,26 @@ function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render:
       document.removeEventListener('pointerdown', onOutside)
       document.removeEventListener('keydown', onKeyDown)
     },
+  }
+}
+
+/**
+ * Take the rest of the shell out of play while the menu is over it.
+ *
+ * An open menu overlaps the rows behind it, leaving them partially covered: too
+ * small to hit reliably, and pointing at something the operator is not looking
+ * at. A click there dismisses the menu rather than reaching the row, so the row
+ * is not a target while the menu is open, and this says so.
+ * @param root - the element the menu is mounted in.
+ * @param open - whether the menu is open.
+ */
+function setSurroundingsInert(root: HTMLElement, open: boolean): void {
+  const sidebar = root.closest('#deeptail-sidebar')
+  if (sidebar === null) return
+  // Only what the menu actually covers. The main pane is not overlapped, and it
+  // carries the page's landmark and heading.
+  for (const region of sidebar.querySelectorAll<HTMLElement>(':scope > *')) {
+    if (region === root || region.contains(root)) continue
+    region.inert = open
   }
 }

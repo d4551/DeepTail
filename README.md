@@ -55,8 +55,11 @@ resolved `--dsw-alias-*` and `--dsw-specific-*` values and its
 `ui-primitives/Menu`, `ui-primitives/Modal` and `ui-workspace/rows`.
 
 **No inline styles.** Every visual is a class, enforced by
-`scripts/check-no-inline-styles.ts`, which scans every module and the shell
-document for `.style.`, `style=` and `cssText`. The gate has no allowances:
+`scripts/check-no-inline-styles.ts`, which scans every module in the repository
+and the shell document for every route to an element's style: the dotted
+property, an indexed write, a bulk assign, destructuring, the CSS Typed OM, a
+`style` attribute, and `setAttribute('style', …)` however it is spelt. The gate
+has no allowances:
 `color-scheme` is a CSS property keyed off the same `body[data-ds-dark-theme]`
 attribute as the palette, so native UA chrome cannot drift from the theme.
 
@@ -69,7 +72,7 @@ attribute as the palette, so native UA chrome cannot drift from the theme.
 
 Every state is built and screenshotted: loading, empty-after-settled, error,
 partial failure (one host down, the rest still listed), unauthorized, and
-offline. `apps/deeptail/tests/screenshots/` holds all seventeen, and each is
+offline. `apps/deeptail/tests/screenshots/` holds all 20, and each is
 written by the case that asserts the state, so none can drift from the code.
 
 ## Layout
@@ -109,7 +112,7 @@ until three changes land upstream. The control plane does not depend on them.
 
 ```sh
 bun install
-bun run validate          # lint, styles gate, typecheck, tests, knip, clippy, cargo test, browser
+bun run validate          # biome, oxlint, styles gate, typecheck, tests, knip, clippy, cargo test, browser
 bun run tauri dev         # desktop
 bun run tauri android dev # Android Studio, JAVA_HOME, ANDROID_HOME, NDK_HOME
 bun run tauri ios dev     # macOS + Xcode + CocoaPods only

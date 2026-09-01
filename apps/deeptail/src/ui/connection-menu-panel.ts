@@ -52,11 +52,14 @@ export function buildConnectionMenu(options: MenuPanelOptions): MenuPanel {
     data: { deeptailConnection: 'menu' },
   })
   const items = el('div', { className: 'menu-items', attrs: { role: 'none' } })
-  const stops = options.hosts.map((host) => appendHostRow(items, host, options))
+  const rows = options.hosts.map((host) => appendHostRow(items, host, options))
   menu.append(items)
-  wireRovingFocus(stops)
-  menu.append(buildFooter(options))
-  return { menu, initialFocus: stops[0] }
+  const footer = buildFooter(options)
+  menu.append(footer)
+  // Arrow keys walk everything the menu owns, and the whole menu is one stop in
+  // the page's tab order, so a row and a pinned action are reached the same way.
+  wireRovingFocus([...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')])
+  return { menu, initialFocus: rows[0] }
 }
 
 /**
