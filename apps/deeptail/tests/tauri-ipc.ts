@@ -80,6 +80,8 @@ export type AnswerTable = {
   readonly muxEvents?: readonly ForwardedEvent[]
   /** Hosts whose mux closes right after opening, so the roster reports it lost. */
   readonly muxClose?: readonly string[]
+  /** Why booting the harness client fails, when the test needs it to. */
+  readonly bootError?: string
 }
 
 /** How a page should be opened. */
@@ -221,6 +223,10 @@ function deeptailInvoke(
     case 'select_host':
       return script.selectError === undefined ? Promise.resolve({}) : Promise.reject(new Error(script.selectError))
     case 'forget_host':
+      return Promise.resolve(null)
+    case 'boot_injections':
+      return script.bootError === undefined ? Promise.resolve([]) : Promise.reject(new Error(script.bootError))
+    case 'carrier_close_mux':
       return Promise.resolve(null)
     case 'pair_host':
       return script.pairError === undefined

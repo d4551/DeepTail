@@ -109,3 +109,19 @@ it('takes the rows the open menu covers out of play', async () => {
   expect(await reachable()).toBe(true)
   await page.close()
 })
+
+it('opens the pairing form under the name of the host being re-paired', async () => {
+  const page = await harness.open({
+    hosts: HOSTS,
+    remote: { 'session/list': { items: SESSIONS } },
+    remoteStatuses: { 'lab-2:session/list': 401 },
+  })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-action="repair"]').click()
+  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+  // Re-pairing replaces the record it names, so the form carries that host's
+  // name rather than opening blank for whatever is pasted next.
+  expect(await page.locator('[data-deeptail-field="name"]').inputValue()).toBe('Lab box')
+  await page.close()
+})

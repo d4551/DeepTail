@@ -124,3 +124,16 @@ it('names the available presets when the host rejects the one typed', async () =
   expect(await page.locator('[data-deeptail-field="preset"]').inputValue()).toBe('nope')
   await page.close()
 })
+
+it('puts the control plane back, carrying the reason, when a client fails to boot', async () => {
+  const page = await harness.open(oneHost({ bootError: 'host refused the boot table' }))
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-session="s-running"] .session-open').click()
+  // Booting replaces the page, so a failure part way through would otherwise
+  // leave nothing on screen and no way back.
+  await page.locator('[data-deeptail-state="shell-error"]').waitFor({ state: 'visible' })
+  expect(await textOf(page, '[data-deeptail-state="shell-error"]')).toContain('host refused the boot table')
+  expect(await page.locator('[data-deeptail-shell]').count()).toBe(1)
+  expect(await textOf(page, '[data-deeptail-session="s-running"] .session-title')).toBe('Refactor the loader')
+  await page.close()
+})
