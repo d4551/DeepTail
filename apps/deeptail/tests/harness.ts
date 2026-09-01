@@ -36,12 +36,8 @@ async function chromiumPath(): Promise<string | undefined> {
 
 /** A JSON value carried by a scripted roster event. */
 type MuxEventValue =
-  | string
-  | number
-  | boolean
-  | null
-  | readonly MuxEventValue[]
-  | { readonly [key: string]: MuxEventValue }
+  | { readonly type: 'ready'; readonly clientId: string; readonly host: string }
+  | { readonly type: 'emit'; readonly event: string; readonly args: ForwardedEvent['args'] }
 
 /** One frame the scripted mux socket delivers to the client. */
 type ScriptFrame =
@@ -62,12 +58,12 @@ type HostFixture = {
 }
 
 /** The failure context a host attaches to a rejection. */
-export interface FailureDetails {
+interface FailureDetails {
   readonly available?: readonly string[]
 }
 
 /** One session as the roster reports it over the wire. */
-export interface SessionFixture {
+interface SessionFixture {
   readonly sessionId: string
   readonly updatedAt: number
   readonly running: boolean
@@ -76,7 +72,7 @@ export interface SessionFixture {
 }
 
 /** One roster event the mux forwards, with the argument tuple the host sends. */
-export interface ForwardedEvent {
+interface ForwardedEvent {
   readonly event: string
   readonly args: readonly (string | number | boolean | SessionFixture)[]
 }
@@ -101,13 +97,13 @@ export type AnswerTable = {
   /** Failure codes for the endpoints in `remoteErrors`, keyed the same way. */
   readonly remoteErrorCodes?: Readonly<Record<string, string>>
   /** Failure details for those endpoints, such as the presets a host does have. */
-  readonly remoteErrorDetails?: Readonly<Record<string, MuxEventValue>>
+  readonly remoteErrorDetails?: Readonly<Record<string, FailureDetails>>
   /** Hosts whose `$events` mux answers. Anything not listed keeps the silent,
    *  never-opening socket, which is what an unreachable stream looks like. */
   readonly muxHosts?: readonly string[]
   /** Roster events the mux forwards once the stream is open, in order. Each is
    *  delivered to every host in `muxHosts`. */
-  readonly muxEvents?: readonly { readonly event: string; readonly args: readonly MuxEventValue[] }[]
+  readonly muxEvents?: readonly ForwardedEvent[]
   /** Hosts whose mux closes right after opening, so the roster reports it lost. */
   readonly muxClose?: readonly string[]
 }
