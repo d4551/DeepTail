@@ -67,14 +67,24 @@ export function openComposeSheet(target: ComposeTarget, t: Translate, announce: 
     void target.api
       .prompt(target.sessionId, text, mode)
       .then(() => {
-        announce(t('chat.sent', { label: target.title }))
+        // Closed first: the shell's live region sits inside the root this
+        // dialog holds inert, and a mutation made while it is inert is never
+        // announced.
         dialog.close()
+        announce(t('chat.sent', { label: target.title }))
         return undefined
       })
       .catch((reason: unknown) => {
+        const message = reason instanceof Error ? reason.message : String(reason)
+        // Escape closes the sheet at any time, including mid-flight. Reporting
+        // into a detached node would lose the failure entirely, so it goes to
+        // the live region instead.
+        if (!dialog.isOpen()) {
+          announce(t('chat.sendFailed', { message }))
+          return undefined
+        }
         // The draft is deliberately left intact: a failed send must not cost
         // the operator what they typed.
-        const message = reason instanceof Error ? reason.message : String(reason)
         failure.textContent = t('chat.sendFailed', { message })
         failure.hidden = false
         setBusy(false)

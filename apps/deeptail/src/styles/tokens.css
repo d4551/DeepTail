@@ -57,6 +57,17 @@ body {
   --dsw-alias-state-warn-primary: rgb(245, 158, 11);
   --dsw-alias-state-warn-label: rgb(221, 134, 41);
   --dsw-alias-state-error-primary: rgb(236, 19, 19);
+  --dsw-specific-sidebar-fill: rgb(249, 250, 251);
+  --dsw-specific-menu: rgb(255, 255, 255);
+  /* The two elevation rungs coincide in this theme: upstream points both at
+     the same static pair, so a raised surface reads by its fill rather than by
+     a darker thumb. The dark block is where they diverge. */
+  --dsw-alias-scrollbar-bg-l1: rgb(229, 229, 229);
+  --dsw-alias-scrollbar-bg-l2: rgb(229, 229, 229);
+  --dsw-alias-scrollbar-hover-l1: rgb(212, 212, 212);
+  --dsw-alias-scrollbar-hover-l2: rgb(212, 212, 212);
+  --dsw-alias-button-floating-hover: rgb(241, 243, 245);
+  --dsw-alias-button-elevated-fill: rgb(255, 255, 255);
   --dsw-shadow-lv2: 0 4px 12px 0 rgba(0, 0, 0, 0.02), 0 2px 8px 0 rgba(0, 0, 0, 0.04);
   --dsw-mask-blur: blur(2px);
   --dsw-shadow-lv3: 0 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 4px 0 rgba(0, 0, 0, 0.02), 0 12px 32px 0 rgba(0, 0, 0, 0.08);
@@ -110,6 +121,15 @@ body[data-ds-dark-theme] {
   --dsw-alias-state-business-tertiary: rgb(52, 65, 91);
 }
 
+/* Source: ui-theme/src/styles/scrollbar.css:18-21. The l1 pair is the
+ * base-surface default; an elevated surface rebinds to l2 on its own
+ * container, which is what `.sidebar` does. Both rendering paths below read
+ * this indirection, so one rebind reaches whichever path the engine took. */
+body {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l1);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l1);
+}
+
 html,
 body,
 #root {
@@ -153,6 +173,18 @@ input:focus-visible,
   white-space: nowrap;
 }
 
+/* Elevation default for the skin below, which reads the indirection rather
+ * than an alias so one rebind on a raised surface reaches whichever of the two
+ * rendering paths the engine took — `.sidebar` in shell.css swaps in the l2
+ * pair that way. It sits on `body` because the palette does, and custom
+ * properties only inherit downward: on `html` the aliases would resolve to the
+ * guaranteed-invalid value and `scrollbar-color` would fall back to `auto`.
+ * Source: ui-theme/src/styles/scrollbar.css:17-19. */
+body {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l1);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l1);
+}
+
 @supports not selector(::-webkit-scrollbar) {
   body,
   body * {
@@ -181,4 +213,12 @@ input:focus-visible,
 
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* The UA sheet's `[hidden] { display: none }` loses to any author rule that
+ * sets `display`, which `.error` does. This rule is deliberately last so it
+ * wins the cascade over every equal-specificity author rule, keeping
+ * `element.hidden = true` authoritative. */
+[hidden] {
+  display: none;
 }

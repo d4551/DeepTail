@@ -10,7 +10,7 @@
 
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
-import { button, el, screenReaderText } from './dom.ts'
+import { button, el, moveRovingFocus, screenReaderText } from './dom.ts'
 import { type HostState, hostStateLabel } from './states.ts'
 
 /** What the menu needs from the shell. */
@@ -20,6 +20,8 @@ export interface ConnectionPorts {
   activeHostId(): string | undefined
   select(hostId: string): void
   pair(): void
+  /** Pair this host again, which is the only way out of `unauthorized`. */
+  repair(hostId: string): void
   unpair(hostId: string): void
 }
 
@@ -97,7 +99,8 @@ export function mountConnectionMenu(
       el('span', { className: 'connection-label', text: active?.label ?? t('status.empty') }),
       screenReaderText(hostStateLabel(t, state)),
     )
-    trigger.setAttribute('aria-controls', open ? menuId : '')
+    if (open) trigger.setAttribute('aria-controls', menuId)
+    else trigger.removeAttribute('aria-controls')
 
     root.replaceChildren(trigger)
     if (!open) return
@@ -107,6 +110,8 @@ export function mountConnectionMenu(
       attrs: { role: 'menu', 'aria-label': t('shell.switchHost'), id: menuId },
       data: { deeptailConnection: 'menu' },
     })
+    const items = el('div', { className: 'menu-items' })
+    const stops: HTMLButtonElement[] = []
     for (const host of hosts) {
       const item = el('button', {
         className: 'menu-item',
@@ -128,7 +133,26 @@ export function mountConnectionMenu(
         closeMenu()
         ports.select(host.id)
       })
-      menu.append(item)
+      if (hostState === 'unauthorized') {
+        // The one state the operator cannot clear by waiting, so the row offers
+        // the only action that does clear it.
+        const repair = button('menu-repair', t('shell.repair'), () => {
+          closeMenu()
+          ports.repair(host.id)
+        })
+        repair.dataset.deeptailAction = 'repair'
+        items.append(item, repair)
+      } else {
+        items.append(item)
+      }
+      stops.push(item)
+    }
+    menu.append(items)
+    for (const [index, stop] of stops.entries()) {
+      stop.tabIndex = index === 0 ? 0 : -1
+      stop.addEventListener('keydown', (event) => {
+        moveRovingFocus(event, stops, index)
+      })
     }
 
     const footer = el('div', { className: 'menu-footer' })
@@ -148,6 +172,7 @@ export function mountConnectionMenu(
     }
     menu.append(footer)
     root.append(menu)
+    stops[0]?.focus()
   }
 
   container.append(root)

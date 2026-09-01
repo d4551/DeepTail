@@ -20,6 +20,8 @@ export interface Dialog {
   readonly body: HTMLElement
   /** The footer that holds the actions. */
   readonly actions: HTMLElement
+  /** Whether the dialog is still on the page. */
+  isOpen(): boolean
   /** Close and restore the page. */
   close(): void
 }
@@ -45,6 +47,9 @@ export function openDialog(title: string, onClose: () => void): Dialog {
   root.append(mask, dialog)
 
   const appRoot = document.getElementById('root')
+  // Focus is moved into the dialog, so the control that opened it has to be
+  // remembered or a keyboard user is returned to the top of the document.
+  const opener = document.activeElement
   let closed = false
 
   const close = (): void => {
@@ -53,6 +58,7 @@ export function openDialog(title: string, onClose: () => void): Dialog {
     document.removeEventListener('keydown', onKeyDown)
     root.remove()
     if (appRoot !== null) appRoot.inert = false
+    if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
     onClose()
   }
 
@@ -70,5 +76,10 @@ export function openDialog(title: string, onClose: () => void): Dialog {
   dialog.tabIndex = -1
   dialog.focus()
 
-  return { body, actions, close }
+  return {
+    body,
+    actions,
+    isOpen: () => !closed,
+    close,
+  }
 }

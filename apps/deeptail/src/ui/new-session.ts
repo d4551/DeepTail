@@ -72,6 +72,7 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
       .apiFor(host)
       .listPresets()
       .then((presets: readonly AgentPreset[]) => {
+        if (!dialog.isOpen()) return undefined
         status.hidden = true
         for (const preset of presets) {
           const option = el('option', { text: preset.name })
@@ -83,6 +84,7 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
         return undefined
       })
       .catch((reason: unknown) => {
+        if (!dialog.isOpen()) return undefined
         status.hidden = true
         failure.textContent = t('spawn.presetsFailed', {
           message: reason instanceof Error ? reason.message : String(reason),
@@ -120,14 +122,18 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
         ...(directory === '' ? {} : { cwd: directory }),
       })
       .then(() => {
-        announce(t('spawn.created', { label: host.label }))
+        // Closed first: the live region is inert while this dialog is open.
         dialog.close()
+        announce(t('spawn.created', { label: host.label }))
         return undefined
       })
       .catch((reason: unknown) => {
-        failure.textContent = t('spawn.failed', {
-          message: reason instanceof Error ? reason.message : String(reason),
-        })
+        const message = reason instanceof Error ? reason.message : String(reason)
+        if (!dialog.isOpen()) {
+          announce(t('spawn.failed', { message }))
+          return undefined
+        }
+        failure.textContent = t('spawn.failed', { message })
         failure.hidden = false
         setBusy(false)
         return undefined

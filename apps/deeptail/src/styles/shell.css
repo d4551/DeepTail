@@ -131,6 +131,7 @@
 /* Elevated card: hairline is transparent in light, visible in dark, because
    the shadow alone cannot separate a dark card from a dark ground. */
 .menu {
+  max-height: min(420px, calc(100vh - 24px));
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
@@ -163,13 +164,29 @@
   cursor: pointer;
 }
 
-.menu-item:hover:not([aria-disabled="true"]) {
+.menu-item:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-.menu-item[aria-disabled="true"] {
-  opacity: 0.4;
-  cursor: not-allowed;
+/* Sits under the host it belongs to, quiet until the row is read. */
+.menu-repair {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px 0 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-state-business-primary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-repair:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .menu-label {
@@ -190,8 +207,13 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-.menu-danger:hover:not([aria-disabled="true"]) {
+.menu-danger:hover {
   background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.menu-items {
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .menu-footer {
@@ -217,6 +239,15 @@
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 18px;
+}
+
+/* The seat is the sidebar's flex item, so it carries the shrink the roster
+ * needs; without it `.roster`'s own overflow can never engage. */
+.roster-seat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .roster {
@@ -272,16 +303,30 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  height: 32px;
+  min-height: 32px;
   padding: 0 8px;
   box-sizing: border-box;
-  border: none;
   border-radius: 8px;
-  background: transparent;
   color: var(--dsw-alias-label-primary);
+  user-select: none;
+}
+
+/* Fills the row so the whole strip reads as one target, while leaving the row
+ * actions as siblings rather than descendants. */
+.session-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   text-align: left;
   cursor: pointer;
-  user-select: none;
 }
 
 .session-row:hover {
@@ -289,9 +334,10 @@
 }
 
 /* The roster clips both axes, so the ring is drawn inward or it is cut off. */
-.session-row:focus-visible {
+.session-open:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary);
   outline-offset: -2px;
+  border-radius: 8px;
 }
 
 .session-title {
@@ -318,14 +364,14 @@
   gap: 12px;
 }
 
-.icon-button {
+.row-action {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 16px;
-  height: 16px;
-  padding: 0;
+  min-height: 16px;
+  padding: 0 4px;
   border: none;
   border-radius: 4px;
   background: transparent;
@@ -335,11 +381,16 @@
   cursor: pointer;
 }
 
-.icon-button:hover:not(:disabled) {
+.row-action:hover:not(:disabled) {
   color: var(--dsw-alias-label-primary);
 }
 
-.icon-button:disabled {
+.row-action:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+}
+
+.row-action:disabled {
   cursor: not-allowed;
   opacity: 0.4;
 }
@@ -357,10 +408,36 @@
   }
 }
 
-/* Touch never fires :hover, so the controls stay put. */
+/* Touch never fires :hover, so the controls stay put — and a finger needs a
+ * target the 16px glyph slot never offered, which the row grows to admit. */
 @media not (hover: hover) {
   .row-actions {
     display: inline-flex;
+    gap: 4px;
+  }
+
+  .row-action {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 8px;
+  }
+
+  /* The actions are permanent here, so they take their own line rather than
+     squeezing the title down to a few characters. */
+  .session-row {
+    flex-wrap: wrap;
+    min-height: 44px;
+    padding: 4px 8px;
+  }
+
+  .session-open {
+    flex: 1 0 100%;
+    min-height: 36px;
+    height: auto;
+  }
+
+  .row-actions {
+    margin-left: 14px;
   }
 }
 
@@ -501,6 +578,23 @@
   border-color: var(--dsw-alias-state-business-primary);
 }
 
+/* ── return bar ───────────────────────────────────────────────────────────── */
+
+/* Sits over the booted harness client, which owns the container entirely, so
+ * this is the only DeepTail surface left on the page. */
+.return-bar {
+  position: fixed;
+  z-index: 300;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.return-button {
+  min-height: 40px;
+  box-shadow: var(--dsw-shadow-lv3);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
 /* ── responsive ───────────────────────────────────────────────────────────── */
 
 /* The scrim is declared once, hidden, so the rule that reveals it is never
@@ -511,6 +605,23 @@
 
 .drawer-toggle {
   display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.drawer-toggle:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
 }
 
 /* Below the harness's own sidebar breakpoint the column becomes a drawer, so a
@@ -533,11 +644,28 @@
     padding-bottom: max(6px, env(safe-area-inset-bottom));
     padding-left: max(12px, env(safe-area-inset-left));
     transform: translateX(-100%);
-    transition: transform var(--ds-transition-duration) var(--ds-ease-in-out);
+    visibility: hidden;
+    transition:
+      transform var(--ds-transition-duration) var(--ds-ease-in-out),
+      visibility var(--ds-transition-duration) var(--ds-ease-in-out);
   }
 
   .shell[data-drawer="open"] .sidebar {
     transform: translateX(0);
+    visibility: visible;
+  }
+
+  /* The main column opts into viewport-fit=cover too, so the notch must not
+     take the toggle or the leading edge of the content. */
+  .main-header {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+
+  .main-body {
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
   }
 
   .shell[data-drawer="open"] .drawer-scrim {

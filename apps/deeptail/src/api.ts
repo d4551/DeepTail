@@ -10,8 +10,11 @@
 
 import type { CarrierHooks } from './transport.ts'
 
+/** The failure code a revoked or expired device token arrives with. */
+export const UNAUTHORIZED = 'unauthorized'
+
 /** A failure the host reported, as opposed to one the transport produced. */
-class RemoteError extends Error {
+export class RemoteError extends Error {
   /** Host-supplied failure code, such as `session-not-found`. */
   readonly code: string
 
@@ -89,7 +92,14 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
         payload: { args },
       }),
     })
-    if (!response.ok) throw new RemoteError('transport', `${endpoint} returned HTTP ${String(response.status)}`)
+    if (!response.ok) {
+      // A revoked or expired device token is the one failure the operator can
+      // act on, so it is reported apart from a plain outage.
+      if (response.status === 401 || response.status === 403) {
+        throw new RemoteError('unauthorized', `${endpoint} returned HTTP ${String(response.status)}`)
+      }
+      throw new RemoteError('transport', `${endpoint} returned HTTP ${String(response.status)}`)
+    }
     const envelope = (await response.json()) as ServerResponse
     const result = envelope.result
     if (result === undefined) throw new RemoteError('protocol', `${endpoint} returned no result`)

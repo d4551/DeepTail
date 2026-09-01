@@ -38,6 +38,8 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
   // One mutation at a time: while a cancel is in flight every other row action
   // is disabled, so a late outcome cannot race a second one.
   let busy = false
+  /** Per-host mutation failures, shown beside the rows that still answer. */
+  const failures = new Map<string, string>()
 
   const render = (): void => {
     const { entries } = store.getState()
@@ -48,23 +50,19 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
       return
     }
 
-    const rows: HTMLButtonElement[] = []
+    const stops: HTMLButtonElement[] = []
     for (const entry of entries) {
-      root.append(renderGroup(entry, rows))
+      root.append(renderGroup(entry, stops))
     }
-    for (const [index, row] of rows.entries()) {
-      row.tabIndex = index === 0 ? 0 : -1
-      row.addEventListener('keydown', (event) => {
-        if (moveRovingFocus(event, rows, index)) return
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          row.click()
-        }
+    for (const [index, stop] of stops.entries()) {
+      stop.tabIndex = index === 0 ? 0 : -1
+      stop.addEventListener('keydown', (event) => {
+        moveRovingFocus(event, stops, index)
       })
     }
   }
 
-  const renderGroup = (entry: HostEntry, rows: HTMLButtonElement[]): HTMLElement => {
+  const renderGroup = (entry: HostEntry, stops: HTMLButtonElement[]): HTMLElement => {
     const group = el('div', { className: 'host-group', data: { deeptailHost: entry.host.id } })
     const heading = el('div', { className: 'group-title' })
     heading.append(
@@ -90,6 +88,15 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
       )
       return group
     }
+    const failure = failures.get(entry.host.id)
+    if (failure !== undefined) {
+      group.append(
+        warningRow(failure, t('action.retry'), () => {
+          failures.delete(entry.host.id)
+          void store.refresh(entry.host.id)
+        }),
+      )
+    }
     if (entry.sessions.length === 0) {
       group.append(emptyRow(t('sessions.empty')))
       return group
@@ -98,21 +105,26 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
     const list = el('div', { attrs: { role: 'list', 'aria-label': entry.host.label } })
     for (const session of entry.sessions) {
       const seat = el('span', { attrs: { role: 'listitem' } })
-      seat.append(renderRow(entry, session, rows))
+      seat.append(renderRow(entry, session, stops))
       list.append(seat)
     }
     group.append(list)
     return group
   }
 
-  const renderRow = (entry: HostEntry, session: SessionSummary, rows: HTMLButtonElement[]): HTMLButtonElement => {
-    const row = el('button', {
+  const renderRow = (entry: HostEntry, session: SessionSummary, stops: HTMLButtonElement[]): HTMLElement => {
+    // The row is a container, not a control. A button may not contain another
+    // button, and the row actions are real buttons, so the row's own gesture
+    // lives in a sibling control that fills the remaining width.
+    const row = el('div', {
       className: 'session-row',
       data: { deeptailSession: session.sessionId, deeptailHost: entry.host.id },
     })
-    row.type = 'button'
     const running = session.running
-    row.append(
+
+    const open = el('button', { className: 'session-open' })
+    open.type = 'button'
+    open.append(
       el('span', {
         className: 'dot',
         attrs: { 'aria-hidden': 'true' },
@@ -125,9 +137,13 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
       screenReaderText(running ? t('sessions.running') : t('sessions.idle')),
       el('span', { className: 'session-time', text: relativeTime(session.updatedAt, t) }),
     )
+    open.addEventListener('click', () => {
+      ports.open(entry.host.id, session.sessionId)
+    })
+    row.append(open)
 
     const actions = el('span', { className: 'row-actions' })
-    const message = button('icon-button', t('chat.send'), () => {
+    const message = button('row-action', t('chat.send'), () => {
       ports.message(entry.host.id, session)
     })
     message.dataset.deeptailAction = 'row-message'
@@ -135,7 +151,7 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
     actions.append(message)
 
     if (running) {
-      const stop = button('icon-button', t('chat.cancel'), () => {
+      const stop = button('row-action', t('chat.cancel'), () => {
         void cancel(entry, session)
       })
       stop.dataset.deeptailAction = 'row-stop'
@@ -144,18 +160,7 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
     }
     row.append(actions)
 
-    row.addEventListener('click', (event) => {
-      // A click that landed on a row action is that action's, not the row's.
-      if (
-        event.target !== row &&
-        event.target instanceof HTMLElement &&
-        event.target.closest('.row-actions') !== null
-      ) {
-        return
-      }
-      ports.open(entry.host.id, session.sessionId)
-    })
-    rows.push(row)
+    stops.push(open)
     return row
   }
 
@@ -163,14 +168,21 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
     const api = ports.apiFor(entry.host.id)
     if (api === undefined || busy) return
     busy = true
+    failures.delete(entry.host.id)
     render()
     try {
       await api.cancel(session.sessionId)
+      failures.delete(entry.host.id)
+    } catch (reason) {
+      // Swallowed deliberately: the operator is told in the roster instead, and
+      // an escaping rejection here would be unhandled and silent.
+      failures.set(entry.host.id, t('sessions.stopFailed', { message: describe(reason) }))
     } finally {
       busy = false
-      await store.refresh(entry.host.id)
       render()
     }
+    // Outside the catch so a refresh failure cannot replace the stop failure.
+    await store.refresh(entry.host.id)
   }
 
   const unsubscribe = store.subscribe(render)
@@ -198,4 +210,13 @@ function relativeTime(at: number, t: Translate): string {
   const hours = Math.round(minutes / 60)
   if (hours < 24) return t('time.hours', { n: hours })
   return t('time.days', { n: Math.round(hours / 24) })
+}
+
+/**
+ * The message a failure should be reported with.
+ * @param reason - whatever was thrown.
+ * @returns the text to show.
+ */
+function describe(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason)
 }

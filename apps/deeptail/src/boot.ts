@@ -36,7 +36,9 @@ interface BootReadyGlobal {
 /**
  * Install the page boot barrier the shell entry awaits before it reads any
  * global. Idempotent: a shell entry evaluating concurrently in this document
- * must observe the same deferred, not a second one.
+ * must observe the same deferred, not a second one. The key lives no longer
+ * than the boot that installed it, so each attempt starts from an unsettled
+ * barrier rather than inheriting the previous one's outcome.
  */
 function bootReadyGate(): PromiseWithResolvers<void> {
   const page = globalThis as BootReadyGlobal
@@ -64,10 +66,15 @@ export async function bootHost(host: HostRecord, container: HTMLElement): Promis
     await applyIndexInjections(injections, (src: string) => carrier.loadBundle(src))
     ready.resolve()
   } catch (reason) {
-    // The transport global is installed before the table is applied, so a
-    // failure here must remove it: a half-booted page that still advertises a
-    // carrier would let a retry attach to a host it never finished reaching.
+    // Both globals are installed before the table is applied, so a failure
+    // here must remove both, and nothing else will: the caller never receives
+    // a BootedHost, so teardown is out of reach. A page that still advertises
+    // a carrier would let a retry attach to a host it never finished reaching,
+    // and a rejected barrier can never be settled again, so leaving it behind
+    // would make the shell paint this failure's message for every later host,
+    // reachable or not.
     Reflect.deleteProperty(globalThis, TRANSPORT_KEY)
+    Reflect.deleteProperty(globalThis, BOOT_READY_KEY)
     ready.reject(reason)
     throw reason
   }

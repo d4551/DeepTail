@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { HostApi, SessionSummary } from './api.ts'
+import { type HostApi, RemoteError, type SessionSummary, UNAUTHORIZED } from './api.ts'
 import type { HostRecord } from './host.ts'
 import type { HostState, Phase } from './ui/states.ts'
 
@@ -91,7 +91,13 @@ export function createFleetStore(hosts: readonly HostRecord[], ports: FleetPorts
       } catch (reason) {
         if (generations.get(hostId) !== generation) return
         const message = reason instanceof Error ? reason.message : String(reason)
-        patch(hostId, { phase: { kind: 'failed', message } })
+        // A revoked token and an unreachable host look alike in a roster read,
+        // but only one of them has a way out, so they are recorded apart.
+        const unauthorized = reason instanceof RemoteError && reason.code === UNAUTHORIZED
+        patch(hostId, {
+          phase: { kind: 'failed', message },
+          state: unauthorized ? 'unauthorized' : 'offline',
+        })
       }
     },
     applyEvent(hostId, event, args) {

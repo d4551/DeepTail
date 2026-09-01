@@ -14,19 +14,23 @@
 import type { CarrierHooks } from './transport.ts'
 
 /**
- * Close the host connection whenever the page is hidden.
+ * Close every open host connection whenever the page is hidden.
  *
- * Reopening is deliberately not done here: the harness stream client owns
- * reconnection, including its backoff and the `session.follow` cursor replay
- * that repairs the gap. Racing it with a second open would produce two
- * generations for one host.
+ * Reopening is deliberately not done here: each stream client owns its own
+ * reconnection, including backoff and the cursor replay that repairs the gap.
+ * Racing it with a second open would produce two generations for one host.
  *
- * @param carrier - the carrier whose socket follows the app's lifecycle.
+ * The whole set is taken rather than one carrier, because the control plane
+ * holds a socket per paired host long before any of them is booted, and those
+ * are exactly the sockets an OS suspend kills silently.
+ *
+ * @param carriers - supplies the carriers open at the moment the page hides.
  * @returns a disposer that stops watching.
  */
-export function followAppLifecycle(carrier: CarrierHooks): () => void {
+export function followAppLifecycle(carriers: () => Iterable<CarrierHooks>): () => void {
   const onVisibilityChange = (): void => {
-    if (document.visibilityState === 'hidden') carrier.suspendMuxSocket()
+    if (document.visibilityState !== 'hidden') return
+    for (const carrier of carriers()) carrier.suspendMuxSocket()
   }
   document.addEventListener('visibilitychange', onVisibilityChange)
   return () => {

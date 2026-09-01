@@ -6,7 +6,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { type Harness, type Script, startHarness, textOf } from './harness.ts'
+import { type AnswerTable, type Harness, startHarness, textOf } from './harness.ts'
 
 let harness: Harness
 
@@ -33,8 +33,8 @@ const SESSIONS = [
 ]
 
 /** One host with a populated roster. */
-function oneHost(extra: Partial<Script> = {}): Script {
-  return { hosts: [HOSTS[0]], remote: { 'session/list': { items: SESSIONS } }, ...extra }
+function oneHost(extra: Partial<AnswerTable> = {}): AnswerTable {
+  return { hosts: HOSTS.slice(0, 1), remote: { 'session/list': { items: SESSIONS } }, ...extra }
 }
 
 beforeAll(async () => {
@@ -80,18 +80,23 @@ describe('shell', () => {
     const page = await harness.open({
       hosts: HOSTS,
       remote: { 'session/list': { items: SESSIONS } },
-      remoteErrors: { 'session/list': 'roster unavailable' },
+      // Scoped to one host, or this is a total outage wearing the name of a
+      // partial one and the assertions below cannot tell the difference.
+      remoteErrors: { 'lab-2:session/list': 'roster unavailable' },
     })
     await page.waitForSelector('[data-deeptail-state="partial"]')
-    // Partial failure is a warning beside content, never a blanked screen.
+    // Partial failure is a warning beside content, never a blanked screen: the
+    // host that answered must still be showing its rows.
     expect(await textOf(page, '[data-deeptail-state="partial"]')).toContain('roster unavailable')
-    expect(await page.locator('.host-group').count()).toBe(2)
+    expect(await page.locator('[data-deeptail-state="partial"]').count()).toBe(1)
+    expect(await textOf(page, '[data-deeptail-session="s-running"] .session-title')).toBe('Refactor the loader')
+    expect(await page.locator('.session-row').count()).toBe(SESSIONS.length)
     await harness.shoot(page, 'fleet-partial-failure')
     await page.close()
   })
 
   it('reads an empty roster as loading until it settles', async () => {
-    const page = await harness.open({ hosts: [HOSTS[0]], remote: { 'session/list': { items: [] } } })
+    const page = await harness.open({ hosts: HOSTS.slice(0, 1), remote: { 'session/list': { items: [] } } })
     await page.waitForSelector('[data-deeptail-state="empty"]')
     expect(await textOf(page, '[data-deeptail-state="empty"]')).toBe('No sessions on this host yet.')
     await harness.shoot(page, 'fleet-empty')
@@ -176,15 +181,66 @@ describe('shell', () => {
   it('moves the roving tab stop across session rows', async () => {
     const page = await harness.open(oneHost())
     await page.waitForSelector('[data-deeptail-shell]')
-    await page.locator('[data-deeptail-session="s-running"]').focus()
+    // Assert on the name the row actually speaks, not on a private attribute.
+    const focusedName = () => page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)
+    await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
+    expect(await focusedName()).toContain('Refactor the loader')
     await page.keyboard.press('ArrowDown')
-    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-deeptail-session') ?? null)).toBe(
-      's-idle',
-    )
+    expect(await focusedName()).toContain('Write the release notes')
     await page.keyboard.press('Home')
-    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-deeptail-session') ?? null)).toBe(
-      's-running',
-    )
+    expect(await focusedName()).toContain('Refactor the loader')
+    await page.close()
+  })
+
+  it('reaches a row action with the keyboard alone and opens the sheet with Enter', async () => {
+    const page = await harness.open(oneHost())
+    await page.waitForSelector('[data-deeptail-shell]')
+    // No pointer is used anywhere in this case: focusing the row must be
+    // enough to reveal its actions, and Tab must be able to reach them.
+    await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
+    const send = page.getByRole('button', { name: 'Send' }).first()
+    await send.waitFor({ state: 'visible' })
+    await page.keyboard.press('Tab')
+    expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toBe('Send')
+    await page.keyboard.press('Enter')
+    const dialog = page.locator('[data-deeptail-dialog]')
+    await dialog.waitFor({ state: 'visible' })
+    expect(await dialog.getAttribute('aria-label')).toBe('Refactor the loader')
+    await page.close()
+  })
+
+  it('gives a row action a real touch target when the pointer is coarse', async () => {
+    const page = await harness.open(oneHost(), { mobile: true })
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-action="drawer"]').click()
+    const box = await page.locator('[data-deeptail-action="row-message"]').first().boundingBox()
+    expect(box === null ? 0 : Math.round(box.height)).toBeGreaterThanOrEqual(44)
+    await page.close()
+  })
+
+  it('keeps the closed drawer out of the tab order', async () => {
+    const page = await harness.open(oneHost(), { mobile: true })
+    await page.waitForSelector('[data-deeptail-shell]')
+    // A translated drawer still holds its controls unless it is made inert.
+    expect(
+      await page.evaluate(() => {
+        const sidebar = document.getElementById('deeptail-sidebar')
+        const first = sidebar?.querySelector('button')
+        first?.focus()
+        return document.activeElement === first
+      }),
+    ).toBe(false)
+    await page.close()
+  })
+
+  it('reports a revoked token as needing re-pairing and offers the way out', async () => {
+    const page = await harness.open(oneHost({ remoteStatuses: { 'session/list': 401 } }))
+    await page.waitForSelector('[data-deeptail-shell]')
+    // The state is spoken, not merely coloured, so the dot is never the only cue.
+    expect(await textOf(page, '.connection-trigger')).toContain('Needs re-pairing')
+    await page.locator('[data-deeptail-connection="trigger"]').click()
+    expect(await textOf(page, '[data-deeptail-action="repair"]')).toBe('Re-pair this host')
+    await harness.shoot(page, 'connection-unauthorized')
     await page.close()
   })
 

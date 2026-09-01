@@ -2,6 +2,12 @@
  * Application entry. Resolves the theme, pairs a host if none is known, then
  * mounts the control plane over every paired host.
  *
+ * The control plane and the harness client cannot share the page: the client
+ * appends into whatever container it is given and takes the viewport, so the
+ * shell is torn down before a client boots and re-mounted when the operator
+ * comes back. One mechanism on every target beats two divergent paths, and it
+ * is what mobile forces anyway.
+ *
  * @module
  */
 
@@ -12,7 +18,8 @@ import type { HostRecord } from './host.ts'
 import { followAppLifecycle } from './lifecycle.ts'
 import { createTranslate } from './locales.ts'
 import { applyTheme } from './theme.ts'
-import { createCarrier } from './transport.ts'
+import { type CarrierHooks, createCarrier } from './transport.ts'
+import { button, el } from './ui/dom.ts'
 import { mountShell } from './ui/shell.ts'
 
 const mount = document.getElementById('root')
@@ -27,52 +34,129 @@ const t = createTranslate()
 async function resolveHosts(): Promise<readonly HostRecord[]> {
   const hosts = await invoke<HostRecord[]>('list_hosts')
   if (hosts.length > 0) return hosts
-  const paired = await renderHostPicker(container)
-  return [paired]
+  await renderHostPicker(container)
+  return invoke<HostRecord[]>('list_hosts')
 }
 
-const hosts = await resolveHosts()
+/** Carriers the control plane holds open, one per paired host. */
+const shellCarriers = new Map<string, CarrierHooks>()
 
-// One shell at a time: switching hosts disposes the running client before the
-// next boots, which is what mobile forces and what ctx.connection requires.
 let booted: BootedHost | undefined
 let bootedHost: HostRecord | undefined
-let unwatchLifecycle: (() => void) | undefined
+let disposeShell: (() => void) | undefined
+let returnBar: HTMLElement | undefined
+// A boot spans an IPC call and every plugin bundle load. A second row click in
+// that window would boot a second client over the first and leak it.
+let opening = false
 
-mountShell(
-  container,
-  {
-    hosts,
-    carrierFor: (host) => createCarrier(host.id),
-    open: async (host, sessionId) => {
-      // The harness client is what reads a conversation. It opens at its own
-      // default view: nothing in its boot surface takes a session id, so the
-      // operator re-selects there. The copy says so rather than implying a
-      // deep link this cannot deliver.
-      void sessionId
-      if (booted !== undefined && bootedHost !== undefined) await teardownHost(booted, bootedHost)
-      unwatchLifecycle?.()
-      booted = await bootHost(host, container)
-      bootedHost = host
-      unwatchLifecycle = followAppLifecycle(booted.carrier)
+// One watcher for the whole app: the shell's own sockets are open long before
+// any client boots, and those are the ones a suspend kills silently.
+followAppLifecycle(function* carriers() {
+  yield* shellCarriers.values()
+  if (booted !== undefined) yield booted.carrier
+})
+
+/** Tear down whatever currently owns the page and hand back an empty container. */
+async function clearPage(): Promise<void> {
+  disposeShell?.()
+  disposeShell = undefined
+  shellCarriers.clear()
+  returnBar?.remove()
+  returnBar = undefined
+  if (booted !== undefined && bootedHost !== undefined) await teardownHost(booted, bootedHost)
+  booted = undefined
+  bootedHost = undefined
+  container.replaceChildren()
+}
+
+/** Mount the control plane over the registry as it now stands. */
+async function mountControlPlane(): Promise<void> {
+  const hosts = await invoke<HostRecord[]>('list_hosts')
+  disposeShell = mountShell(
+    container,
+    {
+      hosts,
+      carrierFor: (host) => {
+        const carrier = createCarrier(host.id)
+        shellCarriers.set(host.id, carrier)
+        return carrier
+      },
+      open: openSession,
+      pair: () => {
+        void pairAnother()
+      },
+      repair: () => {
+        // Re-pairing is the same gesture as pairing: the picker writes a fresh
+        // device token over the revoked one under the same host id.
+        void pairAnother()
+      },
+      unpair: async (hostId) => {
+        // The socket is closed before the token is forgotten, so an unpaired
+        // host cannot keep an authenticated stream open for the process's life.
+        await clearPage()
+        await invoke('forget_host', { host: hostId })
+        await mountControlPlane()
+      },
     },
-    pair: () => {
-      globalThis.location.reload()
-    },
-    unpair: async (hostId) => {
-      await invoke('forget_host', { host: hostId })
-      globalThis.location.reload()
-    },
-  },
-  t,
-)
+    t,
+  )
+}
+
+/**
+ * Boot the harness client for one host.
+ * @param host - the host that owns the session.
+ * @param sessionId - the session the operator chose.
+ */
+async function openSession(host: HostRecord, sessionId: string): Promise<void> {
+  // The harness client opens at its own default view: nothing in its boot
+  // surface takes a session id, so the operator re-selects there. The copy says
+  // so rather than implying a deep link this cannot deliver.
+  void sessionId
+  if (opening) return
+  opening = true
+  try {
+    await clearPage()
+    booted = await bootHost(host, container)
+    bootedHost = host
+    showReturnBar()
+  } finally {
+    opening = false
+  }
+}
+
+/** Pair a host, then come back to the control plane over the new registry. */
+async function pairAnother(): Promise<void> {
+  await clearPage()
+  await renderHostPicker(container)
+  await mountControlPlane()
+}
+
+/**
+ * The way back out of the harness client.
+ *
+ * It lives on `document.body` rather than in the container, because the client
+ * owns everything inside the container once it boots.
+ */
+function showReturnBar(): void {
+  const bar = el('div', { className: 'return-bar' })
+  bar.append(
+    button('button button-outline return-button', t('shell.backToFleet'), () => {
+      void clearPage().then(mountControlPlane)
+    }),
+  )
+  bar.dataset.deeptailReturn = ''
+  document.body.append(bar)
+  returnBar = bar
+}
+
+await resolveHosts()
+await mountControlPlane()
 
 // A clean close beats a dropped connection the host has to time out.
 globalThis.addEventListener(
   'beforeunload',
   () => {
-    unwatchLifecycle?.()
-    if (booted !== undefined && bootedHost !== undefined) void teardownHost(booted, bootedHost)
+    void clearPage()
   },
   { once: true },
 )

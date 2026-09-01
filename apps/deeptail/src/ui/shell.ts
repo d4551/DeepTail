@@ -30,6 +30,8 @@ export interface ShellPorts {
   open(host: HostRecord, sessionId: string): Promise<void>
   /** Pair another host. */
   pair(): void
+  /** Pair an already-known host again, clearing a revoked token. */
+  repair(hostId: string): void
   /** Forget a host. */
   unpair(hostId: string): Promise<void>
 }
@@ -73,14 +75,33 @@ export function mountShell(container: HTMLElement, ports: ShellPorts, t: Transla
 
   const brandRow = el('div', { className: 'brand-row' })
   brandRow.append(el('h1', { className: 'brand-name', text: t('app.name') }))
-  const drawerToggle = button('icon-button drawer-toggle', t('shell.sessions'), () => {
-    shell.dataset.drawer = shell.dataset.drawer === 'open' ? 'closed' : 'open'
+
+  // The drawer only exists below this width; above it the sidebar is permanent
+  // and must never be made inert.
+  const drawerLayout = globalThis.matchMedia('(max-width: 720px)')
+  const setDrawer = (open: boolean): void => {
+    shell.dataset.drawer = open ? 'open' : 'closed'
+    drawerToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+    drawerToggle.textContent = open ? t('shell.closeSessions') : t('shell.openSessions')
+    // A translated drawer still holds its controls in the tab order, so the
+    // closed one is taken out of the tree rather than merely moved off screen.
+    sidebar.inert = !open && drawerLayout.matches
+  }
+  const drawerToggle = button('drawer-toggle', t('shell.openSessions'), () => {
+    setDrawer(shell.dataset.drawer !== 'open')
   })
+  drawerToggle.dataset.deeptailAction = 'drawer'
   drawerToggle.setAttribute('aria-controls', 'deeptail-sidebar')
+  drawerToggle.setAttribute('aria-expanded', 'false')
 
   const live = el('div', { className: 'visually-hidden', attrs: { role: 'status' } })
   const announce = (text: string): void => {
     live.textContent = text
+  }
+  const showError = (message: string): void => {
+    const strip = el('div', { className: 'error', text: message, attrs: { role: 'alert' } })
+    strip.dataset.deeptailState = 'shell-error'
+    body.replaceChildren(strip)
   }
 
   sidebar.id = 'deeptail-sidebar'
@@ -98,8 +119,11 @@ export function mountShell(container: HTMLElement, ports: ShellPorts, t: Transla
         connection.render()
       },
       pair: ports.pair,
+      repair: ports.repair,
       unpair: (hostId) => {
-        void ports.unpair(hostId)
+        void ports.unpair(hostId).catch((reason: unknown) => {
+          showError(reason instanceof Error ? reason.message : String(reason))
+        })
       },
     },
     t,
@@ -125,8 +149,17 @@ export function mountShell(container: HTMLElement, ports: ShellPorts, t: Transla
   shell.append(scrim, sidebar, main)
   container.replaceChildren(shell)
   scrim.addEventListener('click', () => {
-    shell.dataset.drawer = 'closed'
+    setDrawer(false)
   })
+  const onShellKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape' && shell.dataset.drawer === 'open') setDrawer(false)
+  }
+  document.addEventListener('keydown', onShellKeyDown)
+  const onLayoutChange = (): void => {
+    setDrawer(shell.dataset.drawer === 'open')
+  }
+  drawerLayout.addEventListener('change', onLayoutChange)
+  setDrawer(false)
 
   // ── data ────────────────────────────────────────────────────────────────
   const disposeRoster = mountFleetView(
@@ -189,6 +222,8 @@ export function mountShell(container: HTMLElement, ports: ShellPorts, t: Transla
     unsubscribeConnection()
     disposeRoster()
     connection.dispose()
+    document.removeEventListener('keydown', onShellKeyDown)
+    drawerLayout.removeEventListener('change', onLayoutChange)
     shell.remove()
   }
 }
