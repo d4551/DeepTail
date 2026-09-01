@@ -178,7 +178,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary);
   font-size: 12px;
   line-height: 18px;
   text-align: left;
@@ -204,7 +204,7 @@
 }
 
 .menu-danger {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-error);
 }
 
 .menu-danger:hover {
@@ -236,7 +236,7 @@
   padding-left: 4px;
   margin-bottom: 4px;
   box-sizing: border-box;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 18px;
 }
@@ -295,7 +295,7 @@
   flex: none;
   font-size: 12px;
   line-height: 20px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .session-row {
@@ -354,7 +354,7 @@
   flex: none;
   font-size: 12px;
   line-height: 20px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .row-actions {
@@ -375,7 +375,7 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 16px;
   cursor: pointer;
@@ -476,7 +476,7 @@
   justify-content: center;
   gap: 8px;
   height: 100%;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   line-height: 20px;
 }

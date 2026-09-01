@@ -22,7 +22,7 @@ import { type CarrierHooks, createCarrier } from './transport.ts'
 import { button, el } from './ui/dom.ts'
 import { mountShell } from './ui/shell.ts'
 
-const mount = document.getElementById('root')
+const mount = document.querySelector<HTMLElement>('#root')
 if (mount === null) throw new Error('deeptail: missing #root')
 // Bound after the check so closures below keep the narrowing.
 const container: HTMLElement = mount
@@ -31,11 +31,13 @@ applyTheme()
 const t = createTranslate()
 
 /** Pair a first host when the registry is empty; otherwise go straight in. */
-async function resolveHosts(): Promise<readonly HostRecord[]> {
-  const hosts = await invoke<HostRecord[]>('list_hosts')
-  if (hosts.length > 0) return hosts
+async function resolveHosts(): Promise<void> {
+  // An unreadable registry is not a fatal boot: the picker owns that failure and
+  // renders it with a retry. Letting the rejection escape here would leave the
+  // window blank with the error only in the console.
+  const known = await invoke<HostRecord[]>('list_hosts').catch(() => undefined)
+  if (known !== undefined && known.length > 0) return
   await renderHostPicker(container)
-  return invoke<HostRecord[]>('list_hosts')
 }
 
 /** Carriers the control plane holds open, one per paired host. */

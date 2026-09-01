@@ -7,8 +7,18 @@
  *
  * Light/dark follows the harness mechanism exactly: `body[data-ds-dark-theme]`
  * carries the dark palette, and `prefers-color-scheme` is read once in script
- * to resolve the `system` preference into that attribute.
+ * to resolve the `system` preference into that attribute. Native UA chrome
+ * follows the same attribute through `color-scheme`, so the palette and the
+ * scrollbars, form controls and canvas can never disagree.
  */
+
+:root {
+  color-scheme: light;
+}
+
+:root:has(body[data-ds-dark-theme]) {
+  color-scheme: dark;
+}
 
 :root {
   --dsw-font-family:

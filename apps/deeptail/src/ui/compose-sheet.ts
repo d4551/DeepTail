@@ -64,32 +64,36 @@ export function openComposeSheet(target: ComposeTarget, t: Translate, announce: 
     }
     failure.hidden = true
     setBusy(true)
-    void target.api
-      .prompt(target.sessionId, text, mode)
-      .then(() => {
-        // Closed first: the shell's live region sits inside the root this
-        // dialog holds inert, and a mutation made while it is inert is never
-        // announced.
-        dialog.close()
-        announce(t('chat.sent', { label: target.title }))
-        return undefined
-      })
-      .catch((reason: unknown) => {
-        const message = reason instanceof Error ? reason.message : String(reason)
-        // Escape closes the sheet at any time, including mid-flight. Reporting
-        // into a detached node would lose the failure entirely, so it goes to
-        // the live region instead.
-        if (!dialog.isOpen()) {
-          announce(t('chat.sendFailed', { message }))
-          return undefined
-        }
-        // The draft is deliberately left intact: a failed send must not cost
-        // the operator what they typed.
-        failure.textContent = t('chat.sendFailed', { message })
-        failure.hidden = false
-        setBusy(false)
-        return undefined
-      })
+    void issue(mode)
+  }
+
+  /**
+   * Issue the prompt and report its outcome wherever the operator can see it.
+   * @param mode - queue behind the current work, or interrupt it.
+   */
+  const issue = async (mode: 'queue' | 'steer'): Promise<void> => {
+    const text = textarea.value.trim()
+    try {
+      await target.api.prompt(target.sessionId, text, mode)
+      // Closed first: the shell's live region sits inside the root this dialog
+      // holds inert, and a mutation made while it is inert is never announced.
+      dialog.close()
+      announce(t('chat.sent', { label: target.title }))
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason)
+      // Escape closes the sheet at any time, including mid-flight. Reporting
+      // into a detached node would lose the failure entirely, so it goes to the
+      // live region instead.
+      if (!dialog.isOpen()) {
+        announce(t('chat.sendFailed', { message }))
+        return
+      }
+      // The draft is deliberately left intact: a failed send must not cost the
+      // operator what they typed.
+      failure.textContent = t('chat.sendFailed', { message })
+      failure.hidden = false
+      setBusy(false)
+    }
   }
 
   const cancel = button('button button-outline', t('action.cancel'), () => {

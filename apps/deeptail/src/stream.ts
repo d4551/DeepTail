@@ -146,12 +146,12 @@ export function subscribeRoster(carrier: CarrierHooks, sinks: RosterSinks): () =
         }
         case 'error':
           lose(mine, message.error.message ?? 'event stream failed')
-          return
+          break
         case 'end':
           lose(mine, 'event stream ended')
-          return
+          break
         default:
-          return
+          break
       }
     }
     onMessage = handle

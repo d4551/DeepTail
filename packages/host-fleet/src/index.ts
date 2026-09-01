@@ -31,43 +31,36 @@ export const name = 'host-fleet'
  */
 export const inject = ['tools', 'sessionController', 'subagents']
 
-/** Deployment-varying limits; none of these are compiled in. */
-export interface Config {
+/**
+ * Deployment-varying limits; none of these are compiled in.
+ *
+ * The schema is the only place the shape and its defaults are written. A
+ * separate interface beside it, or a second set of fallbacks at the call site,
+ * would be two more copies of the same five numbers to keep in step.
+ */
+export const Config = z.object({
   /** Sessions this orchestrator may create over one process lifetime. */
-  maxSpawnsPerProcess?: number
-  /** Agent preset composed for a session created without an explicit one. */
-  defaultPreset?: string
-  /** Longest message `sessions_send` will admit, in characters. */
-  maxPromptChars?: number
-  /** Default row budget for `sessions_list`. */
-  listLimit?: number
-  /** How long a delivered prompt may take to be admitted, in milliseconds. */
-  promptTimeoutMs?: number
-}
-
-export const Config: z<Config> = z.object({
   maxSpawnsPerProcess: z.natural().min(1).default(8),
+  /** Agent preset composed for a session created without an explicit one. */
   defaultPreset: z.string().default('standard'),
+  /** Longest message `sessions_send` will admit, in characters. */
   maxPromptChars: z.natural().min(1).default(8192),
+  /** Default row budget for `sessions_list`. */
   listLimit: z.natural().min(1).default(50),
+  /** How long a delivered prompt may take to be admitted, in milliseconds. */
   promptTimeoutMs: z.natural().min(1).default(30_000),
 })
 
 /**
  * Register the fleet tools on this host.
  * @param ctx - host context carrying `tools`, `sessionController`, and `subagents`.
- * @param config - resolved plugin config; schemastery has applied its defaults.
+ * @param config - plugin config; the schema fills anything a caller omitted.
  */
-export function apply(ctx: Context, config: Config): void {
-  // Schemastery `.default()` guarantees every field after validation, but a
-  // hand-built test context may mount this plugin with no config at all.
-  const limits: FleetLimits = {
-    maxSpawnsPerProcess: config.maxSpawnsPerProcess ?? 8,
-    defaultPreset: config.defaultPreset ?? 'standard',
-    maxPromptChars: config.maxPromptChars ?? 8192,
-    listLimit: config.listLimit ?? 50,
-    promptTimeoutMs: config.promptTimeoutMs ?? 30_000,
-  }
+export function apply(ctx: Context, config: Partial<FleetLimits> = {}): void {
+  // Running the schema is what applies the defaults, so a hand-built test
+  // context that mounts this plugin with no config gets the same values cordis
+  // would have resolved.
+  const limits: FleetLimits = new Config(config)
   if (limits.defaultPreset.trim() === '') {
     throw new Error('host-fleet: defaultPreset must name an agent preset')
   }

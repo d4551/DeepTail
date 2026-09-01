@@ -55,9 +55,10 @@ resolved `--dsw-alias-*` and `--dsw-specific-*` values and its
 `ui-primitives/Menu`, `ui-primitives/Modal` and `ui-workspace/rows`.
 
 **No inline styles.** Every visual is a class, enforced by
-`scripts/check-no-inline-styles.ts` in `validate`. One line is permitted, and it
-is the same one the harness's `boot-theme.ts` writes: `documentElement.style.colorScheme`,
-which switches native UA chrome and has no class equivalent.
+`scripts/check-no-inline-styles.ts`, which scans every module and the shell
+document for `.style.`, `style=` and `cssText`. The gate has no allowances:
+`color-scheme` is a CSS property keyed off the same `body[data-ds-dark-theme]`
+attribute as the palette, so native UA chrome cannot drift from the theme.
 
 | | |
 |---|---|

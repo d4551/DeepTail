@@ -8,8 +8,9 @@
  */
 
 import { readFile } from 'node:fs/promises'
-import { createServer, type Server } from 'node:http'
+import { createServer, type Server, type ServerResponse } from 'node:http'
 import { extname, join, normalize } from 'node:path'
+import AxeBuilder from '@axe-core/playwright'
 import { type Browser, chromium, type Page } from 'playwright'
 
 /** Shape of the optional `tests/chromium.json` override. */
@@ -122,12 +123,30 @@ interface RecordedCall {
   readonly args: Readonly<Record<string, unknown>>
 }
 
+/** The conformance tags every surface is held to. */
+const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] as const
+
+/** One accessibility violation, reduced to what a failure message needs. */
+export interface Violation {
+  readonly id: string
+  readonly impact: string
+  readonly help: string
+  readonly nodes: readonly string[]
+}
+
 /** A running harness. */
 export interface Harness {
   open(table: AnswerTable, options?: OpenOptions): Promise<Page>
   shoot(page: Page, name: string): Promise<void>
   /** Every Remote call the page has issued, in order. */
   calls(page: Page): Promise<readonly RecordedCall[]>
+  /**
+   * Run axe-core over the page and return every WCAG 2.2 AA violation.
+   *
+   * The rule set is the published one, not a local opinion, so a surface cannot
+   * be made to pass by rewriting the check.
+   */
+  audit(page: Page): Promise<readonly Violation[]>
   stop(): Promise<void>
 }
 
@@ -145,24 +164,26 @@ const TYPES: Readonly<Record<string, string>> = {
  * Start the static server and browser.
  * @returns the harness.
  */
+async function serve(rel: string, res: ServerResponse): Promise<void> {
+  try {
+    const body = await readFile(join(DIST, rel))
+    res.writeHead(200, { 'content-type': TYPES[extname(rel)] ?? 'application/octet-stream' })
+    res.end(body)
+  } catch {
+    res.writeHead(404)
+    res.end('not found')
+  }
+}
+
 export async function startHarness(): Promise<Harness> {
   const server: Server = createServer((req, res) => {
     const requested = (req.url ?? '/').split('?')[0] ?? '/'
     const rel = normalize(requested === '/' ? 'index.html' : requested.replace(/^\/+/u, ''))
-    readFile(join(DIST, rel)).then(
-      (body) => {
-        res.writeHead(200, { 'content-type': TYPES[extname(rel)] ?? 'application/octet-stream' })
-        res.end(body)
-        return undefined
-      },
-      () => {
-        res.writeHead(404)
-        res.end('not found')
-        return undefined
-      },
-    )
+    void serve(rel, res)
   })
-  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
+  await new Promise<void>((done) => {
+    server.listen(0, '127.0.0.1', done)
+  })
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('server did not bind a port')
   const origin = `http://127.0.0.1:${String(address.port)}/`
@@ -285,7 +306,7 @@ export async function startHarness(): Promise<Harness> {
             }
           },
           transformCallback: (callback: () => object) => callback,
-          unregisterCallback: () => undefined,
+          unregisterCallback: () => null,
           convertFileSrc: (path: string) => path,
         }
         Object.assign(window, { __TAURI_INTERNALS__: internals })
@@ -297,14 +318,27 @@ export async function startHarness(): Promise<Harness> {
     async shoot(page, name) {
       await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true })
     },
-    async calls(page) {
+    async audit(page) {
+      const result = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze()
+      return result.violations.map((violation) => ({
+        id: violation.id,
+        impact: violation.impact ?? 'unknown',
+        help: violation.help,
+        nodes: violation.nodes.map((node) => node.html),
+      }))
+    },
+    calls(page) {
       return page.evaluate(
         () => (window as unknown as { deeptailRecordedCalls?: RecordedCall[] }).deeptailRecordedCalls ?? [],
       )
     },
     async stop() {
       await browser.close()
-      await new Promise<void>((done) => server.close(() => done()))
+      await new Promise<void>((done) => {
+        server.close(() => {
+          done()
+        })
+      })
     },
   }
 }

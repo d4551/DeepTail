@@ -294,7 +294,7 @@ describe('shell', () => {
     // A translated drawer still holds its controls unless it is made inert.
     expect(
       await page.evaluate(() => {
-        const sidebar = document.getElementById('deeptail-sidebar')
+        const sidebar = document.querySelector<HTMLElement>('#deeptail-sidebar')
         const first = sidebar?.querySelector('button')
         first?.focus()
         return document.activeElement === first

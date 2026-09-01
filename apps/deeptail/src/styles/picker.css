@@ -102,7 +102,7 @@
 .row-origin {
   font-size: 12px;
   line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   word-break: break-all;
 }
 
@@ -140,10 +140,10 @@
   color: var(--dsw-alias-state-warn-primary);
 }
 .dot[data-state="offline"] {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-label-error);
 }
 .dot[data-state="unknown"] {
-  color: var(--dsw-alias-label-caption);
+  color: var(--dsw-alias-label-secondary);
 }
 
 /* ---- buttons ------------------------------------------------------------ */
@@ -242,7 +242,7 @@
 
 .input::placeholder,
 .textarea::placeholder {
-  color: var(--dsw-alias-label-caption);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .input:focus,
@@ -257,7 +257,7 @@
   padding: 10px;
   font-size: 13px;
   line-height: 20px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .error {
@@ -285,7 +285,7 @@
  * `.button-primary` is worn over `.button`. It recolours; it never relayouts. */
 .warning {
   background: var(--dsw-alias-bg-module-platform);
-  color: var(--dsw-alias-state-warn-label);
+  color: var(--dsw-alias-label-primary);
 }
 
 .retry {

@@ -110,7 +110,7 @@ export function mountConnectionMenu(
       attrs: { role: 'menu', 'aria-label': t('shell.switchHost'), id: menuId },
       data: { deeptailConnection: 'menu' },
     })
-    const items = el('div', { className: 'menu-items' })
+    const items = el('div', { className: 'menu-items', attrs: { role: 'none' } })
     const stops: HTMLButtonElement[] = []
     for (const host of hosts) {
       const item = el('button', {
@@ -140,6 +140,7 @@ export function mountConnectionMenu(
           closeMenu()
           ports.repair(host.id)
         })
+        repair.setAttribute('role', 'menuitem')
         repair.dataset.deeptailAction = 'repair'
         items.append(item, repair)
       } else {
@@ -155,16 +156,16 @@ export function mountConnectionMenu(
       })
     }
 
-    const footer = el('div', { className: 'menu-footer' })
+    const footer = el('div', { className: 'menu-footer', attrs: { role: 'none' } })
     footer.append(
-      button('menu-item', t('action.pair'), () => {
+      menuItem('menu-item', t('action.pair'), () => {
         closeMenu()
         ports.pair()
       }),
     )
     if (active !== undefined) {
       footer.append(
-        button('menu-item menu-danger', t('shell.unpair'), () => {
+        menuItem('menu-item menu-danger', t('shell.unpair'), () => {
           closeMenu()
           ports.unpair(active.id)
         }),
@@ -186,4 +187,17 @@ export function mountConnectionMenu(
       root.remove()
     },
   }
+}
+
+/**
+ * A footer control that is a real menu item, so `role="menu"` owns it.
+ * @param className - the item's classes.
+ * @param text - its label.
+ * @param onClick - its activation handler.
+ * @returns the item.
+ */
+function menuItem(className: string, text: string, onClick: () => void): HTMLButtonElement {
+  const item = button(className, text, onClick)
+  item.setAttribute('role', 'menuitem')
+  return item
 }

@@ -143,7 +143,7 @@ export function applyFleetTools(ctx: Context, limits: FleetLimits): void {
             const rows = listed.items.filter((row) => args.runningOnly !== true || row.running)
             const limit = args.limit ?? limits.listLimit
             if (limit <= 0) throw new Error('sessions_list: limit must be a positive number')
-            return { sessions: rows.slice(0, limit).map(summarize), total: rows.length }
+            return { sessions: rows.slice(0, limit).map((row) => summarize(row)), total: rows.length }
           },
           presentCall: (args) => ({
             card: 'generic',
@@ -240,7 +240,7 @@ export function applyFleetTools(ctx: Context, limits: FleetLimits): void {
             const target = admitSessionId(args.sessionId, 'sessions_send')
             if (target === exec.agent.session.id) throw new Error('sessions_send: a session cannot address itself')
             const mode = args.mode === 'steer' ? 'steer' : 'queue'
-            return sendPrompt(target, message, mode)
+            return await sendPrompt(target, message, mode)
           },
           presentCall: (args) => ({
             card: 'generic',

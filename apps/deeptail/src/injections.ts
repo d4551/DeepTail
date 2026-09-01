@@ -46,29 +46,29 @@ async function applyRow(row: IndexInjection, loadScript: (src: string) => Promis
   switch (row.kind) {
     case 'global':
       Object.assign(globalThis, { [row.name]: row.value })
-      return
+      break
     case 'script': {
       const element = document.createElement('script')
       element.textContent = row.text
       ;(row.placement === 'head' ? document.head : document.body).append(element)
-      return
+      break
     }
     case 'script-src':
       await loadScript(row.src)
-      return
+      break
     case 'script-preload':
       // Our carrier has no browser-visible URL to warm; the matching
       // `script-src` row performs the real request.
-      return
+      break
     case 'style': {
       const element = document.createElement('style')
       element.textContent = row.text
       document.head.append(element)
-      return
+      break
     }
     case 'html':
       ;(row.placement === 'head' ? document.head : document.body).insertAdjacentHTML('beforeend', row.html)
-      return
+      break
     default:
       throw new Error(`deeptail: unknown index injection row ${JSON.stringify(row)}`)
   }

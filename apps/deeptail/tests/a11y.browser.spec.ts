@@ -1,0 +1,168 @@
+/**
+ * WCAG 2.2 AA conformance over every rendered surface.
+ *
+ * The rules are axe-core's published set, run against the real built bundle in
+ * Chromium. Nothing here restates a rule in local code, so a surface cannot be
+ * made to pass by rewriting the check: the only way to clear a violation is to
+ * fix the markup.
+ */
+
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import { type AnswerTable, type Harness, startHarness, type Violation } from './harness.ts'
+
+let harness: Harness
+
+const HOSTS = [
+  { id: 'dev-1', label: 'Workstation', origin: 'https://harness.local:3080' },
+  { id: 'lab-2', label: 'Lab box', origin: 'https://lab.internal:3080' },
+]
+
+const SESSIONS = [
+  {
+    sessionId: 's-running',
+    updatedAt: Date.now() - 5_000,
+    running: true,
+    blank: false,
+    projections: { values: { title: 'Refactor the loader' } },
+  },
+  {
+    sessionId: 's-idle',
+    updatedAt: Date.now() - 3_600_000,
+    running: false,
+    blank: false,
+    projections: { values: { title: 'Write the release notes' } },
+  },
+]
+
+/** Both paired hosts with a populated roster. */
+function fleet(extra: Partial<AnswerTable> = {}): AnswerTable {
+  return { hosts: HOSTS, remote: { 'session/list': { items: SESSIONS } }, ...extra }
+}
+
+/**
+ * Render a violation set as a failure message a reader can act on.
+ * @param violations - what axe reported.
+ * @returns one line per offending node.
+ */
+function describeViolations(violations: readonly Violation[]): string {
+  return violations
+    .map(
+      (violation) => `${violation.id} (${violation.impact}): ${violation.help}\n    ${violation.nodes.join('\n    ')}`,
+    )
+    .join('\n  ')
+}
+
+beforeAll(async () => {
+  harness = await startHarness()
+})
+
+afterAll(async () => {
+  await harness?.stop()
+})
+
+describe('accessibility', () => {
+  it('has no WCAG violations on the fleet roster', async () => {
+    const page = await harness.open(fleet())
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations in the dark palette', async () => {
+    const page = await harness.open(fleet(), { dark: true })
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations with the connection menu open', async () => {
+    const page = await harness.open(fleet())
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-connection="trigger"]').click()
+    await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations on a host that needs re-pairing', async () => {
+    // One host only, or every row offers the action and the assertion is blind.
+    const page = await harness.open(fleet({ remoteStatuses: { 'lab-2:session/list': 401 } }))
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-connection="trigger"]').click()
+    await page.locator('[data-deeptail-action="repair"]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations while a host is failing beside one that answers', async () => {
+    const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }))
+    await page.waitForSelector('[data-deeptail-state="partial"]')
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations while a roster read is in flight', async () => {
+    const page = await harness.open(fleet({ remotePending: ['session/list'] }))
+    await page.waitForSelector('[data-deeptail-state="loading"]')
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations in the compose sheet, including its error state', async () => {
+    const page = await harness.open(fleet({ remoteErrors: { 'session/prompt': 'agent busy' } }))
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').hover()
+    await page
+      .locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"] [data-deeptail-action="row-message"]')
+      .click()
+    await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.locator('[data-deeptail-field="message"]').fill('please rerun the tests')
+    await page.locator('[data-deeptail-action="compose-send"]').click()
+    await page.locator('[data-deeptail-state="compose-error"]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations in the new-session dialog', async () => {
+    const page = await harness.open(fleet())
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-action="new-session"]').click()
+    await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations in the drawer on a touch viewport', async () => {
+    const page = await harness.open(fleet(), { mobile: true })
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-action="drawer"]').click()
+    await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations on the empty picker or its pairing form', async () => {
+    const page = await harness.open({ hosts: [] })
+    await page.waitForSelector('[data-deeptail-picker]')
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.getByRole('button', { name: 'Pair a host' }).click()
+    await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+
+  it('has no WCAG violations on the picker listing already-paired hosts', async () => {
+    // The list view is reached from the shell: pairing another host hands the
+    // page back to the picker with the registry already populated.
+    const page = await harness.open(fleet())
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-connection="trigger"]').click()
+    await page.getByRole('menuitem', { name: 'Pair a host' }).click()
+    await page.locator('[data-deeptail-state="ready"]').waitFor({ state: 'visible' })
+    expect(describeViolations(await harness.audit(page))).toBe('')
+    await page.close()
+  })
+})

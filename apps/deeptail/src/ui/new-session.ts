@@ -89,30 +89,35 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
     setBusy(true)
     const chosen = preset.value.trim()
     const directory = cwd.value.trim()
-    void ports
-      .apiFor(host)
-      .createSession({
+    void spawn(host, chosen, directory)
+  })
+  /**
+   * Create the session and report the outcome where the operator can see it.
+   * @param host - the host to spawn on.
+   * @param chosen - the agent preset, empty for the host default.
+   * @param directory - the working directory, empty for the host default.
+   */
+  async function spawn(host: HostRecord, chosen: string, directory: string): Promise<void> {
+    try {
+      await ports.apiFor(host).createSession({
         ...(chosen === '' ? {} : { agentPreset: chosen }),
         ...(directory === '' ? {} : { cwd: directory }),
       })
-      .then(() => {
-        // Closed first: the live region is inert while this dialog is open.
-        dialog.close()
-        announce(t('spawn.created', { label: host.label }))
-        return undefined
-      })
-      .catch((reason: unknown) => {
-        const message = reason instanceof Error ? reason.message : String(reason)
-        if (!dialog.isOpen()) {
-          announce(t('spawn.failed', { message }))
-          return undefined
-        }
-        failure.textContent = describeSpawnFailure(reason, message, t)
-        failure.hidden = false
-        setBusy(false)
-        return undefined
-      })
-  })
+      // Closed first: the live region is inert while this dialog is open.
+      dialog.close()
+      announce(t('spawn.created', { label: host.label }))
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason)
+      if (!dialog.isOpen()) {
+        announce(t('spawn.failed', { message }))
+        return
+      }
+      failure.textContent = describeSpawnFailure(reason, message, t)
+      failure.hidden = false
+      setBusy(false)
+    }
+  }
+
   create.dataset.deeptailAction = 'spawn-create'
   dialog.actions.append(cancel, create)
 }

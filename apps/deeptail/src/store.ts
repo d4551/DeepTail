@@ -166,9 +166,9 @@ export function createFleetStore(hosts: readonly HostRecord[], ports: FleetPorts
           // Carries (id, message) with the same ambiguity, and no field on a
           // summary records it, so the roster is re-read rather than guessed at.
           void store.refresh(hostId)
-          return
+          break
         default:
-          return
+          break
       }
     },
     setHostState(hostId, state) {

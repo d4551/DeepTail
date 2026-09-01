@@ -46,7 +46,7 @@ export function openDialog(title: string, onClose: () => void): Dialog {
   dialog.append(heading, body, actions)
   root.append(mask, dialog)
 
-  const appRoot = document.getElementById('root')
+  const appRoot = document.querySelector<HTMLElement>('#root')
   // Focus is moved into the dialog, so the control that opened it has to be
   // remembered or a keyboard user is returned to the top of the document.
   const opener = document.activeElement

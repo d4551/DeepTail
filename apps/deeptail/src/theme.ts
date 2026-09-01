@@ -1,8 +1,9 @@
 /**
  * Light/dark resolution, matching the harness mechanism: `prefers-color-scheme`
  * is consulted once to resolve the `system` preference into the
- * `body[data-ds-dark-theme]` attribute the token sheet keys off, and
- * `html { color-scheme }` drives native UA chrome.
+ * `body[data-ds-dark-theme]` attribute. The token sheet keys both the palette
+ * and `color-scheme` off that one attribute, so native UA chrome follows
+ * without script.
  *
  * @module
  */
@@ -22,7 +23,6 @@ export function applyTheme(preference: ThemePreference = 'system'): 'light' | 'd
   const systemDark =
     preference === 'system' && typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches
   const dark = preference === 'dark' || systemDark
-  document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
   document.body.toggleAttribute(DARK_ATTRIBUTE, dark)
   // The mobile browser chrome takes its colour from the computed background,
   // so the meta tag is synced after the palette has switched.

@@ -6,9 +6,30 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { type Harness, startHarness, textOf } from './harness.ts'
+import type { Page } from 'playwright'
+import { type AnswerTable, type Harness, startHarness, textOf } from './harness.ts'
+
+const HOSTS = [
+  { id: 'dev-1', label: 'Workstation', origin: 'https://harness.local:3080' },
+  { id: 'lab-2', label: 'Lab box', origin: 'https://lab.internal:3080' },
+]
 
 let harness: Harness
+
+/**
+ * Reach the picker's list view the way the product does: from a mounted shell,
+ * by asking to pair another host.
+ * @param extra - answer-table overrides for the case.
+ * @returns the page, with the list rendered.
+ */
+async function openPickerFromShell(extra: Partial<AnswerTable> = {}): Promise<Page> {
+  const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: [] } }, ...extra })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.getByRole('menuitem', { name: 'Pair a host' }).click()
+  await page.waitForSelector('[data-deeptail-state="ready"]')
+  return page
+}
 
 beforeAll(async () => {
   harness = await startHarness()
@@ -52,6 +73,61 @@ describe('first-run pairing', () => {
     await page.close()
   })
 
+  it('lists every paired host with its origin and spoken state', async () => {
+    const page = await openPickerFromShell()
+    // Rendered text, not a fixture echo: label, origin and the state a screen
+    // reader hears beside the decorative dot.
+    expect(await page.locator('.row-label').allTextContents()).toEqual(['Workstation', 'Lab box'])
+    expect(await page.locator('.row-origin').allTextContents()).toEqual([
+      'https://harness.local:3080',
+      'https://lab.internal:3080',
+    ])
+    // `select_host` answers, so the probe resolves the row to a reachable host.
+    expect(await textOf(page, '[data-deeptail-host="dev-1"] .visually-hidden')).toBe('Online')
+    await harness.shoot(page, 'picker-list')
+    await page.close()
+  })
+
+  it('moves the roving tab stop across host rows', async () => {
+    const page = await openPickerFromShell()
+    await page.locator('[data-deeptail-host="dev-1"]').focus()
+    await page.keyboard.press('ArrowDown')
+    expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toContain('Lab box')
+    await page.keyboard.press('Home')
+    expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toContain('Workstation')
+    await page.close()
+  })
+
+  it('resolves the chosen host and clears the picker', async () => {
+    const page = await openPickerFromShell()
+    await page.locator('[data-deeptail-host="lab-2"]').click()
+    // Choosing a host hands the page to the shell, which is the only way the
+    // picker can be dismissed.
+    await page.waitForSelector('[data-deeptail-shell]')
+    expect(await page.locator('[data-deeptail-picker]').count()).toBe(0)
+    await page.close()
+  })
+
+  it('reports a host that cannot be reached as needing re-pairing', async () => {
+    const page = await openPickerFromShell({ selectError: 'device token rejected' })
+    // `select_host` failing is what the picker turns into the unauthorized dot.
+    expect(await textOf(page, '[data-deeptail-host="dev-1"] .visually-hidden')).toBe('Needs re-pairing')
+    await harness.shoot(page, 'picker-unauthorized')
+    await page.close()
+  })
+
+  it('shows a retryable alert when the host list cannot be read', async () => {
+    const page = await harness.open({ listError: 'registry unavailable' })
+    const strip = page.locator('[data-deeptail-state="error"]')
+    await strip.waitFor({ state: 'visible' })
+    expect(await strip.getAttribute('role')).toBe('alert')
+    // The host's own message is shown rather than a generic stand-in.
+    expect(await textOf(page, '[data-deeptail-state="error"]')).toContain('registry unavailable')
+    await expect(page.getByRole('button', { name: 'Retry' })).toBeDefined()
+    await harness.shoot(page, 'picker-list-error')
+    await page.close()
+  })
+
   it('translates into Chinese for a zh browser', async () => {
     const page = await harness.open({ hosts: [] }, { locale: 'zh-CN' })
     expect(await textOf(page, '[data-deeptail-state="empty"]')).toBe('尚未配对任何主机。')
@@ -63,7 +139,7 @@ describe('first-run pairing', () => {
   it('renders the dark palette from the harness tokens', async () => {
     const page = await harness.open({ hosts: [] }, { dark: true })
     await page.waitForSelector('[data-deeptail-state="empty"]')
-    expect(await page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(true)
+    expect(await page.evaluate(() => document.body.dataset.dsDarkTheme !== undefined)).toBe(true)
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(21, 21, 23)')
     await harness.shoot(page, 'picker-dark')
     await page.close()
