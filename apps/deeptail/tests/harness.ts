@@ -12,9 +12,10 @@ import { createServer, type Server } from 'node:http'
 import { extname, join, normalize } from 'node:path'
 import { type Browser, chromium, type Page } from 'playwright'
 
-/** The image ships one Chromium build; Playwright's default path expects the
- *  build number of whatever version is installed, so the binary is named. */
-const CHROMIUM = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
+/** Playwright resolves the Chromium it installed itself, which is what every
+ *  developer machine has. An image that pre-ships one at a fixed path instead
+ *  names it here, that being the only case where the default finds nothing. */
+const CHROMIUM = process.env.DEEPTAIL_CHROMIUM
 
 const DIST = new URL('../dist/', import.meta.url).pathname
 const SHOTS = new URL('./screenshots/', import.meta.url).pathname
@@ -78,7 +79,9 @@ export async function startHarness(): Promise<Harness> {
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('server did not bind a port')
   const origin = `http://127.0.0.1:${String(address.port)}/`
-  const browser: Browser = await chromium.launch({ executablePath: CHROMIUM })
+  const browser: Browser = await chromium.launch(
+    CHROMIUM === undefined || CHROMIUM === '' ? {} : { executablePath: CHROMIUM },
+  )
 
   return {
     async open(script, options = {}) {

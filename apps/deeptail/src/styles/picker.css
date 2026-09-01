@@ -265,8 +265,17 @@
   line-height: 18px;
 }
 
+/* `.error` sets `display`, and any author rule outranks the UA sheet's
+ * `[hidden] { display: none }`. Matching the attribute as well as the class
+ * wins on specificity rather than on file order, so `hidden` stays
+ * authoritative wherever this sheet is loaded. */
+.error[hidden] {
+  display: none;
+}
+
+/* A modifier over `.error`, worn as `class="error warning"` exactly as
+ * `.button-primary` is worn over `.button`. It recolours; it never relayouts. */
 .warning {
-  composes: error;
   background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-state-warn-label);
 }

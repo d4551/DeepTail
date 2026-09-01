@@ -53,7 +53,7 @@ export function emptyRow(text: string): HTMLElement {
  */
 export function warningRow(message: string, retryLabel: string, onRetry: () => void): HTMLElement {
   const strip = el('div', {
-    className: 'warning',
+    className: 'error warning',
     text: message,
     data: { deeptailState: 'partial' },
     attrs: { role: 'status' },

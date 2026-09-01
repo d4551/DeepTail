@@ -29,9 +29,17 @@ impl SecretStore {
         keyring_core::set_default_store(
             android_native_keyring_store::Store::new().map_err(|e| SecretError::Store(e.to_string()))?,
         );
-        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        // The Apple crate exposes no store at its root, and the two targets do
+        // not share one: the legacy keychain is compiled only on macOS, where it
+        // serves an unsigned desktop build, while iOS compiles only the
+        // protected-data store.
+        #[cfg(target_os = "macos")]
         keyring_core::set_default_store(
-            apple_native_keyring_store::Store::new().map_err(|e| SecretError::Store(e.to_string()))?,
+            apple_native_keyring_store::keychain::Store::new().map_err(|e| SecretError::Store(e.to_string()))?,
+        );
+        #[cfg(target_os = "ios")]
+        keyring_core::set_default_store(
+            apple_native_keyring_store::protected::Store::new().map_err(|e| SecretError::Store(e.to_string()))?,
         );
         #[cfg(target_os = "windows")]
         keyring_core::set_default_store(

@@ -15,7 +15,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await harness.stop()
+  await harness?.stop()
 })
 
 describe('first-run pairing', () => {

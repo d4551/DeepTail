@@ -11,3 +11,4 @@ apps/deeptail/src-tauri/gen/
 .env
 .env.*
 !.env.example
+.tmp/

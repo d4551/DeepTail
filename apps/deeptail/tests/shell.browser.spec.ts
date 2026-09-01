@@ -42,7 +42,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await harness.stop()
+  await harness?.stop()
 })
 
 describe('shell', () => {
