@@ -45,8 +45,11 @@ async function knownHosts(): Promise<readonly HostRecord[]> {
     return await invoke<HostRecord[]>('list_hosts')
   } catch {
     await renderHostPicker(container)
-    return invoke<HostRecord[]>('list_hosts')
   }
+  // The picker only resolves once a host is paired, so a second failure here is
+  // the registry refusing to answer at all; it goes back to the picker rather
+  // than escaping and leaving the window empty.
+  return knownHosts()
 }
 
 /**
@@ -95,7 +98,7 @@ async function clearPage(): Promise<void> {
  * Mount the control plane over a set of hosts.
  * @param hosts - the registry as it now stands.
  */
-function mountControlPlane(hosts: readonly HostRecord[]): void {
+function mountControlPlane(hosts: readonly HostRecord[], notice?: string): void {
   disposeShell = mountShell(
     container,
     {
@@ -123,6 +126,7 @@ function mountControlPlane(hosts: readonly HostRecord[]): void {
       },
     },
     t,
+    notice,
   )
 }
 
@@ -143,9 +147,24 @@ async function openSession(host: HostRecord, sessionId: string): Promise<void> {
     booted = await bootHost(host, container)
     bootedHost = host
     showReturnBar()
+  } catch (reason) {
+    // Booting replaces the page, so a failure part way through leaves nothing
+    // on screen. The control plane goes back up carrying the reason, rather
+    // than a blank window with the reason only in the console.
+    await clearPage()
+    mountControlPlane(await knownHosts(), reasonOf(reason))
   } finally {
     opening = false
   }
+}
+
+/**
+ * The message a failure should be reported with.
+ * @param reason - whatever was thrown.
+ * @returns the text to show.
+ */
+function reasonOf(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason)
 }
 
 /** Pair a host, then come back to the control plane over the new registry. */

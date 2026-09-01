@@ -158,9 +158,13 @@ async function readRoster(
     patchEntry(tables, hostId, { phase: { kind: 'ready' }, sessions: sortByActivity(sessions) })
     for (const event of held) replay(event)
   } catch (reason) {
-    tables.buffered.delete(hostId)
     if (tables.generations.get(hostId) !== generation) return
+    const held = tables.buffered.get(hostId) ?? []
+    tables.buffered.delete(hostId)
     patchEntry(tables, hostId, failedRead(reason))
+    // The read failed, so the rows stay as they were; the events that arrived
+    // while it ran are newer than those rows and still apply to them.
+    for (const event of held) replay(event)
   }
 }
 

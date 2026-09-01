@@ -50,9 +50,10 @@ interface HostClients {
  * @param container - the application root.
  * @param ports - application callbacks.
  * @param t - copy source.
+ * @param notice - a failure to report, when one preceded the mount.
  * @returns a disposer.
  */
-export function mountShell(container: HTMLElement, ports: ShellPorts, t: Translate): () => void {
+export function mountShell(container: HTMLElement, ports: ShellPorts, t: Translate, notice?: string): () => void {
   const clients = createHostClients((host) => ports.carrierFor(host))
   const store = createFleetStore(ports.hosts, { apiFor: clients.apiFor })
 
@@ -68,6 +69,8 @@ export function mountShell(container: HTMLElement, ports: ShellPorts, t: Transla
   const disposeRoster = mountFleetView(rosterSeat, store, createFleetPorts(ports, frame, clients.apiFor, t), t)
   const unsubscribeConnection = store.subscribe(connection.render)
   const disposeStreams = subscribeHostRosters(ports.hosts, clients.carrierFor, store)
+  // A failure that happened while no shell was mounted has nowhere else to land.
+  if (notice !== undefined) frame.showError(notice)
   for (const host of ports.hosts) void store.refresh(host.id)
 
   return () => {
