@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-boot-injections"
+description = "Enables the boot_injections command without any pre-configured scope."
+commands.allow = ["boot_injections"]
+
+[[permission]]
+identifier = "deny-boot-injections"
+description = "Denies the boot_injections command without any pre-configured scope."
+commands.deny = ["boot_injections"]

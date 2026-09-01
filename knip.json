@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unjs.io/schema/knip.json",
+  "workspaces": {
+    "packages/host-fleet": {
+      "project": ["src/**/*.ts"]
+    },
+    "apps/deeptail": {
+      "entry": ["src/fleet.ts", "tests/*.spec.ts"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"]
+    }
+  }
+}

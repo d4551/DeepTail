@@ -1,0 +1,8 @@
+{
+  // Solution file: the whole-repo graph for `tsgo --build tsconfig.json`.
+  // `files: []` keeps it program-less so the Host and Client Cordis Context
+  // merges never meet in one program. Add references, never include/files.
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [{ "path": "./packages/host-fleet" }, { "path": "./apps/deeptail" }]
+}

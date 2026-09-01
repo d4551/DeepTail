@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-carrier-load-bundle"
+description = "Enables the carrier_load_bundle command without any pre-configured scope."
+commands.allow = ["carrier_load_bundle"]
+
+[[permission]]
+identifier = "deny-carrier-load-bundle"
+description = "Denies the carrier_load_bundle command without any pre-configured scope."
+commands.deny = ["carrier_load_bundle"]

@@ -1,0 +1,35 @@
+{
+  "name": "@deeptail/root",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "DeepTail: a Tauri desktop and mobile client that monitors and drives DeepSeek Harness sessions on a remote host.",
+  "packageManager": "bun@1.4.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter '@deeptail/*' build",
+    "typecheck": "tsc --build tsconfig.json",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "lint:ox": "oxlint packages apps/deeptail/src --deny-warnings",
+    "knip": "knip",
+    "test": "bun test packages apps/deeptail/tests",
+    "tauri": "tauri",
+    "validate": "bun run lint && bun run lint:ox && bun run typecheck && bun run test && bun run knip"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.11",
+    "@tauri-apps/cli": "2.11.4",
+    "@types/node": "^26.4.0",
+    "knip": "6.33.0",
+    "oxlint": "1.80.0",
+    "typescript": "7.0.2"
+  }
+}

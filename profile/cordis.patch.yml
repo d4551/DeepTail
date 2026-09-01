@@ -1,0 +1,32 @@
+# The DeepTail profile patch layer. It applies after dsh-base and dsh-web-app,
+# so every row below either addresses one of their rows by id or inserts a new
+# one. A patch replaces the targeted row's whole `config`, which is why the
+# connection row restates every key it owns.
+
+# Turn on the non-browser credential tier. A desktop or mobile client cannot
+# perform the `GET /?token=` cookie exchange against a remote authority, so it
+# presents a device grant instead. Off by default in the harness; DeepTail is
+# the reason to enable it.
+#
+# `requireHttps` is not a preference: the harness terminates no TLS and its
+# browser cookie is not `Secure`, which is tolerable on a local socket and not
+# for a phone on someone else's network.
+- id: connection
+  config:
+    trustedHosts: !!js ctx.webRuntime.trustedHosts
+    deviceAuth:
+      enabled: true
+      requireHttps: true
+
+- insert:
+    # The fleet orchestrator. It is a host-plane row because the services it
+    # consumes — sessionController, subagents — are process singletons with
+    # cross-session reach; a per-preset copy would starve the host row and
+    # collide on the second session.
+    - id: host-fleet
+      name: './lib/index.js'
+      config:
+        maxSpawned: 8
+        defaultPreset: standard
+        maxPromptChars: 8192
+        listLimit: 50
