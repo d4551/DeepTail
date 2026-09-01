@@ -115,6 +115,8 @@ describe('the inline-style gate rejects an attribute write', () => {
 
   it('the declaration destructured back out of an element', () => {
     expect(styleOffences('const { style } = el')).not.toEqual([])
+    expect(styleOffences('const { style: declaration } = el')).not.toEqual([])
+    expect(styleOffences('function paint({ style }) { return style }')).not.toEqual([])
   })
 
   it('markup written in the source that carries the attribute', () => {
@@ -160,6 +162,14 @@ describe('the inline-style gate allows', () => {
 
   it('markup in the source that carries no style attribute', () => {
     expect(styleOffences('el.insertAdjacentHTML("beforeend", "<b class=\\"dot\\"></b>")')).toEqual([])
+  })
+
+  it('an option some platform formatter happens to call style', () => {
+    // A key of that name on an options object is not a style declaration, and
+    // an object carrying one can only become an inline style by passing through
+    // a write this gate already refuses.
+    expect(styleOffences("new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'narrow' })")).toEqual([])
+    expect(styleOffences("format(value, { style: 'currency' })")).toEqual([])
   })
 
   it('a name that merely reads like the banned one', () => {

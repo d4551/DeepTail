@@ -145,20 +145,29 @@ function rowActions(session: SessionSummary, t: Translate, handlers: RowHandlers
   return actions
 }
 
+/** The units a roster age is reported in, largest first, with their lengths. */
+const AGE_UNITS: readonly (readonly [Intl.RelativeTimeFormatUnit, number])[] = [
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', 60],
+]
+
 /**
- * A short relative time, built from dictionary keys rather than
- * `toLocaleString`, which would follow the browser language and produce mixed
- * text after a locale switch.
+ * A short relative time.
+ *
+ * The wording, the plural rules and the ordering all belong to the platform,
+ * which is given the locale the copy source speaks — so this cannot drift with
+ * the browser's own language the way `toLocaleString` would, and a locale added
+ * to the dictionary needs no time strings written for it.
  * @param at - epoch milliseconds.
- * @param t - copy source.
+ * @param t - copy source, which names the locale to format in.
  * @returns the label.
  */
 function relativeTime(at: number, t: Translate): string {
+  const format = new Intl.RelativeTimeFormat(t.locale, { numeric: 'auto', style: 'narrow' })
   const seconds = Math.max(0, Math.round((Date.now() - at) / 1000))
-  if (seconds < 60) return t('time.now')
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return t('time.minutes', { n: minutes })
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return t('time.hours', { n: hours })
-  return t('time.days', { n: Math.round(hours / 24) })
+  for (const [unit, length] of AGE_UNITS) {
+    if (seconds >= length) return format.format(-Math.round(seconds / length), unit)
+  }
+  return format.format(0, 'second')
 }

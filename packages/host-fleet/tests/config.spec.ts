@@ -4,6 +4,7 @@
  * What the tools do with those limits is covered in `fleet-tools.spec.ts`.
  */
 import { describe, expect, it } from 'bun:test'
+import { readFile } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import { apply, Config } from '../src/index.ts'
 
@@ -75,5 +76,21 @@ describe('host-fleet config', () => {
       'sessions_send',
       'sessions_spawn',
     ])
+  })
+})
+
+describe('the deployment profile', () => {
+  it('names the plugin and restates none of the schema it is validated against', async () => {
+    const patch = await readFile('profile/cordis.patch.yml', 'utf8')
+    const row = /- id: host-fleet\n((?:\s{6}.*\n)*)/u.exec(patch)?.[1] ?? ''
+    expect(row).toContain("name: './lib/index.js'")
+    // Every limit is declared once, with its default, in the schema. A profile
+    // that restates one has made a second copy of it, and the two agree only
+    // until someone changes the schema.
+    const defaults = new Config({}) as unknown as Record<string, unknown>
+    const restated = Object.entries(defaults)
+      .filter(([key, value]) => new RegExp(`^\\s*${key}:\\s*${String(value)}\\s*$`, 'mu').test(row))
+      .map(([key]) => key)
+    expect(restated).toEqual([])
   })
 })

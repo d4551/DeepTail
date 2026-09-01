@@ -131,3 +131,34 @@ it('drives native chrome from the same attribute as the palette', async () => {
   expect(await dark.evaluate(() => document.body.dataset.dsDarkTheme !== undefined)).toBe(true)
   await dark.close()
 })
+
+it('words a row age in the locale the surface is speaking', async () => {
+  const ages = async (locale: string): Promise<string[]> => {
+    const page = await harness.open(oneHost(), { locale })
+    await page.waitForSelector('[data-deeptail-shell]')
+    await page.locator('[data-deeptail-session="s-idle"]').waitFor({ state: 'visible' })
+    const found = await page.evaluate(() =>
+      [...document.querySelectorAll('.session-time')].map((node) => node.textContent?.trim() ?? ''),
+    )
+    await page.close()
+    return found
+  }
+  const english = await ages('en-GB')
+  const chinese = await ages('zh-CN')
+  // The fixture holds one session touched seconds ago and one an hour ago, so
+  // both the just-now case and a counted one are rendered.
+  expect(english.length).toBe(2)
+  expect(english.every((age) => age !== '')).toBe(true)
+  // The wording is the platform's, asked in the locale the copy source speaks.
+  // Formatting in the browser's own language instead would render these the
+  // same whatever the surface had switched to.
+  expect(chinese).not.toEqual(english)
+  expect(chinese.some((age) => /\p{Script=Han}/u.test(age))).toBe(true)
+  expect(english.some((age) => /\p{Script=Han}/u.test(age))).toBe(false)
+
+  // A browser asking for a language this product does not ship gets the English
+  // dictionary, so the ages beside that English must be English too. Formatting
+  // in the browser's own language instead is how a row ends up reading "il y a
+  // 1 h" under an English heading.
+  expect(await ages('fr-FR')).toEqual(english)
+})

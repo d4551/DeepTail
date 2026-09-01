@@ -20,14 +20,17 @@
 
 - insert:
     # The fleet orchestrator. It is a host-plane row because the services it
-    # consumes — sessionController, subagents — are process singletons with
+    # consumes — tools and sessionController — are process singletons with
     # cross-session reach; a per-preset copy would starve the host row and
-    # collide on the second session.
+    # collide on the second session. It deliberately does not consume the
+    # delegation registry: a session it creates is a peer rather than a
+    # subagent, and requiring that service would refuse hosts these tools work
+    # perfectly well on.
+    #
+    # No config is stated. Every limit is declared once, with its default, in
+    # the plugin's own schema, which cordis runs over whatever is written here;
+    # restating a default is a second copy that agrees only until one of them is
+    # changed. A deployment that wants a different value states that value, and
+    # only that value.
     - id: host-fleet
       name: './lib/index.js'
-      config:
-        maxSpawnsPerProcess: 8
-        defaultPreset: standard
-        maxPromptChars: 8192
-        listLimit: 50
-        promptTimeoutMs: 30000

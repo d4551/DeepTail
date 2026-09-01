@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { Translate } from '../locales.ts'
+import type { PickerKey, Translate } from '../locales.ts'
 import { button, el } from './dom.ts'
 
 /** Reachability of one host. */
@@ -42,44 +42,62 @@ export function emptyRow(text: string): HTMLElement {
 }
 
 /**
- * A per-host warning that sits beside the hosts that answered.
+ * How loudly a failed read is reported.
  *
- * Partial failure is a warning next to working content, never a whole-screen
- * error: one unreachable host must not blank the rest of the fleet.
- * @param message - the failure text.
+ * Partial failure is a warning next to working content: one unreachable host
+ * must not blank the rest of the fleet, and must not interrupt a reader who is
+ * working in the part that answered. A read that produced no content at all has
+ * nothing to sit beside, so it is the screen and it is announced.
+ */
+type Tone = 'partial' | 'error'
+
+/** What each tone is drawn and announced as. */
+const TONES: Readonly<Record<Tone, { readonly className: string; readonly role: string }>> = {
+  partial: { className: 'error warning', role: 'status' },
+  error: { className: 'error', role: 'alert' },
+}
+
+/**
+ * A failed read, carrying the retry that clears it.
+ *
+ * Both surfaces report a failed read this way, so both report it the same way:
+ * the host's own message, and a control that reads it again.
+ * @param tone - whether this sits beside working content or replaces it.
+ * @param message - the failure text, as the host gave it.
  * @param retryLabel - localized retry label.
  * @param onRetry - what retry does.
  * @returns the strip.
  */
-export function warningRow(message: string, retryLabel: string, onRetry: () => void): HTMLElement {
+export function retryStrip(tone: Tone, message: string, retryLabel: string, onRetry: () => void): HTMLElement {
   const strip = el('div', {
-    className: 'error warning',
+    className: TONES[tone].className,
     text: message,
-    data: { deeptailState: 'partial' },
-    role: 'status',
+    data: { deeptailState: tone },
+    role: TONES[tone].role,
   })
   strip.append(button('retry', retryLabel, onRetry))
   return strip
 }
 
+/** The dictionary key each host state is spoken with. */
+const STATE_KEYS: Readonly<Record<HostState, PickerKey>> = {
+  online: 'host.state.online',
+  offline: 'host.state.offline',
+  unauthorized: 'host.state.unauthorized',
+  unknown: 'host.state.unknown',
+}
+
 /**
  * The localized label for a host state, announced as text beside the
  * `aria-hidden` dot so status is never colour alone.
+ *
+ * Both surfaces speak the same four states, from the one table: a second
+ * mapping is four keys to keep in step by hand, and a state added to the type
+ * is then a compile error in one place rather than a silent gap in the other.
  * @param t - copy source.
  * @param state - the host's reachability.
  * @returns the label.
  */
 export function hostStateLabel(t: Translate, state: HostState): string {
-  switch (state) {
-    case 'online':
-      return t('host.state.online')
-    case 'offline':
-      return t('host.state.offline')
-    case 'unauthorized':
-      return t('host.state.unauthorized')
-    case 'unknown':
-      return t('host.state.unknown')
-    default:
-      throw new Error(`deeptail: unknown host state ${String(state)}`)
-  }
+  return t(STATE_KEYS[state])
 }

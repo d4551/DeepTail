@@ -55,15 +55,31 @@ resolved `--dsw-alias-*` and `--dsw-specific-*` values and its
 `ui-primitives/Menu`, `ui-primitives/Modal` and `ui-workspace/rows`.
 
 **No inline styles.** Every visual is a class, enforced by
-`scripts/check-no-inline-styles.ts`, which scans every module in the repository
-and the shell document for every route to an element's inline style: the dotted
-property, an indexed write, a bulk assign, destructuring on one line or several,
-the CSS Typed OM, an attribute node set directly, a `style` attribute, and
-`setAttribute` or `setAttributeNS` however the name is spelt. A stylesheet is
-not an inline style and is not banned: `injections.ts` builds one because the
-host's boot table says to. The gate has no allowances:
-`color-scheme` is a CSS property keyed off the same `body[data-ds-dark-theme]`
-attribute as the palette, so native UA chrome cannot drift from the theme.
+`scripts/check-no-inline-styles.ts`. It reads a parse rather than lines — oxc
+for scripts, the parser oxlint uses, and parse5 for markup — so the rules are
+stated about nodes and there is no spelling to get around them: the dotted
+property, an indexed write, a bulk assign, destructuring, the CSS Typed OM, a
+`style` attribute in markup written anywhere in the source, and any call that
+sets an attribute or a property under that name. Names are constant-folded, so
+one held in a constant, split with `+`, built in a template, case-shifted,
+joined or spelt from character codes is read as the name it produces; a name the
+gate cannot read at all is refused rather than allowed. The two calls that set an
+attribute without naming it — `setAttributeNode` and `setNamedItem` — are
+refused outright.
+
+The files it reads are the files git says the repository ships, so its reach
+cannot drift from a hand-written list and its count does not move with whether a
+build has run. `scripts/ban-gate.ts` reads the same parse for idioms the project
+has moved past and for directives that switch a checker off; a directive is only
+ever a comment, so the comments are what it searches, and Rust is searched too.
+Both gates are driven by `tests/gates.spec.ts`, which runs every rule against a
+source that breaks it and a source that merely resembles it.
+
+A stylesheet is not an inline style and is not banned: `injections.ts` builds
+one because the host's boot table says to. Neither is `color-scheme`, a CSS
+property keyed off the same `body[data-ds-dark-theme]` attribute as the palette,
+so native UA chrome cannot drift from the theme. Beyond those, the gate has no
+allowances.
 
 | | |
 |---|---|

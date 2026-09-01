@@ -36,10 +36,6 @@ const zh = {
   'chat.sent': '已发送到 {label}。',
   'shell.pickSession': '选择一个会话，在它所在主机的客户端中打开。',
   'shell.opening': '正在打开 {label} 的客户端…',
-  'time.now': '刚刚',
-  'time.minutes': '{n} 分钟前',
-  'time.hours': '{n} 小时前',
-  'time.days': '{n} 天前',
   'spawn.preset': '智能体预设',
   'spawn.cwd': '工作目录（可选）',
   'spawn.cwdPlaceholder': '/home/you/project',
@@ -99,10 +95,6 @@ const en = {
   'chat.sent': 'Sent to {label}.',
   'shell.pickSession': 'Choose a session to open it in its host\u2019s client.',
   'shell.opening': 'Opening the client for {label}…',
-  'time.now': 'just now',
-  'time.minutes': '{n}m ago',
-  'time.hours': '{n}h ago',
-  'time.days': '{n}d ago',
   'spawn.preset': 'Agent preset',
   'spawn.cwd': 'Working directory (optional)',
   'spawn.cwdPlaceholder': '/home/you/project',
@@ -134,7 +126,21 @@ const en = {
 const DICTIONARIES: Readonly<Record<LocaleId, Record<PickerKey, string>>> = { en, zh }
 
 /** Resolves one key, substituting `{name}` placeholders. */
-export type Translate = (key: PickerKey, params?: Readonly<Record<string, unknown>>) => string
+export interface Translate {
+  /**
+   * Render one key.
+   * @param key - the dictionary key.
+   * @param params - values for the key's placeholders.
+   */
+  (key: PickerKey, params?: Readonly<Record<string, unknown>>): string
+  /**
+   * The locale this translator speaks.
+   *
+   * Carried here because the platform's own formatters take a locale and there
+   * is no reason for a surface to guess one: the copy source already knows.
+   */
+  readonly locale: LocaleId
+}
 
 /**
  * Build the translator for a locale, and set `<html lang>` to match.
@@ -146,9 +152,10 @@ export function createTranslate(locale: LocaleId = resolveLocale()): Translate {
   if (typeof document !== 'undefined') {
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : locale
   }
-  return (key, params) => {
+  const translate = (key: PickerKey, params?: Readonly<Record<string, unknown>>): string => {
     const template = dictionary[key]
     if (params === undefined) return template
     return template.replaceAll(/\{(\w+)\}/gu, (match, name: string) => (name in params ? String(params[name]) : match))
   }
+  return Object.assign(translate, { locale })
 }

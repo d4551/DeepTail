@@ -15,7 +15,7 @@ import type { FleetStore, HostEntry } from '../store.ts'
 import { bindRovingFocus, el } from './dom.ts'
 import { focusedControl, restoreFocus } from './roster-focus.ts'
 import { type RowHandlers, sessionRow } from './session-row.ts'
-import { emptyRow, loadingRow, warningRow } from './states.ts'
+import { emptyRow, loadingRow, retryStrip } from './states.ts'
 
 /** What the roster needs from the shell. */
 export interface FleetPorts {
@@ -130,7 +130,7 @@ function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterVie
   }
   if (entry.phase.kind === 'failed') {
     group.append(
-      warningRow(entry.phase.message, view.t('action.retry'), () => {
+      retryStrip('partial', entry.phase.message, view.t('action.retry'), () => {
         void view.store.refresh(entry.host.id)
       }),
     )
@@ -139,7 +139,7 @@ function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterVie
   const failure = view.mutations.failures.get(entry.host.id)
   if (failure !== undefined) {
     group.append(
-      warningRow(failure, view.t('action.retry'), () => {
+      retryStrip('partial', failure, view.t('action.retry'), () => {
         view.mutations.failures.delete(entry.host.id)
         void view.store.refresh(entry.host.id)
       }),

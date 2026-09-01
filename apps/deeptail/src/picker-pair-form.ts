@@ -108,10 +108,12 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
  * @returns the strip.
  */
 function pairErrorStrip(message: string): HTMLElement {
-  const strip = el('div', { className: 'error', text: message })
-  strip.dataset.deeptailState = 'pair-error'
-  strip.setAttribute('role', 'alert')
-  return strip
+  return el('div', {
+    className: 'error',
+    text: message,
+    role: 'alert',
+    data: { deeptailState: 'pair-error' },
+  })
 }
 
 /**

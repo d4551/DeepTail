@@ -125,7 +125,7 @@ function inspect(env: Constants, node: Node, report: (node: Node, why: string) =
 /** Which rule reads which kind of node. */
 const INSPECTORS = new Map<string, (env: Constants, node: Node, report: (node: Node, why: string) => void) => void>([
   ['MemberExpression', inspectMember],
-  ['Property', inspectProperty],
+  ['ObjectPattern', inspectPattern],
   ['CallExpression', inspectCall],
   ['Literal', inspectMarkupString],
   ['TemplateLiteral', inspectMarkupString],
@@ -146,17 +146,26 @@ function inspectMember(env: Constants, node: Node, report: (node: Node, why: str
 }
 
 /**
- * Reject naming the style declaration as an object key, which is how it is
- * both built into a literal and destructured back out of an element.
+ * Reject taking the style declaration out of an element by destructuring it.
+ *
+ * Only a binding pattern is judged, not every object that happens to carry a
+ * key of that name: `{ style: 'narrow' }` is an option some platform formatters
+ * take, and an object built with such a key can only become an inline style by
+ * passing through one of the writes above, each of which is already refused.
  * @param env - the file's constants.
- * @param node - the property.
+ * @param node - the object pattern.
  * @param report - records an offence.
  */
-function inspectProperty(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const key = keyOf(env, node['key'], node['computed'] === true)
-  if (key === undefined) return
-  const why = STYLE_PROPERTIES.get(key.toLowerCase())
-  if (why !== undefined) report(node, why)
+function inspectPattern(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
+  const properties = node['properties']
+  if (!Array.isArray(properties)) return
+  for (const property of properties) {
+    if (!isNode(property) || property.type !== 'Property') continue
+    const key = keyOf(env, property['key'], property['computed'] === true)
+    if (key === undefined) continue
+    const why = STYLE_PROPERTIES.get(key.toLowerCase())
+    if (why !== undefined) report(property, why)
+  }
 }
 
 /**

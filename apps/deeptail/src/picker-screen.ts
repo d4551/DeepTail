@@ -11,8 +11,9 @@
 
 import type { HostRecord } from './host.ts'
 import { type PairDraft, type PairingState, pairView } from './picker-pair-form.ts'
-import { emptyView, failedView, listView, loadingView, type PickerContext } from './picker-views.ts'
+import { emptyView, listView, type PickerContext } from './picker-views.ts'
 import { el } from './ui/dom.ts'
+import { loadingRow, retryStrip } from './ui/states.ts'
 
 /**
  * What the picker is doing. An empty list is only empty once `ready` — until
@@ -61,8 +62,7 @@ export function mountPickerFrame(container: HTMLElement): PickerFrame {
   root.append(card)
   container.replaceChildren(root)
 
-  const live = el('div', { className: 'visually-hidden' })
-  live.setAttribute('role', 'status')
+  const live = el('div', { className: 'visually-hidden', role: 'status' })
   return { card, live }
 }
 
@@ -76,9 +76,9 @@ export function mountPickerFrame(container: HTMLElement): PickerFrame {
 function phaseViews(phase: Phase, ctx: PickerContext, actions: PickerActions): HTMLElement[] {
   switch (phase.kind) {
     case 'loading':
-      return [loadingView(ctx.t)]
+      return [loadingRow(ctx.t, 'status.loading')]
     case 'failed':
-      return [failedView(ctx.t, phase.message, actions.reload)]
+      return [retryStrip('error', phase.message, ctx.t('action.retry'), actions.reload)]
     case 'ready':
       return phase.hosts.length === 0
         ? emptyView(ctx.t, () => {
