@@ -180,6 +180,13 @@ function deeptailSendMux(script: AnswerTable, args: Record<string, object>, stat
   const send = (value: MuxEventValue): void => {
     channel.onmessage?.({ type: 'message', data: JSON.stringify({ type: 'item', streamId, value }) })
   }
+  // A test that needs the roster to change at a chosen moment — after focusing a
+  // row, say — drives this rather than the opening burst.
+  Object.assign(window, {
+    deeptailForwardEvent: (event: string, tuple: ForwardedEvent['args']): void => {
+      send({ type: 'emit', event, args: tuple })
+    },
+  })
   // The Gateway answers an opened stream with its ready frame before anything
   // else; nothing may be published first.
   queueMicrotask(() => {

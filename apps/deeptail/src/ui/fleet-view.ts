@@ -12,6 +12,7 @@ import type { HostApi, SessionSummary } from '../api.ts'
 import type { Translate } from '../locales.ts'
 import type { FleetStore, HostEntry } from '../store.ts'
 import { el, moveRovingFocus } from './dom.ts'
+import { focusedControl, restoreFocus } from './roster-focus.ts'
 import { type RowHandlers, sessionRow } from './session-row.ts'
 import { emptyRow, loadingRow, warningRow } from './states.ts'
 
@@ -90,6 +91,10 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
  */
 function renderRoster(root: HTMLElement, view: RosterView): void {
   const { entries } = view.store.getState()
+  // Every roster event rebuilds these rows, and one arriving while the operator
+  // is on a row would otherwise drop focus to the document body and reset the
+  // roving stop to the first row.
+  const focused = focusedControl(root)
   root.replaceChildren()
 
   if (entries.length === 0) {
@@ -102,6 +107,7 @@ function renderRoster(root: HTMLElement, view: RosterView): void {
     root.append(hostGroup(entry, stops, view))
   }
   bindRovingFocus(stops)
+  restoreFocus(root, focused)
 }
 
 /**

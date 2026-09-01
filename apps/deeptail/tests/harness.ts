@@ -64,6 +64,14 @@ export interface Harness {
   /** Every Remote call the page has issued, in order. */
   calls(page: Page): Promise<readonly RecordedCall[]>
   /**
+   * Forward one roster event to a page whose mux is open, at the moment the
+   * caller chooses rather than in the opening burst.
+   * @param page - the page to forward to.
+   * @param event - the event name.
+   * @param args - the event's argument tuple.
+   */
+  forward(page: Page, event: string, args: readonly unknown[]): Promise<void>
+  /**
    * Run axe-core over the page and return every WCAG 2.2 AA violation.
    *
    * The rule set is the published one, not a local opinion, so a surface cannot
@@ -171,6 +179,16 @@ export async function startHarness(): Promise<Harness> {
       await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true })
     },
     audit: (page) => auditPage(page),
+    forward: (page, event, args) =>
+      page.evaluate(
+        ([name, tuple]) => {
+          const push = (window as unknown as { deeptailForwardEvent?: (e: string, a: unknown[]) => void })
+            .deeptailForwardEvent
+          if (push === undefined) throw new Error('no mux is open on this page')
+          push(name as string, tuple as unknown[])
+        },
+        [event, args] as const,
+      ),
     calls: (page) =>
       page.evaluate(
         () => (window as unknown as { deeptailRecordedCalls?: RecordedCall[] }).deeptailRecordedCalls ?? [],

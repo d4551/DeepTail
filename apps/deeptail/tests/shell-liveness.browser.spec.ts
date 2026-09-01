@@ -86,3 +86,30 @@ it('turns a running row idle when the host forwards its status', async () => {
   expect(await textOf(page, '[data-deeptail-session="s-running"] .visually-hidden')).toBe('Idle')
   await page.close()
 })
+
+it('keeps keyboard focus on a row when the roster rebuilds beneath it', async () => {
+  const page = await harness.open(oneHost({ muxHosts: ['dev-1'] }))
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-session="s-idle"] .session-open').focus()
+  // The event arrives after focus lands, so the rebuild it causes is the thing
+  // under test rather than something that already happened.
+  await harness.forward(page, 'api-session/added', [
+    {
+      sessionId: 's-live',
+      updatedAt: Date.now(),
+      running: false,
+      blank: false,
+      projections: { values: { title: 'Arrived over the stream' } },
+    },
+  ])
+  await page.locator('[data-deeptail-session="s-live"]').waitFor({ state: 'attached' })
+  expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toContain(
+    'Write the release notes',
+  )
+  // The roving stop moved with it, so the next arrow key continues from here.
+  await page.keyboard.press('ArrowDown')
+  expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).not.toContain(
+    'Write the release notes',
+  )
+  await page.close()
+})
