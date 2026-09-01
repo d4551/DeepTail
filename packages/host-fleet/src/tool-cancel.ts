@@ -9,14 +9,14 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { admitSessionId, type FleetController } from './tool-support.ts'
 
 /** Per-property parameter schema for `sessions_cancel`. */
-const PARAMETERS = { sessionId: { type: 'string', required: true, description: 'Target session id.' } }
+const PARAMETERS = { sessionId: { type: 'string', required: true, description: 'Target session id.' } } as const
 
 /** Canonical output schema for `sessions_cancel`. */
 const OUTPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: { cancelled: { type: 'boolean', required: true } },
-}
+} as const
 
 /**
  * Build the `sessions_cancel` tool.

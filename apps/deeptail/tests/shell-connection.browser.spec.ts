@@ -7,7 +7,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { fleet, HOSTS, oneHost, SESSIONS } from './fixtures.ts'
+import { HOSTS, oneHost, SESSIONS } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
 
 let harness: Harness

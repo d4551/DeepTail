@@ -127,7 +127,7 @@ export function recentLines(records: readonly SessionHistoryRecord[]): string[] 
  */
 function previewOf(data: WireValue): string {
   const text = messageContent(data)
-    .filter(isTextBlock)
+    .filter((block): block is { type: 'text'; text: string } => isTextBlock(block))
     .map((block) => block.text)
     .join(' ')
   const collapsed = text.replaceAll(/\s+/gu, ' ').trim()

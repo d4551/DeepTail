@@ -12,7 +12,7 @@ import { admitSessionId, type FleetController, recentLines } from './tool-suppor
 const PARAMETERS = {
   sessionId: { type: 'string', required: true, description: 'Target session id.' },
   maxMessages: { type: 'number', description: 'Message budget for the snapshot window.' },
-}
+} as const
 
 /** Canonical output schema for `sessions_follow`. */
 const OUTPUT_SCHEMA = {
@@ -25,7 +25,7 @@ const OUTPUT_SCHEMA = {
     records: { type: 'integer', required: true },
     recent: { type: 'array', required: true, items: { type: 'string' } },
   },
-}
+} as const
 
 /**
  * Build the `sessions_follow` tool.

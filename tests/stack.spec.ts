@@ -102,7 +102,9 @@ function version(range: string): readonly [number, number] {
 describe('stack floors', () => {
   it('pins every tool at or above its floor', async () => {
     const manifests = await Promise.all(
-      ['package.json', 'apps/deeptail/package.json', 'packages/host-fleet/package.json'].map(declared),
+      ['package.json', 'apps/deeptail/package.json', 'packages/host-fleet/package.json'].map((manifest) =>
+        declared(manifest),
+      ),
     )
     const found = new Map<string, string>()
     for (const manifest of manifests) {

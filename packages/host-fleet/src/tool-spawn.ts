@@ -14,14 +14,14 @@ const PARAMETERS = {
   task: { type: 'string', required: true, description: 'The opening instruction for the new session.' },
   agentPreset: { type: 'string', description: 'Agent preset to compose.' },
   cwd: { type: 'string', description: 'Absolute working directory for the new session.' },
-}
+} as const
 
 /** Canonical output schema for `sessions_spawn`. */
 const OUTPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: { sessionId: { type: 'string', required: true }, agentPreset: { type: 'string' } },
-}
+} as const
 
 /**
  * Build the `sessions_spawn` tool.

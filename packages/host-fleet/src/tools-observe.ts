@@ -23,19 +23,6 @@ interface ReportedSession {
   readonly title?: string
 }
 
-/** One followed session's state at the snapshot cut. */
-interface FollowedSession {
-  readonly sessionId: string
-  /** Sequence number the snapshot window ends at. */
-  readonly cursor: number
-  /** Whether records exist before the window. */
-  readonly hasMore: boolean
-  /** How many records the window holds. */
-  readonly records: number
-  /** One line per surfaced message in the window, oldest first. */
-  readonly recent: string[]
-}
-
 /**
  * Register `sessions_list` for the lifetime of this plugin scope.
  * @param ctx - host context carrying `tools`.
@@ -133,6 +120,19 @@ function listedSessionsText(sessions: readonly ReportedSession[], total: number)
     (s) => `  ${s.sessionId}${s.running ? ' [running]' : ''}${s.title === undefined ? '' : ` — ${s.title}`}`,
   )
   return `${String(sessions.length)} of ${String(total)} sessions:\n${lines.join('\n')}`
+}
+
+/** One followed session's state at the snapshot cut. */
+interface FollowedSession {
+  readonly sessionId: string
+  /** Sequence number the snapshot window ends at. */
+  readonly cursor: number
+  /** Whether records exist before the window. */
+  readonly hasMore: boolean
+  /** How many records the window holds. */
+  readonly records: number
+  /** One line per surfaced message in the window, oldest first. */
+  readonly recent: string[]
 }
 
 /**

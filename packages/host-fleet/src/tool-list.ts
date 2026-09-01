@@ -13,7 +13,7 @@ import type { FleetLimits } from './tools.ts'
 const PARAMETERS = {
   runningOnly: { type: 'boolean', description: 'Report only sessions with a live agent.' },
   limit: { type: 'number', description: 'Maximum rows to report.' },
-}
+} as const
 
 /** The reported row shape is declared in full rather than as opaque JSON: the
  * model reads this schema, and PTC callers get a typed value from it. */
@@ -40,7 +40,7 @@ const OUTPUT_SCHEMA = {
     },
     total: { type: 'integer', required: true },
   },
-}
+} as const
 
 /**
  * Build the `sessions_list` tool.

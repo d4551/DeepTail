@@ -13,7 +13,7 @@ const PARAMETERS = {
   sessionId: { type: 'string', required: true, description: 'Target session id.' },
   message: { type: 'string', required: true, description: 'Text to deliver.' },
   mode: { type: 'string', enum: ['queue', 'steer'], description: 'Delivery mode (default "queue").' },
-}
+} as const
 
 /** Canonical output schema for `sessions_send`. */
 const OUTPUT_SCHEMA = {
@@ -24,7 +24,7 @@ const OUTPUT_SCHEMA = {
     mode: { type: 'string', required: true },
     requestId: { type: 'string', required: true },
   },
-}
+} as const
 
 /**
  * Build the `sessions_send` tool.
