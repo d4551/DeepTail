@@ -13,23 +13,6 @@ import { type Harness, startHarness, type Violation } from './harness.ts'
 
 let harness: Harness
 
-const SESSIONS = [
-  {
-    sessionId: 's-running',
-    updatedAt: Date.now() - 5_000,
-    running: true,
-    blank: false,
-    projections: { values: { title: 'Refactor the loader' } },
-  },
-  {
-    sessionId: 's-idle',
-    updatedAt: Date.now() - 3_600_000,
-    running: false,
-    blank: false,
-    projections: { values: { title: 'Write the release notes' } },
-  },
-]
-
 /**
  * Render a violation set as a failure message a reader can act on.
  * @param violations - what axe reported.
@@ -131,6 +114,19 @@ it('has no WCAG violations on a phone before the drawer is opened', async () => 
   // The state a phone user actually lands on. Auditing only the opened drawer
   // would measure the one arrangement that is guaranteed to pass.
   expect(describeViolations(await harness.audit(page))).toBe('')
+  await page.close()
+})
+
+it('keeps a level-one heading on the shell before the drawer is opened', async () => {
+  // The phone layout hides the sidebar, so the page's one heading must live in
+  // the main header: a page whose only heading vanishes with the layout has
+  // none at all once the drawer closes. axe flags this as page-has-heading-one;
+  // asserting it directly names the element the rule is about.
+  const page = await harness.open(fleet(), { mobile: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  const headings = page.locator('.main-header h1')
+  await expect.poll(async () => await headings.count()).toBe(1)
+  expect(await headings.first().evaluate((node) => getComputedStyle(node).visibility)).toBe('visible')
   await page.close()
 })
 

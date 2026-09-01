@@ -99,30 +99,78 @@ function version(range: string): readonly [number, number] {
   return [Number(parts[1]), Number(parts[2])]
 }
 
+/**
+ * Every dependency this repository declares, across all its manifests.
+ * @returns name to declared range.
+ */
+async function everyDependency(): Promise<Map<string, string>> {
+  const manifests = await Promise.all(
+    ['package.json', 'apps/deeptail/package.json', 'packages/host-fleet/package.json'].map((manifest) =>
+      declared(manifest),
+    ),
+  )
+  const found = new Map<string, string>()
+  for (const manifest of manifests) {
+    for (const [name, range] of Object.entries(manifest)) found.set(name, range)
+  }
+  return found
+}
+
+/**
+ * Tools pinned below their floor, or not pinned at all.
+ * @param found - every declared dependency.
+ * @returns one line per tool that fails its floor.
+ */
+function belowFloor(found: Map<string, string>): string[] {
+  const behind: string[] = []
+  for (const [name, [major, minor]] of Object.entries(FLOORS)) {
+    const range = found.get(name)
+    if (range === undefined) {
+      behind.push(`${name} is not declared anywhere`)
+      continue
+    }
+    const [haveMajor, haveMinor] = version(range)
+    if (haveMajor < major || (haveMajor === major && haveMinor < minor)) {
+      behind.push(`${name} ${range} is below the ${String(major)}.${String(minor)} floor`)
+    }
+  }
+  return behind
+}
+
+/**
+ * Assert that every list capable of silencing a finding still holds exactly
+ * what it was agreed to hold, so growing one has to be a deliberate edit here.
+ */
+async function expectSuppressionListsUnchanged(): Promise<void> {
+  // Each of these can silence a real finding, so each is pinned rather than
+  // merely present: growing one has to be a deliberate edit to this test.
+  const knip = JSON.parse(await readFile('knip.json', 'utf8')) as {
+    workspaces?: Record<string, { ignoreDependencies?: string[] }>
+  }
+  expect(knip.workspaces?.['apps/deeptail']?.ignoreDependencies ?? []).toEqual([
+    'react',
+    'react-dom',
+    '@deepseek-ai/dsh-client-store',
+    '@deepseek-ai/dsh-client-ui-primitives',
+    '@deepseek-ai/dsh-client-ui-slots',
+  ])
+  for (const [name, workspace] of Object.entries(knip.workspaces ?? {})) {
+    if (name === 'apps/deeptail') continue
+    expect([name, workspace.ignoreDependencies]).toEqual([name, undefined])
+  }
+
+  const biome = JSON.parse(await readFile('biome.json', 'utf8')) as {
+    files?: { includes?: string[] }
+    linter?: { rules?: Record<string, unknown> }
+    overrides?: unknown
+  }
+  expect(biome.overrides).toBeUndefined()
+  expect(biome.files?.includes ?? []).toEqual(['**', '!**/dist', '!**/lib', '!**/gen', '!**/target', '!**/*.min.js'])
+}
+
 describe('stack floors', () => {
   it('pins every tool at or above its floor', async () => {
-    const manifests = await Promise.all(
-      ['package.json', 'apps/deeptail/package.json', 'packages/host-fleet/package.json'].map((manifest) =>
-        declared(manifest),
-      ),
-    )
-    const found = new Map<string, string>()
-    for (const manifest of manifests) {
-      for (const [name, range] of Object.entries(manifest)) found.set(name, range)
-    }
-    const behind: string[] = []
-    for (const [name, [major, minor]] of Object.entries(FLOORS)) {
-      const range = found.get(name)
-      if (range === undefined) {
-        behind.push(`${name} is not declared anywhere`)
-        continue
-      }
-      const [haveMajor, haveMinor] = version(range)
-      if (haveMajor < major || (haveMajor === major && haveMinor < minor)) {
-        behind.push(`${name} ${range} is below the ${String(major)}.${String(minor)} floor`)
-      }
-    }
-    expect(behind).toEqual([])
+    expect(belowFloor(await everyDependency())).toEqual([])
   })
 
   it('holds the supply-chain release hold in place', async () => {
@@ -150,60 +198,44 @@ describe('stack floors', () => {
   })
 
   it('keeps every suppression list at its agreed contents', async () => {
-    // Each of these can silence a real finding, so each is pinned rather than
-    // merely present: growing one has to be a deliberate edit to this test.
-    const knip = JSON.parse(await readFile('knip.json', 'utf8')) as {
-      workspaces?: Record<string, { ignoreDependencies?: string[] }>
-    }
-    expect(knip.workspaces?.['apps/deeptail']?.ignoreDependencies ?? []).toEqual([
-      'react',
-      'react-dom',
-      '@deepseek-ai/dsh-client-store',
-      '@deepseek-ai/dsh-client-ui-primitives',
-      '@deepseek-ai/dsh-client-ui-slots',
-    ])
-    for (const [name, workspace] of Object.entries(knip.workspaces ?? {})) {
-      if (name === 'apps/deeptail') continue
-      expect([name, workspace.ignoreDependencies]).toEqual([name, undefined])
-    }
-
-    const biome = JSON.parse(await readFile('biome.json', 'utf8')) as {
-      files?: { includes?: string[] }
-      linter?: { rules?: Record<string, unknown> }
-      overrides?: unknown
-    }
-    expect(biome.overrides).toBeUndefined()
-    expect(biome.files?.includes ?? []).toEqual(['**', '!**/dist', '!**/lib', '!**/gen', '!**/target', '!**/*.min.js'])
+    await expectSuppressionListsUnchanged()
   })
 })
 
-describe('legacy patterns', () => {
-  it('has none in the application or plugin source', async () => {
-    const trees = await Promise.all(
-      [
-        'apps/deeptail/src',
-        'apps/deeptail/tests',
-        'packages/host-fleet/src',
-        'packages/host-fleet/tests',
-        'scripts',
-        'tests',
-      ].map((tree) => walk(tree, '.ts')),
-    )
-    const files = trees.flat()
-    const scanned = await Promise.all(files.map(async (file) => ({ file, text: await readFile(file, 'utf8') })))
-    const offences: string[] = []
-    for (const { file, text } of scanned) {
-      for (const [index, line] of text.split('\n').entries()) {
-        // The bans describe code. Prose that mentions one, and the table that
-        // declares them, are data rather than uses.
-        const start = line.trimStart()
-        if (start.startsWith('*') || start.startsWith('//') || start.startsWith('{ pattern:')) continue
-        for (const { pattern, why } of BANNED) {
-          if (pattern.test(line)) offences.push(`${file}:${String(index + 1)}: ${why} — ${line.trim()}`)
-        }
+/**
+ * Every line in the repository's own sources that uses a banned idiom.
+ * @returns one line per offence, with the reason.
+ */
+async function legacyOffences(): Promise<string[]> {
+  const trees = await Promise.all(
+    [
+      'apps/deeptail/src',
+      'apps/deeptail/tests',
+      'packages/host-fleet/src',
+      'packages/host-fleet/tests',
+      'scripts',
+      'tests',
+    ].map((tree) => walk(tree, '.ts')),
+  )
+  const scanned = await Promise.all(trees.flat().map(async (file) => ({ file, text: await readFile(file, 'utf8') })))
+  const offences: string[] = []
+  for (const { file, text } of scanned) {
+    for (const [index, line] of text.split('\n').entries()) {
+      // The bans describe code. Prose that mentions one, and the table that
+      // declares them, are data rather than uses.
+      const start = line.trimStart()
+      if (start.startsWith('*') || start.startsWith('//') || start.startsWith('{ pattern:')) continue
+      for (const { pattern, why } of BANNED) {
+        if (pattern.test(line)) offences.push(`${file}:${String(index + 1)}: ${why} — ${line.trim()}`)
       }
     }
-    expect(offences).toEqual([])
+  }
+  return offences
+}
+
+describe('legacy patterns', () => {
+  it('has none in the application or plugin source', async () => {
+    expect(await legacyOffences()).toEqual([])
   })
 
   it('states a modern compilation target', async () => {

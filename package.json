@@ -20,7 +20,7 @@
     "lint:fix": "biome check --write .",
     "lint:ox": "oxlint . --deny-warnings",
     "knip": "knip",
-    "test": "bun test packages/host-fleet/tests tests",
+    "test": "bun test packages/host-fleet/tests/*.spec.ts tests/*.spec.ts",
     "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests --timeout 60000",
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
     "lint:rust": "cd apps/deeptail/src-tauri && cargo clippy --all-targets -- -D warnings",

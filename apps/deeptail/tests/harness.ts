@@ -12,7 +12,7 @@ import { createServer, type Server, type ServerResponse } from 'node:http'
 import { extname, join, normalize } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { type Browser, chromium, type Page } from 'playwright'
-import { type AnswerTable, installTauriInternals, type RecordedCall } from './tauri-ipc.ts'
+import { type AnswerTable, initScriptSource, type RecordedCall } from './tauri-ipc.ts'
 
 export type { AnswerTable } from './tauri-ipc.ts'
 
@@ -88,8 +88,8 @@ const TYPES: Readonly<Record<string, string>> = {
  * @returns the harness.
  */
 async function serve(rel: string, res: ServerResponse): Promise<void> {
-  const body = await readFile(join(DIST, rel)).catch(() => undefined)
-  if (body === undefined) {
+  const body = await readFile(join(DIST, rel)).catch(() => null)
+  if (body === null) {
     res.writeHead(404)
     res.end('not found')
     return
@@ -98,7 +98,11 @@ async function serve(rel: string, res: ServerResponse): Promise<void> {
   res.end(body)
 }
 
-export async function startHarness(): Promise<Harness> {
+/**
+ * Serve the built bundle on a loopback port.
+ * @returns the server and the origin it bound.
+ */
+async function startServer(): Promise<{ server: Server; origin: string }> {
   const server: Server = createServer((req, res) => {
     const requested = (req.url ?? '/').split('?')[0] ?? '/'
     const rel = normalize(requested === '/' ? 'index.html' : requested.replace(/^\/+/u, ''))
@@ -109,45 +113,68 @@ export async function startHarness(): Promise<Harness> {
   })
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('server did not bind a port')
-  const origin = `http://127.0.0.1:${String(address.port)}/`
+  return { server, origin: `http://127.0.0.1:${String(address.port)}/` }
+}
+
+/**
+ * Open one page with its own scripted IPC.
+ * @param browser - the running browser.
+ * @param origin - where the bundle is served.
+ * @param table - the answers this page should give.
+ * @param options - how the page should be opened.
+ * @returns the page, loaded.
+ */
+async function openPage(browser: Browser, origin: string, table: AnswerTable, options: OpenOptions): Promise<Page> {
+  const context = await browser.newContext({
+    colorScheme: options.dark === true ? 'dark' : 'light',
+    // A phone viewport is not a phone: the row actions are revealed by
+    // `not (hover: hover)`, which only holds once the context emulates a touch
+    // device rather than merely a narrow window.
+    ...(options.mobile === true ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } : {}),
+    locale: options.locale ?? 'en-GB',
+  })
+  await context.addInitScript({ content: initScriptSource(table) })
+  const page = await context.newPage()
+  await page.goto(origin, { waitUntil: 'domcontentloaded' })
+  return page
+}
+
+/**
+ * Every WCAG rule a page definitively fails.
+ *
+ * axe separates what it decided from what it could not. Only the decided
+ * failures are returned: its `incomplete` set is the manual-review bucket, and
+ * an open overlay puts every element behind it there because the background
+ * behind a stacked element cannot be resolved. Failing on those would fail the
+ * build for a limit of the tool rather than a defect in the page.
+ * @param page - the page to audit.
+ * @returns the violations.
+ */
+async function auditPage(page: Page): Promise<readonly Violation[]> {
+  const result = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze()
+  return result.violations.map((violation) => ({
+    id: violation.id,
+    impact: violation.impact ?? 'unknown',
+    help: violation.help,
+    nodes: violation.nodes.map((node) => node.html),
+  }))
+}
+
+export async function startHarness(): Promise<Harness> {
+  const { server, origin } = await startServer()
   const executablePath = await chromiumPath()
   const browser: Browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
 
   return {
-    async open(table, options = {}) {
-      const context = await browser.newContext({
-        colorScheme: options.dark === true ? 'dark' : 'light',
-        // A phone viewport is not a phone: the row actions are revealed by
-        // `not (hover: hover)`, which only holds once the context emulates a
-        // touch device rather than merely a narrow window.
-        ...(options.mobile === true ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } : {}),
-        locale: options.locale ?? 'en-GB',
-      })
-      await context.addInitScript(installTauriInternals, table)
-      const page = await context.newPage()
-      await page.goto(origin, { waitUntil: 'domcontentloaded' })
-      return page
-    },
+    open: (table, options = {}) => openPage(browser, origin, table, options),
     async shoot(page, name) {
       await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true })
     },
-    async audit(page) {
-      const result = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze()
-      // `incomplete` is axe reporting that it could not decide — the state
-      // colour-contrast lands in when a background cannot be resolved. Treating
-      // it as a pass would let a real failure hide behind an undecided one.
-      return [...result.violations, ...result.incomplete].map((finding) => ({
-        id: finding.id,
-        impact: finding.impact ?? 'unknown',
-        help: finding.help,
-        nodes: finding.nodes.map((node) => node.html),
-      }))
-    },
-    calls(page) {
-      return page.evaluate(
+    audit: (page) => auditPage(page),
+    calls: (page) =>
+      page.evaluate(
         () => (window as unknown as { deeptailRecordedCalls?: RecordedCall[] }).deeptailRecordedCalls ?? [],
-      )
-    },
+      ),
     async stop() {
       await browser.close()
       await new Promise<void>((done) => {

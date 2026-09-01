@@ -600,14 +600,19 @@
     padding-left: max(12px, env(safe-area-inset-left));
     transform: translateX(-100%);
     visibility: hidden;
+    /* Hiding waits for the slide to finish; revealing does not wait at all, so
+       focus can enter the drawer on the frame it opens. */
     transition:
       transform var(--ds-transition-duration) var(--ds-ease-in-out),
-      visibility var(--ds-transition-duration) var(--ds-ease-in-out);
+      visibility 0s linear var(--ds-transition-duration);
   }
 
   .shell[data-drawer="open"] .sidebar {
     transform: translateX(0);
     visibility: visible;
+    transition:
+      transform var(--ds-transition-duration) var(--ds-ease-in-out),
+      visibility 0s;
   }
 
   /* The main column opts into viewport-fit=cover too, so the notch must not

@@ -15,8 +15,8 @@
 /// <reference types="@deepseek-ai/dsh-api-session-controller" />
 /// <reference types="@deepseek-ai/dsh-tools" />
 import type { Context } from '@deepseek-ai/cordis'
-import z from '@deepseek-ai/schemastery'
-import { applyFleetTools, type FleetLimits } from './tools.ts'
+import { type FleetLimits, fleetLimits } from './limits.ts'
+import { applyFleetTools } from './tools.ts'
 
 export type * from './types.ts'
 
@@ -31,25 +31,8 @@ export const name = 'host-fleet'
  */
 export const inject = ['tools', 'sessionController', 'subagents']
 
-/**
- * Deployment-varying limits; none of these are compiled in.
- *
- * The schema is the only place the shape and its defaults are written. A
- * separate interface beside it, or a second set of fallbacks at the call site,
- * would be two more copies of the same five numbers to keep in step.
- */
-export const Config = z.object({
-  /** Sessions this orchestrator may create over one process lifetime. */
-  maxSpawnsPerProcess: z.natural().min(1).default(8),
-  /** Agent preset composed for a session created without an explicit one. */
-  defaultPreset: z.string().default('standard'),
-  /** Longest message `sessions_send` will admit, in characters. */
-  maxPromptChars: z.natural().min(1).default(8192),
-  /** Default row budget for `sessions_list`. */
-  listLimit: z.natural().min(1).default(50),
-  /** How long a delivered prompt may take to be admitted, in milliseconds. */
-  promptTimeoutMs: z.natural().min(1).default(30_000),
-})
+/** The plugin config schema cordis validates against. */
+export const Config = fleetLimits
 
 /**
  * Register the fleet tools on this host.

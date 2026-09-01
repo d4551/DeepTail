@@ -6,7 +6,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { fleet, HOSTS, oneHost, SESSIONS } from './fixtures.ts'
+import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
 
 let harness: Harness
@@ -71,5 +71,20 @@ it('keeps the closed drawer out of the tab order', async () => {
       return document.activeElement === first
     }),
   ).toBe(false)
+  await page.close()
+})
+
+it('moves focus into the drawer it opens and back to the toggle on Escape', async () => {
+  const page = await harness.open(oneHost(), { mobile: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-action="drawer"]').click()
+  // The sidebar precedes the toggle in the document, so revealing it without
+  // moving focus would leave a keyboard user travelling backwards to reach it.
+  await page.waitForFunction(() => document.activeElement?.closest('#deeptail-sidebar') !== null)
+  expect(await page.evaluate(() => document.activeElement?.closest('#deeptail-sidebar') !== null)).toBe(true)
+  await page.keyboard.press('Escape')
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.deeptailAction)).toBe(
+    'drawer',
+  )
   await page.close()
 })

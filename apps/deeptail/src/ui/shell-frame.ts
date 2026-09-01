@@ -37,7 +37,10 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
   const sidebar = el('nav', { className: 'sidebar', attrs: { 'aria-label': t('shell.sessions') } })
   sidebar.id = SIDEBAR_ID
   const brandRow = el('div', { className: 'brand-row' })
-  brandRow.append(el('h1', { className: 'brand-name', text: t('app.name') }))
+  // A wordmark, not the page's heading: the sidebar it sits in is hidden on a
+  // phone, and a heading that disappears with the layout leaves the page with
+  // none at all.
+  brandRow.append(el('span', { className: 'brand-name', text: t('app.name') }))
   sidebar.append(brandRow)
 
   const main = el('main', { className: 'main' })
@@ -51,7 +54,9 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
   container.replaceChildren(shell)
 
   const drawer = mountDrawer({ shell, sidebar, scrim }, t)
-  header.append(drawer.toggle, el('h2', { className: 'main-title', text: t('shell.sessions') }))
+  // The main pane is present at every width, so the page's one heading lives
+  // here rather than in the drawer.
+  header.append(drawer.toggle, el('h1', { className: 'main-title', text: t('shell.sessions') }))
 
   return {
     sidebar,
@@ -86,6 +91,27 @@ interface Drawer {
 }
 
 /**
+ * Move focus with the drawer.
+ *
+ * The sidebar precedes the main pane in the document, so the control that opens
+ * it sits after everything it reveals. Without this a keyboard user travels
+ * backwards to reach what they just opened, and on the way out has to hunt for
+ * the toggle again.
+ * @param sidebar - the drawer.
+ * @param toggle - the control that opens and closes it.
+ * @param open - whether the drawer is now open.
+ */
+function followDrawer(sidebar: HTMLElement, toggle: HTMLButtonElement, open: boolean): void {
+  if (!open) {
+    toggle.focus()
+    return
+  }
+  // On the next frame: the sidebar is still hidden until styles are recomputed,
+  // and focus does not enter a hidden subtree.
+  requestAnimationFrame(() => sidebar.querySelector('button')?.focus())
+}
+
+/**
  * Wire the drawer: the sidebar is a permanent column on the wide layout and a
  * dismissible overlay on the narrow one, dismissed by the scrim, by Escape,
  * and by the toggle that reports its state.
@@ -98,16 +124,18 @@ function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
   // The drawer only exists below this width; above it the sidebar is permanent
   // and must never be made inert.
   const drawerLayout = globalThis.matchMedia('(max-width: 720px)')
-  const setDrawer = (open: boolean): void => {
+  const setDrawer = (open: boolean, moveFocus = false): void => {
     shell.dataset.drawer = open ? 'open' : 'closed'
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
     toggle.textContent = open ? t('shell.closeSessions') : t('shell.openSessions')
+
     // A translated drawer still holds its controls in the tab order, so the
     // closed one is taken out of the tree rather than merely moved off screen.
     sidebar.inert = !open && drawerLayout.matches
+    if (moveFocus && drawerLayout.matches) followDrawer(sidebar, toggle, open)
   }
   const toggle = button('drawer-toggle', t('shell.openSessions'), () => {
-    setDrawer(shell.dataset.drawer !== 'open')
+    setDrawer(shell.dataset.drawer !== 'open', true)
   })
   toggle.dataset.deeptailAction = 'drawer'
   toggle.setAttribute('aria-controls', SIDEBAR_ID)
@@ -117,7 +145,7 @@ function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
     setDrawer(false)
   })
   const onShellKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape' && shell.dataset.drawer === 'open') setDrawer(false)
+    if (event.key === 'Escape' && shell.dataset.drawer === 'open') setDrawer(false, true)
   }
   document.addEventListener('keydown', onShellKeyDown)
   const onLayoutChange = (): void => {
