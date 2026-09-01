@@ -125,7 +125,7 @@ it('keeps a level-one heading on the shell before the drawer is opened', async (
   const page = await harness.open(fleet(), { mobile: true })
   await page.waitForSelector('[data-deeptail-shell]')
   const headings = page.locator('.main-header h1')
-  await expect.poll(async () => await headings.count()).toBe(1)
+  expect(await headings.count()).toBe(1)
   expect(await headings.first().evaluate((node) => getComputedStyle(node).visibility)).toBe('visible')
   await page.close()
 })

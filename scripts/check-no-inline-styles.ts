@@ -9,7 +9,9 @@
  * The ban is absolute. There is no allowance. Every module in the repository is
  * scanned alongside the shell document, and the pattern covers every route to an
  * element's style: the dotted property, an indexed write, a bulk assign onto
- * `.style`, a `style=` attribute, and `setAttribute('style', …)`.
+ * `.style`, a `style` attribute in markup, and `setAttribute('style', …)`. A
+ * local binding that merely happens to be named `style` is not a write, so the
+ * attribute form requires the quote or brace that markup always carries.
  */
 
 import { readdir, readFile } from 'node:fs/promises'
@@ -19,7 +21,7 @@ const TREES = ['apps/deeptail/src', 'apps/deeptail/tests', 'packages/host-fleet/
   (tree) => new URL(`../${tree}/`, import.meta.url).pathname,
 )
 const SHELL = new URL('../apps/deeptail/index.html', import.meta.url).pathname
-const PATTERN = /\.style\b|style\s*=|cssText|setAttribute\(\s*['"`]style['"`]/u
+const PATTERN = /\.style\b|\bstyle\s*=\s*["'`{]|cssText|setAttribute\(\s*['"`]style['"`]/u
 
 /** One file to scan, and the label an offence is reported under. */
 interface Source {

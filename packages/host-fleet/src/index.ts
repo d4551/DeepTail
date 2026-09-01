@@ -17,8 +17,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { type FleetLimits, fleetLimits } from './limits.ts'
 import { applyFleetTools } from './tools.ts'
+import type { FleetSendResult, FleetSessionSummary } from './types.ts'
 
-export type * from './types.ts'
+export type { FleetSendResult, FleetSessionSummary }
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'host-fleet'

@@ -33,7 +33,10 @@ const BANNED: readonly { readonly pattern: RegExp; readonly why: string }[] = [
   { pattern: /\bdocument\.write\b/u, why: 'document.write is removed from modern engines' },
   { pattern: /\.substr\s*\(/u, why: 'String.prototype.substr is deprecated; use slice' },
   { pattern: /\bnew Array\s*\(/u, why: 'use an array literal or Array.from' },
-  { pattern: /\bescape\s*\(|\bunescape\s*\(/u, why: 'escape/unescape are deprecated; use encodeURIComponent' },
+  {
+    pattern: /(?<![.\w])(?:un)?escape\s*\(|(?:window|globalThis)\.(?:un)?escape\s*\(/u,
+    why: 'the global escape/unescape are deprecated; use encodeURIComponent',
+  },
   { pattern: /\b__proto__\b/u, why: 'use Object.getPrototypeOf or Object.create' },
   { pattern: /:\s*any\b/u, why: 'any defeats the type system; name the shape' },
   { pattern: /@ts-(ignore|nocheck|expect-error)/u, why: 'suppressing the checker hides the defect' },

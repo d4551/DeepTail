@@ -432,12 +432,21 @@
 
   .session-open {
     flex: 1 0 100%;
-    min-height: 36px;
+    min-height: 44px;
     height: auto;
   }
 
   .row-actions {
     margin-left: 14px;
+  }
+
+  /* Every control a finger reaches clears the platform minimum, not only the
+     row actions. */
+  .connection-trigger,
+  .new-session,
+  .menu-item,
+  .menu-repair {
+    min-height: 44px;
   }
 }
 

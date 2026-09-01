@@ -6,7 +6,17 @@
  */
 
 import type { SessionHistoryRecord, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { FleetSessionSummary } from './types.ts'
+
+/** A JSON object as it can appear inside a logged event payload. */
+type JsonObject = { readonly [key: string]: JsonValue }
+
+/** A content block carrying text, as narrowed from the JSON wire form. */
+interface TextBlock {
+  readonly type: 'text'
+  readonly text: string
+}
 
 /**
  * Project one controller row onto the orchestrator's reported view.
@@ -54,12 +64,12 @@ export function recentLines(records: readonly SessionHistoryRecord[]): string[] 
  * @param data - the `user/message` or `assistant/message` event payload.
  * @returns a trimmed single-line preview, empty when the message carries no text.
  */
-function previewOf(data: unknown): string {
+function previewOf(data: JsonValue): string {
   const content = messageContent(data)
   const text = content
     .filter(
-      (block): block is { type: 'text'; text: string } =>
-        isRecord(block) && block.type === 'text' && typeof block.text === 'string',
+      (block): block is TextBlock =>
+        isObject(block) && block.type === 'text' && typeof block.text === 'string',
     )
     .map((block) => block.text)
     .join(' ')
@@ -72,20 +82,20 @@ function previewOf(data: unknown): string {
  * @param data - the event payload.
  * @returns the content blocks, or an empty list when the payload carries none.
  */
-function messageContent(data: unknown): readonly unknown[] {
-  if (!isRecord(data)) return []
+function messageContent(data: JsonValue): readonly JsonValue[] {
+  if (!isObject(data)) return []
   const direct = data.content
   if (Array.isArray(direct)) return direct
   const nested = data.message
-  if (isRecord(nested) && Array.isArray(nested.content)) return nested.content
+  if (isObject(nested) && Array.isArray(nested.content)) return nested.content
   return []
 }
 
 /**
- * Whether a value is a plain object with string keys.
+ * Whether a JSON value is an object with string keys rather than an array.
  * @param value - the value to test.
  * @returns true when the value can be indexed by key.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isObject(value: JsonValue): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
