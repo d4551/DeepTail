@@ -56,10 +56,12 @@ resolved `--dsw-alias-*` and `--dsw-specific-*` values and its
 
 **No inline styles.** Every visual is a class, enforced by
 `scripts/check-no-inline-styles.ts`, which scans every module in the repository
-and the shell document for every route to an element's style: the dotted
-property, an indexed write, a bulk assign, destructuring, the CSS Typed OM, a
-`style` attribute, and `setAttribute('style', …)` however it is spelt. The gate
-has no allowances:
+and the shell document for every route to an element's inline style: the dotted
+property, an indexed write, a bulk assign, destructuring on one line or several,
+the CSS Typed OM, an attribute node set directly, a `style` attribute, and
+`setAttribute` or `setAttributeNS` however the name is spelt. A stylesheet is
+not an inline style and is not banned: `injections.ts` builds one because the
+host's boot table says to. The gate has no allowances:
 `color-scheme` is a CSS property keyed off the same `body[data-ds-dark-theme]`
 attribute as the palette, so native UA chrome cannot drift from the theme.
 

@@ -26,8 +26,11 @@ it('marks the active host with a trailing check, not a fill', async () => {
   await page.locator('[data-deeptail-connection="trigger"]').click()
   const menu = page.locator('[data-deeptail-connection="menu"]')
   expect(await menu.getAttribute('role')).toBe('menu')
-  expect(await page.locator('[data-deeptail-connection="menu"] [aria-current="true"]').count()).toBe(1)
-  expect(await textOf(page, '[data-deeptail-connection="menu"] [aria-current="true"] .menu-label')).toBe('Workstation')
+  // Choosing one host from a set is a radio group, so the selection is spoken
+  // as a checked state rather than drawn as a fill.
+  expect(await page.locator('[data-deeptail-connection="menu"] [aria-checked="true"]').count()).toBe(1)
+  expect(await textOf(page, '[data-deeptail-connection="menu"] [aria-checked="true"] .menu-label')).toBe('Workstation')
+  expect(await page.locator('[data-deeptail-connection="menu"] [role="menuitemradio"]').count()).toBe(HOSTS.length)
   await harness.shoot(page, 'connection-menu')
   await page.close()
 })
@@ -123,5 +126,20 @@ it('opens the pairing form under the name of the host being re-paired', async ()
   // Re-pairing replaces the record it names, so the form carries that host's
   // name rather than opening blank for whatever is pasted next.
   expect(await page.locator('[data-deeptail-field="name"]').inputValue()).toBe('Lab box')
+  await page.close()
+})
+
+it('dismisses the menu when focus leaves it', async () => {
+  const page = await harness.open(fleet(), { mobile: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-action="drawer"]').click()
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  // An open menu overlaps what is behind it, so it must not stay open once the
+  // operator has moved on. The drawer toggle sits in the main pane, which the
+  // open menu leaves reachable.
+  await page.locator('[data-deeptail-action="drawer"]').focus()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
+  expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
   await page.close()
 })

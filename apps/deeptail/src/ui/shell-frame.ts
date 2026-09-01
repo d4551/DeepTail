@@ -123,7 +123,9 @@ function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
   const { shell, sidebar, scrim } = regions
   // The drawer only exists below this width; above it the sidebar is permanent
   // and must never be made inert.
-  const drawerLayout = globalThis.matchMedia('(max-width: 720px)')
+  // Read from the stylesheet rather than restated here: one width, one source.
+  const breakpoint = getComputedStyle(document.documentElement).getPropertyValue('--dsh-drawer-breakpoint').trim()
+  const drawerLayout = globalThis.matchMedia(`(max-width: ${breakpoint})`)
   const setDrawer = (open: boolean, moveFocus = false): void => {
     shell.dataset.drawer = open ? 'open' : 'closed'
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false')

@@ -65,6 +65,18 @@ it('has no structural defects on the roster at any width', async () => {
   expect(checked).toEqual(VIEWPORTS.map((viewport) => [viewport.label, '']))
 })
 
+it('meets the platform minimum on the menu a finger opens', async () => {
+  const page = await harness.open(fleet(), { mobile: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-action="drawer"]').click()
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  // The menu's own items were never measured, because the one case that
+  // measured targets never opened it.
+  expect(await defects(page, true)).toBe('')
+  await page.close()
+})
+
 it('has no structural defects with the connection menu open', async () => {
   const page = await harness.open(fleet())
   await page.waitForSelector('[data-deeptail-shell]')

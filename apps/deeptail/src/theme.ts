@@ -17,9 +17,8 @@ const DARK_ATTRIBUTE = 'data-ds-dark-theme'
 /**
  * Apply a theme preference to the document.
  * @param preference - the viewer's choice.
- * @returns the resolved scheme actually applied.
  */
-export function applyTheme(preference: ThemePreference = 'system'): 'light' | 'dark' {
+export function applyTheme(preference: ThemePreference = 'system'): void {
   const systemDark =
     preference === 'system' && typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches
   const dark = preference === 'dark' || systemDark
@@ -30,5 +29,4 @@ export function applyTheme(preference: ThemePreference = 'system'): 'light' | 'd
   meta.name = 'theme-color'
   meta.content = getComputedStyle(document.body).backgroundColor
   if (!meta.isConnected) document.head.append(meta)
-  return dark ? 'dark' : 'light'
 }

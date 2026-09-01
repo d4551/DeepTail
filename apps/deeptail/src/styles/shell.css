@@ -197,9 +197,22 @@
 }
 
 /* Selection is a trailing check, never a fill. */
-.menu-check {
+/* Selection is a trailing mark, never a fill. Drawn rather than written, so it
+ * carries no text whose contrast would have to be judged against the card. */
+.menu-choice::after {
   flex: none;
-  color: var(--dsw-alias-label-primary);
+  width: 6px;
+  height: 11px;
+  margin-inline-start: auto;
+  border: solid var(--dsw-alias-label-primary);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  content: "";
+  opacity: 0;
+}
+
+.menu-choice[aria-checked="true"]::after {
+  opacity: 1;
 }
 
 .menu-danger {
@@ -368,8 +381,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 16px;
-  min-height: 16px;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0 4px;
   border: none;
   border-radius: 4px;
@@ -589,7 +602,7 @@
 
 /* Below the harness's own sidebar breakpoint the column becomes a drawer, so a
    phone gets the whole width for the roster. */
-@media (max-width: 720px) {
+@media (width <= 720px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
   }

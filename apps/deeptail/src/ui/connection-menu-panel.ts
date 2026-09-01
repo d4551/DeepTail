@@ -1,7 +1,7 @@
 /**
  * The switcher's open menu.
  *
- * `role="menu"` may own only `role="menuitem"` children, so every wrapper here
+ * `role="menu"` may own only menu items, so every wrapper here
  * carries `role="none"`, the footer's pair and unpair controls are real menu
  * items rather than loose buttons beside the list, and the host rows share one
  * roving tab stop so the whole menu is a single stop in the page's tab order.
@@ -14,9 +14,6 @@ import type { Translate } from '../locales.ts'
 import type { ConnectionPorts } from './connection-menu.ts'
 import { button, el, moveRovingFocus, screenReaderText } from './dom.ts'
 import { hostStateLabel } from './states.ts'
-
-/** The id the trigger's `aria-controls` points at while the menu is open. */
-export const MENU_ID = 'deeptail-connection-menu'
 
 /** Everything one open menu is drawn from. */
 export interface MenuPanelOptions {
@@ -48,7 +45,7 @@ export interface MenuPanel {
 export function buildConnectionMenu(options: MenuPanelOptions): MenuPanel {
   const menu = el('div', {
     className: 'menu',
-    attrs: { role: 'menu', 'aria-label': options.t('shell.switchHost'), id: MENU_ID },
+    attrs: { role: 'menu', 'aria-label': options.t('shell.switchHost') },
     data: { deeptailConnection: 'menu' },
   })
   const items = el('div', { className: 'menu-items', attrs: { role: 'none' } })
@@ -58,7 +55,7 @@ export function buildConnectionMenu(options: MenuPanelOptions): MenuPanel {
   menu.append(footer)
   // Arrow keys walk everything the menu owns, and the whole menu is one stop in
   // the page's tab order, so a row and a pinned action are reached the same way.
-  wireRovingFocus([...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')])
+  wireRovingFocus([...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"], [role="menuitemradio"]')])
   return { menu, initialFocus: rows[0] }
 }
 
@@ -76,8 +73,8 @@ function appendHostRow(items: HTMLElement, host: HostRecord, options: MenuPanelO
   const { activeHostId, ports, t, dismiss } = options
   const state = ports.stateOf(host.id)
   const item = el('button', {
-    className: 'menu-item',
-    attrs: { role: 'menuitem' },
+    className: 'menu-item menu-choice',
+    attrs: { role: 'menuitemradio', 'aria-checked': host.id === activeHostId ? 'true' : 'false' },
     data: { deeptailHost: host.id },
   })
   item.type = 'button'
@@ -86,10 +83,6 @@ function appendHostRow(items: HTMLElement, host: HostRecord, options: MenuPanelO
     el('span', { className: 'menu-label', text: host.label }),
     screenReaderText(hostStateLabel(t, state)),
   )
-  if (host.id === activeHostId) {
-    item.append(el('span', { className: 'menu-check', text: '✓', attrs: { 'aria-hidden': 'true' } }))
-    item.setAttribute('aria-current', 'true')
-  }
   item.addEventListener('click', () => {
     dismiss()
     ports.select(host.id)

@@ -87,17 +87,15 @@ function nextIndex(key: string, index: number, length: number): number | undefin
  * @param event - the keydown.
  * @param rows - every row in display order.
  * @param index - the row the event came from.
- * @returns true when the key was handled.
  */
-export function moveRovingFocus(event: KeyboardEvent, rows: readonly HTMLElement[], index: number): boolean {
-  if (event.target !== event.currentTarget) return false
+export function moveRovingFocus(event: KeyboardEvent, rows: readonly HTMLElement[], index: number): void {
+  if (event.target !== event.currentTarget) return
   const target = nextIndex(event.key, index, rows.length)
-  if (target === undefined) return false
+  if (target === undefined) return
   event.preventDefault()
   for (const row of rows) row.tabIndex = -1
   const next = rows[target]
-  if (next === undefined) return true
+  if (next === undefined) return
   next.tabIndex = 0
   next.focus()
-  return true
 }

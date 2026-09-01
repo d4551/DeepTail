@@ -20,6 +20,9 @@ export interface StructureFinding {
 /** The smallest touch target Apple's Human Interface Guidelines admit, in CSS pixels. */
 const MINIMUM_TOUCH_TARGET = 44
 
+/** The smallest target WCAG 2.2 admits for any pointer, in CSS pixels. */
+const MINIMUM_POINTER_TARGET = 24
+
 /** Elements that take focus or activation without a `tabindex`. */
 const INTERACTIVE = 'a[href], button, input, select, textarea, summary, [contenteditable="true"]'
 
@@ -139,12 +142,18 @@ function checkClipping(add: Report): void {
  * Every control a finger reaches clears the platform minimum.
  * @param add - collects a finding.
  */
-function checkTouchTargets(add: Report): void {
+function checkTouchTargets(add: Report, coarsePointer: boolean): void {
+  const floor = coarsePointer ? MINIMUM_TOUCH_TARGET : MINIMUM_POINTER_TARGET
   for (const node of document.querySelectorAll(INTERACTIVE)) {
+    // An inert subtree is not reachable, so its geometry is not a target.
+    if (node.closest('[inert]') !== null) continue
     const box = node.getBoundingClientRect()
     if (box.width === 0 && box.height === 0) continue
-    if (box.height < MINIMUM_TOUCH_TARGET || box.width < MINIMUM_TOUCH_TARGET) {
-      add('touch-target', `${describe(node)} is ${String(Math.round(box.width))}x${String(Math.round(box.height))}`)
+    if (box.height < floor || box.width < floor) {
+      add(
+        'target-size',
+        `${describe(node)} is ${String(Math.round(box.width))}x${String(Math.round(box.height))}, under ${String(floor)}`,
+      )
     }
   }
 }
@@ -168,7 +177,7 @@ function findStructureDefects(coarsePointer: boolean): StructureFinding[] {
   checkListOwnership(add)
   checkHorizontalOverflow(add)
   checkClipping(add)
-  if (coarsePointer) checkTouchTargets(add)
+  checkTouchTargets(add, coarsePointer)
   return findings
 }
 

@@ -171,23 +171,21 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
 }
 
 /**
- * Every WCAG rule a page definitively fails.
+ * Every WCAG finding on a page: what axe decided against, and what it could not
+ * decide at all.
  *
- * axe separates what it decided from what it could not. Only the decided
- * failures are returned: its `incomplete` set is the manual-review bucket, and
- * an open overlay puts every element behind it there because the background
- * behind a stacked element cannot be resolved. Failing on those would fail the
- * build for a limit of the tool rather than a defect in the page.
+ * Both are returned. An undecided finding is not a pass — it is a question the
+ * markup left open, and the answer is to write markup axe can decide about.
  * @param page - the page to audit.
- * @returns the violations.
+ * @returns the findings.
  */
 async function auditPage(page: Page): Promise<readonly Violation[]> {
   const result = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze()
-  return result.violations.map((violation) => ({
-    id: violation.id,
-    impact: violation.impact ?? 'unknown',
-    help: violation.help,
-    nodes: violation.nodes.map((node) => node.html),
+  return [...result.violations, ...result.incomplete].map((finding) => ({
+    id: finding.id,
+    impact: finding.impact ?? 'unknown',
+    help: finding.help,
+    nodes: finding.nodes.map((node) => node.html),
   }))
 }
 

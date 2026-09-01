@@ -55,8 +55,8 @@ const BANNED: readonly Ban[] = [
   { pattern: /\.substr\s*\(/u, why: 'String.prototype.substr is deprecated; use slice' },
   { pattern: /\bnew Array\s*\(/u, why: 'use an array literal or Array.from' },
   {
-    pattern: /(?<![.\w])(?:un)?escape\s*\(|(?:window|globalThis)\.(?:un)?escape\s*\(/u,
-    why: 'the global escape/unescape are deprecated; use encodeURIComponent',
+    pattern: /(?<!CSS\.)\b(?:un)?escape\s*\(/u,
+    why: 'the global escape/unescape are deprecated; use encodeURIComponent or CSS.escape',
   },
   { pattern: /\b__proto__\b/u, why: 'use Object.getPrototypeOf or Object.create' },
   { pattern: /:\s*any\b/u, why: 'any defeats the type system; name the shape' },

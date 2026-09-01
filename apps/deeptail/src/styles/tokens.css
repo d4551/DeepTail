@@ -18,6 +18,10 @@
    * flow-relative everywhere it can be; a transform cannot be, so it reads the
    * direction from here. */
   --dsh-inline-direction: 1;
+  /* The width below which the sidebar becomes a drawer. Read by the stylesheet
+   * and by the script that makes the closed drawer inert, so the two cannot
+   * describe different layouts. */
+  --dsh-drawer-breakpoint: 720px;
 }
 
 :root:dir(rtl) {

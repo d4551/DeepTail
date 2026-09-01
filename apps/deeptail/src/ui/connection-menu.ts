@@ -10,7 +10,7 @@
 
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
-import { buildConnectionMenu, MENU_ID } from './connection-menu-panel.ts'
+import { buildConnectionMenu } from './connection-menu-panel.ts'
 import { el, screenReaderText } from './dom.ts'
 import { type HostState, hostStateLabel } from './states.ts'
 
@@ -67,9 +67,6 @@ export function mountConnectionMenu(
     const open = popover.isOpen()
 
     trigger.replaceChildren(...triggerContent(active, ports, t))
-    // The relationship only exists while there is a menu to point at.
-    if (open) trigger.setAttribute('aria-controls', MENU_ID)
-    else trigger.removeAttribute('aria-controls')
 
     root.replaceChildren(trigger)
     setSurroundingsInert(root, open)
@@ -151,11 +148,15 @@ function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render:
     trigger.setAttribute('aria-expanded', 'false')
     document.removeEventListener('pointerdown', onOutside)
     document.removeEventListener('keydown', onKeyDown)
+    document.removeEventListener('focusin', onOutside)
     render()
     trigger.focus()
   }
 
-  function onOutside(event: PointerEvent): void {
+  // A pointer or focus landing outside dismisses it: an open menu overlaps what
+  // is behind it, so leaving it open once the operator has moved on covers the
+  // content they are now working in.
+  function onOutside(event: Event): void {
     if (event.target instanceof Node && root.contains(event.target)) return
     closeMenu()
   }
@@ -170,6 +171,7 @@ function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render:
     trigger.setAttribute('aria-expanded', 'true')
     document.addEventListener('pointerdown', onOutside)
     document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('focusin', onOutside)
     render()
   }
 
@@ -181,6 +183,7 @@ function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render:
       else openMenu()
     },
     dispose: () => {
+      document.removeEventListener('focusin', onOutside)
       document.removeEventListener('pointerdown', onOutside)
       document.removeEventListener('keydown', onKeyDown)
     },

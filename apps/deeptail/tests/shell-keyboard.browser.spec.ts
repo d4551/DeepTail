@@ -6,7 +6,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { oneHost } from './fixtures.ts'
+import { fleet, oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
 
 let harness: Harness
@@ -41,7 +41,9 @@ it('reaches a row action with the keyboard alone and opens the sheet with Enter'
   await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
   const send = page.getByRole('button', { name: 'Send' }).first()
   await send.waitFor({ state: 'visible' })
-  await page.keyboard.press('Tab')
+  // The actions share the row's tab stop, so they are reached along the row
+  // rather than by leaving it: a hundred sessions stay a hundred stops.
+  await page.keyboard.press('ArrowRight')
   expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toBe('Send')
   await page.keyboard.press('Enter')
   const dialog = page.locator('[data-deeptail-dialog]')
@@ -86,5 +88,21 @@ it('moves focus into the drawer it opens and back to the toggle on Escape', asyn
   expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.deeptailAction)).toBe(
     'drawer',
   )
+  await page.close()
+})
+
+it('keeps the whole roster to one stop in the page tab order, on touch too', async () => {
+  const page = await harness.open(fleet(), { mobile: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-action="drawer"]').click()
+  await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
+  // The actions are permanently visible here, so without sharing the row's stop
+  // every row would contribute two or three of its own.
+  const stops = await page.evaluate(() => {
+    const roster = document.querySelector('.roster')
+    if (roster === null) return -1
+    return [...roster.querySelectorAll<HTMLButtonElement>('button')].filter((node) => node.tabIndex >= 0).length
+  })
+  expect(stops).toBe(1)
   await page.close()
 })

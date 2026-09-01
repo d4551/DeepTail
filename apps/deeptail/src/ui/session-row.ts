@@ -53,8 +53,32 @@ export function sessionRow(
   })
   const open = openControl(session, t, handlers.open)
   row.append(open, rowActions(session, t, handlers))
+  wireRowKeys(row)
   stops.push(open)
   return row
+}
+
+/**
+ * Move along the row with the arrow keys.
+ *
+ * The actions share the row's single tab stop, so a fleet of a hundred sessions
+ * is a hundred stops rather than three hundred. Reaching them is the same
+ * gesture a toolbar uses: along the row to enter, back to leave.
+ * @param row - the row to wire.
+ */
+function wireRowKeys(row: HTMLElement): void {
+  row.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
+    const controls = [...row.querySelectorAll<HTMLButtonElement>('.session-open, .row-action')].filter(
+      (control) => !control.disabled,
+    )
+    const here = controls.indexOf(document.activeElement as HTMLButtonElement)
+    if (here === -1) return
+    const next = controls[here + (event.key === 'ArrowRight' ? 1 : -1)]
+    if (next === undefined) return
+    event.preventDefault()
+    next.focus()
+  })
 }
 
 /**
@@ -100,12 +124,14 @@ function openControl(session: SessionSummary, t: Translate, onOpen: () => void):
 function rowActions(session: SessionSummary, t: Translate, handlers: RowHandlers): HTMLElement {
   const actions = el('span', { className: 'row-actions' })
   const message = button('row-action', t('chat.send'), handlers.message)
+  message.tabIndex = -1
   message.dataset.deeptailAction = 'row-message'
   message.disabled = handlers.busy
   actions.append(message)
 
   if (session.running) {
     const stop = button('row-action', t('chat.cancel'), handlers.stop)
+    stop.tabIndex = -1
     stop.dataset.deeptailAction = 'row-stop'
     stop.disabled = handlers.busy
     actions.append(stop)
