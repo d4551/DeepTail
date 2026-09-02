@@ -4,18 +4,19 @@
  * These are the defects a rule engine does not report: markup that nests an
  * interactive element inside another, a heading level skipped, an ARIA
  * reference pointing at nothing, a layout that overflows its viewport, a label
- * clipped by the box it sits in, or a touch target below the platform minimum.
+ * clipped by the box it sits in, a group of controls under no name, a pane that
+ * scrolls inside a pane that also scrolls, or a touch target below the platform
+ * minimum.
  * Each returns a list of offending selectors, so a failure names the element
  * rather than a count.
  *
  * @module
  */
 
-/** One structural defect, as the page reports it. */
-export interface StructureFinding {
-  readonly rule: string
-  readonly detail: string
-}
+import { checkClipping, checkHorizontalOverflow, checkNestedScroll, scrolls } from './structure-layout.ts'
+import { describe, type Report, type StructureFinding } from './structure-report.ts'
+
+export type { StructureFinding }
 
 /**
  * What the checks measure against, handed to them rather than closed over.
@@ -40,22 +41,33 @@ const MINIMUM_TOUCH_TARGET = 44
 /** The smallest target WCAG 2.2 admits for any pointer, in CSS pixels. */
 const MINIMUM_POINTER_TARGET = 24
 
-/** Elements that take focus or activation without a `tabindex`. */
-const INTERACTIVE = 'a[href], button, input, select, textarea, summary, [contenteditable="true"]'
-
 /**
- * A short, readable path to an element, for a failure message.
- * @param node - the element to describe.
- * @returns tag, id and classes.
+ * Elements that take focus or activation.
+ *
+ * The role-named forms are here too. The list held only real elements, which
+ * was enough while every control in the product was a `<button>` — and would
+ * have gone quiet the moment one was not.
  */
-function describe(node: Element): string {
-  const id = node.id === '' ? '' : `#${node.id}`
-  const classes = node.classList.length > 0 ? `.${[...node.classList].join('.')}` : ''
-  return `${node.tagName.toLowerCase()}${id}${classes}`
-}
-
-/** Collects one finding. */
-type Report = (rule: string, detail: string) => void
+const INTERACTIVE = [
+  'a[href]',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'summary',
+  '[contenteditable="true"]',
+  '[tabindex]:not([tabindex="-1"])',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  '[role="switch"]',
+  '[role="tab"]',
+  '[role="menuitem"]',
+  '[role="menuitemradio"]',
+  '[role="menuitemcheckbox"]',
+  '[role="option"]',
+].join(', ')
 
 /**
  * Every id must be unique for an ARIA reference or a label to mean anything.
@@ -88,9 +100,23 @@ function checkNestedInteractive(add: Report, limits: StructureLimits): void {
  * @param add - collects a finding.
  */
 function checkHeadingOrder(add: Report): void {
-  const levels = [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')]
-    .filter((node) => (node as HTMLElement).offsetParent !== null)
-    .map((node) => Number(node.tagName.slice(1)))
+  // `offsetParent` is null for anything `position: fixed`, which is the whole
+  // of an open drawer and every dialog, so filtering on it excluded exactly the
+  // surfaces whose outline is hardest to get right.
+  const headings = [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')].filter((node) =>
+    (node as HTMLElement).checkVisibility(),
+  )
+  const levels = headings.map((node) => Number(node.tagName.slice(1)))
+  if (levels.length === 0) add('no-heading', 'the page has no heading at all')
+  const tops = levels.filter((level) => level === 1).length
+  if (tops > 1) add('many-h1', `the page has ${String(tops)} h1 elements`)
+  // A navigation column that precedes `main` in the document opens at h2, so
+  // the page's own heading is the first one inside `main` rather than the first
+  // one in the document.
+  const lead = headings.find((node) => node.closest('main') !== null)
+  if (lead !== undefined && lead.tagName !== 'H1') {
+    add('heading-start', `main opens at ${lead.tagName.toLowerCase()} rather than h1`)
+  }
   for (const [index, level] of levels.entries()) {
     const previous = levels[index - 1]
     if (previous !== undefined && level > previous + 1) {
@@ -126,33 +152,24 @@ function checkListOwnership(add: Report): void {
         add('list-owns-non-item', `${describe(list)} owns ${describe(child)}`)
     }
   }
-}
-
-/**
- * The page must never scroll sideways at any width it ships to.
- * @param add - collects a finding.
- */
-function checkHorizontalOverflow(add: Report): void {
-  const doc = document.documentElement
-  if (doc.scrollWidth > doc.clientWidth) {
-    add('horizontal-overflow', `document scrolls to ${String(doc.scrollWidth)} in ${String(doc.clientWidth)}`)
-  }
-}
-
-/**
- * Text that overruns its box without a scroll or an ellipsis is simply lost.
- * @param add - collects a finding.
- */
-function checkClipping(add: Report): void {
-  for (const node of document.querySelectorAll('button, .session-title, .row-label, .group-name, .main-title')) {
-    const computed = getComputedStyle(node)
-    if (
-      node.scrollWidth > node.clientWidth + 1 &&
-      computed.overflow === 'visible' &&
-      computed.textOverflow !== 'ellipsis'
-    ) {
-      add('clipped-content', `${describe(node)} overflows its box without a scroll or ellipsis`)
+  const menuItems = new Set([
+    'menuitem',
+    'menuitemradio',
+    'menuitemcheckbox',
+    'none',
+    'presentation',
+    'separator',
+    'group',
+  ])
+  for (const menu of document.querySelectorAll('[role="menu"]')) {
+    for (const child of menu.children) {
+      if (!menuItems.has(child.getAttribute('role') ?? ''))
+        add('menu-owns-non-item', `${describe(menu)} owns ${describe(child)}`)
     }
+  }
+  for (const item of document.querySelectorAll('[role="listitem"]')) {
+    if (item.parentElement?.getAttribute('role') !== 'list')
+      add('item-outside-list', `${describe(item)} sits outside a list`)
   }
 }
 
@@ -178,6 +195,31 @@ function checkTouchTargets(add: Report, limits: StructureLimits): void {
 }
 
 /**
+ * A group of controls has to say what the group is.
+ *
+ * axe does not require it: each radio in a `fieldset` already has its own
+ * accessible name from its label, so removing the `legend` leaves every rule
+ * satisfied and leaves a reader hearing "API key" and "OAuth client" with
+ * nothing saying what is being chosen. The same holds for a `radiogroup` or a
+ * `group` named by nothing.
+ * @param add - collects a finding.
+ */
+function checkGroupNames(add: Report): void {
+  for (const group of document.querySelectorAll('fieldset')) {
+    const legend = group.querySelector(':scope > legend')
+    const named =
+      (legend?.textContent ?? '').trim() !== '' ||
+      (group.getAttribute('aria-label') ?? '').trim() !== '' ||
+      group.hasAttribute('aria-labelledby')
+    if (!named) add('unnamed-group', `${describe(group)} groups controls under no name`)
+  }
+  for (const group of document.querySelectorAll('[role="radiogroup"], [role="group"]')) {
+    const named = (group.getAttribute('aria-label') ?? '').trim() !== '' || group.hasAttribute('aria-labelledby')
+    if (!named) add('unnamed-group', `${describe(group)} groups controls under no name`)
+  }
+}
+
+/**
  * Every structural defect on the current page.
  *
  * Runs in the browser, so it may only use DOM APIs and what it is handed.
@@ -194,8 +236,10 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   checkHeadingOrder(add)
   checkAriaReferences(add)
   checkListOwnership(add)
+  checkGroupNames(add)
   checkHorizontalOverflow(add)
   checkClipping(add)
+  checkNestedScroll(add)
   checkTouchTargets(add, limits)
   return findings
 }
@@ -222,8 +266,11 @@ export function structureCheckSource(coarsePointer: boolean): string {
     checkHeadingOrder,
     checkAriaReferences,
     checkListOwnership,
+    checkGroupNames,
     checkHorizontalOverflow,
+    scrolls,
     checkClipping,
+    checkNestedScroll,
     checkTouchTargets,
     findStructureDefects,
   ].map(String)

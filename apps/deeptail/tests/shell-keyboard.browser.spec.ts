@@ -39,16 +39,24 @@ it('reaches a row action with the keyboard alone and opens the sheet with Enter'
   // No pointer is used anywhere in this case: focusing the row must be
   // enough to reveal its actions, and Tab must be able to reach them.
   await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
-  const send = page.getByRole('button', { name: 'Send' }).first()
+  const send = page.getByRole('button', { name: 'Message Refactor the loader' }).first()
   await send.waitFor({ state: 'visible' })
   // The actions share the row's tab stop, so they are reached along the row
   // rather than by leaving it: a hundred sessions stay a hundred stops.
   await page.keyboard.press('ArrowRight')
-  expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toBe('Send')
+  expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe(
+    'Message Refactor the loader',
+  )
   await page.keyboard.press('Enter')
   const dialog = page.locator('[data-deeptail-dialog]')
   await dialog.waitFor({ state: 'visible' })
-  expect(await dialog.getAttribute('aria-label')).toBe('Refactor the loader')
+  // The dialog is named by the heading it shows, so the name and the visible
+  // title can never drift apart.
+  expect(
+    await dialog.evaluate(
+      (node) => document.querySelector(`#${node.getAttribute('aria-labelledby') ?? ''}`)?.textContent,
+    ),
+  ).toBe('Refactor the loader')
   await page.close()
 })
 
@@ -68,9 +76,12 @@ it('keeps the closed drawer out of the tab order', async () => {
   expect(
     await page.evaluate(() => {
       const sidebar = document.querySelector<HTMLElement>('#deeptail-sidebar')
-      const first = sidebar?.querySelector('button')
+      // The first button the reader can actually reach: the drawer's own
+      // dismissal is the first in the markup and is hidden on this layout,
+      // and focusing a hidden element is a no-op that would read as a pass.
+      const first = [...(sidebar?.querySelectorAll<HTMLElement>('button') ?? [])].find((node) => node.checkVisibility())
       first?.focus()
-      return document.activeElement === first
+      return first !== undefined && document.activeElement === first
     }),
   ).toBe(false)
   await page.close()
@@ -85,9 +96,12 @@ it('leaves the permanent sidebar in the tab order on the wide layout', async () 
   expect(
     await page.evaluate(() => {
       const sidebar = document.querySelector<HTMLElement>('#deeptail-sidebar')
-      const first = sidebar?.querySelector('button')
+      // The first button the reader can actually reach: the drawer's own
+      // dismissal is the first in the markup and is hidden on this layout,
+      // and focusing a hidden element is a no-op that would read as a pass.
+      const first = [...(sidebar?.querySelectorAll<HTMLElement>('button') ?? [])].find((node) => node.checkVisibility())
       first?.focus()
-      return document.activeElement === first
+      return first !== undefined && document.activeElement === first
     }),
   ).toBe(true)
   await page.close()
@@ -128,7 +142,7 @@ it('walks the row the way it is drawn when the script runs right to left', async
   const page = await harness.open(oneHost(), { direction: 'rtl' })
   await page.waitForSelector('[data-deeptail-shell]')
   await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
-  const send = page.getByRole('button', { name: 'Send' }).first()
+  const send = page.getByRole('button', { name: 'Message Refactor the loader' }).first()
   await send.waitFor({ state: 'visible' })
   // Mirrored, the actions sit to the *left* of the row's own control, so the
   // key that reaches them is the one pointing at them. Following the markup
@@ -137,7 +151,9 @@ it('walks the row the way it is drawn when the script runs right to left', async
   const openBox = await page.locator('[data-deeptail-session="s-running"] .session-open').boundingBox()
   expect((box?.x ?? 0) < (openBox?.x ?? 0)).toBe(true)
   await page.keyboard.press('ArrowLeft')
-  expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toBe('Send')
+  expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe(
+    'Message Refactor the loader',
+  )
   // And the key pointing away from them goes back, rather than deeper in.
   await page.keyboard.press('ArrowRight')
   expect(await page.evaluate(() => document.activeElement?.className ?? null)).toBe('session-open')

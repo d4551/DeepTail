@@ -9,44 +9,16 @@
  * @module
  */
 
-import { invoke } from '@tauri-apps/api/core'
+import { type PairingRuntime, pairAndFinish } from './fleet-pairing.ts'
+import { connectPhase, connectTailnet, forgetTailnet, openTailnet, tailnetPairingPhase } from './fleet-tailnet.ts'
 import type { HostRecord } from './host.ts'
 import { createTranslate, type Translate } from './locales.ts'
-import type { PairDraft } from './picker-pair-form.ts'
+import { type PickerPorts, settled, tauriPorts } from './picker-ports.ts'
 import { mountPickerFrame, type Phase, type PickerActions, type PickerFrame, paintScreen } from './picker-screen.ts'
+import { type TailnetPorts, tauriTailnetPorts } from './tailscale.ts'
 import type { HostState } from './ui/states.ts'
 import './styles/tokens.css'
 import './styles/picker.css'
-import { messageOf } from './reason.ts'
-
-/** How the picker reaches the native side; replaced wholesale in tests. */
-export interface PickerPorts {
-  listHosts(): Promise<HostRecord[]>
-  pairHost(link: string, label: string): Promise<HostRecord>
-  hostState(host: HostRecord): Promise<HostState>
-}
-
-/** Read a promise as data: success keeps its value, failure keeps its message. */
-const settled = async <T>(
-  promise: Promise<T>,
-): Promise<{ readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string }> => {
-  const [outcome] = await Promise.allSettled([promise])
-  return outcome.status === 'fulfilled'
-    ? { ok: true, value: outcome.value }
-    : { ok: false, message: messageOf(outcome.reason) }
-}
-
-/** The ports backed by the real Tauri commands. */
-const tauriPorts: PickerPorts = {
-  listHosts: () => invoke<HostRecord[]>('list_hosts'),
-  pairHost: (link, label) => invoke<HostRecord>('pair_host', { link, label }),
-  hostState: async (host) => {
-    // `select_host` fails when the device token is missing or the store
-    // refused it; either way the host needs pairing again before use.
-    const probe = await settled(invoke('select_host', { host: host.id }))
-    return probe.ok ? 'online' : 'unauthorized'
-  },
-}
 
 /** A pairing form with nothing typed into it yet. */
 const EMPTY_DRAFT = { link: '', label: '' } as const
@@ -65,6 +37,7 @@ interface PickerModel {
  */
 interface PickerRuntime {
   readonly ports: PickerPorts
+  readonly tailnet: TailnetPorts
   readonly t: Translate
   readonly model: PickerModel
   readonly frame: PickerFrame
@@ -109,9 +82,59 @@ function pickerActions(run: PickerRuntime): PickerActions {
       toPhase(run, { kind: 'ready', hosts })
     },
     submitPairing: (hosts, draft) => {
-      void pairAndFinish(run, hosts, draft)
+      const { phase } = run.model
+      void pairAndFinish(pairingRuntime(run), hosts, draft, phase.kind === 'pairing' ? phase.origin : undefined)
     },
     choose: run.finish,
+    beginTailnet: (hosts) => {
+      void openTailnet(tailnetRuntime(run), hosts)
+    },
+    submitTailnet: (hosts, draft) => {
+      void connectTailnet(tailnetRuntime(run), hosts, draft)
+    },
+    switchTailnetKind: (hosts, draft) => {
+      toPhase(run, connectPhase(hosts, draft, false))
+    },
+    cancelTailnet: (hosts) => {
+      toPhase(run, { kind: 'ready', hosts })
+    },
+    forgetTailnet: (hosts) => {
+      void forgetTailnet(tailnetRuntime(run), hosts)
+    },
+    pairTailnetDevice: (hosts, device) => {
+      toPhase(run, tailnetPairingPhase(hosts, device))
+    },
+  }
+}
+
+/**
+ * The slice of the picker the pairing flow drives.
+ * @param run - the running picker.
+ * @returns the pairing flow's runtime.
+ */
+function pairingRuntime(run: PickerRuntime): PairingRuntime {
+  return {
+    pairHost: (link, label) => run.ports.pairHost(link, label),
+    t: run.t,
+    toPhase: (next) => {
+      toPhase(run, next)
+    },
+    finish: run.finish,
+  }
+}
+
+/**
+ * The slice of the picker the tailnet flow drives.
+ * @param run - the running picker.
+ * @returns the tailnet flow's runtime.
+ */
+function tailnetRuntime(run: PickerRuntime): { tailnet: TailnetPorts; t: Translate; toPhase(next: Phase): void } {
+  return {
+    tailnet: run.tailnet,
+    t: run.t,
+    toPhase: (next) => {
+      toPhase(run, next)
+    },
   }
 }
 
@@ -142,10 +165,16 @@ async function probeHosts(
   ports: PickerPorts,
   hosts: readonly HostRecord[],
   states: Map<string, HostState>,
+  onSettled: (host: HostRecord) => void,
 ): Promise<void> {
   await Promise.all(
     hosts.map(async (host) => {
       states.set(host.id, await ports.hostState(host))
+      // Each dot the moment its own probe answers. Repainting once, after every
+      // probe had settled, meant one unreachable host held the whole fleet's
+      // dots at `unknown` for as long as its read took to time out — which is
+      // the opposite of what this function's caller says it does.
+      onSettled(host)
     }),
   )
 }
@@ -161,50 +190,13 @@ async function probeHosts(
  */
 async function loadRoster(run: PickerRuntime): Promise<void> {
   toPhase(run, { kind: 'loading' })
-  run.frame.live.textContent = run.t('status.loading')
   toPhase(run, await readRoster(run.ports, run.t))
 
   const listed = run.model.phase
   if (listed.kind !== 'ready') return
-  await probeHosts(run.ports, listed.hosts, run.model.states)
-  if (run.model.phase.kind === 'ready') repaint(run)
-}
-
-/**
- * The name a host is paired under: it has to be listed as something, so one
- * left blank is paired as "Harness".
- * @param typed - the name as typed.
- * @returns the label to pair with.
- */
-function pairLabel(typed: string): string {
-  const trimmed = typed.trim()
-  return trimmed === '' ? 'Harness' : trimmed
-}
-
-/**
- * Pair the host the draft describes, and finish with it.
- *
- * Both refusals come back to the form still holding what was typed, so a
- * mistyped link costs a correction rather than the whole paste.
- * @param run - the running picker.
- * @param hosts - the roster the form was opened over.
- * @param draft - what the viewer typed.
- * @returns when the attempt has settled.
- */
-async function pairAndFinish(run: PickerRuntime, hosts: readonly HostRecord[], draft: PairDraft): Promise<void> {
-  const { t } = run
-  if (draft.link.trim() === '') {
-    toPhase(run, { kind: 'pairing', hosts, error: t('error.linkRequired'), busy: false, draft })
-    return
-  }
-  toPhase(run, { kind: 'pairing', hosts, busy: true, draft })
-  const added = await settled(run.ports.pairHost(draft.link.trim(), pairLabel(draft.label)))
-  if (!added.ok) {
-    const error = t('error.pairFailed', { message: added.message })
-    toPhase(run, { kind: 'pairing', hosts, error, busy: false, draft })
-    return
-  }
-  run.finish(added.value)
+  await probeHosts(run.ports, listed.hosts, run.model.states, () => {
+    if (run.model.phase.kind === 'ready') repaint(run)
+  })
 }
 
 /**
@@ -216,6 +208,7 @@ async function pairAndFinish(run: PickerRuntime, hosts: readonly HostRecord[], d
  * @param repairing - the label of a host being paired again, which opens the
  * form directly with that name in place so the record is replaced rather than
  * a second one written beside it.
+ * @param tailnet - how the tailnet is reached; defaults to the real commands.
  * @returns a promise that settles when the operator has chosen.
  */
 export function renderHostPicker(
@@ -223,10 +216,12 @@ export function renderHostPicker(
   ports: PickerPorts = tauriPorts,
   translate: Translate = createTranslate(),
   repairing?: string,
+  tailnet: TailnetPorts = tauriTailnetPorts,
 ): Promise<void> {
   return new Promise<void>((resolve) => {
     const run: PickerRuntime = {
       ports,
+      tailnet,
       t: translate,
       model: { phase: { kind: 'loading' }, states: new Map() },
       frame: mountPickerFrame(container),

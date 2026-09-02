@@ -40,15 +40,18 @@ export function restoreFocus(root: HTMLElement, focused: FocusedControl | undefi
   if (focused === undefined) return
   const row = root.querySelector<HTMLElement>(`[data-deeptail-session="${CSS.escape(focused.session)}"]`)
   if (row === null) return
-  const target =
-    focused.action === 'open'
-      ? row.querySelector<HTMLButtonElement>('.session-open')
-      : row.querySelector<HTMLButtonElement>(`[data-deeptail-action="${CSS.escape(focused.action)}"]`)
-  if (target === null || target === undefined) return
   const stop = row.querySelector<HTMLButtonElement>('.session-open')
-  if (stop !== null) {
-    for (const other of root.querySelectorAll<HTMLButtonElement>('.session-open')) other.tabIndex = -1
-    stop.tabIndex = 0
-  }
+  if (stop === null) return
+  for (const other of root.querySelectorAll<HTMLButtonElement>('.session-open')) other.tabIndex = -1
+  stop.tabIndex = 0
+  // The row's own control is focused first, and unconditionally. A row's
+  // actions are revealed by `:focus-within`, so on a rebuilt row — nothing
+  // focused, no pointer over it — they are still `display: none`, and focusing
+  // one is a no-op that drops the operator to the document body. Focusing the
+  // open control is what reveals them.
+  stop.focus()
+  if (focused.action === 'open') return
+  const target = row.querySelector<HTMLButtonElement>(`[data-deeptail-action="${CSS.escape(focused.action)}"]`)
+  if (target === null) return
   target.focus()
 }

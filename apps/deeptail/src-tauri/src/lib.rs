@@ -17,7 +17,7 @@ mod commands;
 mod hosts;
 mod pairing;
 mod secrets;
-
+mod tailscale;
 
 /// How long to wait for a TCP+TLS handshake with a host.
 const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -82,6 +82,10 @@ pub fn run() {
             commands::carrier_open_mux,
             commands::carrier_send_mux,
             commands::carrier_close_mux,
+            commands::tailscale_connected,
+            commands::tailscale_connect,
+            commands::tailscale_devices,
+            commands::tailscale_forget,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DeepTail");

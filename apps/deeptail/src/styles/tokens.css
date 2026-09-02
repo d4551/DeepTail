@@ -54,6 +54,99 @@
   }
 }
 
+/* The spacing, radius and type scale.
+ *
+ * Both sheets held these as bare lengths — twenty-nine distinct spacing values,
+ * nine radii and five type sizes — so a value used in two places was two
+ * decisions that could drift, and did: one row's actions were 12px apart on a
+ * pointer and 4px apart on touch. A gate rejects a bare length outside this
+ * file, so a new one has to be named here first.
+ *
+ * The rungs are the ones the two sheets already used, kept as they were: this
+ * names what is there rather than restyling the product. */
+:root {
+  --dsh-space-0: 2px;
+  --dsh-space-1: 4px;
+  --dsh-space-2: 6px;
+  --dsh-space-3: 8px;
+  --dsh-space-4: 12px;
+  --dsh-space-5: 16px;
+  --dsh-space-6: 20px;
+  --dsh-space-7: 24px;
+  --dsh-space-8: 32px;
+  --dsh-space-9: 48px;
+  /* The odd rungs the two sheets already stood on. They are named so a value
+   * used twice is one decision, not two; the ramp above is what new work
+   * reaches for. */
+  --dsh-space-inset-sm: 7px;
+  --dsh-space-inset-md: 10px;
+  --dsh-space-inset-lg: 11px;
+  --dsh-space-inset-xl: 14px;
+  --dsh-space-inset-2xl: 22px;
+  --dsh-space-inset-3xl: 28px;
+
+  --dsh-radius-xs: 4px;
+  --dsh-radius-sm: 8px;
+  --dsh-radius-md: 12px;
+  --dsh-radius-lg: 16px;
+  --dsh-radius-xl: 20px;
+  --dsh-radius-control: 10px;
+  --dsh-radius-chip: 18px;
+  --dsh-radius-action: 22px;
+  --dsh-radius-sheet: 24px;
+
+  --dsh-text-sm: 12px;
+  --dsh-text-md: 13px;
+  --dsh-text-lg: 14px;
+  --dsh-text-body: 16px;
+  --dsh-text-title: 18px;
+
+  --dsh-leading-sm: 16px;
+  --dsh-leading-md: 18px;
+  --dsh-leading-lg: 20px;
+  --dsh-leading-control: 22px;
+  --dsh-leading-body: 24px;
+
+  /* The heights the shell's controls stand at, and the widths its regions are
+   * laid out on. Each was written wherever it was needed; a width restated is
+   * a second layout decision waiting to disagree with the first. */
+  --dsh-control-xs: 34px;
+  --dsh-control-sm: 36px;
+  --dsh-control-md: 38px;
+  --dsh-control-lg: 40px;
+  --dsh-control-xl: 60px;
+  /* The two target floors, named because they are decisions and not sizes.
+     WCAG 2.2 SC 2.5.8 admits nothing under 24px on any pointer; Apple's Human
+     Interface Guidelines and WCAG 2.2 SC 2.5.5 ask 44px of a finger. */
+  --dsh-target-min: 24px;
+  --dsh-target-touch: 44px;
+  --dsh-dot-size: 12px;
+  --dsh-compose-min: 96px;
+  --dsh-action-min: 72px;
+
+  --dsh-sidebar-width: 280px;
+  --dsh-drawer-width: 300px;
+  --dsh-list-max: 320px;
+  --dsh-menu-max: 336px;
+  --dsh-card-width: 420px;
+  --dsh-menu-height: 420px;
+
+  /* The floors WCAG 2.2 SC 2.5.8 sets for a target, by pointer. The structure
+   * checks measure against these same two numbers. */
+  --dsh-target-fine: 24px;
+  --dsh-target-coarse: 44px;
+
+  /* Stacking. A raw `z-index` anywhere else is a race nobody can read the
+   * order of. */
+  /* Above its own mask, inside the modal root's stacking context. */
+  --dsh-z-dialog: 1;
+  --dsh-z-menu: 100;
+  --dsh-z-scrim: 150;
+  --dsh-z-drawer: 200;
+  --dsh-z-modal: 1000;
+  --dsh-z-return: 1100;
+}
+
 body {
   --dsw-alias-bg-base: rgb(255, 255, 255);
   --dsw-alias-bg-layer-2: rgb(255, 255, 255);
@@ -159,9 +252,23 @@ textarea {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-[role="button"]:focus-visible {
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="menuitemradio"]:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary);
   outline-offset: 2px;
+}
+
+/* A row's seat in a `role="list"`. Both products seat their rows the same way,
+ * and both sheets would otherwise carry the rule: a `span` is phrasing content
+ * and cannot hold a row's block box. */
+.list-seat {
+  display: block;
+  min-width: 0;
 }
 
 .visually-hidden {
@@ -171,18 +278,6 @@ input:focus-visible,
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
-}
-
-/* Elevation default for the skin below, which reads the indirection rather
- * than an alias so one rebind on a raised surface reaches whichever of the two
- * rendering paths the engine took — `.sidebar` in shell.css swaps in the l2
- * pair that way. It sits on `body` because the palette does, and custom
- * properties only inherit downward: on `html` the aliases would resolve to the
- * guaranteed-invalid value and `scrollbar-color` would fall back to `auto`.
- * Source: ui-theme/src/styles/scrollbar.css:17-19. */
-body {
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l1);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l1);
 }
 
 @supports not selector(::-webkit-scrollbar) {

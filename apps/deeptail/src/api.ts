@@ -13,6 +13,21 @@ import type { CarrierHooks } from './transport.ts'
 /** The failure code a revoked or expired device token arrives with. */
 export const UNAUTHORIZED = 'unauthorized'
 
+/**
+ * The failure code an authenticated request the host refuses arrives with.
+ *
+ * Separate from `UNAUTHORIZED` because the remedies differ and only one of them
+ * exists: re-pairing replaces a token the host no longer accepts, and does
+ * nothing at all for a token the host accepts but does not permit this of.
+ */
+export const FORBIDDEN = 'forbidden'
+
+/** The failure code a reply that left the protocol arrives with. */
+export const PROTOCOL = 'protocol'
+
+/** The failure code a request that never reached the host arrives with. */
+export const TRANSPORT = 'transport'
+
 /** A failure the host reported, as opposed to one the transport produced. */
 export class RemoteError extends Error {
   /** Host-supplied failure code, such as `session-not-found`. */
@@ -112,7 +127,12 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
     },
     async createSession(input) {
       const value = (await call('session', 'create', input)) as { sessionId?: string }
-      if (value.sessionId === undefined) throw new RemoteError('protocol', 'session/create returned no id')
+      if (value.sessionId === undefined) {
+        throw new RemoteError(PROTOCOL, 'session/create returned no id', {
+          endpoint: 'session/create',
+          detail: 'no id',
+        })
+      }
       return value.sessionId
     },
   }
@@ -157,8 +177,10 @@ async function post(
  */
 function transportFailure(endpoint: string, status: number): RemoteError {
   const message = `${endpoint} returned HTTP ${String(status)}`
-  if (status === 401 || status === 403) return new RemoteError(UNAUTHORIZED, message)
-  return new RemoteError('transport', message)
+  const details = { endpoint, status }
+  if (status === 401) return new RemoteError(UNAUTHORIZED, message, details)
+  if (status === 403) return new RemoteError(FORBIDDEN, message, details)
+  return new RemoteError(TRANSPORT, message, details)
 }
 
 /**
@@ -170,13 +192,14 @@ function transportFailure(endpoint: string, status: number): RemoteError {
  */
 function unwrap(envelope: ServerResponse, endpoint: string): unknown {
   const result = envelope.result
-  if (result === undefined) throw new RemoteError('protocol', `${endpoint} returned no result`)
+  if (result === undefined) {
+    throw new RemoteError(PROTOCOL, `${endpoint} returned no result`, { endpoint, detail: 'no result' })
+  }
   if (result.ok !== true) {
-    throw new RemoteError(
-      result.error?.code ?? 'internal',
-      result.error?.message ?? `${endpoint} failed`,
-      result.error?.details ?? {},
-    )
+    throw new RemoteError(result.error?.code ?? 'internal', result.error?.message ?? `${endpoint} failed`, {
+      endpoint,
+      ...result.error?.details,
+    })
   }
   return result.value
 }

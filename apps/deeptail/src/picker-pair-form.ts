@@ -11,11 +11,19 @@
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import type { PickerContext } from './picker-views.ts'
-import { el } from './ui/dom.ts'
+import { draftField, el, formActions, setAria } from './ui/dom.ts'
+import { errorStrip, showFailure } from './ui/states.ts'
 
 /** What a viewer has typed into the pairing form. */
 export interface PairDraft {
-  /** The pairing link, pasted whole. */
+  /**
+   * The pairing link.
+   *
+   * Pasted whole on the link path. On the tailnet path the origin is already
+   * known and this carries the launch token alone, which the picker composes
+   * into a link — the field a viewer fills is the only thing they were ever
+   * able to supply.
+   */
   readonly link: string
   /** The name the host is listed under. */
   readonly label: string
@@ -31,6 +39,16 @@ export interface PairingState {
   readonly busy: boolean
   /** What the viewer has typed, carried across re-renders so a failure never discards it. */
   readonly draft: PairDraft
+  /**
+   * The origin this form is pairing against, when it was reached from the
+   * tailnet rather than from a pasted link.
+   *
+   * Present means the machine is already chosen: the form asks for the token
+   * that machine printed instead of a whole URL, because a viewer arriving this
+   * way has no URL to paste and typing one would be a second chance to get the
+   * host wrong.
+   */
+  readonly origin?: string
 }
 
 /** What the pairing form needs beyond {@link PickerContext}. */
@@ -43,34 +61,13 @@ interface PairContext extends PickerContext {
   cancel(hosts: readonly HostRecord[]): void
 }
 
+/** The id the refusal strip carries, which the link field points at. */
+const PAIR_ERROR_ID = 'deeptail-pair-error'
+
 /** The draft while it is being typed, which every field writes into. */
 interface EditableDraft {
   link: string
   label: string
-}
-
-/**
- * One labeled input in the pairing form.
- * @param label - the visible label.
- * @param input - the control it labels.
- * @param initial - what the control starts holding.
- * @param onInput - where each keystroke is recorded.
- * @returns the field.
- */
-function pairField(
-  label: string,
-  input: HTMLInputElement,
-  initial: string,
-  onInput: (value: string) => void,
-): HTMLElement {
-  const field = el('label', { className: 'field' })
-  field.append(el('span', { className: 'label', text: label }))
-  input.value = initial
-  input.addEventListener('input', () => {
-    onInput(input.value)
-  })
-  field.append(input)
-  return field
 }
 
 /**
@@ -82,7 +79,11 @@ function pairField(
  * @returns the fields, link first.
  */
 function pairFields(t: Translate, current: PairingState, draft: EditableDraft): HTMLElement[] {
+  if (current.origin !== undefined) return tokenFields(t, current, draft)
   const link = el('input', { className: 'input' })
+  // Typed `url`, so a phone offers the right keyboard — but validated by the
+  // product, not by the browser: a native bubble is untranslated, unstyled, and
+  // stops the submit before the form's own `role="alert"` strip ever fills.
   link.type = 'url'
   link.placeholder = t('pair.linkPlaceholder')
   link.dataset.deeptailField = 'link'
@@ -93,10 +94,44 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
   name.dataset.deeptailField = 'name'
 
   return [
-    pairField(t('pair.linkLabel'), link, current.draft.link, (value) => {
+    draftField(t('pair.linkLabel'), link, current.draft.link, (value) => {
       draft.link = value
     }),
-    pairField(t('pair.nameLabel'), name, current.draft.label, (value) => {
+    draftField(t('pair.nameLabel'), name, current.draft.label, (value) => {
+      draft.label = value
+    }),
+  ]
+}
+
+/**
+ * The token and name fields, for a machine already chosen from the tailnet.
+ *
+ * The origin is not offered as a field: it came from Tailscale and went through
+ * the native side's own admission check, so there is nothing here for a viewer
+ * to correct and every reason not to invite them to.
+ * @param t - copy source.
+ * @param current - the form state, carrying the chosen machine's name.
+ * @param draft - the draft the fields write into.
+ * @returns the fields, token first.
+ */
+function tokenFields(t: Translate, current: PairingState, draft: EditableDraft): HTMLElement[] {
+  const token = el('input', { className: 'input' })
+  token.type = 'text'
+  token.autocomplete = 'off'
+  token.spellcheck = false
+  token.placeholder = t('tailnet.tokenPlaceholder')
+  token.dataset.deeptailField = 'link'
+
+  const name = el('input', { className: 'input' })
+  name.type = 'text'
+  name.placeholder = t('pair.namePlaceholder')
+  name.dataset.deeptailField = 'name'
+
+  return [
+    draftField(t('tailnet.tokenLabel', { label: current.draft.label }), token, current.draft.link, (value) => {
+      draft.link = value
+    }),
+    draftField(t('pair.nameLabel'), name, current.draft.label, (value) => {
       draft.label = value
     }),
   ]
@@ -104,39 +139,17 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
 
 /**
  * The strip reporting a refused attempt, above the actions that retry it.
- * @param message - why the attempt was refused.
- * @returns the strip.
+ *
+ * Built empty. A live region fires on the insertion of its text, and text put
+ * into a node that is not yet in the document is inserted outside the
+ * accessibility tree — so the caller mounts it first and fills it after, which
+ * is what every other surface here does.
+ * @returns the empty, hidden strip.
  */
-function pairErrorStrip(message: string): HTMLElement {
-  return el('div', {
-    className: 'error',
-    text: message,
-    role: 'alert',
-    data: { deeptailState: 'pair-error' },
-  })
-}
-
-/**
- * The form's cancel and submit, both disabled while an attempt is in flight so
- * a second submission cannot race the first.
- * @param ctx - the form state and what its controls invoke.
- * @returns the actions row.
- */
-function pairActions(ctx: PairContext): HTMLElement {
-  const { t, current } = ctx
-  const cancel = el('button', { className: 'button button-outline', text: t('action.cancel') })
-  cancel.type = 'button'
-  cancel.disabled = current.busy
-  cancel.addEventListener('click', () => {
-    ctx.cancel(current.hosts)
-  })
-  const submit = el('button', { className: 'button button-primary', text: t('action.pair') })
-  submit.type = 'submit'
-  submit.disabled = current.busy
-  submit.dataset.deeptailAction = 'pair-submit'
-  const actions = el('div', { className: 'actions' })
-  actions.append(cancel, submit)
-  return actions
+function pairErrorStrip(): HTMLElement {
+  const strip = errorStrip('pair-error')
+  strip.id = PAIR_ERROR_ID
+  return strip
 }
 
 /**
@@ -147,10 +160,36 @@ function pairActions(ctx: PairContext): HTMLElement {
 export function pairView(ctx: PairContext): HTMLElement[] {
   const { t, current } = ctx
   const draft: EditableDraft = { link: current.draft.link, label: current.draft.label }
-  const form = el('form')
-  form.append(el('p', { className: 'lede', text: t('pair.title') }), ...pairFields(t, current, draft))
-  if (current.error !== undefined) form.append(pairErrorStrip(current.error))
-  form.append(pairActions(ctx))
+  const form = el('form', { className: 'form' })
+  // The browser's own constraint validation is turned off: it refuses the
+  // submit itself, with a message this product neither wrote nor translated,
+  // and the form's own refusal path is never reached.
+  form.noValidate = true
+  const fields = pairFields(t, current, draft)
+  // The form's subject line reads as a heading and is marked up as one, so the
+  // card has a heading under its wordmark rather than a paragraph doing the job.
+  const title = current.origin === undefined ? t('pair.title') : t('tailnet.pairTitle', { label: current.draft.label })
+  form.append(el('h2', { className: 'lede', text: title }), ...fields)
+  if (current.error !== undefined) {
+    const strip = pairErrorStrip()
+    form.append(strip)
+    showFailure(strip, current.error)
+    // Named only while the strip is on the page: a reference to an element
+    // that is not there is a promise to a reader that cannot be kept.
+    const link = form.querySelector<HTMLInputElement>('[data-deeptail-field="link"]')
+    if (link !== null) setAria(link, { invalid: 'true', describedby: PAIR_ERROR_ID })
+  }
+  form.append(
+    formActions({
+      cancelText: t('action.cancel'),
+      submitText: t('action.pair'),
+      submitAction: 'pair-submit',
+      busy: current.busy,
+      cancel: () => {
+        ctx.cancel(current.hosts)
+      },
+    }),
+  )
   form.addEventListener('submit', (event) => {
     event.preventDefault()
     ctx.submit(current.hosts, draft)

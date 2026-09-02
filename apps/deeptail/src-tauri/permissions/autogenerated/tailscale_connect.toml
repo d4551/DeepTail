@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tailscale-connect"
+description = "Enables the tailscale_connect command without any pre-configured scope."
+commands.allow = ["tailscale_connect"]
+
+[[permission]]
+identifier = "deny-tailscale-connect"
+description = "Denies the tailscale_connect command without any pre-configured scope."
+commands.deny = ["tailscale_connect"]

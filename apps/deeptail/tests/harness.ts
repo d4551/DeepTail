@@ -7,6 +7,7 @@
  * installs a scripted one. Everything above it is the shipped code.
  */
 
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createServer, type Server, type ServerResponse } from 'node:http'
 import { extname, join, normalize } from 'node:path'
@@ -35,7 +36,12 @@ async function chromiumPath(): Promise<string | undefined> {
     () => null,
   )
   const path = raw?.executablePath ?? ''
-  return path === '' ? undefined : path
+  if (path === '') return undefined
+  // The override names one machine's build. On any other machine that path is
+  // simply absent, and launching against it fails outright with nothing in the
+  // suite explaining why; Playwright's own resolution is the better answer
+  // there than a hard stop.
+  return existsSync(path) ? path : undefined
 }
 
 /** A JSON value carried by a scripted roster event. */

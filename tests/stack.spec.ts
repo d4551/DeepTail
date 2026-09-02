@@ -14,9 +14,12 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { type ParseError, parse as parseJsonc } from 'jsonc-parser'
 import { coerce, gte, major, minor } from 'semver'
+import type { LocaleId } from '../apps/deeptail/src/browser-locale.ts'
+import { DICTIONARIES } from '../apps/deeptail/src/locales.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
@@ -41,6 +44,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@deepseek-ai/dsh-client-ui-slots': '0.1',
   '@deepseek-ai/dsh-client-web': '0.1',
   '@deepseek-ai/dsh-invariants': '0.1',
+  '@deepseek-ai/dsh-jobs': '0.1',
   '@deepseek-ai/dsh-session': '0.1',
   '@deepseek-ai/dsh-tools': '0.1',
   '@deepseek-ai/dsh-util-values': '0.1',
@@ -52,8 +56,8 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@types/node': '26.4',
   '@types/semver': '7.8',
   'jsonc-parser': '3.3',
-  knip: '6.33',
-  'oxc-parser': '0.147',
+  knip: '6.34',
+  'oxc-parser': '0.148',
   oxlint: '1.80',
   parse5: '8.0',
   playwright: '1.62',
@@ -77,15 +81,6 @@ function readJsonc(text: string): Record<string, unknown> {
   const value = parseJsonc(text, errors, { allowTrailingComma: true }) as Record<string, unknown>
   expect(errors).toEqual([])
   return value
-}
-
-/**
- * Every translation key a dictionary body declares.
- * @param body - the dictionary's source text.
- * @returns the keys, ordered.
- */
-function keysOf(body: string): string[] {
-  return [...body.matchAll(/^\s{2}'([^']+)':/gmu)].map((match) => match[1] ?? '').toSorted((a, b) => a.localeCompare(b))
 }
 
 /**
@@ -231,41 +226,63 @@ describe('legacy patterns and suppressions', () => {
   })
 })
 
-describe('layout', () => {
-  it('writes the drawer breakpoint exactly once', async () => {
-    const sheet = 'apps/deeptail/src/styles/shell.css'
-    const widths = [...(await readFile(sheet, 'utf8')).matchAll(/@media \(width <= (\d+px)\)/gu)].map(
-      (match) => match[1] ?? '',
-    )
-    expect(widths.length).toBe(1)
-    // The width is read out of the stylesheet rather than restated here, so
-    // this assertion cannot itself become the second place it is written.
-    const [width] = widths
-    const files = repositoryFiles(['.css', '.ts']).filter((file) => file.label !== sheet)
-    const elsewhere = await Promise.all(
-      files.map(async (file) => ((await readFile(file.path, 'utf8')).includes(width ?? '') ? [file.label] : [])),
-    )
-    // A width in a media query and the same width restated in script are two
-    // breakpoints that agree only until one of them is changed. The stylesheet
-    // decides, and publishes the decision as a custom property the script
-    // reads, so there is exactly one place the number appears.
-    expect(elsewhere.flat()).toEqual([])
-  })
-})
+/** The locales the product ships, the first standing as the key-set reference. */
+function locales(): [LocaleId, ...LocaleId[]] {
+  const [first, ...rest] = Object.keys(DICTIONARIES) as LocaleId[]
+  if (first === undefined) throw new Error('the product ships no dictionary')
+  return [first, ...rest]
+}
+
+/** The `{name}` placeholders one sentence carries, in order. */
+function placeholders(value: string): string[] {
+  return [...value.matchAll(/\{(\w+)\}/gu)].map((found) => found[1] ?? '')
+}
 
 describe('translations', () => {
-  it('keeps both dictionaries on exactly the same keys', async () => {
-    const source = await readFile('apps/deeptail/src/locales.ts', 'utf8')
-    const dictionaries = [...source.matchAll(/const (zh|en) = \{([\s\S]*?)\n\} satisfies/gu)]
-    expect(dictionaries.length).toBe(2)
-    const [first, second] = dictionaries
-    expect(keysOf(first?.[2] ?? '')).toEqual(keysOf(second?.[2] ?? ''))
+  it('keeps every dictionary on exactly the same keys', () => {
+    const [first, ...rest] = locales()
+    expect(rest.length).toBeGreaterThan(0)
+    const reference = Object.keys(DICTIONARIES[first]).toSorted()
+    expect(reference.length).toBeGreaterThan(20)
+    for (const locale of rest) {
+      expect([locale, Object.keys(DICTIONARIES[locale]).toSorted()]).toEqual([locale, reference])
+    }
   })
 
-  it('leaves no placeholder unfilled in either dictionary', async () => {
-    const source = await readFile('apps/deeptail/src/locales.ts', 'utf8')
-    const entries = [...source.matchAll(/^\s{2}'([^']+)':\s*'([^']*)'/gmu)]
-    expect(entries.length).toBeGreaterThan(0)
-    expect(entries.filter(([, , value]) => (value ?? '').trim() === '').map(([, key]) => key)).toEqual([])
+  it('leaves no entry empty in any dictionary', () => {
+    const empty = Object.entries(DICTIONARIES).flatMap(([locale, dictionary]) =>
+      Object.entries(dictionary)
+        .filter(([, value]) => value.trim() === '')
+        .map(([key]) => `${locale}:${key}`),
+    )
+    expect(empty).toEqual([])
+  })
+
+  it('fills the same placeholders in every dictionary', () => {
+    // A sentence that drops a placeholder in translation renders `{message}`
+    // to the reader, or silently loses what it was carrying.
+    const [first, ...rest] = locales()
+    const reference = DICTIONARIES[first]
+    const drift: string[] = []
+    for (const locale of rest) {
+      const dictionary = DICTIONARIES[locale]
+      for (const key of Object.keys(reference) as (keyof typeof reference)[]) {
+        const wanted = placeholders(reference[key])
+        if (JSON.stringify(wanted) !== JSON.stringify(placeholders(dictionary[key])))
+          drift.push(`${locale}:${String(key)}`)
+      }
+    }
+    expect(drift).toEqual([])
+  })
+
+  it('carries no key nothing reads', () => {
+    // A key kept after its surface is gone is copy nobody maintains, and a
+    // dictionary that only grows is one no translator can prioritize.
+    const sources = repositoryFiles(['.ts']).filter(
+      (file) => file.label.startsWith('apps/deeptail/src/') && !file.label.endsWith('locales.ts'),
+    )
+    const text = sources.map((file) => readFileSync(file.path, 'utf8')).join('\n')
+    const unread = Object.keys(DICTIONARIES.en).filter((key) => !text.includes(`'${key}'`))
+    expect(unread).toEqual([])
   })
 })

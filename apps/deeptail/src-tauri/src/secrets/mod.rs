@@ -1,4 +1,5 @@
-//! Device tokens, held in the platform's own credential store.
+//! Device tokens and the tailnet credential, held in the platform's own
+//! credential store.
 //!
 //! The all-in-one `keyring` crate covers only desktop in its default feature,
 //! so this uses `keyring-core` with exactly one native store linked per target.

@@ -16,7 +16,7 @@
 
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
-import { bindRovingFocus, el } from './ui/dom.ts'
+import { bindRovingFocus, el, screenReaderText } from './ui/dom.ts'
 import { type HostState, hostStateLabel } from './ui/states.ts'
 
 /** What every picker view needs from its surroundings. */
@@ -35,17 +35,24 @@ interface ListContext extends PickerContext {
   pick(host: HostRecord): void
   /** Called when the viewer asks to pair another host. */
   startPairing(hosts: readonly HostRecord[]): void
+  /** Called when the viewer asks to choose a host from their tailnet. */
+  startTailnet(hosts: readonly HostRecord[]): void
 }
 
 /**
  * The nothing-paired call to action: with nothing paired there is nothing to
  * choose between, so the screen is the pairing call to action rather than an
  * empty list beside a button.
+ *
+ * The tailnet stands beside it rather than under it: with nothing paired, a
+ * viewer who runs Tailscale has a list of their own machines to choose from and
+ * a viewer who does not has a link to paste, and neither is the fallback.
  * @param t - copy source.
- * @param onPair - what the call to action does.
- * @returns the announcement, the lede and the action.
+ * @param onPair - what the pairing call to action does.
+ * @param onTailnet - what the tailnet call to action does.
+ * @returns the announcement, the lede and the actions.
  */
-export function emptyView(t: Translate, onPair: () => void): HTMLElement[] {
+export function emptyView(t: Translate, onPair: () => void, onTailnet: () => void): HTMLElement[] {
   const status = el('div', {
     className: 'status',
     text: t('status.empty'),
@@ -56,8 +63,12 @@ export function emptyView(t: Translate, onPair: () => void): HTMLElement[] {
   const add = el('button', { className: 'button button-primary', text: t('action.pair') })
   add.type = 'button'
   add.addEventListener('click', onPair)
+  const tailnet = el('button', { className: 'button button-outline', text: t('tailnet.action') })
+  tailnet.type = 'button'
+  tailnet.dataset.deeptailAction = 'tailnet'
+  tailnet.addEventListener('click', onTailnet)
   const actions = el('div', { className: 'actions' })
-  actions.append(add)
+  actions.append(add, tailnet)
   return [status, lede, actions]
 }
 
@@ -73,7 +84,7 @@ function hostRow(
   host: HostRecord,
   onPick: (host: HostRecord) => void,
 ): { readonly row: HTMLButtonElement; readonly seat: HTMLElement } {
-  const seat = el('span', { role: 'listitem' })
+  const seat = el('div', { className: 'list-seat', role: 'listitem' })
   const row = el('button', { className: 'row' })
   row.type = 'button'
   row.dataset.deeptailHost = host.id
@@ -88,8 +99,7 @@ function hostRow(
   )
 
   // The dot is decorative; the state is announced as text beside it.
-  const spoken = el('span', { className: 'visually-hidden', text: hostStateLabel(ctx.t, reachability) })
-  row.append(dot, text, spoken)
+  row.append(dot, text, screenReaderText(hostStateLabel(ctx.t, reachability)))
   row.addEventListener('click', () => onPick(host))
   seat.append(row)
   return { row, seat }
@@ -125,7 +135,13 @@ export function listView(ctx: ListContext): HTMLElement[] {
   add.addEventListener('click', () => {
     ctx.startPairing(ctx.hosts)
   })
+  const tailnet = el('button', { className: 'button button-outline', text: ctx.t('tailnet.action') })
+  tailnet.type = 'button'
+  tailnet.dataset.deeptailAction = 'tailnet'
+  tailnet.addEventListener('click', () => {
+    ctx.startTailnet(ctx.hosts)
+  })
   const footer = el('div', { className: 'footer' })
-  footer.append(add)
+  footer.append(add, tailnet)
   return [lede, list, footer]
 }

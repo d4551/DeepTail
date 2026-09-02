@@ -29,6 +29,14 @@ const mount = document.querySelector('#root')
 if (!(mount instanceof HTMLElement)) throw new Error('deeptail: missing #root')
 const container: HTMLElement = mount
 
+/**
+ * How many times the registry is asked before the boot gives up on it.
+ *
+ * Each attempt is separated by a whole trip through the picker, so this is a
+ * count of the operator's own retries, not a poll.
+ */
+const REGISTRY_ATTEMPTS = 3
+
 applyTheme()
 const t = createTranslate()
 
@@ -41,16 +49,18 @@ const t = createTranslate()
  * leave the window blank with the reason only in the console.
  * @returns every paired host.
  */
-async function knownHosts(): Promise<readonly HostRecord[]> {
+async function knownHosts(attemptsLeft = REGISTRY_ATTEMPTS): Promise<readonly HostRecord[]> {
   try {
     return await invoke<HostRecord[]>('list_hosts')
-  } catch {
-    await renderHostPicker(container)
+  } catch (reason) {
+    // A registry that never answers is not something the picker can fix, and
+    // each trip through it mounts a fresh runtime and a fresh frame. The
+    // recursion is bounded so an unreadable registry ends in a reported failure
+    // rather than in a window that allocates until it stops responding.
+    if (attemptsLeft <= 1) throw reason
   }
-  // The picker only resolves once a host is paired, so a second failure here is
-  // the registry refusing to answer at all; it goes back to the picker rather
-  // than escaping and leaving the window empty.
-  return knownHosts()
+  await renderHostPicker(container)
+  return knownHosts(attemptsLeft - 1)
 }
 
 /**

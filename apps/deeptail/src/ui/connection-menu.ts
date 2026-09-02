@@ -11,7 +11,7 @@
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
 import { buildConnectionMenu } from './connection-menu-panel.ts'
-import { el, screenReaderText } from './dom.ts'
+import { el, screenReaderText, setAria } from './dom.ts'
 import { type HostState, hostStateLabel } from './states.ts'
 
 /** What the menu needs from the shell. */
@@ -30,8 +30,13 @@ export interface ConnectionPorts {
 interface MenuToggle {
   /** Whether the menu is on the page. */
   isOpen(): boolean
-  /** Close an open menu, returning focus to the trigger. */
-  close(): void
+  /**
+   * Close an open menu.
+   * @param returnFocus - hand focus back to the trigger, which is right for a
+   * dismissal the operator made from inside the menu and wrong for a pointer
+   * that landed on something else.
+   */
+  close(returnFocus: boolean): void
   /** Open a closed menu, close an open one. */
   toggle(): void
   /** Drop the dismissal listeners when the switcher leaves the page. */
@@ -53,28 +58,14 @@ export function mountConnectionMenu(
   const root = el('div', { className: 'connection' })
   const trigger = el('button', { className: 'connection-trigger', data: { deeptailConnection: 'trigger' } })
   trigger.type = 'button'
-  trigger.setAttribute('aria-haspopup', 'menu')
-  trigger.setAttribute('aria-expanded', 'false')
+  setAria(trigger, { haspopup: 'menu', expanded: 'false' })
 
   const popover = createMenuToggle(trigger, root, () => {
     render()
   })
 
   const render = (): void => {
-    const hosts = ports.hosts()
-    const activeHostId = ports.activeHostId()
-    const active = hosts.find((host) => host.id === activeHostId)
-    const open = popover.isOpen()
-
-    trigger.replaceChildren(...triggerContent(active, ports, t))
-
-    root.replaceChildren(trigger)
-    setSurroundingsInert(root, open)
-    if (!open) return
-
-    const panel = buildConnectionMenu({ hosts, activeHostId, ports, t, dismiss: popover.close })
-    root.append(panel.menu)
-    panel.initialFocus?.focus()
+    paintSwitcher({ root, trigger, popover, ports, t })
   }
 
   wireTriggerActivation(trigger, ports, popover)
@@ -136,6 +127,49 @@ interface DismissalHandlers {
   readonly onKeyDown: (event: KeyboardEvent) => void
 }
 
+/** What one repaint of the switcher needs. */
+interface SwitcherPaint {
+  /** The switcher's own subtree, which the menu is appended to. */
+  readonly root: HTMLElement
+  /** The control the menu hangs from, whose content names the active host. */
+  readonly trigger: HTMLButtonElement
+  /** Whether the menu is showing, and how it is dismissed while it is. */
+  readonly popover: MenuToggle
+  /** The shell callbacks the menu's items invoke. */
+  readonly ports: ConnectionPorts
+  /** Copy source. */
+  readonly t: Translate
+}
+
+/**
+ * Redraw the switcher for the fleet it now stands for.
+ * @param paint - the switcher's parts, and what they are drawn from.
+ */
+function paintSwitcher(paint: SwitcherPaint): void {
+  const { root, trigger, popover, ports, t } = paint
+  const hosts = ports.hosts()
+  const activeHostId = ports.activeHostId()
+  const active = hosts.find((host) => host.id === activeHostId)
+  const open = popover.isOpen()
+
+  trigger.replaceChildren(...triggerContent(active, ports, t))
+  root.replaceChildren(trigger)
+  setSurroundingsInert(root, open)
+  if (!open) return
+
+  const panel = buildConnectionMenu({
+    hosts,
+    activeHostId,
+    ports,
+    t,
+    dismiss: () => {
+      popover.close(true)
+    },
+  })
+  root.append(panel.menu)
+  panel.initialFocus?.focus()
+}
+
 /**
  * Attach or detach the dismissal listeners.
  *
@@ -163,15 +197,17 @@ function listenForDismissal(handlers: DismissalHandlers, on: boolean): void {
  * @param close - dismisses the menu.
  * @returns the handlers.
  */
-function dismissalHandlers(root: HTMLElement, close: () => void): DismissalHandlers {
+function dismissalHandlers(root: HTMLElement, close: (returnFocus: boolean) => void): DismissalHandlers {
   return {
     onOutside: (event: Event): void => {
       if (event.target instanceof Node && root.contains(event.target)) return
-      close()
+      close(false)
     },
     onKeyDown: (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
-        close()
+        // The drawer also closes on Escape, and one press must not close both.
+        event.stopPropagation()
+        close(true)
         return
       }
       // Tab leaves the menu rather than cycling inside it. The rest of the
@@ -180,7 +216,7 @@ function dismissalHandlers(root: HTMLElement, close: () => void): DismissalHandl
       // which is the one thing a keyboard must never be put in. Closing here
       // returns focus to the trigger before the browser acts on the key, so it
       // continues the sequence from where the operator opened the menu.
-      if (event.key === 'Tab') close()
+      if (event.key === 'Tab') close(true)
     },
   }
 }
@@ -198,13 +234,16 @@ function dismissalHandlers(root: HTMLElement, close: () => void): DismissalHandl
 function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render: () => void): MenuToggle {
   let open = false
 
-  const closeMenu = (): void => {
+  const closeMenu = (returnFocus: boolean): void => {
     if (!open) return
     open = false
-    trigger.setAttribute('aria-expanded', 'false')
+    setAria(trigger, { expanded: 'false' })
     listenForDismissal(handlers, false)
     render()
-    trigger.focus()
+    // Focus follows the dismissal only when the operator dismissed from inside
+    // the menu. A pointer landing on a session row also closes the menu, and
+    // pulling focus to the trigger there overrides whatever they just clicked.
+    if (returnFocus) trigger.focus()
   }
 
   const handlers = dismissalHandlers(root, closeMenu)
@@ -212,7 +251,7 @@ function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render:
   const openMenu = (): void => {
     if (open) return
     open = true
-    trigger.setAttribute('aria-expanded', 'true')
+    setAria(trigger, { expanded: 'true' })
     listenForDismissal(handlers, true)
     render()
   }
@@ -221,7 +260,7 @@ function createMenuToggle(trigger: HTMLButtonElement, root: HTMLElement, render:
     isOpen: () => open,
     close: closeMenu,
     toggle: () => {
-      if (open) closeMenu()
+      if (open) closeMenu(true)
       else openMenu()
     },
     dispose: () => {

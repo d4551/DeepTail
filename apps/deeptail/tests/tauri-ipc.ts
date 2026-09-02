@@ -9,7 +9,9 @@
  * @module
  */
 
-type MuxEventValue =
+import { CARRIER_SOURCES, deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux } from './tauri-ipc-carrier.ts'
+
+export type MuxEventValue =
   | { readonly type: 'ready'; readonly clientId: string; readonly host: string }
   | { readonly type: 'emit'; readonly event: string; readonly args: ForwardedEvent['args'] }
 
@@ -20,7 +22,7 @@ type ScriptFrame =
   | { readonly type: 'close'; readonly code: number; readonly reason: string }
 
 /** The mux channel handle `carrier_open_mux` receives. */
-interface ScriptChannel {
+export interface ScriptChannel {
   onmessage?: (frame: ScriptFrame) => void
 }
 
@@ -46,7 +48,7 @@ interface SessionFixture {
 }
 
 /** One roster event the mux forwards, with the argument tuple the host sends. */
-interface ForwardedEvent {
+export interface ForwardedEvent {
   readonly event: string
   readonly args: readonly (string | number | boolean | SessionFixture)[]
 }
@@ -82,9 +84,29 @@ export type AnswerTable = {
   readonly muxClose?: readonly string[]
   /** Why booting the harness client fails, when the test needs it to. */
   readonly bootError?: string
+  /** Whether a tailnet credential is already stored. */
+  readonly tailnetConnected?: boolean
+  /** The machines `tailscale_devices` and `tailscale_connect` answer with. */
+  readonly tailnetDevices?: readonly TailnetFixture[]
+  /** Why listing the tailnet fails, when the test needs it to. */
+  readonly tailnetError?: string
+  /** The instant the page believes it is, in epoch milliseconds. */
+  readonly now?: number
 }
 
 /** How a page should be opened. */
+
+/** One machine as the native side reports it. */
+interface TailnetFixture {
+  readonly id: string
+  readonly label: string
+  readonly origin: string
+  readonly os: string
+  readonly lastSeen: string
+  readonly tags: readonly string[]
+  readonly authorized: boolean
+  readonly paired: boolean
+}
 
 /** One Remote call the page issued, as the scripted IPC saw it. */
 export interface RecordedCall {
@@ -94,113 +116,27 @@ export interface RecordedCall {
 }
 
 /** What one page's scripted IPC accumulates while it runs. */
-interface IpcState {
+export interface IpcState {
   readonly channels: Map<string, ScriptChannel>
   readonly recorded: RecordedCall[]
   /** Every Tauri command name the page has invoked, in order. */
   readonly commands: string[]
+  /** Every pairing link the page asked the native side to spend, in order. */
+  readonly pairedLinks: string[]
 }
 
 /**
- * Answer a Typert Remote call with a server-response envelope.
+ * Answer one of the four Tailscale commands.
  * @param script - the answers this page should give.
- * @param args - the invoke arguments.
- * @param state - this page's IPC state.
- * @returns the carrier response, or a promise that never settles.
+ * @param cmd - the command name.
+ * @returns whatever that command answers with.
  */
-function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<object> {
-  const request = args.request as { path?: string; body?: string } | undefined
-  const endpoint = (request?.path ?? '').replace(/^\/api\//u, '').split('?')[0] ?? ''
-  const envelope = JSON.parse(request?.body ?? '{}') as { rpcId?: string; payload?: { args?: Record<string, unknown> } }
-  const host = typeof args.host === 'string' ? args.host : ''
-  state.recorded.push({ host, endpoint, args: envelope.payload?.args ?? {} })
-  const scoped = `${host}:${endpoint}`
-  if ((script.remotePending ?? []).some((key) => key === scoped || key === endpoint)) {
-    // Never settles, so the read stays in flight and the surface waiting on it
-    // holds its pending state for the whole case.
-    return Promise.withResolvers<object>().promise
-  }
-  const failure = script.remoteErrors?.[scoped] ?? script.remoteErrors?.[endpoint]
-  const result =
-    failure === undefined
-      ? { ok: true, value: script.remote?.[endpoint] ?? {} }
-      : {
-          ok: false,
-          error: {
-            code: script.remoteErrorCodes?.[scoped] ?? script.remoteErrorCodes?.[endpoint] ?? 'internal',
-            message: failure,
-            details: script.remoteErrorDetails?.[scoped] ?? script.remoteErrorDetails?.[endpoint] ?? {},
-          },
-        }
-  return Promise.resolve({
-    status: script.remoteStatuses?.[scoped] ?? script.remoteStatuses?.[endpoint] ?? 200,
-    headers: [['content-type', 'application/json']],
-    body: JSON.stringify({ type: 'server-response', rpcId: envelope.rpcId ?? '0', result }),
-  })
-}
-
-/**
- * Attach this page's mux channel for a host, if that host answers at all.
- * @param script - the answers this page should give.
- * @param args - the invoke arguments.
- * @param state - this page's IPC state.
- * @returns null once opened, or a promise that never settles.
- */
-function deeptailOpenMux(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<null> {
-  const host = typeof args.host === 'string' ? args.host : ''
-  const channel = args.channel as ScriptChannel | undefined
-  if (channel === undefined || !(script.muxHosts ?? []).includes(host)) {
-    // No socket for this host: the deferred is deliberately never settled,
-    // which is what an unreachable stream looks like.
-    return Promise.withResolvers<null>().promise
-  }
-  state.channels.set(host, channel)
-  // The open frame is what makes the socket report OPEN, which is what lets the
-  // subscription send its `open` request.
-  queueMicrotask(() => {
-    channel.onmessage?.({ type: 'open' })
-  })
-  return Promise.resolve(null)
-}
-
-/**
- * Answer an opened `$events` stream the way the Gateway does.
- * @param script - the answers this page should give.
- * @param args - the invoke arguments.
- * @param state - this page's IPC state.
- * @returns null.
- */
-function deeptailSendMux(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<null> {
-  const host = typeof args.host === 'string' ? args.host : ''
-  const channel = state.channels.get(host)
-  const frame = JSON.parse(typeof args.data === 'string' ? args.data : '{}') as {
-    type?: string
-    streamId?: string
-  }
-  if (channel === undefined || frame.type !== 'open' || typeof frame.streamId !== 'string') {
-    return Promise.resolve(null)
-  }
-  const streamId = frame.streamId
-  const send = (value: MuxEventValue): void => {
-    channel.onmessage?.({ type: 'message', data: JSON.stringify({ type: 'item', streamId, value }) })
-  }
-  // A test that needs the roster to change at a chosen moment — after focusing a
-  // row, say — drives this rather than the opening burst.
-  Object.assign(window, {
-    deeptailForwardEvent: (event: string, tuple: ForwardedEvent['args']): void => {
-      send({ type: 'emit', event, args: tuple })
-    },
-  })
-  // The Gateway answers an opened stream with its ready frame before anything
-  // else; nothing may be published first.
-  queueMicrotask(() => {
-    send({ type: 'ready', clientId: 'test-client', host })
-    for (const forwarded of script.muxEvents ?? []) send({ type: 'emit', event: forwarded.event, args: forwarded.args })
-    if ((script.muxClose ?? []).includes(host)) {
-      channel.onmessage?.({ type: 'close', code: 1006, reason: 'host went away' })
-    }
-  })
-  return Promise.resolve(null)
+function deeptailTailscale(script: AnswerTable, cmd: string): Promise<object | boolean | null> {
+  if (cmd === 'tailscale_connected') return Promise.resolve(script.tailnetConnected === true)
+  if (cmd === 'tailscale_forget') return Promise.resolve(null)
+  return script.tailnetError === undefined
+    ? Promise.resolve(script.tailnetDevices ?? [])
+    : Promise.reject(new Error(script.tailnetError))
 }
 
 /**
@@ -216,7 +152,9 @@ function deeptailInvoke(
   cmd: string,
   args: Record<string, object>,
   state: IpcState,
-): Promise<object | null> {
+  // `tailscale_connected` answers with a boolean, so the surface is every JSON
+  // value a command returns rather than objects alone.
+): Promise<object | boolean | null> {
   // Every command is recorded, not only the remote calls. A surface that says
   // it re-reads the registry is making a claim about a command, and a claim
   // about a command needs a record of commands to be checked against.
@@ -235,9 +173,17 @@ function deeptailInvoke(
     case 'carrier_close_mux':
       return Promise.resolve(null)
     case 'pair_host':
+      // The link itself, not just that pairing was asked for: a case that only
+      // sees the command name cannot tell a composed link from any other.
+      state.pairedLinks.push(String((args as { link?: unknown }).link ?? ''))
       return script.pairError === undefined
         ? Promise.resolve(script.paired ?? {})
         : Promise.reject(new Error(script.pairError))
+    case 'tailscale_connected':
+    case 'tailscale_connect':
+    case 'tailscale_devices':
+    case 'tailscale_forget':
+      return deeptailTailscale(script, cmd)
     case 'carrier_fetch':
       return deeptailCarrierFetch(script, args, state)
     case 'carrier_open_mux':
@@ -253,13 +199,49 @@ function deeptailInvoke(
  * Install the scripted `window.__TAURI_INTERNALS__` this page will answer from.
  * @param script - the answers this page should give.
  */
+/**
+ * Make the page believe it is one fixed instant.
+ *
+ * A roster age is rendered relative to now and the suite takes minutes, so a
+ * fixture timestamp fixed at import crossed a bucket boundary partway through:
+ * the same screen shot twice read "now" and then "1m ago", and every screenshot
+ * of it churned for no reason in the product.
+ * @param frozen - the instant the page should report, in epoch milliseconds.
+ * @returns nothing.
+ */
+function freezeClock(frozen: number): void {
+  const RealDate = Date
+  const Frozen = function Frozen(this: unknown, ...args: unknown[]): unknown {
+    if (!(this instanceof Frozen)) return new RealDate(frozen).toString()
+    return args.length === 0
+      ? new RealDate(frozen)
+      : new (RealDate as unknown as new (...values: unknown[]) => Date)(...args)
+  }
+  // `prototype` is read-only on the `Date` interface, so the assignments are
+  // made through the plain function before it is handed back as one.
+  Frozen.prototype = RealDate.prototype
+  Object.assign(Frozen, { now: () => frozen, parse: RealDate.parse, UTC: RealDate.UTC })
+  globalThis.Date = Frozen as unknown as DateConstructor
+}
+
 function installTauriInternals(script: AnswerTable): void {
+  // A roster age is rendered relative to now, and the suite takes minutes: a
+  // fixture timestamp fixed at import crossed a bucket boundary partway
+  // through, so the same screen shot twice read "now" and then "1m ago" and
+  // every screenshot of it churned. The page is told what time it is.
+  if (script.now !== undefined) freezeClock(script.now)
   // Recorded so a case can assert what actually reached the host. Without it a
   // test can only see that a dialog closed, which a no-op satisfies.
-  const state: IpcState = { channels: new Map<string, ScriptChannel>(), recorded: [], commands: [] }
+  const state: IpcState = {
+    channels: new Map<string, ScriptChannel>(),
+    recorded: [],
+    commands: [],
+    pairedLinks: [],
+  }
   Object.assign(window, {
     deeptailRecordedCalls: state.recorded,
     deeptailInvokedCommands: state.commands,
+    deeptailPairedLinks: state.pairedLinks,
     __TAURI_INTERNALS__: {
       invoke: (cmd: string, args?: Record<string, object>) => deeptailInvoke(script, cmd, args ?? {}, state),
       transformCallback: (callback: () => object) => callback,
@@ -280,6 +262,6 @@ function installTauriInternals(script: AnswerTable): void {
  * @returns the source to evaluate.
  */
 export function initScriptSource(table: AnswerTable): string {
-  const sources = [deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux, deeptailInvoke, installTauriInternals]
+  const sources = [...CARRIER_SOURCES, deeptailTailscale, deeptailInvoke, freezeClock, installTauriInternals]
   return `${sources.map(String).join('\n\n')}\ninstallTauriInternals(${JSON.stringify(table)})`
 }

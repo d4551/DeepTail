@@ -9,7 +9,7 @@
  * @module
  */
 
-import { type HostApi, RemoteError, type SessionSummary, UNAUTHORIZED } from './api.ts'
+import { FORBIDDEN, type HostApi, RemoteError, type SessionSummary, UNAUTHORIZED } from './api.ts'
 import type { HostRecord } from './host.ts'
 import { messageOf } from './reason.ts'
 import { type HeldEvent, readRosterEvent, sortByActivity } from './roster.ts'
@@ -169,19 +169,27 @@ async function readRoster(
   }
 }
 
+/** The reachability each host-reported failure code stands for. */
+const FAILURE_STATES: Readonly<Record<string, HostState>> = {
+  [UNAUTHORIZED]: 'unauthorized',
+  [FORBIDDEN]: 'forbidden',
+}
+
 /**
  * How a failed roster read is recorded.
  *
- * A revoked token and an unreachable host look alike in a roster read, but only
- * one of them has a way out, so they are recorded apart.
+ * A revoked token, a host that refuses the request, and a host nothing reached
+ * look alike in a roster read, and their remedies are different — re-pairing
+ * fixes the first, nothing the operator can do fixes the second, and the third
+ * fixes itself — so they are recorded apart.
  *
  * @param reason - whatever the read rejected with.
  * @returns the phase and reachability to write to the host's row.
  */
 function failedRead(reason: unknown): Partial<HostEntry> {
   const message = messageOf(reason)
-  const unauthorized = reason instanceof RemoteError && reason.code === UNAUTHORIZED
-  return { phase: { kind: 'failed', message }, state: unauthorized ? 'unauthorized' : 'offline' }
+  const state = reason instanceof RemoteError ? (FAILURE_STATES[reason.code] ?? 'offline') : 'offline'
+  return { phase: { kind: 'failed', message }, state }
 }
 
 /**
