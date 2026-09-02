@@ -9,7 +9,7 @@
  * @module
  */
 
-import { isNode, memberName, type Node, walk } from './ast.ts'
+import { isNode, memberName, type Node, unwrap, walk } from './ast.ts'
 
 /**
  * The constants a file declares, so a name held in one is still a name.
@@ -33,7 +33,7 @@ export function constants(program: unknown): Constants {
     if (!Array.isArray(declarations)) return
     for (const declaration of declarations) {
       if (!isNode(declaration)) continue
-      const id = declaration['id']
+      const id = unwrap(declaration['id'])
       if (!isNode(id) || id.type !== 'Identifier' || typeof id['name'] !== 'string') continue
       const value = staticString(empty, declaration['init'])
       if (value === undefined) continue
@@ -52,10 +52,11 @@ export function constants(program: unknown): Constants {
  * held in a well-named constant is the same name, and a gate that cannot fold
  * them is a gate that can be spelt around.
  * @param env - the file's constants.
- * @param node - the expression to fold.
+ * @param unwrapped - the expression to fold, wrappers and all.
  * @returns the string, or undefined when it is not decidable here.
  */
-export function staticString(env: Constants, node: unknown): string | undefined {
+export function staticString(env: Constants, unwrapped: unknown): string | undefined {
+  const node = unwrap(unwrapped)
   if (!isNode(node)) return undefined
   switch (node.type) {
     case 'Literal':
@@ -190,4 +191,134 @@ function foldJoin(env: Constants, receiver: unknown, args: readonly unknown[]): 
     parts.push(folded)
   }
   return parts.join(separator)
+}
+
+/**
+ * The placeholder an unreadable part of a string leaves behind.
+ *
+ * A private-use code point, so it can never collide with anything the source
+ * actually contains, and one character wide so the shape of what surrounds it
+ * survives — which is the whole point: markup half-written in the source and
+ * half-supplied at runtime is still markup, and its attributes are still
+ * readable even when their values are not.
+ */
+export const UNREADABLE = '\u{F8FF}'
+
+/**
+ * The nearest string an expression can be read as, with everything undecidable
+ * standing in as {@link UNREADABLE}.
+ *
+ * This is what `staticString` cannot do: it answers all-or-nothing, so a single
+ * interpolation hides the whole string from every rule. Markup does not work
+ * that way — `'<b style="' + colour + '">'` names the attribute regardless of
+ * what the colour turns out to be.
+ * @param env - the file's constants.
+ * @param unwrapped - the expression to read, wrappers and all.
+ * @returns the approximation, or undefined when the node produces no string.
+ */
+export function approximateString(env: Constants, unwrapped: unknown): string | undefined {
+  const exact = staticString(env, unwrapped)
+  if (exact !== undefined) return exact
+  const node = unwrap(unwrapped)
+  if (!isNode(node)) return undefined
+  switch (node.type) {
+    case 'TemplateLiteral':
+      return approximateTemplate(env, node)
+    case 'BinaryExpression':
+      return node['operator'] === '+'
+        ? `${approximateString(env, node['left']) ?? UNREADABLE}${approximateString(env, node['right']) ?? UNREADABLE}`
+        : undefined
+    case 'TSAsExpression':
+    case 'TSSatisfiesExpression':
+    case 'TSNonNullExpression':
+      return approximateString(env, node['expression'])
+    default:
+      return undefined
+  }
+}
+
+/**
+ * Read a template, standing in for each interpolation that cannot be folded.
+ * @param env - the file's constants.
+ * @param node - the template literal.
+ * @returns the approximation, or undefined when its parts are not readable.
+ */
+function approximateTemplate(env: Constants, node: Node): string | undefined {
+  const quasis = node['quasis']
+  const expressions = node['expressions']
+  if (!Array.isArray(quasis) || !Array.isArray(expressions)) return undefined
+  let text = ''
+  for (const [index, quasi] of quasis.entries()) {
+    const cooked = (quasi as { value?: { cooked?: unknown } }).value?.cooked
+    if (typeof cooked !== 'string') return undefined
+    text += cooked
+    if (index < expressions.length) text += approximateString(env, expressions[index]) ?? UNREADABLE
+  }
+  return text
+}
+
+/**
+ * Names that stand for another name.
+ *
+ * `const d = document` and `import { it as check }` both rename something the
+ * rules are written about. A rule that matches on the written name alone is a
+ * rule one `const` defeats.
+ */
+export type Aliases = ReadonlyMap<string, string>
+
+/**
+ * Every local name in a file that stands for another name.
+ * @param program - the parsed body.
+ * @returns local name to the name it stands for, resolved through chains.
+ */
+export function aliases(program: unknown): Aliases {
+  const direct = new Map<string, string>()
+  walk(program, (node) => {
+    if (node.type === 'VariableDeclaration' && node['kind'] === 'const') recordConstAliases(node, direct)
+    if (node.type === 'ImportSpecifier') recordImportAlias(node, direct)
+  })
+  const resolved = new Map<string, string>()
+  for (const [local] of direct) {
+    let target = local
+    // A chain of renames is still one name; the cap stops a cycle spinning.
+    for (let step = 0; step < 8; step += 1) {
+      const next = direct.get(target)
+      if (next === undefined || next === target) break
+      target = next
+    }
+    if (target !== local) resolved.set(local, target)
+  }
+  return resolved
+}
+
+/**
+ * Record `const local = other`.
+ * @param node - the declaration.
+ * @param into - the map to add to.
+ */
+function recordConstAliases(node: Node, into: Map<string, string>): void {
+  const declarations = node['declarations']
+  if (!Array.isArray(declarations)) return
+  for (const declaration of declarations) {
+    if (!isNode(declaration)) continue
+    const id = unwrap(declaration['id'])
+    const init = unwrap(declaration['init'])
+    if (!isNode(id) || id.type !== 'Identifier' || !isNode(init) || init.type !== 'Identifier') continue
+    if (typeof id['name'] !== 'string' || typeof init['name'] !== 'string') continue
+    into.set(id['name'], init['name'])
+  }
+}
+
+/**
+ * Record `import { imported as local }`.
+ * @param node - the specifier.
+ * @param into - the map to add to.
+ */
+function recordImportAlias(node: Node, into: Map<string, string>): void {
+  const imported = node['imported']
+  const local = node['local']
+  if (!isNode(imported) || !isNode(local)) return
+  const from = imported.type === 'Identifier' ? imported['name'] : imported['value']
+  if (typeof from !== 'string' || typeof local['name'] !== 'string' || local['name'] === from) return
+  into.set(local['name'], from)
 }

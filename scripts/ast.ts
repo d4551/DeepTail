@@ -61,6 +61,34 @@ export function walk(root: unknown, visit: (node: Node) => void): void {
   }
 }
 
+/** Wrappers that change nothing about the value inside them. */
+const TRANSPARENT = new Set([
+  'ParenthesizedExpression',
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSInstantiationExpression',
+])
+
+/**
+ * The expression inside any number of wrappers that do not change it.
+ *
+ * oxc keeps parentheses in the tree, and a type assertion is a node of its own,
+ * so a rule written about what it wraps sees the wrapper instead: one pair of
+ * brackets was enough to hide a call from every rule here.
+ * @param value - the node to unwrap.
+ * @returns the innermost expression, or the value unchanged.
+ */
+export function unwrap(value: unknown): unknown {
+  let inner = value
+  // Bounded so a tree that somehow refers to itself cannot spin here.
+  for (let depth = 0; depth < 32; depth += 1) {
+    if (!isNode(inner) || !TRANSPARENT.has(inner.type)) return inner
+    inner = inner['expression']
+  }
+  return inner
+}
+
 /**
  * The property name a member expression reads, when it is written plainly.
  * @param node - the member expression.
@@ -68,7 +96,7 @@ export function walk(root: unknown, visit: (node: Node) => void): void {
  */
 export function memberName(node: Node): string | undefined {
   if (node['computed'] === true) return undefined
-  const property = node['property']
+  const property = unwrap(node['property'])
   return isNode(property) && property.type === 'Identifier' && typeof property['name'] === 'string'
     ? property['name']
     : undefined

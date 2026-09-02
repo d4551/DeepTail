@@ -18,8 +18,8 @@
  * @module
  */
 
-import { isNode, memberName, type Node, parseScript, walk } from './ast.ts'
-import { type Constants, constants, staticString } from './fold.ts'
+import { isNode, memberName, type Node, unwrap, parseScript, walk } from './ast.ts'
+import { approximateString, type Constants, constants, staticString } from './fold.ts'
 import { markupOffences, scanMarkup } from './markup-gate.ts'
 
 /** Extensions the script scanner reads. */
@@ -60,6 +60,15 @@ const KEYED_WRITES = new Map<string, number>([
   ['defineProperty', 1],
 ])
 
+/**
+ * Calls that write every property an object literal carries.
+ *
+ * `Object.assign(el, { style })` reaches the same declaration as `el.style`,
+ * and it is already this codebase's idiom for merging onto an object, so the
+ * keys of what is being merged are read.
+ */
+const MERGED_WRITES = new Set(['assign', 'defineProperties'])
+
 /** Namespaces whose keyed writes reach an object's own properties. */
 const KEYED_WRITE_HOSTS = new Set(['Reflect', 'Object'])
 
@@ -76,11 +85,12 @@ const STYLE_ATTRIBUTE = 'style'
 /**
  * The key a property or member names, however it is written.
  * @param env - the file's constants.
- * @param node - the property or member expression.
+ * @param unwrapped - the property or member expression, wrappers and all.
  * @param computed - whether the key is an expression rather than a name.
  * @returns the key, or undefined when it is not decidable.
  */
-function keyOf(env: Constants, node: unknown, computed: boolean): string | undefined {
+function keyOf(env: Constants, unwrapped: unknown, computed: boolean): string | undefined {
+  const node = unwrap(unwrapped)
   if (!isNode(node)) return undefined
   if (!computed) {
     if (node.type === 'Identifier' && typeof node['name'] === 'string') return node['name']
@@ -126,6 +136,7 @@ function inspect(env: Constants, node: Node, report: (node: Node, why: string) =
 const INSPECTORS = new Map<string, (env: Constants, node: Node, report: (node: Node, why: string) => void) => void>([
   ['MemberExpression', inspectMember],
   ['ObjectPattern', inspectPattern],
+  ['JSXAttribute', inspectJsxAttribute],
   ['CallExpression', inspectCall],
   ['Literal', inspectMarkupString],
   ['TemplateLiteral', inspectMarkupString],
@@ -169,6 +180,24 @@ function inspectPattern(env: Constants, node: Node, report: (node: Node, why: st
 }
 
 /**
+ * Reject the style attribute written in JSX.
+ *
+ * The dialects this gate reads include the ones that carry JSX, so the markup
+ * form of the attribute has to be refused there as well as in a string.
+ * @param _env - the file's constants, which a written attribute name needs none of.
+ * @param node - the JSX attribute.
+ * @param report - records an offence.
+ */
+function inspectJsxAttribute(_env: Constants, node: Node, report: (node: Node, why: string) => void): void {
+  const name = node['name']
+  if (!isNode(name)) return
+  const written = typeof name['name'] === 'string' ? name['name'] : undefined
+  if (written === undefined) return
+  const why = STYLE_PROPERTIES.get(written.toLowerCase())
+  if (why !== undefined) report(node, why)
+}
+
+/**
  * Reject the calls that set an attribute, unless they name one that is not the
  * style attribute, in a form the gate can read.
  * @param env - the file's constants.
@@ -176,9 +205,11 @@ function inspectPattern(env: Constants, node: Node, report: (node: Node, why: st
  * @param report - records an offence.
  */
 function inspectCall(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const callee = node['callee']
+  const callee = unwrap(node['callee'])
   if (!isNode(callee) || callee.type !== 'MemberExpression') return
-  const method = memberName(callee)
+  // A method reached through brackets is the same method. Reading only the
+  // plainly written form let one pair of brackets step past every rule below.
+  const method = memberName(callee) ?? staticString(env, callee['property'])
   if (method === undefined) return
   const args = Array.isArray(node['arguments']) ? node['arguments'] : []
   const opaque = OPAQUE_ATTRIBUTE_CALLS.get(method)
@@ -191,11 +222,37 @@ function inspectCall(env: Constants, node: Node, report: (node: Node, why: strin
     checkName(env, node, args[setter], 'attribute', report)
     return
   }
+  const host = unwrap(callee['object'])
+  if (!isNode(host) || host.type !== 'Identifier' || typeof host['name'] !== 'string') return
+  if (!KEYED_WRITE_HOSTS.has(host['name'])) return
   const keyed = KEYED_WRITES.get(method)
-  const host = callee['object']
-  if (keyed === undefined || !isNode(host) || host.type !== 'Identifier') return
-  if (typeof host['name'] !== 'string' || !KEYED_WRITE_HOSTS.has(host['name'])) return
-  checkName(env, node, args[keyed], 'property', report)
+  if (keyed !== undefined) {
+    checkName(env, node, args[keyed], 'property', report)
+    return
+  }
+  if (MERGED_WRITES.has(method)) {
+    for (const argument of args.slice(1)) inspectMergedKeys(env, argument, report)
+  }
+}
+
+/**
+ * Reject an object literal being merged onto something when it names the style
+ * declaration.
+ * @param env - the file's constants.
+ * @param unwrapped - the object being merged, wrappers and all.
+ * @param report - records an offence.
+ */
+function inspectMergedKeys(env: Constants, unwrapped: unknown, report: (node: Node, why: string) => void): void {
+  const argument = unwrap(unwrapped)
+  if (!isNode(argument) || argument.type !== 'ObjectExpression') return
+  const properties = argument['properties']
+  if (!Array.isArray(properties)) return
+  for (const property of properties) {
+    if (!isNode(property) || property.type !== 'Property') continue
+    const key = keyOf(env, property['key'], property['computed'] === true)
+    const why = key === undefined ? undefined : STYLE_PROPERTIES.get(key.toLowerCase())
+    if (why !== undefined) report(property, why)
+  }
 }
 
 /**
@@ -232,7 +289,11 @@ function checkName(
  * @param report - records an offence.
  */
 function inspectMarkupString(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const text = staticString(env, node)
+  // Read as far as it can be read: a value interpolated into the markup stands
+  // in as a placeholder, so `'<b style="' + colour + '">'` still names the
+  // attribute it is about to set. Requiring the whole string to fold let every
+  // runtime-assembled fragment through.
+  const text = approximateString(env, node)
   if (text === undefined || !text.includes('<')) return
   if (markupOffences(text).length === 0) return
   report(node, 'this markup carries a style attribute; put the rule in a stylesheet and add a class')

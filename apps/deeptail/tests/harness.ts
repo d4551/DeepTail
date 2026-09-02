@@ -202,7 +202,11 @@ export async function startHarness(): Promise<Harness> {
   return {
     open: (table, options = {}) => openPage(browser, origin, table, options),
     async shoot(page, name) {
-      await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true })
+      // Animations are stopped for the shot. The loading state's spinner is
+      // mid-rotation whenever it is caught, so a running suite rewrote its own
+      // screenshot on every run and left the tree dirty — a file that changes
+      // when nothing changed is a file nobody can read a diff of.
+      await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true, animations: 'disabled' })
     },
     audit: (page) => auditPage(page),
     forward: (page, event, args) =>
