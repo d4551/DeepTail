@@ -10,7 +10,7 @@
  */
 
 import { type PairingRuntime, pairAndFinish } from './fleet-pairing.ts'
-import { connectTailnet, forgetTailnet, openTailnet, tailnetPairingPhase } from './fleet-tailnet.ts'
+import { connectPhase, connectTailnet, forgetTailnet, openTailnet, tailnetPairingPhase } from './fleet-tailnet.ts'
 import type { HostRecord } from './host.ts'
 import { createTranslate, type Translate } from './locales.ts'
 import { type PickerPorts, settled, tauriPorts } from './picker-ports.ts'
@@ -93,7 +93,7 @@ function pickerActions(run: PickerRuntime): PickerActions {
       void connectTailnet(tailnetRuntime(run), hosts, draft)
     },
     switchTailnetKind: (hosts, draft) => {
-      toPhase(run, { kind: 'tailnetConnect', hosts, busy: false, draft })
+      toPhase(run, connectPhase(hosts, draft, false))
     },
     cancelTailnet: (hosts) => {
       toPhase(run, { kind: 'ready', hosts })

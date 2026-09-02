@@ -283,11 +283,15 @@
   opacity: 0.4;
 }
 
+/* A native radio draws at about 13px, which is under the 24px WCAG 2.2 asks for
+   a target and well under the 44px a finger needs. The whole row is the target
+   — it is a label wrapping the control — but a 13px dot is what a viewer aims
+   at, so the control itself is sized to the floor rather than left to the
+   platform. */
 .radio {
   flex: none;
-  /* The control sits on the first line of its label rather than centred against
-     a label that may wrap to two. */
-  margin-block-start: var(--dsh-space-1);
+  inline-size: var(--dsh-target-min);
+  block-size: var(--dsh-target-min);
   accent-color: var(--dsw-alias-state-business-primary);
 }
 
@@ -486,5 +490,27 @@
   .dot[data-state="forbidden"] {
     background: GrayText;
     border-style: dotted;
+  }
+}
+
+/* A finger is not a mouse. On a touch pointer every control clears the 44px
+   Apple HIG and WCAG 2.2 enhanced floor; on a mouse the 36px control height
+   stays, because raising it there would inflate the whole surface to solve a
+   problem a pointer does not have. */
+@media (pointer: coarse) {
+  .button,
+  .row {
+    min-block-size: var(--dsh-target-touch);
+  }
+
+  .choice {
+    min-block-size: var(--dsh-target-touch);
+  }
+
+  /* The row is the target, but the control is what a finger aims at, so it
+     takes the same floor rather than staying a dot inside a tall row. */
+  .radio {
+    inline-size: var(--dsh-target-touch);
+    block-size: var(--dsh-target-touch);
   }
 }

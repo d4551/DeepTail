@@ -11,7 +11,7 @@
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import type { PickerContext } from './picker-views.ts'
-import { el, setAria } from './ui/dom.ts'
+import { draftField, el, formActions, setAria } from './ui/dom.ts'
 import { errorStrip, showFailure } from './ui/states.ts'
 
 /** What a viewer has typed into the pairing form. */
@@ -71,30 +71,6 @@ interface EditableDraft {
 }
 
 /**
- * One labeled input in the pairing form.
- * @param label - the visible label.
- * @param input - the control it labels.
- * @param initial - what the control starts holding.
- * @param onInput - where each keystroke is recorded.
- * @returns the field.
- */
-function pairField(
-  label: string,
-  input: HTMLInputElement,
-  initial: string,
-  onInput: (value: string) => void,
-): HTMLElement {
-  const field = el('label', { className: 'field' })
-  field.append(el('span', { className: 'label', text: label }))
-  input.value = initial
-  input.addEventListener('input', () => {
-    onInput(input.value)
-  })
-  field.append(input)
-  return field
-}
-
-/**
  * The link and name fields, each recording straight into the draft so a
  * refusal can hand back everything that was typed.
  * @param t - copy source.
@@ -118,10 +94,10 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
   name.dataset.deeptailField = 'name'
 
   return [
-    pairField(t('pair.linkLabel'), link, current.draft.link, (value) => {
+    draftField(t('pair.linkLabel'), link, current.draft.link, (value) => {
       draft.link = value
     }),
-    pairField(t('pair.nameLabel'), name, current.draft.label, (value) => {
+    draftField(t('pair.nameLabel'), name, current.draft.label, (value) => {
       draft.label = value
     }),
   ]
@@ -152,10 +128,10 @@ function tokenFields(t: Translate, current: PairingState, draft: EditableDraft):
   name.dataset.deeptailField = 'name'
 
   return [
-    pairField(t('tailnet.tokenLabel', { label: current.draft.label }), token, current.draft.link, (value) => {
+    draftField(t('tailnet.tokenLabel', { label: current.draft.label }), token, current.draft.link, (value) => {
       draft.link = value
     }),
-    pairField(t('pair.nameLabel'), name, current.draft.label, (value) => {
+    draftField(t('pair.nameLabel'), name, current.draft.label, (value) => {
       draft.label = value
     }),
   ]
@@ -174,29 +150,6 @@ function pairErrorStrip(): HTMLElement {
   const strip = errorStrip('pair-error')
   strip.id = PAIR_ERROR_ID
   return strip
-}
-
-/**
- * The form's cancel and submit, both disabled while an attempt is in flight so
- * a second submission cannot race the first.
- * @param ctx - the form state and what its controls invoke.
- * @returns the actions row.
- */
-function pairActions(ctx: PairContext): HTMLElement {
-  const { t, current } = ctx
-  const cancel = el('button', { className: 'button button-outline', text: t('action.cancel') })
-  cancel.type = 'button'
-  cancel.disabled = current.busy
-  cancel.addEventListener('click', () => {
-    ctx.cancel(current.hosts)
-  })
-  const submit = el('button', { className: 'button button-primary', text: t('action.pair') })
-  submit.type = 'submit'
-  submit.disabled = current.busy
-  submit.dataset.deeptailAction = 'pair-submit'
-  const actions = el('div', { className: 'actions' })
-  actions.append(cancel, submit)
-  return actions
 }
 
 /**
@@ -226,7 +179,17 @@ export function pairView(ctx: PairContext): HTMLElement[] {
     const link = form.querySelector<HTMLInputElement>('[data-deeptail-field="link"]')
     if (link !== null) setAria(link, { invalid: 'true', describedby: PAIR_ERROR_ID })
   }
-  form.append(pairActions(ctx))
+  form.append(
+    formActions({
+      cancelText: t('action.cancel'),
+      submitText: t('action.pair'),
+      submitAction: 'pair-submit',
+      busy: current.busy,
+      cancel: () => {
+        ctx.cancel(current.hosts)
+      },
+    }),
+  )
   form.addEventListener('submit', (event) => {
     event.preventDefault()
     ctx.submit(current.hosts, draft)

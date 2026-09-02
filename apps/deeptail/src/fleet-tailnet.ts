@@ -26,6 +26,24 @@ export interface TailnetRuntime {
   toPhase(next: Phase): void
 }
 
+/**
+ * The connect phase, carrying a refusal only when there is one.
+ *
+ * Written as two literals rather than one with `error: undefined`, because
+ * `exactOptionalPropertyTypes` makes those different types — the same reason
+ * the pairing flow beside this has a builder, and the reason this module
+ * building the shape inline five times was an asymmetry rather than a choice.
+ * @param hosts - the roster the form was opened over.
+ * @param draft - what the viewer typed.
+ * @param busy - whether an attempt is in flight.
+ * @param error - the refusal to show, when there is one.
+ * @returns the phase to move to.
+ */
+export function connectPhase(hosts: readonly HostRecord[], draft: TailnetDraft, busy: boolean, error?: string): Phase {
+  const base = { kind: 'tailnetConnect' as const, hosts, busy, draft }
+  return error === undefined ? base : { ...base, error }
+}
+
 /** The tailnet to list, or undefined for the one the credential belongs to. */
 function tailnetName(draft: TailnetDraft): string | undefined {
   const trimmed = draft.tailnet.trim()
@@ -46,18 +64,12 @@ function tailnetName(draft: TailnetDraft): string | undefined {
 export async function openTailnet(run: TailnetRuntime, hosts: readonly HostRecord[]): Promise<void> {
   const stored = await settled(run.tailnet.connected())
   if (!stored.ok || !stored.value) {
-    run.toPhase({ kind: 'tailnetConnect', hosts, busy: false, draft: EMPTY_TAILNET_DRAFT })
+    run.toPhase(connectPhase(hosts, EMPTY_TAILNET_DRAFT, false))
     return
   }
   const read = await settled(run.tailnet.devices())
   if (!read.ok) {
-    run.toPhase({
-      kind: 'tailnetConnect',
-      hosts,
-      busy: false,
-      draft: EMPTY_TAILNET_DRAFT,
-      error: run.t('tailnet.listFailed', { message: read.message }),
-    })
+    run.toPhase(connectPhase(hosts, EMPTY_TAILNET_DRAFT, false, run.t('tailnet.listFailed', { message: read.message })))
     return
   }
   run.toPhase({ kind: 'tailnet', hosts, devices: read.value })
@@ -80,14 +92,13 @@ export async function connectTailnet(
   draft: TailnetDraft,
 ): Promise<void> {
   if (!draftIsComplete(draft)) {
-    run.toPhase({ kind: 'tailnetConnect', hosts, busy: false, draft, error: run.t('tailnet.incomplete') })
+    run.toPhase(connectPhase(hosts, draft, false, run.t('tailnet.incomplete')))
     return
   }
-  run.toPhase({ kind: 'tailnetConnect', hosts, busy: true, draft })
+  run.toPhase(connectPhase(hosts, draft, true))
   const listed = await settled(run.tailnet.connect(credentialOf(draft), tailnetName(draft)))
   if (!listed.ok) {
-    const error = run.t('tailnet.connectFailed', { message: listed.message })
-    run.toPhase({ kind: 'tailnetConnect', hosts, busy: false, draft, error })
+    run.toPhase(connectPhase(hosts, draft, false, run.t('tailnet.connectFailed', { message: listed.message })))
     return
   }
   run.toPhase({ kind: 'tailnet', hosts, devices: listed.value })

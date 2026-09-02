@@ -119,6 +119,22 @@ export interface IpcState {
   readonly recorded: RecordedCall[]
   /** Every Tauri command name the page has invoked, in order. */
   readonly commands: string[]
+  /** Every pairing link the page asked the native side to spend, in order. */
+  readonly pairedLinks: string[]
+}
+
+/**
+ * Answer one of the four Tailscale commands.
+ * @param script - the answers this page should give.
+ * @param cmd - the command name.
+ * @returns whatever that command answers with.
+ */
+function deeptailTailscale(script: AnswerTable, cmd: string): Promise<object | boolean | null> {
+  if (cmd === 'tailscale_connected') return Promise.resolve(script.tailnetConnected === true)
+  if (cmd === 'tailscale_forget') return Promise.resolve(null)
+  return script.tailnetError === undefined
+    ? Promise.resolve(script.tailnetDevices ?? [])
+    : Promise.reject(new Error(script.tailnetError))
 }
 
 /**
@@ -155,18 +171,17 @@ function deeptailInvoke(
     case 'carrier_close_mux':
       return Promise.resolve(null)
     case 'pair_host':
+      // The link itself, not just that pairing was asked for: a case that only
+      // sees the command name cannot tell a composed link from any other.
+      state.pairedLinks.push(String((args as { link?: unknown }).link ?? ''))
       return script.pairError === undefined
         ? Promise.resolve(script.paired ?? {})
         : Promise.reject(new Error(script.pairError))
     case 'tailscale_connected':
-      return Promise.resolve(script.tailnetConnected === true)
     case 'tailscale_connect':
     case 'tailscale_devices':
-      return script.tailnetError === undefined
-        ? Promise.resolve(script.tailnetDevices ?? [])
-        : Promise.reject(new Error(script.tailnetError))
     case 'tailscale_forget':
-      return Promise.resolve(null)
+      return deeptailTailscale(script, cmd)
     case 'carrier_fetch':
       return deeptailCarrierFetch(script, args, state)
     case 'carrier_open_mux':
@@ -185,10 +200,16 @@ function deeptailInvoke(
 function installTauriInternals(script: AnswerTable): void {
   // Recorded so a case can assert what actually reached the host. Without it a
   // test can only see that a dialog closed, which a no-op satisfies.
-  const state: IpcState = { channels: new Map<string, ScriptChannel>(), recorded: [], commands: [] }
+  const state: IpcState = {
+    channels: new Map<string, ScriptChannel>(),
+    recorded: [],
+    commands: [],
+    pairedLinks: [],
+  }
   Object.assign(window, {
     deeptailRecordedCalls: state.recorded,
     deeptailInvokedCommands: state.commands,
+    deeptailPairedLinks: state.pairedLinks,
     __TAURI_INTERNALS__: {
       invoke: (cmd: string, args?: Record<string, object>) => deeptailInvoke(script, cmd, args ?? {}, state),
       transformCallback: (callback: () => object) => callback,
@@ -209,6 +230,6 @@ function installTauriInternals(script: AnswerTable): void {
  * @returns the source to evaluate.
  */
 export function initScriptSource(table: AnswerTable): string {
-  const sources = [...CARRIER_SOURCES, deeptailInvoke, installTauriInternals]
+  const sources = [...CARRIER_SOURCES, deeptailTailscale, deeptailInvoke, installTauriInternals]
   return `${sources.map(String).join('\n\n')}\ninstallTauriInternals(${JSON.stringify(table)})`
 }

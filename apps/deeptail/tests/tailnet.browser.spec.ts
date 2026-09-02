@@ -10,7 +10,9 @@
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
-import { type AnswerTable, type Harness, startHarness, textOf } from './harness.ts'
+import { tailnetPairingLink } from '../src/tailscale.ts'
+import { type AnswerTable, type Harness, startHarness, textOf, type Violation } from './harness.ts'
+import { defects, VIEWPORTS } from './structure-page.ts'
 
 let harness: Harness
 
@@ -21,11 +23,41 @@ let harness: Harness
  * takes over. Starting empty is also the state the tailnet is for — a viewer
  * with machines but no pairings yet.
  * @param extra - answer-table overrides for the case.
+ * @param mobile - emulate a touch device, so `pointer: coarse` actually holds.
  * @returns the page, with the picker mounted.
  */
-async function openPicker(extra: Partial<AnswerTable>): Promise<Page> {
-  const page = await harness.open({ hosts: [], ...extra })
+async function openPicker(extra: Partial<AnswerTable>, mobile = false): Promise<Page> {
+  const page = await harness.open({ hosts: [], ...extra }, mobile ? { mobile: true } : {})
   await page.waitForSelector('[data-deeptail-picker]')
+  return page
+}
+
+/**
+ * Render a violation set as a failure message a reader can act on.
+ * @param violations - what axe reported.
+ * @returns one line per offending node.
+ */
+function describeViolations(violations: readonly Violation[]): string {
+  return violations
+    .map(
+      (violation) => `${violation.id} (${violation.impact}): ${violation.help}\n    ${violation.nodes.join('\n    ')}`,
+    )
+    .join('\n  ')
+}
+
+/** Open the connect form: the tailnet with no credential stored. */
+async function connectForm(mobile = false): Promise<Page> {
+  const page = await openPicker({ tailnetConnected: false, tailnetDevices: DEVICES }, mobile)
+  await page.locator('[data-deeptail-action="tailnet"]').click()
+  await page.locator('[data-deeptail-view="tailnet-connect"]').waitFor({ state: 'visible' })
+  return page
+}
+
+/** Open the machine list: the tailnet with a credential already stored. */
+async function machineList(mobile = false): Promise<Page> {
+  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES }, mobile)
+  await page.locator('[data-deeptail-action="tailnet"]').click()
+  await page.locator('[data-deeptail-tailnet-device="ts-1"]').waitFor({ state: 'visible' })
   return page
 }
 
@@ -195,5 +227,68 @@ it('says so plainly when the tailnet has no pairable machine', async () => {
   const status = page.locator('.status[role="status"]')
   await status.waitFor({ state: 'visible' })
   expect(await status.textContent()).toContain('No pairable machines')
+  await page.close()
+})
+
+it('has no WCAG violations on either tailnet screen, on a desktop and on a phone', async () => {
+  // The screens the picker gained were in neither the accessibility suite nor
+  // the structural one, so two surfaces shipped without the coverage every
+  // other surface has.
+  const audits = await Promise.all(
+    [connectForm, machineList].flatMap((open) =>
+      [false, true].map(async (mobile) => {
+        const page = await open(mobile)
+        const violations = await harness.audit(page)
+        await page.close()
+        return violations
+      }),
+    ),
+  )
+  const found = audits.flat()
+  expect(found, describeViolations(found)).toEqual([])
+})
+
+it('has no structural defects on either tailnet screen, at every width', async () => {
+  const checked = await Promise.all(
+    [connectForm, machineList].flatMap((open) =>
+      VIEWPORTS.map(async (viewport) => {
+        const page = await open()
+        await page.setViewportSize({ width: viewport.width, height: viewport.height })
+        const found = await defects(page)
+        await page.close()
+        return found === '' ? '' : `${viewport.label}: ${found}`
+      }),
+    ),
+  )
+  expect(checked.filter((line) => line !== '')).toEqual([])
+})
+
+it('clears the platform touch minimum on both tailnet screens, on a phone', async () => {
+  // The 44px floor is what a finger needs, and it is applied where a finger is:
+  // `pointer: coarse` only holds once the context emulates a touch device, so a
+  // desktop page measured against it would be testing a pairing that does not
+  // exist.
+  const checked = await Promise.all(
+    [connectForm, machineList].map(async (open) => {
+      const page = await open(true)
+      const found = await defects(page, true)
+      await page.close()
+      return found
+    }),
+  )
+  expect(checked.filter((line) => line !== '')).toEqual([])
+})
+
+it("sends the token the viewer typed, composed onto the machine's own origin", async () => {
+  // Asserting that pair_host was called says nothing about what was passed to
+  // it: the composition could substitute any token and the case would pass.
+  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES })
+  await page.locator('[data-deeptail-action="tailnet"]').click()
+  await page.locator('[data-deeptail-tailnet-device="ts-1"]').click()
+  await page.locator('[data-deeptail-field="link"]').fill('launch-token-value')
+  await page.locator('[data-deeptail-action="pair-submit"]').click()
+  const paired = await page.evaluate(() => (window as unknown as { deeptailPairedLinks: string[] }).deeptailPairedLinks)
+  expect(paired).toEqual([tailnetPairingLink(DEVICES[0]?.origin ?? '', 'launch-token-value')])
+  expect(paired[0]).toContain('token=launch-token-value')
   await page.close()
 })

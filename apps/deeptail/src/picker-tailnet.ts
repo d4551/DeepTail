@@ -12,7 +12,7 @@ import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import type { PickerContext } from './picker-views.ts'
 import type { TailnetCredential } from './tailscale.ts'
-import { el, setAria } from './ui/dom.ts'
+import { draftField, el, formActions, setAria } from './ui/dom.ts'
 import { errorStrip, showFailure } from './ui/states.ts'
 
 /** The id the tailnet refusal strip carries, which the first field points at. */
@@ -93,30 +93,6 @@ interface EditableTailnetDraft {
 }
 
 /**
- * One labeled input in a tailnet form.
- * @param label - the visible label.
- * @param input - the control it labels.
- * @param initial - what the control starts holding.
- * @param onInput - where each keystroke is recorded.
- * @returns the field.
- */
-function tailnetField(
-  label: string,
-  input: HTMLInputElement,
-  initial: string,
-  onInput: (value: string) => void,
-): HTMLElement {
-  const field = el('label', { className: 'field' })
-  field.append(el('span', { className: 'label', text: label }))
-  input.value = initial
-  input.addEventListener('input', () => {
-    onInput(input.value)
-  })
-  field.append(input)
-  return field
-}
-
-/**
  * A secret input: never autofilled, never spellchecked, never capitalised.
  * @param t - copy source.
  * @param placeholderKey - which placeholder to show.
@@ -184,7 +160,7 @@ function credentialFields(ctx: ConnectContext, draft: EditableTailnetDraft): HTM
   const { t, current } = ctx
   if (draft.kind === 'apiKey') {
     return [
-      tailnetField(
+      draftField(
         t('tailnet.keyLabel'),
         secretInput(t, 'tailnet.keyPlaceholder', 'api-key'),
         current.draft.key,
@@ -201,10 +177,10 @@ function credentialFields(ctx: ConnectContext, draft: EditableTailnetDraft): HTM
   id.placeholder = t('tailnet.clientIdPlaceholder')
   id.dataset.deeptailField = 'client-id'
   return [
-    tailnetField(t('tailnet.clientIdLabel'), id, current.draft.clientId, (value) => {
+    draftField(t('tailnet.clientIdLabel'), id, current.draft.clientId, (value) => {
       draft.clientId = value
     }),
-    tailnetField(
+    draftField(
       t('tailnet.clientSecretLabel'),
       secretInput(t, 'tailnet.secretPlaceholder', 'client-secret'),
       current.draft.clientSecret,
@@ -216,26 +192,44 @@ function credentialFields(ctx: ConnectContext, draft: EditableTailnetDraft): HTM
 }
 
 /**
- * The connect form's cancel and submit, both disabled while an attempt is in
- * flight so a second submission cannot race the first.
- * @param ctx - the form state and what its controls invoke.
- * @returns the actions row.
+ * The optional tailnet name, which is the one field neither credential needs.
+ * @param ctx - the form state.
+ * @param draft - the draft the field writes into.
+ * @returns the field.
  */
-function connectActions(ctx: ConnectContext): HTMLElement {
-  const { t, current } = ctx
-  const cancel = el('button', { className: 'button button-outline', text: t('action.cancel') })
-  cancel.type = 'button'
-  cancel.disabled = current.busy
-  cancel.addEventListener('click', () => {
-    ctx.cancel(current.hosts)
+function tailnetNameField(ctx: ConnectContext, draft: EditableTailnetDraft): HTMLElement {
+  const tailnet = el('input', { className: 'input' })
+  tailnet.type = 'text'
+  tailnet.autocomplete = 'off'
+  tailnet.spellcheck = false
+  tailnet.placeholder = ctx.t('tailnet.tailnetPlaceholder')
+  tailnet.dataset.deeptailField = 'tailnet'
+  return draftField(ctx.t('tailnet.tailnetLabel'), tailnet, ctx.current.draft.tailnet, (value) => {
+    draft.tailnet = value
   })
-  const submit = el('button', { className: 'button button-primary', text: t('tailnet.connect') })
-  submit.type = 'submit'
-  submit.disabled = current.busy
-  submit.dataset.deeptailAction = 'tailnet-connect'
-  const actions = el('div', { className: 'actions' })
-  actions.append(cancel, submit)
-  return actions
+}
+
+/**
+ * Mount the refusal and point the first credential field at it.
+ *
+ * Appended before it is filled: a live region fires on the insertion of its
+ * text, and text put into a node that is not yet in the document is inserted
+ * outside the accessibility tree. The field is named only while the strip is on
+ * the page, because a reference to an element that is not there is a promise to
+ * a reader that cannot be kept.
+ * @param form - the form to mount it in.
+ * @param message - what was refused.
+ * @returns nothing.
+ */
+function reportRefusal(form: HTMLElement, message: string): void {
+  const strip = errorStrip('tailnet-error')
+  strip.id = TAILNET_ERROR_ID
+  form.append(strip)
+  showFailure(strip, message)
+  const first = form.querySelector<HTMLInputElement>(
+    '[data-deeptail-field="api-key"], [data-deeptail-field="client-id"]',
+  )
+  if (first !== null) setAria(first, { invalid: 'true', describedby: TAILNET_ERROR_ID })
 }
 
 /**
@@ -259,28 +253,19 @@ export function tailnetConnectView(ctx: ConnectContext): HTMLElement[] {
     kindChoice(ctx, draft),
     ...credentialFields(ctx, draft),
   )
-  const tailnet = el('input', { className: 'input' })
-  tailnet.type = 'text'
-  tailnet.autocomplete = 'off'
-  tailnet.spellcheck = false
-  tailnet.placeholder = t('tailnet.tailnetPlaceholder')
-  tailnet.dataset.deeptailField = 'tailnet'
+  form.append(tailnetNameField(ctx, draft))
+  if (current.error !== undefined) reportRefusal(form, current.error)
   form.append(
-    tailnetField(t('tailnet.tailnetLabel'), tailnet, current.draft.tailnet, (value) => {
-      draft.tailnet = value
+    formActions({
+      cancelText: t('action.cancel'),
+      submitText: t('tailnet.connect'),
+      submitAction: 'tailnet-connect',
+      busy: current.busy,
+      cancel: () => {
+        ctx.cancel(current.hosts)
+      },
     }),
   )
-  if (current.error !== undefined) {
-    const strip = errorStrip('tailnet-error')
-    strip.id = TAILNET_ERROR_ID
-    form.append(strip)
-    showFailure(strip, current.error)
-    const first = form.querySelector<HTMLInputElement>(
-      '[data-deeptail-field="api-key"], [data-deeptail-field="client-id"]',
-    )
-    if (first !== null) setAria(first, { invalid: 'true', describedby: TAILNET_ERROR_ID })
-  }
-  form.append(connectActions(ctx))
   form.addEventListener('submit', (event) => {
     event.preventDefault()
     ctx.submit(current.hosts, draft)

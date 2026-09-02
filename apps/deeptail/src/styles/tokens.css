@@ -115,6 +115,11 @@
   --dsh-control-md: 38px;
   --dsh-control-lg: 40px;
   --dsh-control-xl: 60px;
+  /* The two target floors, named because they are decisions and not sizes.
+     WCAG 2.2 SC 2.5.8 admits nothing under 24px on any pointer; Apple's Human
+     Interface Guidelines and WCAG 2.2 SC 2.5.5 ask 44px of a finger. */
+  --dsh-target-min: 24px;
+  --dsh-target-touch: 44px;
   --dsh-dot-size: 12px;
   --dsh-compose-min: 96px;
   --dsh-action-min: 72px;

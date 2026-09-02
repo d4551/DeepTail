@@ -135,6 +135,42 @@ export function button(
   return node
 }
 
+/** What a form's actions row needs to know about the attempt in flight. */
+export interface FormActionOptions {
+  /** The cancel button's visible label. */
+  readonly cancelText: string
+  /** The submit button's visible label. */
+  readonly submitText: string
+  /** The submit's `data-deeptail-action`, which the suites drive it by. */
+  readonly submitAction: string
+  /** Whether an attempt is in flight, which disables both. */
+  readonly busy: boolean
+  /** What cancelling does. */
+  cancel(): void
+}
+
+/**
+ * A form's cancel and submit, both disabled while an attempt is in flight so a
+ * second submission cannot race the first.
+ *
+ * The submit is a real submit button rather than a click handler, so the form's
+ * own `submit` event is what runs and Enter in a field works. Both forms in the
+ * picker held a copy of this that differed only in two strings.
+ * @param options - the labels, the action name, and what cancelling does.
+ * @returns the actions row.
+ */
+export function formActions(options: FormActionOptions): HTMLElement {
+  const cancel = button('button button-outline', options.cancelText, options.cancel)
+  cancel.disabled = options.busy
+  const submit = el('button', { className: 'button button-primary', text: options.submitText })
+  submit.type = 'submit'
+  submit.disabled = options.busy
+  submit.dataset.deeptailAction = options.submitAction
+  const actions = el('div', { className: 'actions' })
+  actions.append(cancel, submit)
+  return actions
+}
+
 /**
  * A region whose text is announced when it changes.
  *
@@ -160,6 +196,33 @@ export function labelledField(labelText: string, control: HTMLElement): HTMLLabe
   const field = el('label', { className: 'field' })
   field.append(el('span', { className: 'label', text: labelText }), control)
   return field
+}
+
+/**
+ * A labelled control that records what is typed into it.
+ *
+ * The forms carry a draft across re-renders so a refusal never discards a
+ * paste, which means every field does the same three things: seed the control
+ * from the draft, label it, and write each keystroke back. Built by hand in
+ * each form, those three drifted — the pairing and tailnet forms held
+ * byte-identical copies of it.
+ * @param labelText - the visible label.
+ * @param control - the control being labelled.
+ * @param initial - what the control starts holding.
+ * @param onInput - where each keystroke is recorded.
+ * @returns the label element wrapping both.
+ */
+export function draftField(
+  labelText: string,
+  control: HTMLInputElement,
+  initial: string,
+  onInput: (value: string) => void,
+): HTMLLabelElement {
+  control.value = initial
+  control.addEventListener('input', () => {
+    onInput(control.value)
+  })
+  return labelledField(labelText, control)
 }
 
 /**
