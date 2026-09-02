@@ -25,8 +25,9 @@
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
     "lint:rust": "cd apps/deeptail/src-tauri && cargo clippy --all-targets -- -D warnings",
     "tauri": "tauri",
-    "validate": "bun run lint && bun run lint:ox && bun run check:styles && bun run typecheck && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser",
-    "check:styles": "bun scripts/check-no-inline-styles.ts && bun scripts/check-stylesheets.ts"
+    "validate": "bun run lint && bun run check:outdated && bun run lint:ox && bun run check:styles && bun run typecheck && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser",
+    "check:styles": "bun scripts/check-no-inline-styles.ts && bun scripts/check-stylesheets.ts",
+    "check:outdated": "bun scripts/check-outdated.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.11",
@@ -35,7 +36,7 @@
     "@types/node": "^26.4.0",
     "@types/semver": "7.8.0",
     "jsonc-parser": "3.3.1",
-    "knip": "6.33.0",
+    "knip": "6.34.0",
     "oxc-parser": "0.147.0",
     "oxlint": "1.80.0",
     "parse5": "8.0.1",
