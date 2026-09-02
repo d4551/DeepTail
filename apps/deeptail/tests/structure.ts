@@ -13,7 +13,13 @@
  * @module
  */
 
-import { checkClipping, checkHorizontalOverflow, checkNestedScroll, scrolls } from './structure-layout.ts'
+import {
+  checkClipping,
+  checkHorizontalOverflow,
+  checkNestedScroll,
+  checkOverlappingTargets,
+  scrolls,
+} from './structure-layout.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
 
 export type { StructureFinding }
@@ -240,6 +246,7 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   checkHorizontalOverflow(add)
   checkClipping(add)
   checkNestedScroll(add)
+  checkOverlappingTargets(add, limits)
   checkTouchTargets(add, limits)
   return findings
 }
@@ -271,6 +278,7 @@ export function structureCheckSource(coarsePointer: boolean): string {
     scrolls,
     checkClipping,
     checkNestedScroll,
+    checkOverlappingTargets,
     checkTouchTargets,
     findStructureDefects,
   ].map(String)

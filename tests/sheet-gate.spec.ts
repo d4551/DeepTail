@@ -10,7 +10,8 @@
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
-import { breakpointsOf, deepSelectors, rulesetsOf, STYLE_EXTENSIONS, scanSheet, unringedSelectors } from '../scripts/sheet-gate.ts'
+import { unringedSelectors } from '../scripts/focus-ring-gate.ts'
+import { breakpointsOf, deepSelectors, rulesetsOf, STYLE_EXTENSIONS, scanSheet } from '../scripts/sheet-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { joined } from './fixtures.ts'
 
@@ -82,6 +83,21 @@ describe('the stylesheet gate rejects a raw palette and cascade', () => {
   it('a float, which is legacy layout', () => {
     expect(sheetOffences('.a { float: left; }')).toEqual(['float is legacy layout; use flex or grid'])
   })
+
+  it('an at-rule from the utility pipeline this product retired', () => {
+    expect(sheetOffences(joined('.a { @app', 'ly flex; }'))).toEqual([
+      joined('@app', 'ly belongs to the utility pipeline this product retired; state the declarations directly'),
+    ])
+    expect(sheetOffences(joined('@tail', 'wind base;'))).not.toEqual([])
+    expect(sheetOffences(joined('.a { @uti', 'lity card { padding: 1px; } }'))).not.toEqual([])
+    expect(sheetOffences(joined('@lay', 'er utilities { .a { color: red; } }'))).not.toEqual([])
+  })
+
+  it('no at-rule of CSS itself, which the sheets are written in', () => {
+    expect(sheetOffences(joined('@med', 'ia (max-width: 100px) { .a { color: red; } }'))).toEqual([])
+    expect(sheetOffences(joined('@sup', 'ports (display: grid) { .a { color: red; } }'))).toEqual([])
+    expect(sheetOffences(joined('@lay', 'er base { .a { color: red; } }'))).toEqual([])
+  })
 })
 
 describe('the stylesheet gate allows', () => {
@@ -125,6 +141,39 @@ describe('the stylesheet gate allows', () => {
 
   it('prose that names a length, which decides nothing', () => {
     expect(sheetOffences('/* the 38px bar, at a 12px radius */\n.a { height: var(--dsh-control-md); }')).toEqual([])
+  })
+})
+
+describe('the stylesheet gate reads selectors by reach', () => {
+  it('a selector that reaches through the DOM instead of a class', () => {
+    expect(sheetOffences('.a .b .c .d { color: currentcolor; }')).toEqual([
+      '.a .b .c .d chains past 3 compounds; scope the rule by class instead of structure',
+    ])
+    expect(sheetOffences('.a > .b + .c ~ .d { color: currentcolor; }')).toEqual([
+      '.a > .b + .c ~ .d chains past 3 compounds; scope the rule by class instead of structure',
+    ])
+    // One half of a selector list over the limit names the whole rule.
+    expect(sheetOffences('.a .b .c .d,\n.e { color: currentcolor; }')).toEqual([
+      '.a .b .c .d chains past 3 compounds; scope the rule by class instead of structure',
+    ])
+  })
+
+  it('a selector that stays within the allowed reach', () => {
+    expect(sheetOffences('.a .b { color: currentcolor; }')).toEqual([])
+    expect(sheetOffences('.host-group > * + * { color: currentcolor; }')).toEqual([])
+    expect(sheetOffences('.shell[data-state="open"] .sidebar { color: currentcolor; }')).toEqual([])
+  })
+})
+
+describe('the depth reader', () => {
+  it('names the rule a selector opens, not just the selector', () => {
+    expect(deepSelectors('.a { color: red; }\n.b .c .d .e { color: blue; }')).toEqual([
+      { selector: '.b .c .d .e', line: 2 },
+    ])
+  })
+
+  it('reads no depth out of a comment, so prose cannot be a chain', () => {
+    expect(deepSelectors('/* .a .b .c .d { color: red } */\n.e { color: blue; }')).toEqual([])
   })
 })
 

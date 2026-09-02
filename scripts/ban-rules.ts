@@ -56,6 +56,10 @@ export const BANNED: readonly Rule[] = [
     holds: (node, names) => callsGlobal(node, 'escape', names) || callsGlobal(node, 'unescape', names),
     why: 'the global escape and unescape are deprecated; use encodeURIComponent, or CSS.escape for a selector',
   },
+  {
+    holds: (node, names) => runsTextAsCode(node, names),
+    why: 'a timer called with text runs the text as code; pass a function',
+  },
   { holds: (node, names) => namesPrototype(node, names), why: 'use Object.getPrototypeOf or Object.create' },
   { holds: (node) => node.type === 'TSAnyKeyword', why: 'any defeats the type system; name the shape' },
   {
@@ -66,8 +70,40 @@ export const BANNED: readonly Rule[] = [
     holds: (node) => node.type === 'TSNonNullExpression',
     why: 'a non-null assertion overrides the checker; narrow the value or handle the absent case',
   },
+  {
+    holds: (node) => node.type === 'TSImportEqualsDeclaration',
+    why: 'import-equals is TypeScript 6 syntax; use a default import or `import type`',
+  },
+  {
+    holds: (node) => node.type === 'TSModuleDeclaration' && isNode(node.id) && node.id.type === 'Identifier',
+    why: 'a namespace is a TypeScript 6 module system; use ES module exports',
+  },
+  {
+    holds: (node, names) => expandoPrototype(node, names),
+    why: 'the constructor-function expando pattern was removed in TypeScript 7; use a class',
+  },
   ...LEGACY_RULES,
 ]
+
+/**
+ * Whether a timer call receives text to run rather than a function.
+ *
+ * `setTimeout("code()")` and `setInterval("code()")` evaluate their first
+ * argument as script, which is `eval` with a delay and slips a rule written
+ * only about the global itself. The first argument is read through the same
+ * folding as every other string, so a concatenated or interpolated body is
+ * caught with the literal one.
+ * @param node - the node to test.
+ * @param names - what this file renamed and holds in constants.
+ * @returns true when a timer is handed text to execute.
+ */
+function runsTextAsCode(node: Node, names: Names): boolean {
+  const timer = callsGlobal(node, 'setTimeout', names) || callsGlobal(node, 'setInterval', names)
+  if (!timer) return false
+  const args = node.arguments
+  if (!Array.isArray(args)) return false
+  return staticString(names.constants, args[0]) !== undefined
+}
 
 /**
  * Whether a call reaches a constructor through `Reflect`, which is the same
@@ -154,6 +190,26 @@ function writesMarkup(target: Field | undefined, names: Names): boolean {
   if (!isNode(assigned) || assigned.type !== 'MemberExpression') return false
   const name = property(assigned, names)
   return name !== undefined && MARKUP_PROPERTIES.includes(name)
+}
+
+/**
+ * Whether an assignment writes a member onto something's prototype, the
+ * constructor-function expando pattern TypeScript 7 stopped checking.
+ *
+ * `Chart.prototype.draw = function () {}` is how a class was spelled before
+ * classes: the checker no longer follows it, so every assignment through
+ * `.prototype` is refused and the shape moves into a `class` declaration.
+ * @param node - the node to test.
+ * @param names - what this file renamed and holds in constants.
+ * @returns true when it is such an assignment.
+ */
+function expandoPrototype(node: Node, names: Names): boolean {
+  if (node.type !== 'AssignmentExpression') return false
+  const assigned = unwrap(node.left)
+  if (!isNode(assigned) || assigned.type !== 'MemberExpression') return false
+  if (property(assigned, names) === undefined) return false
+  const carrier = unwrap(assigned.object)
+  return isNode(carrier) && carrier.type === 'MemberExpression' && property(carrier, names) === 'prototype'
 }
 
 /**

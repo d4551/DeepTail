@@ -63,6 +63,32 @@ const COMMENTS = /\/\*[\s\S]*?\*\//gu
 const RULE = /([^{}]+)\{([^{}]*)\}/gu
 
 /**
+ * The at-rules the utility pipeline this product retired shipped in its sheets.
+ *
+ * `@apply` and its siblings compile away into the declarations a stylesheet
+ * here states directly, so one of them marks a sheet written for a pipeline
+ * the repository no longer runs — with a class vocabulary no gate reads. The
+ * cascade layer CSS itself ships is untouched; only the pipeline's own names
+ * are refused.
+ */
+const RETIRED_AT_RULES = /@(?:apply|tailwind|config|plugin|utility|variant|source|theme|screen|responsive|layer\s+utilities)\b/u
+
+/**
+ * Every line a sheet writes one of the retired at-rules on.
+ * @param text - the sheet's contents, comments already blanked.
+ * @returns one entry per retired at-rule, with its line.
+ */
+function retiredAtRules(text: string): { readonly rule: string; readonly line: number }[] {
+  const found: { rule: string; line: number }[] = []
+  const lines = text.split('\n')
+  for (const [index, line] of lines.entries()) {
+    const match = RETIRED_AT_RULES.exec(line)
+    if (match !== null) found.push({ rule: match[0], line: index + 1 })
+  }
+  return found
+}
+
+/**
  * The sheet with its comments blanked out, offsets preserved.
  *
  * A comment that names a length is prose about the design, not a decision, and
@@ -170,6 +196,13 @@ export function scanSheet(label: string, text: string): Offence[] {
       why: `${deep.selector} chains past ${String(MAX_COMPOUNDS)} compounds; scope the rule by class instead of structure`,
     })
   }
+  for (const retired of retiredAtRules(withoutComments(text))) {
+    offences.push({
+      label,
+      line: retired.line,
+      why: `${retired.rule} belongs to the utility pipeline this product retired; state the declarations directly`,
+    })
+  }
   for (const { property, value, line } of declarationsOf(withoutComments(text))) {
     if (property.startsWith('--')) continue
     if (property === 'z-index') {
@@ -217,83 +250,6 @@ export interface Ruleset {
   readonly body: string
   /** One-based line the selector opens on. */
   readonly line: number
-}
-
-/** The properties that can paint a focus ring. */
-const RING_PROPERTIES = new Set(['outline', 'outline-width', 'outline-style', 'box-shadow'])
-
-/** A value that paints nothing. */
-const BLANK_VALUES = new Set(['none', '0', '0px'])
-
-/** What a rule's body does to the focus ring. */
-interface RingEffect {
-  /** True when it switches the user agent's outline off. */
-  readonly hides: boolean
-  /** True when it paints a ring of its own. */
-  readonly paints: boolean
-}
-
-/**
- * What one rule body does to the focus ring.
- *
- * The declarations are walked rather than matched with a lookahead: a pattern
- * that reads `outline:` and then asserts the value is not `none` can satisfy
- * the assertion by matching fewer spaces, and reads `outline: none` as a ring.
- * @param body - the rule's declarations, whitespace already collapsed.
- * @returns whether it hides a ring and whether it paints one.
- */
-function ringEffect(body: string): RingEffect {
-  let hides = false
-  let paints = false
-  for (const declaration of body.split(';')) {
-    const colon = declaration.indexOf(':')
-    if (colon === -1) continue
-    const property = declaration.slice(0, colon).trim().toLowerCase()
-    const value = declaration
-      .slice(colon + 1)
-      .trim()
-      .toLowerCase()
-    if (!RING_PROPERTIES.has(property) || value === '') continue
-    if (BLANK_VALUES.has(value)) {
-      if (property === 'outline' || property === 'outline-style') hides = true
-      continue
-    }
-    paints = true
-  }
-  return { hides, paints }
-}
-
-/**
- * Selectors that switch the focus ring off without writing one back.
- *
- * A control that hides the user agent's ring and never restores it is
- * unreachable by keyboard in any meaningful sense — and `select` and `textarea`
- * shipped that way, hidden by a class rule while the rule that gave the ring
- * back named elements the class did not cover. The restoration is required on
- * the selector that did the hiding, so the two are read together rather than
- * one relying on a coincidence in the other.
- * @param text - the sheet's contents.
- * @returns each selector that hides the ring and restores nothing.
- */
-export function unringedSelectors(text: string): string[] {
-  const rules = rulesetsOf(text)
-  const restored = new Set<string>()
-  for (const rule of rules) {
-    if (!ringEffect(rule.body).paints) continue
-    for (const one of rule.selector.split(',')) {
-      const base = one.trim()
-      if (base.endsWith(':focus-visible')) restored.add(base.slice(0, -':focus-visible'.length))
-    }
-  }
-  const hidden: string[] = []
-  for (const rule of rules) {
-    if (!ringEffect(rule.body).hides) continue
-    for (const one of rule.selector.split(',')) {
-      const base = one.trim()
-      if (base !== '' && !restored.has(base)) hidden.push(base)
-    }
-  }
-  return hidden
 }
 
 /**

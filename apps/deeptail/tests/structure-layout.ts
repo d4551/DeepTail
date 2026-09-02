@@ -90,4 +90,33 @@ function checkNestedScroll(add: Report): void {
   }
 }
 
-export { checkClipping, checkHorizontalOverflow, checkNestedScroll, scrolls }
+/**
+ * Two targets that share pixels leave the click on whichever is on top.
+ *
+ * A control drawn over another control is unreachable where they overlap, and
+ * no rule engine reports it: both are labelled, both are in the tab order, and
+ * half of one of them cannot be activated at all. Ancestor and descendant are
+ * excluded — a link inside a card that is itself a target is the layout, not a
+ * defect — and one device pixel of overlap is allowed as rounding.
+ * @param add - collects a finding.
+ * @param limits - which elements take focus or activation, handed in by the caller.
+ */
+function checkOverlappingTargets(add: Report, limits: { readonly interactive: string }): void {
+  const nodes = [...document.querySelectorAll(limits.interactive)].filter(
+    (node) => node.closest('[inert]') === null && (node as HTMLElement).checkVisibility(),
+  )
+  for (const [index, node] of nodes.entries()) {
+    const box = node.getBoundingClientRect()
+    for (const other of nodes.slice(index + 1)) {
+      if (other.contains(node) || node.contains(other)) continue
+      const over = other.getBoundingClientRect()
+      const width = Math.min(box.right, over.right) - Math.max(box.left, over.left)
+      const height = Math.min(box.bottom, over.bottom) - Math.max(box.top, over.top)
+      if (width > 1 && height > 1) {
+        add('overlapping-targets', `${describe(node)} overlaps ${describe(other)}`)
+      }
+    }
+  }
+}
+
+export { checkClipping, checkHorizontalOverflow, checkNestedScroll, checkOverlappingTargets, scrolls }

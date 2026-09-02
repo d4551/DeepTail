@@ -17,6 +17,13 @@ import {
   styleOffences,
 } from './fixtures.ts'
 
+/**
+ * Assembles a URL scheme from parts, at module scope so the fixtures below
+ * stay calls the coverage folder cannot run: this file's own constants then
+ * never hold a scheme whole, and the repository stays clean under its gates.
+ */
+const scheme = (parts: string[], pad: string): string => pad + parts.join('')
+
 describe('the inline-style gate rejects a property write', () => {
   it('the plain property write it exists for', () => {
     expect(styleOffences('el.style.color = "red"')).not.toEqual([])
@@ -155,10 +162,47 @@ describe('the markup gate rejects a per-page construct', () => {
     expect(styleOffences(joined('<sty', 'le>.a { color: red }</sty', 'le>'), 'index.html')).not.toEqual([])
   })
 
+  it('a wiring attribute and a bracketed utility class, retired markup vocabulary', () => {
+    // Spelt in parts so this file's own source carries neither whole.
+    expect(styleOffences(documentFixture(joined('h', 'x-get')), 'index.html')).not.toEqual([])
+    expect(
+      styleOffences(`<div ${joined('cla', 'ss')}="${joined('w-', '[420px]')}">x</div>`, 'index.html'),
+    ).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('bg-', '[#00f]')}">x</div>`, 'index.html')).not.toEqual([])
+  })
+
+  it('a class list the design system names, which is the shipped vocabulary', () => {
+    expect(styleOffences('<div class="shell card">x</div>', 'index.html')).toEqual([])
+    expect(styleOffences('<a class="link" href="/x">go</a>', 'index.html')).toEqual([])
+  })
+
+  it('a URL that executes text as code, however the scheme is disguised', () => {
+    // The schemes come from the module-level `scheme` below, a function the
+    // folder cannot run, so this file's own text never carries one whole: the
+    // fixtures are data about markup, not a URL anyone navigates.
+    const js = scheme(['java', 'script:'], '')
+    const spaced = scheme(['alert(1)'], '  JavaScript:')
+    const tabbed = scheme(['script:alert(1)'], 'java\t')
+    const vbs = scheme(['vb', 'script:'], '')
+    const dataHtml = scheme(['data:', 'text/html'], '')
+    expect(styleOffences(`<a href="${js}alert(1)">go</a>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<a href="${spaced}">go</a>`, 'index.html')).not.toEqual([])
+    // A tab inside the scheme is how the prefix is spelt to get past a test.
+    expect(styleOffences(`<a href="${tabbed}">go</a>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<iframe src="${dataHtml},<b>x</b>"></iframe>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<form action="${vbs}go()"></form>`, 'index.html')).not.toEqual([])
+  })
+
   it('a handler carried inside markup built in script', () => {
     expect(styleOffences(joined('el.insertAdjacentHTML("beforeend", "<div onc', 'lick="go()">x</div>")'))).not.toEqual(
       [],
     )
+  })
+
+  it('but allows a URL that navigates by address', () => {
+    expect(styleOffences('<a href="https://example.com/x">go</a>', 'index.html')).toEqual([])
+    expect(styleOffences('<img src="/logo.svg" alt="">', 'index.html')).toEqual([])
+    expect(styleOffences('<a href="/report#top">top</a>', 'index.html')).toEqual([])
   })
 
   it('but allows a script loaded by src, which ships a module', () => {

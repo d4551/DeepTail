@@ -90,6 +90,8 @@ describe('the legacy ban rejects', () => {
       ['any in an assertion', 'const x = value as any'],
       ['non-null assertion', 'const x = value!.length'],
       ['eval', "eval('1 + 1')"],
+      ['setTimeout with text', "setTimeout('run()', 10)"],
+      ['setInterval with folded text', source("const body = 'go()'", "setInterval('run(' + body, 10)")],
       ['ReactDOM render', "ReactDOM.render(<App />, document.getElementById('root'))"],
       ['ReactDOM unmount', 'ReactDOM.unmountComponentAtNode(node)'],
       ['ReactDOM findDOMNode', 'ReactDOM.findDOMNode(instance)'],
@@ -102,6 +104,10 @@ describe('the legacy ban rejects', () => {
       ['Tauri v1 fs import', "import { readTextFile } from '@tauri-apps/api/fs'"],
       ['Tauri v1 global', 'window.__TAURI__.invoke("x")'],
       ['Tauri v1 global via brackets', "window['__TAURI__'].invoke('x')"],
+      ['import equals', "import value = require('node:fs')"],
+      ['namespace', 'namespace Geometry {}'],
+      ['expando prototype', 'Chart.prototype.draw = function draw() {}'],
+      ['expando prototype via brackets', "Chart['prototype'].draw = draw"],
     ]
     for (const [name, text, label = 'fixture.ts'] of cases) {
       expect([name, banOffences(text, label)]).not.toEqual([name, []])
@@ -117,6 +123,18 @@ describe('the legacy ban allows', () => {
   it('the React 19 entry points and the Tauri v2 paths', () => {
     expect(banOffences('createRoot(container).render(<App />)', 'fixture.tsx')).toEqual([])
     expect(banOffences("import { invoke } from '@tauri-apps/api/core'")).toEqual([])
+  })
+
+  it('a timer handed a function, which is the supported form', () => {
+    expect(banOffences('setTimeout(run, 10)')).toEqual([])
+    expect(banOffences('setTimeout(() => run(), 10)')).toEqual([])
+    expect(banOffences('setInterval(tick, 1_000)')).toEqual([])
+  })
+
+  it('the ambient module declaration and the class, which replaced the expando', () => {
+    expect(banOffences("declare module 'pkg' { }")).toEqual([])
+    expect(banOffences('class Chart { draw() {} }')).toEqual([])
+    expect(banOffences(source('const chart = {}', 'chart.prototype = null'))).toEqual([])
   })
 
   it('an idiom named in prose, which is a mention rather than a use', () => {
