@@ -16,7 +16,6 @@ const zh = {
   'status.loading': '正在加载主机…',
   'status.empty': '尚未配对任何主机。',
   'status.offline': '与 {label} 的连接已断开，显示的是最后一次读取的结果。',
-  'status.reconnecting': '正在重新连接 {label}…',
   'empty.lede': '配对一台运行 dsh web 的主机即可开始监控它的会话。',
   'host.state.online': '在线',
   'host.state.offline': '无法连接',
@@ -90,7 +89,6 @@ const en = {
   'status.loading': 'Loading hosts…',
   'status.empty': 'No hosts paired yet.',
   'status.offline': 'Lost the connection to {label}. Showing the last read.',
-  'status.reconnecting': 'Reconnecting to {label}…',
   'empty.lede': 'Pair a machine running dsh web to start monitoring its sessions.',
   'host.state.online': 'Online',
   'host.state.offline': 'Unreachable',
@@ -153,7 +151,15 @@ const en = {
   'chat.sendFailed': 'Send failed: {message}',
 } satisfies Record<PickerKey, string>
 
-const DICTIONARIES: Readonly<Record<LocaleId, Record<PickerKey, string>>> = { en, zh }
+/**
+ * Every dictionary, by locale.
+ *
+ * Exported so the checks that hold the two in step read the objects rather than
+ * the file's text. A reader that matched on two-space indentation and single
+ * quotes compared two empty key sets the moment the file was reformatted, and
+ * said nothing.
+ */
+export const DICTIONARIES: Readonly<Record<LocaleId, Record<PickerKey, string>>> = { en, zh }
 
 /** Resolves one key, substituting `{name}` placeholders. */
 export interface Translate {

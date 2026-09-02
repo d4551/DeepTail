@@ -261,6 +261,17 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* The ring these three hide is written back on the selectors that hid it: the
+ * element-level rule in tokens.css covers `input`, `select` and `textarea`, but
+ * a class that turns the outline off has to turn one back on itself, or the two
+ * agree only by coincidence. */
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
 .input:focus,
 .select:focus,
 .textarea:focus {

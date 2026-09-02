@@ -16,7 +16,7 @@
 
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
-import { bindRovingFocus, el } from './ui/dom.ts'
+import { bindRovingFocus, el, screenReaderText } from './ui/dom.ts'
 import { type HostState, hostStateLabel } from './ui/states.ts'
 
 /** What every picker view needs from its surroundings. */
@@ -73,7 +73,7 @@ function hostRow(
   host: HostRecord,
   onPick: (host: HostRecord) => void,
 ): { readonly row: HTMLButtonElement; readonly seat: HTMLElement } {
-  const seat = el('span', { role: 'listitem' })
+  const seat = el('div', { className: 'list-seat', role: 'listitem' })
   const row = el('button', { className: 'row' })
   row.type = 'button'
   row.dataset.deeptailHost = host.id
@@ -88,8 +88,7 @@ function hostRow(
   )
 
   // The dot is decorative; the state is announced as text beside it.
-  const spoken = el('span', { className: 'visually-hidden', text: hostStateLabel(ctx.t, reachability) })
-  row.append(dot, text, spoken)
+  row.append(dot, text, screenReaderText(hostStateLabel(ctx.t, reachability)))
   row.addEventListener('click', () => onPick(host))
   seat.append(row)
   return { row, seat }

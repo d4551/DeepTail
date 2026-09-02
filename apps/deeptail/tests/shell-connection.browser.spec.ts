@@ -140,9 +140,9 @@ it('dismisses the menu when a pointer lands outside it, without taking focus bac
   await page.locator('.main-body').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
   expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
-  expect(await page.evaluate(() => document.activeElement?.getAttribute('data-deeptail-connection'))).not.toBe(
-    'trigger',
-  )
+  expect(
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.deeptailConnection),
+  ).not.toBe('trigger')
   await page.close()
 })
 
@@ -155,7 +155,9 @@ it('hands focus back to the trigger when the operator dismisses from inside', as
   // them to the control they opened it from.
   await page.keyboard.press('Escape')
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
-  expect(await page.evaluate(() => document.activeElement?.getAttribute('data-deeptail-connection'))).toBe('trigger')
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.deeptailConnection)).toBe(
+    'trigger',
+  )
   await page.close()
 })
 

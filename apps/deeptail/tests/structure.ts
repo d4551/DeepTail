@@ -40,8 +40,33 @@ const MINIMUM_TOUCH_TARGET = 44
 /** The smallest target WCAG 2.2 admits for any pointer, in CSS pixels. */
 const MINIMUM_POINTER_TARGET = 24
 
-/** Elements that take focus or activation without a `tabindex`. */
-const INTERACTIVE = 'a[href], button, input, select, textarea, summary, [contenteditable="true"]'
+/**
+ * Elements that take focus or activation.
+ *
+ * The role-named forms are here too. The list held only real elements, which
+ * was enough while every control in the product was a `<button>` — and would
+ * have gone quiet the moment one was not.
+ */
+const INTERACTIVE = [
+  'a[href]',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'summary',
+  '[contenteditable="true"]',
+  '[tabindex]:not([tabindex="-1"])',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  '[role="switch"]',
+  '[role="tab"]',
+  '[role="menuitem"]',
+  '[role="menuitemradio"]',
+  '[role="menuitemcheckbox"]',
+  '[role="option"]',
+].join(', ')
 
 /**
  * A short, readable path to an element, for a failure message.
@@ -88,9 +113,23 @@ function checkNestedInteractive(add: Report, limits: StructureLimits): void {
  * @param add - collects a finding.
  */
 function checkHeadingOrder(add: Report): void {
-  const levels = [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')]
-    .filter((node) => (node as HTMLElement).offsetParent !== null)
-    .map((node) => Number(node.tagName.slice(1)))
+  // `offsetParent` is null for anything `position: fixed`, which is the whole
+  // of an open drawer and every dialog, so filtering on it excluded exactly the
+  // surfaces whose outline is hardest to get right.
+  const headings = [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')].filter((node) =>
+    (node as HTMLElement).checkVisibility(),
+  )
+  const levels = headings.map((node) => Number(node.tagName.slice(1)))
+  if (levels.length === 0) add('no-heading', 'the page has no heading at all')
+  const tops = levels.filter((level) => level === 1).length
+  if (tops > 1) add('many-h1', `the page has ${String(tops)} h1 elements`)
+  // A navigation column that precedes `main` in the document opens at h2, so
+  // the page's own heading is the first one inside `main` rather than the first
+  // one in the document.
+  const lead = headings.find((node) => node.closest('main') !== null)
+  if (lead !== undefined && lead.tagName !== 'H1') {
+    add('heading-start', `main opens at ${lead.tagName.toLowerCase()} rather than h1`)
+  }
   for (const [index, level] of levels.entries()) {
     const previous = levels[index - 1]
     if (previous !== undefined && level > previous + 1) {
@@ -126,6 +165,25 @@ function checkListOwnership(add: Report): void {
         add('list-owns-non-item', `${describe(list)} owns ${describe(child)}`)
     }
   }
+  const menuItems = new Set([
+    'menuitem',
+    'menuitemradio',
+    'menuitemcheckbox',
+    'none',
+    'presentation',
+    'separator',
+    'group',
+  ])
+  for (const menu of document.querySelectorAll('[role="menu"]')) {
+    for (const child of menu.children) {
+      if (!menuItems.has(child.getAttribute('role') ?? ''))
+        add('menu-owns-non-item', `${describe(menu)} owns ${describe(child)}`)
+    }
+  }
+  for (const item of document.querySelectorAll('[role="listitem"]')) {
+    if (item.parentElement?.getAttribute('role') !== 'list')
+      add('item-outside-list', `${describe(item)} sits outside a list`)
+  }
 }
 
 /**
@@ -144,7 +202,12 @@ function checkHorizontalOverflow(add: Report): void {
  * @param add - collects a finding.
  */
 function checkClipping(add: Report): void {
-  for (const node of document.querySelectorAll('button, .session-title, .row-label, .group-name, .main-title')) {
+  // Every element that carries its own text, rather than a hand-written list of
+  // classes that goes quiet the moment a new one is added.
+  const carries = [...document.querySelectorAll('body *')].filter((node) =>
+    [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').trim() !== ''),
+  )
+  for (const node of carries) {
     const computed = getComputedStyle(node)
     if (
       node.scrollWidth > node.clientWidth + 1 &&

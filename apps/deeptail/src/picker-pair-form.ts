@@ -11,7 +11,8 @@
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import type { PickerContext } from './picker-views.ts'
-import { el } from './ui/dom.ts'
+import { el, setAria } from './ui/dom.ts'
+import { errorStrip, showFailure } from './ui/states.ts'
 
 /** What a viewer has typed into the pairing form. */
 export interface PairDraft {
@@ -42,6 +43,9 @@ interface PairContext extends PickerContext {
   /** Called when the viewer abandons pairing. */
   cancel(hosts: readonly HostRecord[]): void
 }
+
+/** The id the refusal strip carries, which the link field points at. */
+const PAIR_ERROR_ID = 'deeptail-pair-error'
 
 /** The draft while it is being typed, which every field writes into. */
 interface EditableDraft {
@@ -83,6 +87,9 @@ function pairField(
  */
 function pairFields(t: Translate, current: PairingState, draft: EditableDraft): HTMLElement[] {
   const link = el('input', { className: 'input' })
+  // Typed `url`, so a phone offers the right keyboard — but validated by the
+  // product, not by the browser: a native bubble is untranslated, unstyled, and
+  // stops the submit before the form's own `role="alert"` strip ever fills.
   link.type = 'url'
   link.placeholder = t('pair.linkPlaceholder')
   link.dataset.deeptailField = 'link'
@@ -108,12 +115,10 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
  * @returns the strip.
  */
 function pairErrorStrip(message: string): HTMLElement {
-  return el('div', {
-    className: 'error',
-    text: message,
-    role: 'alert',
-    data: { deeptailState: 'pair-error' },
-  })
+  const strip = errorStrip('pair-error')
+  strip.id = PAIR_ERROR_ID
+  showFailure(strip, message)
+  return strip
 }
 
 /**
@@ -148,8 +153,21 @@ export function pairView(ctx: PairContext): HTMLElement[] {
   const { t, current } = ctx
   const draft: EditableDraft = { link: current.draft.link, label: current.draft.label }
   const form = el('form')
-  form.append(el('p', { className: 'lede', text: t('pair.title') }), ...pairFields(t, current, draft))
-  if (current.error !== undefined) form.append(pairErrorStrip(current.error))
+  // The browser's own constraint validation is turned off: it refuses the
+  // submit itself, with a message this product neither wrote nor translated,
+  // and the form's own refusal path is never reached.
+  form.noValidate = true
+  const fields = pairFields(t, current, draft)
+  // The form's subject line reads as a heading and is marked up as one, so the
+  // card has a heading under its wordmark rather than a paragraph doing the job.
+  form.append(el('h2', { className: 'lede', text: t('pair.title') }), ...fields)
+  if (current.error !== undefined) {
+    form.append(pairErrorStrip(current.error))
+    // Named only while the strip is on the page: a reference to an element
+    // that is not there is a promise to a reader that cannot be kept.
+    const link = form.querySelector<HTMLInputElement>('[data-deeptail-field="link"]')
+    if (link !== null) setAria(link, { invalid: 'true', describedby: PAIR_ERROR_ID })
+  }
   form.append(pairActions(ctx))
   form.addEventListener('submit', (event) => {
     event.preventDefault()

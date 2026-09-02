@@ -184,7 +184,6 @@ async function probeHosts(
  */
 async function loadRoster(run: PickerRuntime): Promise<void> {
   toPhase(run, { kind: 'loading' })
-  run.frame.live.textContent = run.t('status.loading')
   toPhase(run, await readRoster(run.ports, run.t))
 
   const listed = run.model.phase
@@ -216,18 +215,36 @@ function pairLabel(typed: string): string {
  */
 async function pairAndFinish(run: PickerRuntime, hosts: readonly HostRecord[], draft: PairDraft): Promise<void> {
   const { t } = run
-  if (draft.link.trim() === '') {
-    toPhase(run, { kind: 'pairing', hosts, error: t('error.linkRequired'), busy: false, draft })
+  const link = draft.link.trim()
+  const refusal = linkRefusal(link, t)
+  if (refusal !== undefined) {
+    toPhase(run, { kind: 'pairing', hosts, error: refusal, busy: false, draft })
     return
   }
   toPhase(run, { kind: 'pairing', hosts, busy: true, draft })
-  const added = await settled(run.ports.pairHost(draft.link.trim(), pairLabel(draft.label)))
+  const added = await settled(run.ports.pairHost(link, pairLabel(draft.label)))
   if (!added.ok) {
     const error = t('error.pairFailed', { message: added.message })
     toPhase(run, { kind: 'pairing', hosts, error, busy: false, draft })
     return
   }
   run.finish(added.value)
+}
+
+/**
+ * Why a pasted link cannot be paired with, or undefined when it can.
+ *
+ * The browser refuses a malformed `type="url"` itself, in a bubble this product
+ * neither wrote nor translated, and the submit never runs — so the form's own
+ * strip stayed empty for exactly the paste that needed it. Constraint
+ * validation is off and the refusal is written here.
+ * @param link - the pasted text, already trimmed.
+ * @param t - copy source.
+ * @returns the refusal to show, or undefined.
+ */
+function linkRefusal(link: string, t: Translate): string | undefined {
+  if (link === '') return t('error.linkRequired')
+  return URL.canParse(link) ? undefined : t('error.linkInvalid')
 }
 
 /**

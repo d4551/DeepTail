@@ -53,7 +53,9 @@ it('reaches a row action with the keyboard alone and opens the sheet with Enter'
   // The dialog is named by the heading it shows, so the name and the visible
   // title can never drift apart.
   expect(
-    await dialog.evaluate((node) => document.getElementById(node.getAttribute('aria-labelledby') ?? '')?.textContent),
+    await dialog.evaluate(
+      (node) => document.querySelector(`#${node.getAttribute('aria-labelledby') ?? ''}`)?.textContent,
+    ),
   ).toBe('Refactor the loader')
   await page.close()
 })

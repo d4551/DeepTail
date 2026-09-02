@@ -136,6 +136,8 @@ function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterVie
     )
     return group
   }
+  const stale = staleStrip(entry, view)
+  if (stale !== undefined) group.append(stale)
   const failure = view.mutations.failures.get(entry.host.id)
   if (failure !== undefined) {
     group.append(
@@ -151,6 +153,24 @@ function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterVie
   }
   group.append(sessionList(entry, stops, view))
   return group
+}
+
+/**
+ * The notice that what a host's rows show is no longer live.
+ *
+ * A dropped subscription left the last read on screen with nothing saying so:
+ * the only change was the colour of a dot, and the rows went on looking
+ * current while the stream retried behind them. A host whose read failed
+ * outright already carries its own strip and does not need a second one.
+ * @param entry - the host, its phase and its sessions.
+ * @param view - the fleet, its copy and its mutation state.
+ * @returns the strip, or undefined while the host is answering.
+ */
+function staleStrip(entry: HostEntry, view: RosterView): HTMLElement | undefined {
+  if (entry.state !== 'offline' || entry.phase.kind !== 'ready') return undefined
+  return retryStrip('partial', view.t('status.offline', { label: entry.host.label }), view.t('action.retry'), () => {
+    void view.store.refresh(entry.host.id)
+  })
 }
 
 /**
@@ -200,7 +220,7 @@ function sessionList(entry: HostEntry, stops: HTMLButtonElement[], view: RosterV
   // rule rather than sitting flush against one another.
   const list = el('div', { className: 'session-list', role: 'list', aria: { label: entry.host.label } })
   for (const session of entry.sessions) {
-    const seat = el('div', { className: 'session-seat', role: 'listitem' })
+    const seat = el('div', { className: 'list-seat', role: 'listitem' })
     seat.append(sessionRow(entry.host.id, session, view.t, rowHandlers(entry, session, view), stops))
     list.append(seat)
   }

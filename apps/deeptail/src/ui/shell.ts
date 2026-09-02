@@ -63,7 +63,7 @@ export function mountShell(container: HTMLElement, ports: ShellPorts, t: Transla
   const rosterSeat = el('div', { className: 'roster-seat' })
   frame.sidebar.append(
     newSessionButton({ hosts: ports.hosts, apiFor: clients.apiFor }, t, frame.announce),
-    el('div', { className: 'section-header', text: t('shell.sessionsSection') }),
+    el('h2', { className: 'section-header', text: t('shell.sessionsSection') }),
     rosterSeat,
   )
 

@@ -10,9 +10,10 @@
  */
 
 import type { HostRecord } from './host.ts'
+import type { PickerKey } from './locales.ts'
 import { type PairDraft, type PairingState, pairView } from './picker-pair-form.ts'
 import { emptyView, listView, type PickerContext } from './picker-views.ts'
-import { el } from './ui/dom.ts'
+import { el, liveRegion } from './ui/dom.ts'
 import { loadingRow, retryStrip } from './ui/states.ts'
 
 /**
@@ -62,7 +63,7 @@ export function mountPickerFrame(container: HTMLElement): PickerFrame {
   root.append(card)
   container.replaceChildren(root)
 
-  const live = el('div', { className: 'visually-hidden', role: 'status' })
+  const live = liveRegion()
   return { card, live }
 }
 
@@ -88,8 +89,49 @@ function phaseViews(phase: Phase, ctx: PickerContext, actions: PickerActions): H
     case 'pairing':
       return pairView({ ...ctx, current: phase, submit: actions.submitPairing, cancel: actions.cancelPairing })
     default:
-      throw new Error('deeptail: unreachable picker phase')
+      return assertNever(phase)
   }
+}
+
+/**
+ * Refuse a phase the union does not have.
+ *
+ * `Phase` is closed, so this is a compile error the moment an arm is added and
+ * not drawn — which is what a runtime throw could only report after shipping,
+ * and what no test could ever cover.
+ * @param phase - the phase no arm matched.
+ * @returns never.
+ */
+function assertNever(phase: never): never {
+  throw new Error(`deeptail: unreachable picker phase ${JSON.stringify(phase)}`)
+}
+
+/** What each phase announces when the picker settles into it. */
+const PHASE_NOTICES: Readonly<Record<Phase['kind'], PickerKey | undefined>> = {
+  loading: 'status.loading',
+  ready: undefined,
+  failed: undefined,
+  pairing: 'pair.title',
+}
+
+/**
+ * What the picker says when it settles into a phase.
+ *
+ * Only the loading phase ever wrote to the live region, so a roster settling
+ * from "Loading hosts…" into a list of three announced nothing at all. A phase
+ * that carries its own `role="alert"` strip is already spoken by it and says
+ * nothing twice.
+ * @param phase - the phase the picker moved to.
+ * @param ctx - the copy and reachability every view reads.
+ * @returns the text to announce, or the empty string for a phase that speaks
+ * for itself.
+ */
+function phaseNotice(phase: Phase, ctx: PickerContext): string {
+  if (phase.kind === 'ready') {
+    return phase.hosts.length === 0 ? ctx.t('status.empty') : ctx.t('sessions.count', { count: phase.hosts.length })
+  }
+  const key = PHASE_NOTICES[phase.kind]
+  return key === undefined ? '' : ctx.t(key)
 }
 
 /**
@@ -109,4 +151,5 @@ export function paintScreen(frame: PickerFrame, phase: Phase, ctx: PickerContext
     ...phaseViews(phase, ctx, actions),
     frame.live,
   )
+  frame.live.textContent = phaseNotice(phase, ctx)
 }

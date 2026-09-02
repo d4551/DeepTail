@@ -253,6 +253,8 @@
 /* ── roster ───────────────────────────────────────────────────────────────── */
 
 .section-header {
+  margin: 0;
+  font-weight: inherit;
   flex: none;
   display: flex;
   align-items: center;
@@ -300,11 +302,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--dsh-space-0);
-}
-
-.session-seat {
-  display: block;
-  min-width: 0;
 }
 
 .group-title {

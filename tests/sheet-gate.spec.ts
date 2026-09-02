@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
-import { breakpointsOf, rulesetsOf, STYLE_EXTENSIONS, scanSheet } from '../scripts/sheet-gate.ts'
+import { breakpointsOf, rulesetsOf, STYLE_EXTENSIONS, scanSheet, unringedSelectors } from '../scripts/sheet-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 
 /** This suite's own path, which reads widths rather than restating them. */
@@ -116,6 +116,33 @@ describe('the breakpoint reader', () => {
   })
 })
 
+describe('the focus-ring reader', () => {
+  it('names a selector that hides the ring and writes none back', () => {
+    expect(unringedSelectors('.a { outline: none; }')).toEqual(['.a'])
+    expect(unringedSelectors('.a, .b { outline: 0; }')).toEqual(['.a', '.b'])
+  })
+
+  it('says nothing about a selector that restores its own ring', () => {
+    expect(unringedSelectors('.a { outline: none; }\n.a:focus-visible { outline: 2px solid red; }')).toEqual([])
+    expect(unringedSelectors('.a { outline: none; }\n.a:focus-visible { box-shadow: 0 0 0 2px red; }')).toEqual([])
+  })
+
+  it('does not count a ring that is itself switched off', () => {
+    // Both rules hide and neither paints, so both are named: a `:focus-visible`
+    // rule that sets `outline: none` is the last place the ring could have come
+    // from, and pointing only at the class would hide where it was lost.
+    expect(unringedSelectors('.a { outline: none; }\n.a:focus-visible { outline: none; }')).toEqual([
+      '.a',
+      '.a:focus-visible',
+    ])
+  })
+
+  it('says nothing about a sheet that hides no ring', () => {
+    expect(unringedSelectors('.a { color: red; }')).toEqual([])
+    expect(unringedSelectors('.a { outline: 2px solid red; }')).toEqual([])
+  })
+})
+
 describe('the ruleset reader', () => {
   it('reads a rule as its selector and its declarations, whitespace and all', () => {
     expect(rulesetsOf('.a,\n.b {\n  color:  red;\n}')).toEqual([{ selector: '.a, .b', body: 'color: red;', line: 1 }])
@@ -144,7 +171,9 @@ describe('the sheets the product ships', () => {
     expect(widths.toSorted()).toEqual(['480px', '720px'])
     expect(new Set(widths).size).toBe(widths.length)
   })
+})
 
+describe('the layout widths the product ships', () => {
   it('are the only place a layout width is written', async () => {
     // A width in a media query and the same width restated in script are two
     // breakpoints that agree only until one of them is changed. The stylesheet
@@ -162,6 +191,13 @@ describe('the sheets the product ships', () => {
         .map(([width]) => `${width} in ${file.label}`),
     )
     expect(restated).toEqual([])
+  })
+
+  it('write a ring back on every selector that hides one', async () => {
+    const hidden = (await sheets()).flatMap((sheet) =>
+      unringedSelectors(sheet.text).map((selector) => `${sheet.label}: ${selector}`),
+    )
+    expect(hidden).toEqual([])
   })
 
   it('declare no rule twice', async () => {

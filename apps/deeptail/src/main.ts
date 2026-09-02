@@ -37,9 +37,6 @@ const container: HTMLElement = mount
  */
 const REGISTRY_ATTEMPTS = 3
 
-/** Whatever the registry last refused with, for the screen that reports it. */
-let lastRegistryFailure: unknown
-
 applyTheme()
 const t = createTranslate()
 
@@ -52,20 +49,18 @@ const t = createTranslate()
  * leave the window blank with the reason only in the console.
  * @returns every paired host.
  */
-async function knownHosts(): Promise<readonly HostRecord[]> {
-  // A registry that never answers is not something the picker can fix, and each
-  // trip through it mounts a fresh runtime and a fresh frame. The loop is
-  // bounded so an unreadable registry ends in a screen that says so rather than
-  // in a window that allocates until it stops responding.
-  for (let attempt = 0; attempt < REGISTRY_ATTEMPTS; attempt += 1) {
-    try {
-      return await invoke<HostRecord[]>('list_hosts')
-    } catch (reason) {
-      lastRegistryFailure = reason
-    }
-    await renderHostPicker(container)
+async function knownHosts(attemptsLeft = REGISTRY_ATTEMPTS): Promise<readonly HostRecord[]> {
+  try {
+    return await invoke<HostRecord[]>('list_hosts')
+  } catch (reason) {
+    // A registry that never answers is not something the picker can fix, and
+    // each trip through it mounts a fresh runtime and a fresh frame. The
+    // recursion is bounded so an unreadable registry ends in a reported failure
+    // rather than in a window that allocates until it stops responding.
+    if (attemptsLeft <= 1) throw reason
   }
-  throw lastRegistryFailure ?? new Error('the host registry could not be read')
+  await renderHostPicker(container)
+  return knownHosts(attemptsLeft - 1)
 }
 
 /**

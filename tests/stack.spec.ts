@@ -14,9 +14,12 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { type ParseError, parse as parseJsonc } from 'jsonc-parser'
 import { coerce, gte, major, minor } from 'semver'
+import type { LocaleId } from '../apps/deeptail/src/browser-locale.ts'
+import { DICTIONARIES } from '../apps/deeptail/src/locales.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
@@ -78,15 +81,6 @@ function readJsonc(text: string): Record<string, unknown> {
   const value = parseJsonc(text, errors, { allowTrailingComma: true }) as Record<string, unknown>
   expect(errors).toEqual([])
   return value
-}
-
-/**
- * Every translation key a dictionary body declares.
- * @param body - the dictionary's source text.
- * @returns the keys, ordered.
- */
-function keysOf(body: string): string[] {
-  return [...body.matchAll(/^\s{2}'([^']+)':/gmu)].map((match) => match[1] ?? '').toSorted((a, b) => a.localeCompare(b))
 }
 
 /**
@@ -232,19 +226,63 @@ describe('legacy patterns and suppressions', () => {
   })
 })
 
+/** The locales the product ships, the first standing as the key-set reference. */
+function locales(): [LocaleId, ...LocaleId[]] {
+  const [first, ...rest] = Object.keys(DICTIONARIES) as LocaleId[]
+  if (first === undefined) throw new Error('the product ships no dictionary')
+  return [first, ...rest]
+}
+
+/** The `{name}` placeholders one sentence carries, in order. */
+function placeholders(value: string): string[] {
+  return [...value.matchAll(/\{(\w+)\}/gu)].map((found) => found[1] ?? '')
+}
+
 describe('translations', () => {
-  it('keeps both dictionaries on exactly the same keys', async () => {
-    const source = await readFile('apps/deeptail/src/locales.ts', 'utf8')
-    const dictionaries = [...source.matchAll(/const (zh|en) = \{([\s\S]*?)\n\} satisfies/gu)]
-    expect(dictionaries.length).toBe(2)
-    const [first, second] = dictionaries
-    expect(keysOf(first?.[2] ?? '')).toEqual(keysOf(second?.[2] ?? ''))
+  it('keeps every dictionary on exactly the same keys', () => {
+    const [first, ...rest] = locales()
+    expect(rest.length).toBeGreaterThan(0)
+    const reference = Object.keys(DICTIONARIES[first]).toSorted()
+    expect(reference.length).toBeGreaterThan(20)
+    for (const locale of rest) {
+      expect([locale, Object.keys(DICTIONARIES[locale]).toSorted()]).toEqual([locale, reference])
+    }
   })
 
-  it('leaves no placeholder unfilled in either dictionary', async () => {
-    const source = await readFile('apps/deeptail/src/locales.ts', 'utf8')
-    const entries = [...source.matchAll(/^\s{2}'([^']+)':\s*'([^']*)'/gmu)]
-    expect(entries.length).toBeGreaterThan(0)
-    expect(entries.filter(([, , value]) => (value ?? '').trim() === '').map(([, key]) => key)).toEqual([])
+  it('leaves no entry empty in any dictionary', () => {
+    const empty = Object.entries(DICTIONARIES).flatMap(([locale, dictionary]) =>
+      Object.entries(dictionary)
+        .filter(([, value]) => value.trim() === '')
+        .map(([key]) => `${locale}:${key}`),
+    )
+    expect(empty).toEqual([])
+  })
+
+  it('fills the same placeholders in every dictionary', () => {
+    // A sentence that drops a placeholder in translation renders `{message}`
+    // to the reader, or silently loses what it was carrying.
+    const [first, ...rest] = locales()
+    const reference = DICTIONARIES[first]
+    const drift: string[] = []
+    for (const locale of rest) {
+      const dictionary = DICTIONARIES[locale]
+      for (const key of Object.keys(reference) as (keyof typeof reference)[]) {
+        const wanted = placeholders(reference[key])
+        if (JSON.stringify(wanted) !== JSON.stringify(placeholders(dictionary[key])))
+          drift.push(`${locale}:${String(key)}`)
+      }
+    }
+    expect(drift).toEqual([])
+  })
+
+  it('carries no key nothing reads', () => {
+    // A key kept after its surface is gone is copy nobody maintains, and a
+    // dictionary that only grows is one no translator can prioritize.
+    const sources = repositoryFiles(['.ts']).filter(
+      (file) => file.label.startsWith('apps/deeptail/src/') && !file.label.endsWith('locales.ts'),
+    )
+    const text = sources.map((file) => readFileSync(file.path, 'utf8')).join('\n')
+    const unread = Object.keys(DICTIONARIES.en).filter((key) => !text.includes(`'${key}'`))
+    expect(unread).toEqual([])
   })
 })

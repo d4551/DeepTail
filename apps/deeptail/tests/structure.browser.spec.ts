@@ -205,3 +205,66 @@ it('has no structural defects with the document direction reversed', async () =>
   expect(await defects(page)).toBe('')
   await page.close()
 })
+
+it('has no structural defects on any failure state, at every width', async () => {
+  // No failure state was ever measured. That is where the retry control, the
+  // strips and their borders live, so the one surface with an extra affordance
+  // in it was the one surface no structural check had seen.
+  const checked = await Promise.all(
+    VIEWPORTS.map(async (viewport) => {
+      const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }))
+      await page.setViewportSize({ width: viewport.width, height: viewport.height })
+      await page.waitForSelector('[data-deeptail-state="partial"]')
+      const found = await defects(page)
+      await page.close()
+      return `${viewport.label}: ${found}`
+    }),
+  )
+  expect(checked.filter((line) => !line.endsWith(': '))).toEqual([])
+})
+
+it('meets the touch minimum on a retry a finger has to hit', async () => {
+  const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }), {
+    mobile: true,
+  })
+  await page.waitForSelector('[data-deeptail-shell]')
+  // The roster lives in the drawer on this layout, so the strip is only on
+  // screen — and only measurable — once the drawer is open.
+  await page.locator('[data-deeptail-action="drawer"]').click()
+  await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
+  // The retry inherits the strip's 12px type. Left unpadded it was an 18px
+  // target, and no case had ever rendered it while the floor was being applied.
+  expect(await defects(page, true)).toBe('')
+  await page.close()
+})
+
+it('has no structural defects on the picker while it is reporting a refusal', async () => {
+  const page = await harness.open({ hosts: [], listError: 'the registry is unreadable' })
+  await page.waitForSelector('[data-deeptail-state="error"]')
+  expect(await defects(page)).toBe('')
+  await page.close()
+})
+
+it('has no structural defects on a pairing form that refused what was typed', async () => {
+  // The picker only draws while nothing is paired; a host in the registry goes
+  // straight to the shell.
+  const page = await harness.open({ hosts: [] })
+  await page.waitForSelector('[data-deeptail-picker]')
+  await page.getByRole('button', { name: 'Pair a host' }).click()
+  await page.locator('[data-deeptail-field="link"]').fill('not a link')
+  await page.locator('[data-deeptail-action="pair-submit"]').click()
+  await page.waitForSelector('[data-deeptail-state="pair-error"]')
+  expect(await defects(page)).toBe('')
+  await page.close()
+})
+
+it('has no structural defects with a row action revealed', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  // The actions are `display: none` until the row is focused, so on a fine
+  // pointer they were never measured at all — a 0x0 box is not a target.
+  await page.locator('[data-deeptail-session="s-running"] .session-open').first().focus()
+  await page.locator('[data-deeptail-action="row-message"]').first().waitFor({ state: 'visible' })
+  expect(await defects(page)).toBe('')
+  await page.close()
+})

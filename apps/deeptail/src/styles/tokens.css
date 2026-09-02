@@ -258,6 +258,14 @@ summary:focus-visible,
   outline-offset: 2px;
 }
 
+/* A row's seat in a `role="list"`. Both products seat their rows the same way,
+ * and both sheets would otherwise carry the rule: a `span` is phrasing content
+ * and cannot hold a row's block box. */
+.list-seat {
+  display: block;
+  min-width: 0;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
