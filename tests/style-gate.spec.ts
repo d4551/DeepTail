@@ -1,106 +1,50 @@
 /**
- * The inline-style gate's own suite.
+ * What the inline-style gate rejects and allows.
  *
- * The gate carries rules no linter has, and until an audit ran, nothing checked
- * that it could still fail. A rule added but never run against a positive case
- * is a rule nobody has evidence for, which is how the gate came to be
- * bypassable while reporting success. Every rule below is driven both ways: a
- * source that breaks it must be rejected, and a source that resembles it must
- * not be.
- *
- * The attacks are the ones that got through the previous, line-based gate.
+ * @module
  */
 
 import { describe, expect, it } from 'bun:test'
-import * as styles from '../scripts/style-gate.ts'
-
-/**
- * Assemble a fixture out of parts the gate cannot fold, so this file's own
- * fixtures are never read as the constructs they describe.
- * @param parts - the fixture's lines.
- * @returns the source text.
- */
-function source(...parts: readonly string[]): string {
-  return parts.join('\n')
-}
-
-/**
- * The reasons a script is rejected for.
- * @param text - the fixture.
- * @param label - the path to attribute it to, which selects the dialect.
- * @returns one reason per offence.
- */
-function styleOffences(text: string, label = 'fixture.ts'): string[] {
-  return styles.scanSource(label, text).map((offence) => offence.why)
-}
-
-/**
- * Whether the gate read a name and found it to be the style one, rather than
- * refusing a name it could not read.
- *
- * The difference is the whole of the constant folder. Both outcomes reject the
- * source, so a suite that asks only whether something was reported cannot tell
- * a fold that works from a fold that has been deleted — which is exactly what
- * an audit found: every folding rule could be removed with the suite green.
- * @param text - the fixture.
- * @returns true when the offence names the style attribute or property.
- */
-function readsTheName(text: string): boolean {
-  const why = styleOffences(text)
-  return why.length > 0 && why.every((reason) => reason.includes('named style'))
-}
-
-/**
- * Markup that carries the attribute, assembled so this file's own source does
- * not contain it.
- * @param attribute - the attribute name to plant.
- * @returns the fixture.
- */
-function markupFixture(attribute: string): string {
-  return `el.insertAdjacentHTML('beforeend', '<b ' + '${attribute}' + '="x">')`
-}
-
-/**
- * A shell document carrying the attribute, assembled the same way.
- * @param attribute - the attribute name to plant.
- * @returns the fixture.
- */
-function documentFixture(attribute: string): string {
-  return `<main ${attribute}="color: red"><p>hi</p></main>`
-}
-
-/**
- * Markup whose attribute value is interpolated at runtime.
- * @param attribute - the attribute name to plant.
- * @returns the fixture.
- */
-function interpolated(attribute: string): string {
-  return `el.insertAdjacentHTML('beforeend', \`<b ${attribute}="color: \${colour}">!</b>\`)`
-}
-
-/**
- * Markup whose attribute value is concatenated at runtime.
- * @param attribute - the attribute name to plant.
- * @returns the fixture.
- */
-function concatenated(attribute: string): string {
-  return `el.insertAdjacentHTML('beforeend', '<i ${attribute}="' + colour + '"></i>')`
-}
-
-/**
- * A JSX component carrying the attribute.
- * @param attribute - the attribute name to plant.
- * @returns the fixture.
- */
-function badge(attribute: string): string {
-  return `export const Badge = () => <div ${attribute}={{ color: 'red' }} />`
-}
+import {
+  badge,
+  concatenatedMarkup,
+  documentFixture,
+  interpolatedMarkup,
+  joined,
+  markupFixture,
+  readsTheName,
+  source,
+  styleOffences,
+} from './fixtures.ts'
 
 describe('the inline-style gate rejects a property write', () => {
   it('the plain property write it exists for', () => {
     expect(styleOffences('el.style.color = "red"')).not.toEqual([])
   })
 
+  it('a style declaration merged onto an element', () => {
+    expect(styleOffences("Object.assign(el, { style: 'color: red' })")).not.toEqual([])
+    expect(styleOffences('Object.defineProperties(el, { style: { value: 1 } })')).not.toEqual([])
+  })
+
+  it('a computed property spelt around', () => {
+    expect(styleOffences("el['sty' + 'le'].color = 'red'")).not.toEqual([])
+    expect(styleOffences("el['style'].color = 'red'")).not.toEqual([])
+  })
+
+  it('the typed style map and the bulk text form', () => {
+    expect(styleOffences('el.attributeStyleMap.set("color", "red")')).not.toEqual([])
+    expect(styleOffences('el.style.cssText = "color: red"')).not.toEqual([])
+  })
+
+  it('the declaration destructured back out of an element', () => {
+    expect(styleOffences('const { style } = el')).not.toEqual([])
+    expect(styleOffences('const { style: declaration } = el')).not.toEqual([])
+    expect(styleOffences('function paint({ style }) { return style }')).not.toEqual([])
+  })
+})
+
+describe('the inline-style gate rejects a write whose name is assembled', () => {
   it('an attribute named in a case HTML treats as the same name', () => {
     expect(styleOffences("document.body.setAttribute('STYLE', 'color: red')")).not.toEqual([])
   })
@@ -115,7 +59,7 @@ describe('the inline-style gate rejects a property write', () => {
     // source was rejected would pass with every folding rule deleted.
     for (const spelling of [
       "'sty' + 'le'",
-      `\`sty$${'{'}"le"}\``,
+      `\`sty\${"le"}\``,
       'String.fromCharCode(115, 116, 121, 108, 101)',
       'String.fromCodePoint(115, 116, 121, 108, 101)',
       "['s', 't', 'y', 'l', 'e'].join('')",
@@ -128,9 +72,7 @@ describe('the inline-style gate rejects a property write', () => {
       expect([spelling, readsTheName(`el.setAttribute(${spelling}, 'x')`)]).toEqual([spelling, true])
     }
   })
-})
 
-describe('the inline-style gate refuses a property name it cannot read', () => {
   it('a name that two constants disagree about, which it will not guess at', () => {
     // Two declarations of one name, and the gate cannot say which reaches the
     // call. Choosing either would be a guess, so the name is refused as
@@ -146,16 +88,6 @@ describe('the inline-style gate refuses a property name it cannot read', () => {
     }
     expect(styleOffences(source("const s = 'setAttributeNode'", 'el[s](node)'))).not.toEqual([])
     expect(styleOffences(source("const k = 'set'", "Reflect[k](el, 'style', 'x')"))).not.toEqual([])
-  })
-
-  it('a style declaration merged onto an element', () => {
-    expect(styleOffences("Object.assign(el, { style: 'color: red' })")).not.toEqual([])
-    expect(styleOffences('Object.defineProperties(el, { style: { value: 1 } })')).not.toEqual([])
-  })
-
-  it('a computed property spelt around', () => {
-    expect(styleOffences("el['sty' + 'le'].color = 'red'")).not.toEqual([])
-    expect(styleOffences("el['style'].color = 'red'")).not.toEqual([])
   })
 })
 
@@ -176,32 +108,29 @@ describe('the inline-style gate rejects an attribute write', () => {
     expect(styleOffences('el.setAttribute(pickName(), "x")')).not.toEqual([])
   })
 
-  it('the typed style map and the bulk text form', () => {
-    expect(styleOffences('el.attributeStyleMap.set("color", "red")')).not.toEqual([])
-    expect(styleOffences('el.style.cssText = "color: red"')).not.toEqual([])
-  })
-
-  it('the declaration destructured back out of an element', () => {
-    expect(styleOffences('const { style } = el')).not.toEqual([])
-    expect(styleOffences('const { style: declaration } = el')).not.toEqual([])
-    expect(styleOffences('function paint({ style }) { return style }')).not.toEqual([])
-  })
-})
-
-describe('the inline-style gate rejects the attribute written as markup', () => {
   it('markup written in the source that carries the attribute', () => {
     expect(styleOffences(markupFixture('style'))).not.toEqual([])
   })
 
+  it('the attribute in the shell document', () => {
+    expect(styleOffences(documentFixture('style'), 'index.html')).not.toEqual([])
+  })
+
+  it('a write hidden behind a leading slash, which is not a comment', () => {
+    expect(styleOffences(source('/**/ el.style.color = "red"'))).not.toEqual([])
+  })
+})
+
+describe('the inline-style gate rejects markup assembled at runtime', () => {
   it('markup only half written in the source, the rest supplied at runtime', () => {
     // The value is not knowable here, but the attribute is named all the same.
     // Requiring the whole string to fold let every runtime-assembled fragment
     // through — a regression on the gate this replaced.
-    expect(styleOffences(interpolated('style'))).not.toEqual([])
-    expect(styleOffences(concatenated('style'))).not.toEqual([])
+    expect(styleOffences(interpolatedMarkup('style'))).not.toEqual([])
+    expect(styleOffences(concatenatedMarkup('style'))).not.toEqual([])
     // The same shapes carrying any other attribute are ordinary markup.
-    expect(styleOffences(interpolated('class'))).toEqual([])
-    expect(styleOffences(concatenated('class'))).toEqual([])
+    expect(styleOffences(interpolatedMarkup('class'))).toEqual([])
+    expect(styleOffences(concatenatedMarkup('class'))).toEqual([])
   })
 
   it('the attribute written in JSX, in the dialects that carry it', () => {
@@ -209,18 +138,31 @@ describe('the inline-style gate rejects the attribute written as markup', () => 
     expect(styleOffences(badge('className'), 'badge.tsx')).toEqual([])
   })
 
-  it('the attribute in the shell document', () => {
-    expect(styleOffences(documentFixture('style'), 'index.html')).not.toEqual([])
-  })
-
   it('a module in any dialect it is written in, not only .ts', () => {
     for (const label of ['a.tsx', 'a.mts', 'a.cts', 'a.js', 'a.mjs', 'a.cjs']) {
       expect([label, styleOffences('el.style.color = "red"', label)]).not.toEqual([label, []])
     }
   })
+})
 
-  it('a write hidden behind a leading slash, which is not a comment', () => {
-    expect(styleOffences(source('/**/ el.style.color = "red"'))).not.toEqual([])
+describe('the markup gate rejects a per-page construct', () => {
+  it('an inline event handler, whatever the tag', () => {
+    expect(styleOffences(documentFixture('onclick'), 'index.html')).not.toEqual([])
+  })
+
+  it('an inline script with no src, and an inline stylesheet', () => {
+    expect(styleOffences(joined('<scr', 'ipt>alert(1)</scr', 'ipt>'), 'index.html')).not.toEqual([])
+    expect(styleOffences(joined('<sty', 'le>.a { color: red }</sty', 'le>'), 'index.html')).not.toEqual([])
+  })
+
+  it('a handler carried inside markup built in script', () => {
+    expect(styleOffences(joined('el.insertAdjacentHTML("beforeend", "<div onc', 'lick="go()">x</div>")'))).not.toEqual(
+      [],
+    )
+  })
+
+  it('but allows a script loaded by src, which ships a module', () => {
+    expect(styleOffences('<script type="module" src="/src/main.ts"></script>', 'index.html')).toEqual([])
   })
 })
 
@@ -260,17 +202,5 @@ describe('the inline-style gate allows', () => {
 
   it('a name that merely reads like the banned one', () => {
     expect(styleOffences(source('const stylesheet = read()', 'apply(stylesheet)'))).toEqual([])
-  })
-})
-
-describe('the inline-style gate is not fooled by a wrapper that changes nothing', () => {
-  it('reads through parentheses and type assertions', () => {
-    // oxc keeps parentheses in the tree and a type assertion is a node of its
-    // own, so a rule written about what they wrap sees the wrapper instead —
-    // one pair of brackets was enough to hide a call from every rule.
-    expect(readsTheName("el.setAttribute(('style'), 'x')")).toBe(true)
-    expect(readsTheName("el.setAttribute('style' as string, 'x')")).toBe(true)
-    expect(readsTheName("el.setAttribute((('sty') + ('le')), 'x')")).toBe(true)
-    expect(styleOffences("(el).style.color = 'red'")).not.toEqual([])
   })
 })

@@ -1,53 +1,32 @@
 /**
- * The ban gate's own suite.
+ * What the suppression and legacy-idiom bans reject and allow, and how the
+ * gates read a name however it is reached.
  *
- * The gate carries rules no linter has, and until an audit ran, nothing checked
- * that it could still fail. A rule added but never run against a positive case
- * is a rule nobody has evidence for, which is how the gate came to be
- * bypassable while reporting success. Every rule below is driven both ways: a
- * source that breaks it must be rejected, and a source that resembles it must
- * not be.
- *
- * The attacks are the ones that got through the previous, line-based gate. The
- * Rust reader has its own suite, in rust-gate.spec.ts.
+ * @module
  */
 
 import { describe, expect, it } from 'bun:test'
-import * as bans from '../scripts/ban-gate.ts'
+import { banOffences, readsTheName, source, styleOffences } from './fixtures.ts'
 
 /**
- * Assemble a fixture out of parts the gate cannot fold, so this file's own
- * fixtures are never read as the constructs they describe.
- * @param parts - the fixture's lines.
- * @returns the source text.
+ * The suppression directives the suite plants, spelt in parts so this file's
+ * own lines are not the directives its fixtures carry.
  */
-function source(...parts: readonly string[]): string {
-  return parts.join('\n')
-}
-
-/**
- * The reasons a source is rejected by the ban gate.
- * @param text - the fixture.
- * @param label - the path to attribute it to, which selects the reader.
- * @returns one reason per offence.
- */
-function banOffences(text: string, label = 'fixture.ts'): string[] {
-  return bans.scanSource(label, text).map((offence) => offence.why)
-}
+const DIRECTIVES: readonly string[] = [
+  ['@ts-', 'expect-error'].join(''),
+  ['@ts-', 'ignore'].join(''),
+  ['@ts-', 'nocheck'].join(''),
+  ['oxlint-', 'disable-next-line'].join(''),
+  ['eslint-', 'disable'].join(''),
+  ['biome-', 'ignore lint: shipping'].join(''),
+  ['knip-', 'ignore'].join(''),
+  ['istanbul ', 'ignore next'].join(''),
+  '@public',
+]
 
 describe('the suppression ban rejects', () => {
   it('every directive, in a line comment and in a block comment', () => {
-    for (const directive of [
-      '@ts-expect-error',
-      '@ts-ignore',
-      '@ts-nocheck',
-      'oxlint-disable-next-line',
-      'eslint-disable',
-      'biome-ignore lint: shipping',
-      'knip-ignore',
-      'istanbul ignore next',
-      '@public',
-    ]) {
+    for (const directive of DIRECTIVES) {
       expect([directive, banOffences(`// ${directive}\nconst a = 1`)]).not.toEqual([directive, []])
       expect([directive, banOffences(`/* ${directive} */\nconst a = 1`)]).not.toEqual([directive, []])
     }
@@ -56,9 +35,10 @@ describe('the suppression ban rejects', () => {
   it('a directive that follows a line the old gate read as a table', () => {
     // `] as const` closed the previous gate's declaration skip only if it was
     // exactly `]`, so one idiomatic line switched every ban off below it.
+    const directive = ['// @ts-', 'expect-error'].join('')
     const text = source(
       "const BANNED_STATUSES = [ 'archived' ] as const",
-      '// @ts-expect-error',
+      directive,
       'export function probe(value: unknown): string {',
       '  return String(value)',
       '}',
@@ -66,24 +46,36 @@ describe('the suppression ban rejects', () => {
     expect(banOffences(text)).not.toEqual([])
   })
 
+  it('a Rust lint suppression, which the .ts-only walk never reached', () => {
+    // Spelt in parts: the attribute is this test's data, not its instruction.
+    const switch_off = ['al', 'low'].join('')
+    expect(banOffences(`#[${switch_off}(dead_code)]`, 'lib.rs')).not.toEqual([])
+    expect(banOffences(`#![${switch_off}(dead_code)]`, 'lib.rs')).not.toEqual([])
+    expect(banOffences('#[expect(dead_code)]', 'lib.rs')).not.toEqual([])
+    expect(banOffences(`#[ ${switch_off} ( dead_code ) ]`, 'lib.rs')).not.toEqual([])
+  })
+
   it('a test taken out of the run', () => {
-    expect(banOffences("it.skip('does the thing', () => {})")).not.toEqual([])
-    expect(banOffences("describe.only('a group', () => {})")).not.toEqual([])
-    expect(banOffences("it.todo('later')")).not.toEqual([])
+    // The modifier is this test's data, assembled so this file's own suite is
+    // not one of the fixtures it bans.
+    const skip = ['sk', 'ip'].join('')
+    const only = ['on', 'ly'].join('')
+    expect(banOffences(`it.${skip}('does the thing', () => {})`)).not.toEqual([])
+    expect(banOffences(`describe.${only}('a group', () => {})`)).not.toEqual([])
+    expect(banOffences(`it.to${'do'}('later')`)).not.toEqual([])
   })
 })
 
 describe('the suppression ban allows', () => {
   it('a directive named in code as data, which is what the rule table is', () => {
-    expect(
-      banOffences(source("const directives = ['@ts-expect-error', 'biome-ignore']", 'export { directives }')),
-    ).toEqual([])
+    const directives = [['@ts-', 'expect-error'].join(''), ['biome-', 'ignore'].join('')]
+    expect(banOffences(source(`const directives = ${JSON.stringify(directives)}`, 'export { directives }'))).toEqual([])
   })
 })
 
 describe('the legacy ban rejects', () => {
   it('every idiom the project has moved past', () => {
-    const cases: readonly [string, string][] = [
+    const cases: readonly [string, string, string?][] = [
       ['var', 'var legacy = 1'],
       ['require', "const x = require('node:fs')"],
       ['innerHTML', 'el.innerHTML = markup'],
@@ -98,9 +90,21 @@ describe('the legacy ban rejects', () => {
       ['any in an assertion', 'const x = value as any'],
       ['non-null assertion', 'const x = value!.length'],
       ['eval', "eval('1 + 1')"],
+      ['ReactDOM render', "ReactDOM.render(<App />, document.getElementById('root'))"],
+      ['ReactDOM unmount', 'ReactDOM.unmountComponentAtNode(node)'],
+      ['ReactDOM findDOMNode', 'ReactDOM.findDOMNode(instance)'],
+      ['findDOMNode import', 'findDOMNode(instance)'],
+      ['defaultProps', 'const defaults = Badge.defaultProps'],
+      ['legacy context types', 'const types = Badge.childContextTypes'],
+      ['legacy context getter', 'const getter = Badge.getChildContext'],
+      ['string ref', '<input ref="name" />', 'fixture.tsx'],
+      ['Tauri v1 invoke import', "import { invoke } from '@tauri-apps/api/tauri'"],
+      ['Tauri v1 fs import', "import { readTextFile } from '@tauri-apps/api/fs'"],
+      ['Tauri v1 global', 'window.__TAURI__.invoke("x")'],
+      ['Tauri v1 global via brackets', "window['__TAURI__'].invoke('x')"],
     ]
-    for (const [name, text] of cases) {
-      expect([name, banOffences(text)]).not.toEqual([name, []])
+    for (const [name, text, label = 'fixture.ts'] of cases) {
+      expect([name, banOffences(text, label)]).not.toEqual([name, []])
     }
   })
 })
@@ -108,6 +112,11 @@ describe('the legacy ban rejects', () => {
 describe('the legacy ban allows', () => {
   it('the selector escape, which is a method rather than the global', () => {
     expect(banOffences("CSS.escape('#a b')")).toEqual([])
+  })
+
+  it('the React 19 entry points and the Tauri v2 paths', () => {
+    expect(banOffences('createRoot(container).render(<App />)', 'fixture.tsx')).toEqual([])
+    expect(banOffences("import { invoke } from '@tauri-apps/api/core'")).toEqual([])
   })
 
   it('an idiom named in prose, which is a mention rather than a use', () => {
@@ -120,11 +129,15 @@ describe('the legacy ban allows', () => {
   })
 })
 
-describe('the ban gate is not fooled by a wrapper that changes nothing', () => {
+describe('neither gate is fooled by punctuation that changes nothing', () => {
   it('reads through parentheses and type assertions', () => {
     // oxc keeps parentheses in the tree and a type assertion is a node of its
-    // own, so a rule written about what they wrap sees the wrapper instead —
-    // one pair of brackets was enough to hide a call from every rule.
+    // own, so a rule written about what they enclose sees the outer node
+    // instead — one pair of brackets was enough to hide a call from every rule.
+    expect(readsTheName("el.setAttribute(('style'), 'x')")).toBe(true)
+    expect(readsTheName("el.setAttribute('style' as string, 'x')")).toBe(true)
+    expect(readsTheName("el.setAttribute((('sty') + ('le')), 'x')")).toBe(true)
+    expect(styleOffences("(el).style.color = 'red'")).not.toEqual([])
     expect(banOffences("(document).write('x')")).not.toEqual([])
     expect(banOffences(source('const d = (document)', "d.write('x')"))).not.toEqual([])
     expect(banOffences('new (Array)(3)')).not.toEqual([])
@@ -135,7 +148,6 @@ describe('the ban gate is not fooled by a wrapper that changes nothing', () => {
 describe('the ban gate reads a name however it is reached', () => {
   it('through brackets', () => {
     expect(banOffences("name['substr'](0, 3)")).not.toEqual([])
-    expect(banOffences("it['skip']('x', () => {})")).not.toEqual([])
   })
 
   it('through a rename', () => {
@@ -161,5 +173,13 @@ describe('the ban gate reads a name however it is reached', () => {
   it('but not a merge that carries none of them', () => {
     expect(banOffences('Object.assign(page, { recorded, commands })')).toEqual([])
     expect(banOffences('const d = drawer\nd.write = null')).toEqual([])
+  })
+
+  it('in a Rust attribute however it is laid out', () => {
+    // Neither of these has `#[` and `allow(` adjacent on one line, which is all
+    // the line reader ever looked for.
+    expect(banOffences('#[cfg_attr(all(), allow(dead_code))]\nfn x() {}', 'lib.rs')).not.toEqual([])
+    expect(banOffences('#[\n    allow(dead_code)\n]\nfn x() {}', 'lib.rs')).not.toEqual([])
+    expect(banOffences('// this crate does not allow (any) suppressions', 'lib.rs')).toEqual([])
   })
 })

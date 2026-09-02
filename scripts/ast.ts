@@ -12,8 +12,21 @@
 
 import { parseSync } from 'oxc-parser'
 
+/**
+ * A value found anywhere on a parsed node.
+ *
+ * The tree is walked structurally, so every property a node carries is one of
+ * these; nothing the gates read is left untyped. A parser also emits plain
+ * records that are not nodes — a template element's text is one — so a record
+ * shape is here alongside the node it is read from.
+ */
+export type Field = null | boolean | number | string | Node | readonly Field[] | Record
+
+/** A parser record that is not a node, such as a template element's text. */
+export type Record = { readonly [key: string]: Field }
+
 /** A parsed node, walked structurally rather than by declared shape. */
-export type Node = Record<string, unknown> & { readonly type: string }
+export type Node = { readonly [key: string]: Field } & { readonly type: string }
 
 /** One comment, which is the only form a checker directive ever takes. */
 export interface Comment {
@@ -26,13 +39,13 @@ export interface Comment {
 /** A parsed file: its syntax tree, its comments, and its line lookup. */
 export interface Parsed {
   /** The program body. */
-  readonly body: unknown
+  readonly body: readonly Node[]
   /** Every comment in the file. */
   readonly comments: readonly Comment[]
   /** Errors that stopped the parse, if any. */
   readonly errors: readonly { readonly message: string }[]
   /** The line a byte offset falls on, one-based. */
-  readonly lineAt: (offset: unknown) => number
+  readonly lineAt: (offset: Field | undefined) => number
 }
 
 /**
@@ -40,8 +53,46 @@ export interface Parsed {
  * @param value - any value found on a parent node.
  * @returns true when it carries a node type.
  */
-export function isNode(value: unknown): value is Node {
-  return typeof value === 'object' && value !== null && typeof (value as { type?: unknown }).type === 'string'
+export function isNode(value: Field | undefined): value is Node {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    !Array.isArray(value) &&
+    typeof value.type === 'string'
+  )
+}
+
+/** The values that carry properties under string keys. */
+type Holder = Node | Record
+
+/**
+ * Whether a value carries properties under string keys.
+ *
+ * An array has keys of its own kind, not of a holder's, and a type predicate
+ * is what rules it out of the narrowed type: `Array.isArray` alone does not,
+ * because its guard speaks of arrays, not of the readonly arrays this tree
+ * carries.
+ * @param value - the value to judge.
+ * @returns true when the value is a node or a parser record.
+ */
+function isHolder(value: Field | undefined): value is Holder {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * The value a node or parser record carries under a key, when there is one.
+ *
+ * The parser emits some values as plain records rather than nodes — a template
+ * element's text has no `type` of its own — so the holder is only required to
+ * be an object that has the key.
+ * @param value - the node or record to read, or any value found on one.
+ * @param key - the property to read.
+ * @returns the value, or null when it is absent or the holder has no keys.
+ */
+export function fieldOf(value: Field | undefined, key: string): Field {
+  if (!isHolder(value)) return null
+  return value[key] ?? null
 }
 
 /**
@@ -49,7 +100,7 @@ export function isNode(value: unknown): value is Node {
  * @param root - the node, or array of nodes, to start from.
  * @param visit - called once per node.
  */
-export function walk(root: unknown, visit: (node: Node) => void): void {
+export function walk(root: Field | undefined, visit: (node: Node) => void): void {
   if (Array.isArray(root)) {
     for (const item of root) walk(item, visit)
     return
@@ -61,7 +112,7 @@ export function walk(root: unknown, visit: (node: Node) => void): void {
   }
 }
 
-/** Wrappers that change nothing about the value inside them. */
+/** Node types that change nothing about the value they hold. */
 const TRANSPARENT = new Set([
   'ParenthesizedExpression',
   'TSAsExpression',
@@ -71,20 +122,21 @@ const TRANSPARENT = new Set([
 ])
 
 /**
- * The expression inside any number of wrappers that do not change it.
+ * The expression inside any number of nodes that do not change it.
  *
- * oxc keeps parentheses in the tree, and a type assertion is a node of its own,
- * so a rule written about what it wraps sees the wrapper instead: one pair of
- * brackets was enough to hide a call from every rule here.
- * @param value - the node to unwrap.
+ * oxc keeps parentheses in the tree, and a type assertion is a node of its
+ * own, so a rule written about what such a node holds would see the node
+ * itself instead: one pair of brackets was enough to hide a call from every
+ * rule here.
+ * @param value - the node to read.
  * @returns the innermost expression, or the value unchanged.
  */
-export function unwrap(value: unknown): unknown {
+export function unwrap(value: Field | undefined): Field | undefined {
   let inner = value
   // Bounded so a tree that somehow refers to itself cannot spin here.
   for (let depth = 0; depth < 32; depth += 1) {
     if (!isNode(inner) || !TRANSPARENT.has(inner.type)) return inner
-    inner = inner['expression']
+    inner = inner.expression
   }
   return inner
 }
@@ -95,10 +147,10 @@ export function unwrap(value: unknown): unknown {
  * @returns the name, or undefined when it is computed or not an identifier.
  */
 export function memberName(node: Node): string | undefined {
-  if (node['computed'] === true) return undefined
-  const property = unwrap(node['property'])
-  return isNode(property) && property.type === 'Identifier' && typeof property['name'] === 'string'
-    ? property['name']
+  if (node.computed === true) return undefined
+  const property = unwrap(node.property)
+  return isNode(property) && property.type === 'Identifier' && typeof property.name === 'string'
+    ? property.name
     : undefined
 }
 
@@ -107,7 +159,7 @@ export function memberName(node: Node): string | undefined {
  * @param text - the whole file.
  * @returns the reader.
  */
-export function lineReader(text: string): (offset: unknown) => number {
+export function lineReader(text: string): (offset: Field | undefined) => number {
   const starts = [0]
   for (const [index, character] of [...text].entries()) {
     if (character === '\n') starts.push(index + 1)
@@ -126,6 +178,20 @@ export function lineReader(text: string): (offset: unknown) => number {
 }
 
 /**
+ * Read one of the parser's interface-typed statements as the structural node
+ * the gates walk.
+ *
+ * oxc states its tree as a fixed family of interfaces while the gates read it
+ * structurally, so at this single boundary the parser's plain object graph is
+ * handed over whole rather than re-described node by node.
+ * @param value - the statement, as the parser types it.
+ * @returns the same object, as the walk reads it.
+ */
+function asNode(value: object): Node {
+  return value as Node
+}
+
+/**
  * Parse one script, keeping everything the gates read off it.
  * @param label - the path, which selects the dialect.
  * @param text - the file's contents.
@@ -134,7 +200,7 @@ export function lineReader(text: string): (offset: unknown) => number {
 export function parseScript(label: string, text: string): Parsed {
   const parsed = parseSync(label, text)
   return {
-    body: parsed.program.body,
+    body: parsed.program.body.map(asNode),
     comments: parsed.comments,
     errors: parsed.errors,
     lineAt: lineReader(text),

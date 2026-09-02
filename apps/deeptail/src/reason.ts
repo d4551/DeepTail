@@ -50,8 +50,8 @@ export function describeFailure(reason: unknown, t: Translate): string {
   const key = TRANSPORT_KEYS[reason.code]
   if (key === undefined) return reason.message
   return t(key, {
-    endpoint: String(reason.details['endpoint'] ?? ''),
-    status: String(reason.details['status'] ?? ''),
-    detail: String(reason.details['detail'] ?? reason.message),
+    endpoint: String(reason.details.endpoint ?? ''),
+    status: String(reason.details.status ?? ''),
+    detail: String(reason.details.detail ?? reason.message),
   })
 }

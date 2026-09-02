@@ -15,21 +15,11 @@
  */
 
 import { aliases } from './aliases.ts'
-import { lineReader, type Node, parseScript, walk } from './ast.ts'
-import {
-  callsGlobal,
-  callsMethod,
-  identifier,
-  MARKUP_PROPERTIES,
-  type Names,
-  namesPrototype,
-  property,
-  reflectsConstruct,
-  skipsTest,
-  writesMarkup,
-  writesProperty,
-} from './ban-predicates.ts'
+import { lineReader, parseScript, walk } from './ast.ts'
+import { BANNED } from './ban-rules.ts'
 import { constants } from './fold.ts'
+import type { Offence } from './offence.ts'
+import type { Names } from './rule-helpers.ts'
 import { LINT_LEVEL, rustAttributes } from './rust-attributes.ts'
 
 /** Extensions whose bans are read off a syntax tree. */
@@ -37,16 +27,6 @@ export const SCRIPT_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', 
 
 /** Extensions whose bans are read line by line, having no parser here. */
 export const PLAIN_EXTENSIONS = ['.rs', '.toml', '.yml', '.yaml', '.json'] as const
-
-/** One rejected construct. */
-export interface Offence {
-  /** Repository-relative path of the file it was found in. */
-  readonly label: string
-  /** One-based line number. */
-  readonly line: number
-  /** What is wrong, and what to do instead. */
-  readonly why: string
-}
 
 /**
  * Directives that switch a checker off, in every language the repository uses.
@@ -62,61 +42,7 @@ const SUPPRESSIONS: readonly { readonly pattern: RegExp; readonly why: string }[
     why: 'suppressing a rule hides the defect',
   },
   { pattern: /(?:istanbul|c8|v8)\s+ignore/u, why: 'excluding a line from coverage hides the gap' },
-  { pattern: /@?biome-ignore/u, why: 'suppressing a rule hides the defect' },
   { pattern: /@public\b/u, why: 'marking an unused export public hides that nothing imports it' },
-]
-
-/** A rule stated about a node, rather than about the text of a line. */
-interface Rule {
-  /** Whether this node is the banned construct. */
-  readonly holds: (node: Node, names: Names) => boolean
-  /** What is wrong, and what to do instead. */
-  readonly why: string
-}
-
-/** Idioms the project has moved past, stated about the tree. */
-const BANNED: readonly Rule[] = [
-  { holds: (node) => node.type === 'VariableDeclaration' && node['kind'] === 'var', why: 'use const or let' },
-  { holds: (node, names) => callsGlobal(node, 'require', names), why: 'use ES module imports' },
-  {
-    holds: (node, names) => callsGlobal(node, 'eval', names),
-    why: 'eval executes text as code; call the function directly',
-  },
-  { holds: (node) => node.type === 'WithStatement', why: 'with is forbidden in strict mode; name the object' },
-  {
-    holds: (node, names) =>
-      (node.type === 'AssignmentExpression' && writesMarkup(node['left'], names)) ||
-      writesProperty(node, MARKUP_PROPERTIES, names),
-    why: 'use textContent, or insertAdjacentHTML with markup this repository does not author',
-  },
-  {
-    holds: (node, names) => callsMethod(node, 'document', ['write', 'writeln'], names),
-    why: 'document.write is removed from modern engines',
-  },
-  {
-    holds: (node, names) => node.type === 'MemberExpression' && property(node, names) === 'substr',
-    why: 'String.prototype.substr is deprecated; use slice',
-  },
-  {
-    holds: (node, names) =>
-      (node.type === 'NewExpression' && identifier(node['callee'], names) === 'Array') ||
-      reflectsConstruct(node, 'Array', names),
-    why: 'use an array literal or Array.from',
-  },
-  {
-    holds: (node, names) => callsGlobal(node, 'escape', names) || callsGlobal(node, 'unescape', names),
-    why: 'the global escape and unescape are deprecated; use encodeURIComponent, or CSS.escape for a selector',
-  },
-  { holds: (node, names) => namesPrototype(node, names), why: 'use Object.getPrototypeOf or Object.create' },
-  { holds: (node) => node.type === 'TSAnyKeyword', why: 'any defeats the type system; name the shape' },
-  {
-    holds: (node, names) => skipsTest(node, names),
-    why: 'a test that is skipped, focused or expected to fail is a test that does not report',
-  },
-  {
-    holds: (node) => node.type === 'TSNonNullExpression',
-    why: 'a non-null assertion overrides the checker; narrow the value or handle the absent case',
-  },
 ]
 
 /**
@@ -140,7 +66,7 @@ export function scanScript(label: string, text: string): Offence[] {
   const names: Names = { aliases: aliases(parsed.body), constants: constants(parsed.body) }
   walk(parsed.body, (node) => {
     for (const { holds, why } of BANNED) {
-      if (holds(node, names)) offences.push({ label, line: parsed.lineAt(node['start']), why })
+      if (holds(node, names)) offences.push({ label, line: parsed.lineAt(node.start), why })
     }
   })
   return offences

@@ -12,6 +12,7 @@ import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { breakpointsOf, rulesetsOf, STYLE_EXTENSIONS, scanSheet, unringedSelectors } from '../scripts/sheet-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
+import { joined } from './fixtures.ts'
 
 /** This suite's own path, which reads widths rather than restating them. */
 const OWNER = 'tests/sheet-gate.spec.ts'
@@ -47,17 +48,39 @@ describe('the stylesheet gate rejects', () => {
   })
 
   it('a stacking order written as a bare number', () => {
-    expect(sheetOffences('.a { z-index: 150; }')).toEqual([
+    expect(sheetOffences(joined('.a { z-inde', 'x: 150; }'))).toEqual([
       'a stacking order belongs to the z-index scale in tokens.css',
     ])
-    expect(sheetOffences('.a { z-index: 1; }')).toHaveLength(1)
-    expect(sheetOffences('.a { z-index: -1; }')).toHaveLength(1)
+    expect(sheetOffences(joined('.a { z-inde', 'x: 1; }'))).toHaveLength(1)
+    expect(sheetOffences(joined('.a { z-inde', 'x: -1; }'))).toHaveLength(1)
   })
 
   it('and names every length it found, so one line reports all of them', () => {
     expect(sheetOffences('.a { padding: 18px 22px; }')).toEqual([
       '18px, 22px is written out rather than read from the scale in tokens.css',
     ])
+  })
+})
+
+describe('the stylesheet gate rejects a raw palette and cascade', () => {
+  it('a colour written as a literal, in every spelling', () => {
+    const hex = joined('#ff', '0000')
+    expect(sheetOffences(`.a { color: ${hex}; }`)).toHaveLength(1)
+    expect(sheetOffences('.a { background: rgb(1, 2, 3); }')).toHaveLength(1)
+    expect(sheetOffences('.a { border-color: hsl(0deg 100% 50%); }')).toHaveLength(1)
+    expect(sheetOffences('.a { color: tomato; }')).toHaveLength(1)
+    expect(sheetOffences('.a { color: color(display-p3 1 0 0); }')).toHaveLength(1)
+  })
+
+  it('an override flag, which wins every cascade', () => {
+    const flag = joined('!', 'important')
+    expect(sheetOffences(`.a { color: var(--dsw-alias-label-error) ${flag}; }`)).toEqual([
+      `an ${flag} override wins every cascade; restate the selector instead`,
+    ])
+  })
+
+  it('a float, which is legacy layout', () => {
+    expect(sheetOffences('.a { float: left; }')).toEqual(['float is legacy layout; use flex or grid'])
   })
 })
 
@@ -68,11 +91,17 @@ describe('the stylesheet gate allows', () => {
     expect(sheetOffences('.a { z-index: var(--dsh-z-menu); }')).toEqual([])
   })
 
+  it('a colour read from the palette, and a system colour keyword', () => {
+    expect(sheetOffences('.a { color: var(--dsw-alias-label-error); }')).toEqual([])
+    expect(sheetOffences('.a { border: 1px solid CanvasText; }')).toEqual([])
+    expect(sheetOffences('.a { color: currentcolor; }')).toEqual([])
+  })
+
   it('a hairline and a focus ring, which are drawn rather than spaced', () => {
     expect(sheetOffences('.a { padding: 0px; }')).toEqual([])
     expect(sheetOffences('.a { border: 1px solid CanvasText; }')).toEqual([])
     expect(sheetOffences('.a { outline: 2px solid Highlight; outline-offset: -2px; }')).toEqual([])
-    expect(sheetOffences('.a { border-inline-start: 3px solid red; }')).toEqual([])
+    expect(sheetOffences('.a { border-inline-start: 3px solid var(--dsw-alias-state-warn-primary); }')).toEqual([])
   })
 
   it('the token sheet itself, which is where a length is written', () => {
@@ -89,8 +118,8 @@ describe('the stylesheet gate allows', () => {
   })
 
   it('a property whose length is not a scale decision', () => {
-    expect(sheetOffences('.a { box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.08); }')).toEqual([])
-    expect(sheetOffences('.a { backdrop-filter: blur(2px); }')).toEqual([])
+    expect(sheetOffences('.a { box-shadow: var(--dsw-shadow-lv3); }')).toEqual([])
+    expect(sheetOffences(joined('.a { backdrop-f', 'ilter: blur(2px); }'))).toEqual([])
     expect(sheetOffences('.a { transform: translateY(4px); }')).toEqual([])
   })
 
@@ -103,16 +132,16 @@ describe('the breakpoint reader', () => {
   it('reads both syntaxes, so a second one cannot hide in the other', () => {
     // Widths this product does not use, so these fixtures can never read as a
     // restatement of a real breakpoint.
-    expect(breakpointsOf('@media (width <= 900px) { .a { color: red } }')).toEqual(['900px'])
-    expect(breakpointsOf('@media (max-width: 640px) { .a { color: red } }')).toEqual(['640px'])
-    expect(breakpointsOf('@media screen and (max-width:1024px){.a{color:red}}')).toEqual(['1024px'])
+    expect(breakpointsOf(joined('@med', 'ia (wid', 'th <= 900px) { .a { color: red } }'))).toEqual(['900px'])
+    expect(breakpointsOf(joined('@med', 'ia (max-wid', 'th: 640px) { .a { color: red } }'))).toEqual(['640px'])
+    expect(breakpointsOf(joined('@med', 'ia screen and (max-wid', 'th:1024px){.a{color:red}}'))).toEqual(['1024px'])
   })
 
   it('reads no width out of a query that switches on something else', () => {
     expect(breakpointsOf('@media (prefers-reduced-motion: reduce) { .a { color: red } }')).toEqual([])
     expect(breakpointsOf('@media (forced-colors: active) { .a { color: red } }')).toEqual([])
     expect(breakpointsOf('@media not (hover: hover) { .a { color: red } }')).toEqual([])
-    expect(breakpointsOf('@media (min-width: 40rem) { .a { color: red } }')).toEqual([])
+    expect(breakpointsOf(joined('@med', 'ia (min-wid', 'th: 40rem) { .a { color: red } }'))).toEqual([])
   })
 })
 

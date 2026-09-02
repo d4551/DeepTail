@@ -9,7 +9,7 @@
  * @module
  */
 
-import { isNode, memberName, type Node, unwrap, walk } from './ast.ts'
+import { type Field, fieldOf, isNode, memberName, type Node, unwrap, walk } from './ast.ts'
 
 /**
  * The constants a file declares, so a name held in one is still a name.
@@ -24,21 +24,21 @@ export type Constants = ReadonlyMap<string, string | null>
  * @param program - the parsed body.
  * @returns the bindings, with contested names marked undecided.
  */
-export function constants(program: unknown): Constants {
+export function constants(program: readonly Node[]): Constants {
   const found = new Map<string, string | null>()
   const empty: Constants = new Map()
   walk(program, (node) => {
-    if (node.type !== 'VariableDeclaration' || node['kind'] !== 'const') return
-    const declarations = node['declarations']
+    if (node.type !== 'VariableDeclaration' || node.kind !== 'const') return
+    const declarations = node.declarations
     if (!Array.isArray(declarations)) return
     for (const declaration of declarations) {
       if (!isNode(declaration)) continue
-      const id = unwrap(declaration['id'])
-      if (!isNode(id) || id.type !== 'Identifier' || typeof id['name'] !== 'string') continue
-      const value = staticString(empty, declaration['init'])
+      const id = unwrap(declaration.id)
+      if (!isNode(id) || id.type !== 'Identifier' || typeof id.name !== 'string') continue
+      const value = staticString(empty, declaration.init)
       if (value === undefined) continue
-      const seen = found.get(id['name'])
-      found.set(id['name'], seen === undefined || seen === value ? value : null)
+      const seen = found.get(id.name)
+      found.set(id.name, seen === undefined || seen === value ? value : null)
     }
   })
   return found
@@ -52,27 +52,27 @@ export function constants(program: unknown): Constants {
  * held in a well-named constant is the same name, and a gate that cannot fold
  * them is a gate that can be spelt around.
  * @param env - the file's constants.
- * @param unwrapped - the expression to fold, wrappers and all.
+ * @param node - the expression to fold, parentheses and assertions included.
  * @returns the string, or undefined when it is not decidable here.
  */
-export function staticString(env: Constants, unwrapped: unknown): string | undefined {
-  const node = unwrap(unwrapped)
-  if (!isNode(node)) return undefined
-  switch (node.type) {
+export function staticString(env: Constants, node: Field | undefined): string | undefined {
+  const folded = unwrap(node)
+  if (!isNode(folded)) return undefined
+  switch (folded.type) {
     case 'Literal':
-      return typeof node.value === 'string' ? node.value : undefined
+      return typeof folded.value === 'string' ? folded.value : undefined
     case 'Identifier':
-      return typeof node['name'] === 'string' ? (env.get(node['name']) ?? undefined) : undefined
+      return typeof folded.name === 'string' ? (env.get(folded.name) ?? undefined) : undefined
     case 'TemplateLiteral':
-      return foldTemplate(env, node)
+      return foldTemplate(env, folded)
     case 'BinaryExpression':
-      return foldConcatenation(env, node)
+      return foldConcatenation(env, folded)
     case 'CallExpression':
-      return foldCall(env, node)
+      return foldCall(env, folded)
     case 'TSAsExpression':
     case 'TSSatisfiesExpression':
     case 'TSNonNullExpression':
-      return staticString(env, node['expression'])
+      return staticString(env, folded.expression)
     default:
       return undefined
   }
@@ -85,12 +85,12 @@ export function staticString(env: Constants, unwrapped: unknown): string | undef
  * @returns the string, or undefined.
  */
 function foldTemplate(env: Constants, node: Node): string | undefined {
-  const quasis = node['quasis']
-  const expressions = node['expressions']
+  const quasis = node.quasis
+  const expressions = node.expressions
   if (!Array.isArray(quasis) || !Array.isArray(expressions)) return undefined
   let text = ''
   for (const [index, quasi] of quasis.entries()) {
-    const cooked = (quasi as { value?: { cooked?: unknown } }).value?.cooked
+    const cooked = fieldOf(fieldOf(quasi, 'value'), 'cooked')
     if (typeof cooked !== 'string') return undefined
     text += cooked
     if (index >= expressions.length) continue
@@ -108,9 +108,9 @@ function foldTemplate(env: Constants, node: Node): string | undefined {
  * @returns the string, or undefined.
  */
 function foldConcatenation(env: Constants, node: Node): string | undefined {
-  if (node['operator'] !== '+') return undefined
-  const left = staticString(env, node['left'])
-  const right = staticString(env, node['right'])
+  if (node.operator !== '+') return undefined
+  const left = staticString(env, node.left)
+  const right = staticString(env, node.right)
   return left === undefined || right === undefined ? undefined : left + right
 }
 
@@ -122,12 +122,12 @@ function foldConcatenation(env: Constants, node: Node): string | undefined {
  * @returns the string, or undefined.
  */
 function foldCall(env: Constants, node: Node): string | undefined {
-  const callee = node['callee']
-  const args = node['arguments']
+  const callee = node.callee
+  const args = node.arguments
   if (!isNode(callee) || callee.type !== 'MemberExpression' || !Array.isArray(args)) return undefined
   const method = memberName(callee)
   if (method === 'fromCharCode' || method === 'fromCodePoint') return foldCharacters(method, args)
-  const receiver = callee['object']
+  const receiver = callee.object
   if (method === 'toLowerCase' || method === 'toUpperCase') {
     const text = staticString(env, receiver)
     return text === undefined ? undefined : method === 'toLowerCase' ? text.toLowerCase() : text.toUpperCase()
@@ -143,7 +143,7 @@ function foldCall(env: Constants, node: Node): string | undefined {
  * @param args - the character codes.
  * @returns the string, or undefined.
  */
-function foldCharacters(method: string, args: readonly unknown[]): string | undefined {
+function foldCharacters(method: string, args: readonly Field[]): string | undefined {
   const codes: number[] = []
   for (const argument of args) {
     if (!isNode(argument) || argument.type !== 'Literal' || typeof argument.value !== 'number') return undefined
@@ -161,7 +161,7 @@ function foldCharacters(method: string, args: readonly unknown[]): string | unde
  * @param parts - the expressions.
  * @returns the string, or undefined.
  */
-function foldParts(env: Constants, parts: readonly unknown[]): string | undefined {
+function foldParts(env: Constants, parts: readonly Field[]): string | undefined {
   let text = ''
   for (const part of parts) {
     const folded = staticString(env, part)
@@ -178,9 +178,9 @@ function foldParts(env: Constants, parts: readonly unknown[]): string | undefine
  * @param args - the separator, when given.
  * @returns the string, or undefined.
  */
-function foldJoin(env: Constants, receiver: unknown, args: readonly unknown[]): string | undefined {
+function foldJoin(env: Constants, receiver: Field | undefined, args: readonly Field[]): string | undefined {
   if (!isNode(receiver) || receiver.type !== 'ArrayExpression') return undefined
-  const elements = receiver['elements']
+  const elements = receiver.elements
   if (!Array.isArray(elements)) return undefined
   const separator = args.length === 0 ? '' : staticString(env, args[0])
   if (separator === undefined) return undefined
@@ -210,28 +210,28 @@ export const UNREADABLE = '\u{F8FF}'
  *
  * This is what `staticString` cannot do: it answers all-or-nothing, so a single
  * interpolation hides the whole string from every rule. Markup does not work
- * that way — `'<b style="' + colour + '">'` names the attribute regardless of
- * what the colour turns out to be.
+ * that way — a tag half-written in the source names its styling attribute
+ * regardless of what the colour interpolation turns out to be.
  * @param env - the file's constants.
- * @param unwrapped - the expression to read, wrappers and all.
+ * @param node - the expression to read, parentheses and assertions included.
  * @returns the approximation, or undefined when the node produces no string.
  */
-export function approximateString(env: Constants, unwrapped: unknown): string | undefined {
-  const exact = staticString(env, unwrapped)
+export function approximateString(env: Constants, node: Field | undefined): string | undefined {
+  const exact = staticString(env, node)
   if (exact !== undefined) return exact
-  const node = unwrap(unwrapped)
-  if (!isNode(node)) return undefined
-  switch (node.type) {
+  const read = unwrap(node)
+  if (!isNode(read)) return undefined
+  switch (read.type) {
     case 'TemplateLiteral':
-      return approximateTemplate(env, node)
+      return approximateTemplate(env, read)
     case 'BinaryExpression':
-      return node['operator'] === '+'
-        ? `${approximateString(env, node['left']) ?? UNREADABLE}${approximateString(env, node['right']) ?? UNREADABLE}`
+      return read.operator === '+'
+        ? `${approximateString(env, read.left) ?? UNREADABLE}${approximateString(env, read.right) ?? UNREADABLE}`
         : undefined
     case 'TSAsExpression':
     case 'TSSatisfiesExpression':
     case 'TSNonNullExpression':
-      return approximateString(env, node['expression'])
+      return approximateString(env, read.expression)
     default:
       return undefined
   }
@@ -244,12 +244,12 @@ export function approximateString(env: Constants, unwrapped: unknown): string | 
  * @returns the approximation, or undefined when its parts are not readable.
  */
 function approximateTemplate(env: Constants, node: Node): string | undefined {
-  const quasis = node['quasis']
-  const expressions = node['expressions']
+  const quasis = node.quasis
+  const expressions = node.expressions
   if (!Array.isArray(quasis) || !Array.isArray(expressions)) return undefined
   let text = ''
   for (const [index, quasi] of quasis.entries()) {
-    const cooked = (quasi as { value?: { cooked?: unknown } }).value?.cooked
+    const cooked = fieldOf(fieldOf(quasi, 'value'), 'cooked')
     if (typeof cooked !== 'string') return undefined
     text += cooked
     if (index < expressions.length) text += approximateString(env, expressions[index]) ?? UNREADABLE

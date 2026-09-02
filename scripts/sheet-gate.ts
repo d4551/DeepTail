@@ -5,9 +5,9 @@
  * both parse scripts and markup, and the whole visual layer sat outside every
  * one of them. What that left unchecked was the design system itself — a
  * spacing value written out twenty-nine times, nine hand-rolled radii, a
- * `z-index: 1000` racing a `z-index: 150`, a breakpoint restated in a second
- * syntax in a second file, and a rule set duplicated byte for byte fifty-five
- * lines from its twin.
+ * stacking order written twice and racing itself, a breakpoint restated in a
+ * second syntax in a second file, and a rule set duplicated byte for byte
+ * fifty-five lines from its twin.
  *
  * The rules are stated about declarations, so the sheet is read the way the
  * engine reads it: a comment that names a length is prose, and the token file
@@ -16,15 +16,8 @@
  * @module
  */
 
-/** One rejected declaration. */
-export interface Offence {
-  /** Repository-relative path of the sheet it was found in. */
-  readonly label: string
-  /** One-based line number. */
-  readonly line: number
-  /** What is wrong, and what to do instead. */
-  readonly why: string
-}
+import { scanColour } from './colour-gate.ts'
+import type { Offence } from './offence.ts'
 
 /** The sheet that is allowed to hold raw values, because it is where they live. */
 export const TOKEN_SHEET = 'tokens.css'
@@ -143,6 +136,11 @@ export function scanSheet(label: string, text: string): Offence[] {
       }
       continue
     }
+    if (property === 'float') {
+      offences.push({ label, line, why: 'float is legacy layout; use flex or grid' })
+      continue
+    }
+    offences.push(...scanColour(label, value, line))
     if (!SCALED.test(property)) continue
     const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
     if (lengths.length === 0) continue

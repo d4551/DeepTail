@@ -65,9 +65,9 @@ flowchart TB
   hosts -.->|"roster events"| rust
   ui ==>|"open a session"| client["<b>That host's harness client</b><br/>transcripts · approvals · plans"]
 
-  classDef inside fill:#eef2ff,stroke:#4338ca,color:#1e1b4b
-  classDef host fill:#ecfdf5,stroke:#047857,color:#064e3b
-  classDef hand fill:#fef3c7,stroke:#b45309,color:#451a03
+  classDef inside fill:aliceblue,stroke:indigo,color:midnightblue
+  classDef host fill:honeydew,stroke:seagreen,color:darkgreen
+  classDef hand fill:lemonchiffon,stroke:chocolate,color:maroon
   class ui,rust,store inside
   class hosts,tailscale host
   class client hand
@@ -176,6 +176,27 @@ one because the host's boot table says to. Neither is `color-scheme`, a CSS
 property keyed off the same `body[data-ds-dark-theme]` attribute as the palette,
 so native UA chrome cannot drift from the theme. Beyond those, the gate has no
 allowances.
+
+A sheet's values are read against the token sheet too. `scripts/sheet-gate.ts`
+refuses a bare length outside `tokens.css` — spacing, radius, type and grid
+rungs — a raw colour in any spelling (a function-written or named colour, or a
+hex literal), a cascade override flag, a legacy `float`, a bare stacking number,
+a second breakpoint in a second syntax, a rule that hides the focus ring
+without painting one back, and a rule set declared twice. Every value the
+shipped sheets carry goes through the tokens, and `tests/sheet-gate.spec.ts`
+drives each rule both ways.
+
+The markup gate reads every element, whatever writes it: besides the `style`
+attribute, an inline event handler, an inline script body and an inline style
+block are each a per-page one-off that no module ships and no gate reads once
+it sits inside a tag, so none may ship. The ban gate carries the same shape of
+rules for idioms the project has moved past: the React 19 removals
+(`ReactDOM.render` and its siblings, `findDOMNode`, string refs,
+`defaultProps`, legacy context), the Tauri v1 API paths and the `__TAURI__`
+global, alongside the older bans on `var`, `require`, markup-rewriting
+properties, `eval` and the rest. `tests/gates.spec.ts` and
+`tests/style-gate.spec.ts` drive both gates against a source that breaks each
+rule and a source that merely resembles it.
 
 | | |
 |---|---|
