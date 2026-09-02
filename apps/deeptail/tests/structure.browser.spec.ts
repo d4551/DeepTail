@@ -35,6 +35,15 @@ afterAll(async () => {
 })
 
 /**
+ * Whether the sidebar is a drawer at this width, as the stylesheet decides it.
+ * @param page - the page to read.
+ * @returns true while the narrow layout is showing.
+ */
+async function isDrawerLayout(page: Page): Promise<boolean> {
+  return page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dsh-drawer').trim() === '1')
+}
+
+/**
  * Every structural defect on a page, as a message a reader can act on.
  * @param page - the page to inspect.
  * @param coarsePointer - whether the platform touch minimum applies.
@@ -214,7 +223,12 @@ it('has no structural defects on any failure state, at every width', async () =>
     VIEWPORTS.map(async (viewport) => {
       const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }))
       await page.setViewportSize({ width: viewport.width, height: viewport.height })
-      await page.waitForSelector('[data-deeptail-state="partial"]')
+      await page.waitForSelector('[data-deeptail-shell]')
+      // Below the drawer breakpoint the roster — and the strip in it — is
+      // inside the closed drawer, so it is on screen only once the drawer is
+      // open. The layout decides that at this width, not the fixture.
+      if (await isDrawerLayout(page)) await page.locator('[data-deeptail-action="drawer"]').click()
+      await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
       const found = await defects(page)
       await page.close()
       return `${viewport.label}: ${found}`

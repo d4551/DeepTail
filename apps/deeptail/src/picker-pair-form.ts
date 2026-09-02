@@ -111,13 +111,16 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
 
 /**
  * The strip reporting a refused attempt, above the actions that retry it.
- * @param message - why the attempt was refused.
- * @returns the strip.
+ *
+ * Built empty. A live region fires on the insertion of its text, and text put
+ * into a node that is not yet in the document is inserted outside the
+ * accessibility tree — so the caller mounts it first and fills it after, which
+ * is what every other surface here does.
+ * @returns the empty, hidden strip.
  */
-function pairErrorStrip(message: string): HTMLElement {
+function pairErrorStrip(): HTMLElement {
   const strip = errorStrip('pair-error')
   strip.id = PAIR_ERROR_ID
-  showFailure(strip, message)
   return strip
 }
 
@@ -162,7 +165,9 @@ export function pairView(ctx: PairContext): HTMLElement[] {
   // card has a heading under its wordmark rather than a paragraph doing the job.
   form.append(el('h2', { className: 'lede', text: t('pair.title') }), ...fields)
   if (current.error !== undefined) {
-    form.append(pairErrorStrip(current.error))
+    const strip = pairErrorStrip()
+    form.append(strip)
+    showFailure(strip, current.error)
     // Named only while the strip is on the page: a reference to an element
     // that is not there is a promise to a reader that cannot be kept.
     const link = form.querySelector<HTMLInputElement>('[data-deeptail-field="link"]')
