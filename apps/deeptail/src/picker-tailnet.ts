@@ -241,7 +241,7 @@ function reportRefusal(form: HTMLElement, message: string): void {
 export function tailnetConnectView(ctx: ConnectContext): HTMLElement[] {
   const { t, current } = ctx
   const draft: EditableTailnetDraft = { ...current.draft }
-  const form = el('form')
+  const form = el('form', { className: 'form' })
   // The browser's own constraint validation is turned off for the reason the
   // pairing form turns it off: a native bubble is untranslated and stops the
   // submit before this form's own strip is ever filled.

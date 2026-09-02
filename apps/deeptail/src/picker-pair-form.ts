@@ -160,7 +160,7 @@ function pairErrorStrip(): HTMLElement {
 export function pairView(ctx: PairContext): HTMLElement[] {
   const { t, current } = ctx
   const draft: EditableDraft = { link: current.draft.link, label: current.draft.label }
-  const form = el('form')
+  const form = el('form', { className: 'form' })
   // The browser's own constraint validation is turned off: it refuses the
   // submit itself, with a message this product neither wrote nor translated,
   // and the form's own refusal path is never reached.

@@ -239,6 +239,15 @@
 
 /* ---- form --------------------------------------------------------------- */
 
+/* A form is one child of the card, so the card's own gap sets nothing inside
+   it: every field, strip and actions row sat flush against its neighbour. The
+   form carries the same rhythm the card does. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dsh-space-5);
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -272,7 +281,7 @@
    the label text is a sentence, so nothing separates one option from the next. */
 .choice {
   display: flex;
-  align-items: start;
+  align-items: center;
   gap: var(--dsh-space-2);
   min-height: var(--dsh-control-xs);
   cursor: pointer;
@@ -295,6 +304,10 @@
   accent-color: var(--dsw-alias-state-business-primary);
 }
 
+/* The control is taller than one line of its label, so the two are centred
+   against each other; aligning to the start left the text riding the top of the
+   circle. A label that wraps centres against the whole block, which is where a
+   native form control sits too. */
 .choice-label {
   font-size: var(--dsh-text-sm);
   line-height: var(--dsh-leading-md);
