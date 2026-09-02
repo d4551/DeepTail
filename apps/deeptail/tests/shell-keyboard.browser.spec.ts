@@ -76,9 +76,12 @@ it('keeps the closed drawer out of the tab order', async () => {
   expect(
     await page.evaluate(() => {
       const sidebar = document.querySelector<HTMLElement>('#deeptail-sidebar')
-      const first = sidebar?.querySelector('button')
+      // The first button the reader can actually reach: the drawer's own
+      // dismissal is the first in the markup and is hidden on this layout,
+      // and focusing a hidden element is a no-op that would read as a pass.
+      const first = [...(sidebar?.querySelectorAll<HTMLElement>('button') ?? [])].find((node) => node.checkVisibility())
       first?.focus()
-      return document.activeElement === first
+      return first !== undefined && document.activeElement === first
     }),
   ).toBe(false)
   await page.close()
@@ -93,9 +96,12 @@ it('leaves the permanent sidebar in the tab order on the wide layout', async () 
   expect(
     await page.evaluate(() => {
       const sidebar = document.querySelector<HTMLElement>('#deeptail-sidebar')
-      const first = sidebar?.querySelector('button')
+      // The first button the reader can actually reach: the drawer's own
+      // dismissal is the first in the markup and is hidden on this layout,
+      // and focusing a hidden element is a no-op that would read as a pass.
+      const first = [...(sidebar?.querySelectorAll<HTMLElement>('button') ?? [])].find((node) => node.checkVisibility())
       first?.focus()
-      return document.activeElement === first
+      return first !== undefined && document.activeElement === first
     }),
   ).toBe(true)
   await page.close()

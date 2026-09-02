@@ -702,6 +702,29 @@
   }
 }
 
+/* The drawer's own dismissal. The toggle that opened it renders in the main
+ * header, which the open drawer covers, so on a touch layout the control the
+ * reader can actually reach is this one. Hidden — and out of the tree — at
+ * every other time. */
+.drawer-dismiss {
+  flex: none;
+  align-self: flex-start;
+  min-height: var(--dsh-target-coarse);
+  padding: 0 var(--dsh-space-4);
+  margin-bottom: var(--dsh-space-3);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsh-radius-control);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-control);
+  cursor: pointer;
+}
+
+.drawer-dismiss:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
 /* ── the way back out ─────────────────────────────────────────────────────── */
 
 /* The booted harness client owns everything inside the container, so the return

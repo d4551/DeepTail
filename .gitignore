@@ -12,3 +12,6 @@ apps/deeptail/src-tauri/gen/
 .env.*
 !.env.example
 .tmp/
+
+# Local Chromium override for the browser suite; the path is machine-specific.
+apps/deeptail/tests/chromium.json

@@ -9,67 +9,14 @@
  * @module
  */
 
-import { invoke } from '@tauri-apps/api/core'
-import { createHostApi, FORBIDDEN, RemoteError, UNAUTHORIZED } from './api.ts'
 import type { HostRecord } from './host.ts'
 import { createTranslate, type Translate } from './locales.ts'
 import type { PairDraft } from './picker-pair-form.ts'
+import { type PickerPorts, settled, tauriPorts } from './picker-ports.ts'
 import { mountPickerFrame, type Phase, type PickerActions, type PickerFrame, paintScreen } from './picker-screen.ts'
 import type { HostState } from './ui/states.ts'
 import './styles/tokens.css'
 import './styles/picker.css'
-import { messageOf } from './reason.ts'
-import { createCarrier } from './transport.ts'
-
-/** How the picker reaches the native side; replaced wholesale in tests. */
-export interface PickerPorts {
-  listHosts(): Promise<HostRecord[]>
-  pairHost(link: string, label: string): Promise<HostRecord>
-  hostState(host: HostRecord): Promise<HostState>
-}
-
-/** Read a promise as data: success keeps its value, failure keeps its message. */
-const settled = async <T>(
-  promise: Promise<T>,
-): Promise<
-  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string; readonly reason: unknown }
-> => {
-  const [outcome] = await Promise.allSettled([promise])
-  return outcome.status === 'fulfilled'
-    ? { ok: true, value: outcome.value }
-    : { ok: false, message: messageOf(outcome.reason), reason: outcome.reason }
-}
-
-/** The ports backed by the real Tauri commands. */
-const tauriPorts: PickerPorts = {
-  listHosts: () => invoke<HostRecord[]>('list_hosts'),
-  pairHost: (link, label) => invoke<HostRecord>('pair_host', { link, label }),
-  hostState: async (host) => {
-    // `select_host` reads the registry and the credential store and never
-    // leaves the device, so it answers one question: is there a token at all.
-    const held = await settled(invoke('select_host', { host: host.id }))
-    if (!held.ok) return 'unauthorized'
-    // Whether the host answers is a different question, and the dot claims to
-    // report it. Without this read every unreachable host — a sleeping laptop,
-    // a dropped network — was drawn as needing to be re-paired, which throws
-    // away a working pairing to fix something that is not broken.
-    const reached = await settled(createHostApi(createCarrier(host.id)).listSessions())
-    if (reached.ok) return 'online'
-    return probeState(reached.reason)
-  },
-}
-
-/**
- * What a failed probe says about a host.
- * @param reason - whatever the read rejected with.
- * @returns the reachability to draw.
- */
-function probeState(reason: unknown): HostState {
-  if (!(reason instanceof RemoteError)) return 'offline'
-  if (reason.code === UNAUTHORIZED) return 'unauthorized'
-  if (reason.code === FORBIDDEN) return 'forbidden'
-  return 'offline'
-}
 
 /** A pairing form with nothing typed into it yet. */
 const EMPTY_DRAFT = { link: '', label: '' } as const
@@ -165,10 +112,16 @@ async function probeHosts(
   ports: PickerPorts,
   hosts: readonly HostRecord[],
   states: Map<string, HostState>,
+  onSettled: (host: HostRecord) => void,
 ): Promise<void> {
   await Promise.all(
     hosts.map(async (host) => {
       states.set(host.id, await ports.hostState(host))
+      // Each dot the moment its own probe answers. Repainting once, after every
+      // probe had settled, meant one unreachable host held the whole fleet's
+      // dots at `unknown` for as long as its read took to time out — which is
+      // the opposite of what this function's caller says it does.
+      onSettled(host)
     }),
   )
 }
@@ -188,8 +141,9 @@ async function loadRoster(run: PickerRuntime): Promise<void> {
 
   const listed = run.model.phase
   if (listed.kind !== 'ready') return
-  await probeHosts(run.ports, listed.hosts, run.model.states)
-  if (run.model.phase.kind === 'ready') repaint(run)
+  await probeHosts(run.ports, listed.hosts, run.model.states, () => {
+    if (run.model.phase.kind === 'ready') repaint(run)
+  })
 }
 
 /**

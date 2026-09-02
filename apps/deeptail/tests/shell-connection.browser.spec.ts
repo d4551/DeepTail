@@ -218,3 +218,38 @@ it('lets Tab out of the open menu rather than cycling inside it', async () => {
   expect(walked).not.toContain('inside the menu')
   await page.close()
 })
+
+it('closes the menu when focus leaves it without a pointer', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  // Not every departure is a Tab or a click: assistive technology and the
+  // platform both move focus on their own, and the menu holds everything
+  // around it inert, so no in-page control is left to focus. The event the
+  // browser would deliver is delivered directly — without it the `focusin`
+  // listener could be deleted with the whole suite still green.
+  await page.evaluate(() => {
+    const outside = document.querySelector('.main-body')
+    outside?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+  })
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
+  expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
+  await page.close()
+})
+
+it('lets a finger close the drawer it opened', async () => {
+  const page = await harness.open(fleet(), { mobile: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-action="drawer"]').click()
+  await page.locator('[data-deeptail-action="drawer-dismiss"]').waitFor({ state: 'visible' })
+  // The open drawer covers the header the toggle renders in, so the toggle is
+  // behind it and a tap there reaches the drawer instead. There is no Escape
+  // key on a phone, so the drawer carries its own dismissal — and a real click,
+  // not a programmatic focus, is what proves it can be reached.
+  await page.locator('[data-deeptail-action="drawer-dismiss"]').click()
+  await page.locator('[data-deeptail-action="drawer-dismiss"]').waitFor({ state: 'hidden' })
+  expect(await page.locator('[data-deeptail-action="drawer"]').getAttribute('aria-expanded')).toBe('false')
+  expect(await page.evaluate(() => document.querySelector('.main')?.matches('[inert]') ?? true)).toBe(false)
+  await page.close()
+})
