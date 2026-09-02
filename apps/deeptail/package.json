@@ -1,0 +1,33 @@
+{
+  "name": "@deeptail/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DeepTail shell: boots the DeepSeek Harness web client against a remote host over the Tauri carrier",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.3",
+    "@deepseek-ai/dsh-client-store": "0.1.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.2-alpha.2",
+    "@deepseek-ai/dsh-client-web": "0.1.2-alpha.2",
+    "@tauri-apps/api": "2.11.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@types/node": "^26.4.0",
+    "playwright": "1.62.1",
+    "typescript": "7.0.2",
+    "vite": "^8.2.2"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-modules": "0.1.2-alpha.2"
+  }
+}

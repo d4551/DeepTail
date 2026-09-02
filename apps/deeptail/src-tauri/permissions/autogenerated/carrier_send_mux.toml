@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-carrier-send-mux"
+description = "Enables the carrier_send_mux command without any pre-configured scope."
+commands.allow = ["carrier_send_mux"]
+
+[[permission]]
+identifier = "deny-carrier-send-mux"
+description = "Denies the carrier_send_mux command without any pre-configured scope."
+commands.deny = ["carrier_send_mux"]

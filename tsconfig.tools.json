@@ -1,0 +1,12 @@
+{
+  // The executed gates and the suites that drive them. Without a project of
+  // their own neither tree was ever typechecked, so a symbol left behind by a
+  // refactor reached the gate as a runtime failure rather than a build one.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "types": ["bun"]
+  },
+  "include": ["scripts", "tests"]
+}

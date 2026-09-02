@@ -1,0 +1,224 @@
+/* Design tokens, values taken from the harness's own theme sheets so DeepTail
+ * and the web client render the same product.
+ *
+ * Source: deepseek-harness/packages/client/ui-theme/src/styles/base.css and
+ * design-platform.css. The alias values below are the resolved rungs of that
+ * sheet's static scale, inlined because DeepTail needs only this subset — and
+ * the subset is exactly what something reads: this product's own sheets and
+ * scripts, or the harness client's, which renders into the same document and
+ * takes its palette from here.
+ *
+ * Light/dark follows the harness mechanism exactly: `body[data-ds-dark-theme]`
+ * carries the dark palette, and `prefers-color-scheme` is read once in script
+ * to resolve the `system` preference into that attribute. Native UA chrome
+ * follows the same attribute through `color-scheme`, so the palette and the
+ * scrollbars, form controls and canvas can never disagree.
+ */
+
+:root {
+  color-scheme: light;
+  /* 1 while text runs left to right, -1 when it runs right to left. Layout is
+   * flow-relative everywhere it can be; a transform cannot be, so it reads the
+   * direction from here. */
+  --dsh-inline-direction: 1;
+  /* Whether the sidebar is currently a drawer. The width that decides it is
+   * written once, in the media query that switches the layout, and this is how
+   * that decision reaches the script that makes a closed drawer inert — a
+   * width cannot be read out of a media query, and a width restated in script
+   * is a second breakpoint waiting to disagree with the first. */
+  --dsh-drawer: 0;
+}
+
+:root:dir(rtl) {
+  --dsh-inline-direction: -1;
+}
+
+:root:has(body[data-ds-dark-theme]) {
+  color-scheme: dark;
+}
+
+:root {
+  --dsw-font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --ds-font-family-code:
+    "SF Mono", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", Menlo, Courier, "PingFang SC",
+    "Microsoft YaHei";
+  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-transition-duration: 0.2s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-transition-duration: 0.01ms;
+  }
+}
+
+body {
+  --dsw-alias-bg-base: rgb(255, 255, 255);
+  --dsw-alias-bg-layer-2: rgb(255, 255, 255);
+  --dsw-alias-bg-module-platform: rgb(245, 246, 247);
+  --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.24);
+  --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
+  --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+  --dsw-alias-border-inverted: rgba(0, 0, 0, 0);
+  --dsw-alias-label-primary: rgb(15, 17, 21);
+  --dsw-alias-label-secondary: rgb(97, 102, 107);
+  --dsw-alias-label-primary-foreground: rgb(255, 255, 255);
+  --dsw-alias-label-error: rgb(198, 16, 16);
+  --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+  --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+  --dsw-alias-interactive-bg-hover-danger: rgba(236, 19, 19, 0.05);
+  --dsw-alias-brand-primary: rgb(15, 17, 21);
+  --dsw-alias-button-primary-fill: rgb(15, 17, 21);
+  --dsw-alias-button-primary-hover: rgb(67, 69, 74);
+  --dsw-alias-state-business-primary: rgb(65, 118, 230);
+  --dsw-alias-state-success-primary: rgb(34, 197, 94);
+  --dsw-alias-state-warn-primary: rgb(245, 158, 11);
+  --dsw-specific-sidebar-fill: rgb(249, 250, 251);
+  --dsw-specific-menu: rgb(255, 255, 255);
+  /* The two elevation rungs coincide in this theme: upstream points both at
+     the same static pair, so a raised surface reads by its fill rather than by
+     a darker thumb. The dark block is where they diverge. */
+  --dsw-alias-scrollbar-bg-l1: rgb(229, 229, 229);
+  --dsw-alias-scrollbar-bg-l2: rgb(229, 229, 229);
+  --dsw-alias-scrollbar-hover-l1: rgb(212, 212, 212);
+  --dsw-alias-scrollbar-hover-l2: rgb(212, 212, 212);
+  --dsw-alias-button-floating-hover: rgb(241, 243, 245);
+  --dsw-alias-button-elevated-fill: rgb(255, 255, 255);
+  --dsw-mask-blur: blur(2px);
+  --dsw-shadow-lv3: 0 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 4px 0 rgba(0, 0, 0, 0.02), 0 12px 32px 0 rgba(0, 0, 0, 0.08);
+}
+
+body[data-ds-dark-theme] {
+  --dsw-alias-bg-base: rgb(21, 21, 23);
+  --dsw-alias-bg-layer-2: rgb(44, 44, 46);
+  --dsw-alias-bg-module-platform: rgb(53, 54, 56);
+  --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.5);
+  --dsw-alias-border-l1: rgba(255, 255, 255, 0.06);
+  --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+  --dsw-alias-border-inverted: rgba(255, 255, 255, 0.06);
+  --dsw-alias-label-primary: rgb(249, 250, 251);
+  --dsw-alias-label-secondary: rgb(207, 211, 214);
+  --dsw-alias-label-primary-foreground: rgb(15, 17, 21);
+  --dsw-alias-label-error: rgb(250, 150, 150);
+  --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+  --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.14);
+  --dsw-alias-interactive-bg-hover-danger: rgba(242, 90, 90, 0.15);
+  --dsw-alias-brand-primary: rgb(249, 250, 251);
+  --dsw-alias-button-primary-fill: rgb(249, 250, 251);
+  --dsw-alias-button-primary-hover: rgb(235, 238, 242);
+  --dsw-alias-state-business-primary: rgb(103, 158, 254);
+  --dsw-alias-state-success-primary: rgb(34, 197, 94);
+  --dsw-alias-state-warn-primary: rgb(245, 158, 11);
+  --dsw-specific-sidebar-fill: rgb(27, 27, 28);
+  --dsw-specific-menu: rgb(53, 54, 56);
+  --dsw-alias-scrollbar-bg-l1: rgb(60, 60, 61);
+  --dsw-alias-scrollbar-bg-l2: rgb(84, 85, 87);
+  --dsw-alias-scrollbar-hover-l1: rgb(84, 85, 87);
+  --dsw-alias-scrollbar-hover-l2: rgb(101, 103, 107);
+  --dsw-alias-button-floating-hover: rgb(53, 54, 56);
+  --dsw-alias-button-elevated-fill: rgb(67, 69, 74);
+}
+
+/* Source: ui-theme/src/styles/scrollbar.css:18-21. The l1 pair is the
+ * base-surface default; an elevated surface rebinds to l2 on its own
+ * container, which is what `.sidebar` does. Both rendering paths below read
+ * this indirection, so one rebind reaches whichever path the engine took. */
+body {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l1);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l1);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--dsw-font-family);
+  /* Grayscale antialiasing over subpixel rendering, as the web client does. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-base);
+}
+
+/* Form controls do not inherit the body font: UA sheets pin their families. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Element+pseudo specificity beats a class-level `outline: none`, so a control
+   that hides the UA ring still keeps a keyboard ring. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Elevation default for the skin below, which reads the indirection rather
+ * than an alias so one rebind on a raised surface reaches whichever of the two
+ * rendering paths the engine took — `.sidebar` in shell.css swaps in the l2
+ * pair that way. It sits on `body` because the palette does, and custom
+ * properties only inherit downward: on `html` the aliases would resolve to the
+ * guaranteed-invalid value and `scrollbar-color` would fall back to `auto`.
+ * Source: ui-theme/src/styles/scrollbar.css:17-19. */
+body {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l1);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l1);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  body,
+  body * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--dsh-scrollbar-thumb) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--dsh-scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--dsh-scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* The UA sheet's `[hidden] { display: none }` loses to any author rule that
+ * sets `display`, which `.error` does. This rule is deliberately last so it
+ * wins the cascade over every equal-specificity author rule, keeping
+ * `element.hidden = true` authoritative. */
+[hidden] {
+  display: none;
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unjs.io/schema/knip.json",
+  "workspaces": {
+    "packages/host-fleet": {
+      "project": ["src/**/*.ts"]
+    },
+    "apps/deeptail": {
+      "entry": ["tests/*.spec.ts"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"],
+      "ignoreDependencies": [
+        "react",
+        "react-dom",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    },
+    ".": {
+      "entry": ["scripts/*.ts", "tests/*.spec.ts"],
+      "project": ["scripts/**/*.ts", "tests/**/*.ts"]
+    }
+  }
+}

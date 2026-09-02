@@ -1,0 +1,14 @@
+node_modules/
+lib/
+dist/
+*.tsbuildinfo
+
+# Rust / Tauri build output and generated mobile projects
+apps/deeptail/src-tauri/target/
+apps/deeptail/src-tauri/gen/
+
+.DS_Store
+.env
+.env.*
+!.env.example
+.tmp/

@@ -1,0 +1,11 @@
+# Install policy for the DeepTail workspace. Package lists that belong to the
+# manifest (workspaces, overrides) live in package.json; only installer
+# behaviour is configured here.
+[install]
+# Every workspace package declares what it imports, so a package resolves its
+# own tree rather than a sibling's. This matches the harness repo's policy.
+linker = "isolated"
+
+# Supply-chain hold: a newly published version is not installable until it has
+# been on the registry long enough to be withdrawn.
+minimumReleaseAge = 86400

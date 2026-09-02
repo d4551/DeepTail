@@ -1,0 +1,65 @@
+[package]
+name = "deeptail"
+version = "0.1.0"
+description = "DeepTail — monitor and drive DeepSeek Harness sessions on a remote host"
+authors = ["Brandon Donnelly"]
+license = "MIT"
+edition = "2024"
+rust-version = "1.85"
+
+# The library is what the mobile entry point links against; `main.rs` is the
+# desktop binary and simply calls into it.
+[lib]
+name = "deeptail_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+# The carrier's tests answer a real request on a loopback socket, so what the
+# webview receives is observed rather than stubbed.
+[dev-dependencies]
+tokio = { version = "1", features = ["net", "io-util"] }
+
+[dependencies]
+tauri = { version = "2.11.5", features = [] }
+tauri-plugin-opener = "2.5.5"
+tauri-plugin-notification = "2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls", "stream"] }
+url = "2"
+
+# Secure storage: keyring-core is the API, and each target links exactly one
+# native store. The all-in-one `keyring` crate is desktop-only in its default
+# feature, which is why the ecosystem split is used here instead.
+keyring-core = "1.0.0"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-native-keyring-store = "1.0.0"
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+# Both stores are compiled because the two Apple targets need different ones:
+# the crate refuses to build on macOS unless at least one is selected, and it
+# refuses to build on iOS unless `protected` is among them.
+apple-native-keyring-store = { version = "1.0.2", features = ["keychain", "protected"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1.1.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# `crypto-rust` selects the pure-Rust session-encryption backend, so the build
+# needs no system OpenSSL. The crate refuses to compile without one of the two.
+dbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-rust"] }
+
+# Mobile-only capabilities: QR pairing and a biometric gate on the stored token.
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-barcode-scanner = "2"
+tauri-plugin-biometric = "2"
