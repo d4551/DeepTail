@@ -299,13 +299,6 @@ function inspectMarkupString(env: Constants, node: Node, report: (node: Node, wh
   report(node, 'this markup carries a style attribute; put the rule in a stylesheet and add a class')
 }
 
-/**
- * Scan one file, choosing the reader its extension calls for.
- * @param label - the path, which also selects the reader.
- * @param text - the file's contents.
- * @returns one offence per rejected construct.
- */
-export { scanMarkup }
 
 /**
  * Scan one file, choosing the reader its extension calls for.

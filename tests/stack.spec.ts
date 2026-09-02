@@ -21,24 +21,47 @@ import * as bans from '../scripts/ban-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
 
-/** Lowest acceptable major.minor for every tool the project pins. */
+/**
+ * The major.minor every dependency this repository declares is held at.
+ *
+ * Every one of them, not only the tools at the root: a workspace manifest is
+ * exactly as able to slip back a version, and `vite` sat two minors above a
+ * floor that only the root was ever checked against — the rot this table exists
+ * to prevent, present and unreported.
+ */
 const FLOORS: Readonly<Record<string, string>> = {
-  typescript: '7.0',
-  vite: '8.0',
-  playwright: '1.62',
-  '@biomejs/biome': '2.5',
-  oxlint: '1.80',
-  knip: '6.33',
-  '@tauri-apps/cli': '2.11',
-  '@tauri-apps/api': '2.11',
   '@axe-core/playwright': '4.13',
-  'oxc-parser': '0.147',
-  parse5: '8.0',
-  semver: '7.8',
-  'jsonc-parser': '3.3',
-  '@types/semver': '7.8',
+  '@biomejs/biome': '2.5',
+  '@deepseek-ai/cordis': '4.0',
+  '@deepseek-ai/cordis-plugin-loader': '1.0',
+  '@deepseek-ai/dsh-api-session-controller': '0.1',
+  '@deepseek-ai/dsh-client-modules': '0.1',
+  '@deepseek-ai/dsh-client-store': '0.1',
+  '@deepseek-ai/dsh-client-ui-primitives': '0.1',
+  '@deepseek-ai/dsh-client-ui-slots': '0.1',
+  '@deepseek-ai/dsh-client-web': '0.1',
+  '@deepseek-ai/dsh-invariants': '0.1',
+  '@deepseek-ai/dsh-session': '0.1',
+  '@deepseek-ai/dsh-tools': '0.1',
+  '@deepseek-ai/dsh-util-values': '0.1',
+  '@deepseek-ai/schemastery': '3.18',
+  '@deeptail/host-fleet': '0.1',
+  '@tauri-apps/api': '2.11',
+  '@tauri-apps/cli': '2.11',
   '@types/bun': '1.4',
   '@types/node': '26.4',
+  '@types/semver': '7.8',
+  'jsonc-parser': '3.3',
+  knip: '6.33',
+  'oxc-parser': '0.147',
+  oxlint: '1.80',
+  parse5: '8.0',
+  playwright: '1.62',
+  react: '19.2',
+  'react-dom': '19.2',
+  semver: '7.8',
+  typescript: '7.0',
+  vite: '8.2',
 }
 
 /** Every kind of dependency a manifest can declare. */
@@ -87,7 +110,7 @@ async function everyDependency(): Promise<Map<string, string>> {
 }
 
 /**
- * Tools pinned below their floor, or not pinned at all.
+ * Dependencies pinned below their floor, or not declared at all.
  * @param found - every dependency the repository declares.
  * @returns one line per tool that fails its floor.
  */
@@ -110,13 +133,14 @@ function belowFloor(found: ReadonlyMap<string, string>): string[] {
 }
 
 /**
- * Tools installed with no floor, or with one that no longer matches the pin.
- * @param installed - the root manifest's development dependencies.
- * @returns one line per tool whose floor has drifted from what is installed.
+ * Dependencies declared with no floor, or with one that no longer matches what
+ * is declared.
+ * @param declared - every dependency the repository declares, of any kind.
+ * @returns one line per dependency whose floor has drifted from its range.
  */
-function floorDrift(installed: Readonly<Record<string, string>>): string[] {
+function floorDrift(declared: ReadonlyMap<string, string>): string[] {
   const wrong: string[] = []
-  for (const [name, range] of Object.entries(installed)) {
+  for (const [name, range] of declared) {
     const floor = FLOORS[name]
     if (floor === undefined) {
       wrong.push(`${name} is installed with no floor stated`)
@@ -135,9 +159,8 @@ describe('stack floors', () => {
     expect(belowFloor(await everyDependency())).toEqual([])
   })
 
-  it('states a floor for every tool it installs, at exactly the version installed', async () => {
-    const root = JSON.parse(await readFile('package.json', 'utf8')) as { devDependencies?: Record<string, string> }
-    expect(floorDrift(root.devDependencies ?? {})).toEqual([])
+  it('states a floor for everything it declares, at exactly the version declared', async () => {
+    expect(floorDrift(await everyDependency())).toEqual([])
   })
 
   it('holds the supply-chain release hold in place', async () => {

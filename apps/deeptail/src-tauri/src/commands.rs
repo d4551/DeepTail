@@ -73,6 +73,22 @@ pub async fn pair_host(
     Ok(record)
 }
 
+/// Refuse a response the host did not answer with success.
+///
+/// A refusal has no body worth parsing, so reading one anyway reports the
+/// parser's complaint — "EOF while parsing a value" — in place of the only
+/// thing the operator can act on, which is that the host turned the request
+/// down and why.
+fn admit(response: FetchResponse, what: &str) -> CommandResult<FetchResponse> {
+    if (200..300).contains(&response.status) {
+        return Ok(response);
+    }
+    if response.status == 401 || response.status == 403 {
+        return Err(format!("host rejected the device token (HTTP {}); pair this host again", response.status));
+    }
+    Err(format!("{what} returned HTTP {}", response.status))
+}
+
 /// Fetch the host's index-injection table — the ordered boot rows the served
 /// page would have carried in its HTML.
 #[tauri::command]
@@ -88,7 +104,8 @@ pub async fn boot_injections(state: State<'_, AppState>, host: String) -> Comman
         },
     )
     .await?;
-    serde_json::from_str(&response.body).map_err(|e| e.to_string())
+    let admitted = admit(response, "the boot table")?;
+    serde_json::from_str(&admitted.body).map_err(|e| e.to_string())
 }
 
 /// One unary `/api` call on the frontend's behalf.
@@ -116,10 +133,7 @@ pub async fn carrier_load_bundle(
         FetchRequest { path, method: "GET".to_owned(), headers: Vec::new(), body: None },
     )
     .await?;
-    if response.status != 200 {
-        return Err(format!("bundle request returned HTTP {}", response.status));
-    }
-    Ok(response.body)
+    Ok(admit(response, "the bundle request")?.body)
 }
 
 /// Open the host's Remote stream mux and pump its frames to `channel`.
@@ -157,4 +171,38 @@ async fn authenticated(
     let record = state.hosts.get(host_id).map_err(|e| e.to_string())?;
     let token = state.secrets.token(host_id).map_err(|e| e.to_string())?;
     carrier::call(&state.http, &record, &token, request).await.map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One response with the given status and an empty body.
+    fn answered(status: u16) -> FetchResponse {
+        FetchResponse { status, headers: Vec::new(), body: String::new() }
+    }
+
+    #[test]
+    fn admits_every_success() {
+        for status in [200, 201, 204, 299] {
+            assert!(admit(answered(status), "the boot table").is_ok(), "status {status}");
+        }
+    }
+
+    #[test]
+    fn names_a_refused_token_as_something_to_act_on() {
+        for status in [401, 403] {
+            let message = admit(answered(status), "the boot table").expect_err("a refusal");
+            // Not the JSON parser's complaint about an empty body, which is
+            // what a caller that read the body regardless would have reported.
+            assert!(message.contains("pair this host again"), "status {status}: {message}");
+        }
+    }
+
+    #[test]
+    fn names_what_failed_for_every_other_refusal() {
+        let message = admit(answered(503), "the boot table").expect_err("a refusal");
+        assert!(message.contains("the boot table"), "{message}");
+        assert!(message.contains("503"), "{message}");
+    }
 }
