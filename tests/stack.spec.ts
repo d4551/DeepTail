@@ -57,7 +57,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@types/semver': '7.8',
   'jsonc-parser': '3.3',
   knip: '6.34',
-  'oxc-parser': '0.147',
+  'oxc-parser': '0.148',
   oxlint: '1.80',
   parse5: '8.0',
   playwright: '1.62',

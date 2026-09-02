@@ -4,8 +4,9 @@
  * These are the defects a rule engine does not report: markup that nests an
  * interactive element inside another, a heading level skipped, an ARIA
  * reference pointing at nothing, a layout that overflows its viewport, a label
- * clipped by the box it sits in, a pane that scrolls inside a pane that also
- * scrolls, or a touch target below the platform minimum.
+ * clipped by the box it sits in, a group of controls under no name, a pane that
+ * scrolls inside a pane that also scrolls, or a touch target below the platform
+ * minimum.
  * Each returns a list of offending selectors, so a failure names the element
  * rather than a count.
  *
@@ -194,6 +195,31 @@ function checkTouchTargets(add: Report, limits: StructureLimits): void {
 }
 
 /**
+ * A group of controls has to say what the group is.
+ *
+ * axe does not require it: each radio in a `fieldset` already has its own
+ * accessible name from its label, so removing the `legend` leaves every rule
+ * satisfied and leaves a reader hearing "API key" and "OAuth client" with
+ * nothing saying what is being chosen. The same holds for a `radiogroup` or a
+ * `group` named by nothing.
+ * @param add - collects a finding.
+ */
+function checkGroupNames(add: Report): void {
+  for (const group of document.querySelectorAll('fieldset')) {
+    const legend = group.querySelector(':scope > legend')
+    const named =
+      (legend?.textContent ?? '').trim() !== '' ||
+      (group.getAttribute('aria-label') ?? '').trim() !== '' ||
+      group.hasAttribute('aria-labelledby')
+    if (!named) add('unnamed-group', `${describe(group)} groups controls under no name`)
+  }
+  for (const group of document.querySelectorAll('[role="radiogroup"], [role="group"]')) {
+    const named = (group.getAttribute('aria-label') ?? '').trim() !== '' || group.hasAttribute('aria-labelledby')
+    if (!named) add('unnamed-group', `${describe(group)} groups controls under no name`)
+  }
+}
+
+/**
  * Every structural defect on the current page.
  *
  * Runs in the browser, so it may only use DOM APIs and what it is handed.
@@ -210,6 +236,7 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   checkHeadingOrder(add)
   checkAriaReferences(add)
   checkListOwnership(add)
+  checkGroupNames(add)
   checkHorizontalOverflow(add)
   checkClipping(add)
   checkNestedScroll(add)
@@ -239,6 +266,7 @@ export function structureCheckSource(coarsePointer: boolean): string {
     checkHeadingOrder,
     checkAriaReferences,
     checkListOwnership,
+    checkGroupNames,
     checkHorizontalOverflow,
     scrolls,
     checkClipping,
