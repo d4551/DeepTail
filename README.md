@@ -44,20 +44,26 @@ Three rules it keeps:
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph device["Your device — one DeepTail app"]
-    direction TB
+    direction LR
     ui["<b>Webview</b><br/>shell · roster · dialogs<br/>draws only, opens no socket"]
     rust["<b>Rust core</b><br/>host registry · reqwest · mux client"]
-    store[("Keystore<br/>device tokens · tailnet credential")]
+    store[("Keystore<br/>device tokens<br/>tailnet credential")]
     ui -->|"Tauri IPC"| rust
     rust -->|"reads a secret"| store
   end
 
-  rust -->|"lists the tailnet"| tailscale["<b>Tailscale API</b><br/>which machines exist"]
-  rust -->|"unary calls"| hosts["<b>Every paired dsh host</b><br/>Workstation · Lab box · …<br/>list · spawn · message · stop"]
+  subgraph network["Reached over the network, only ever from Rust"]
+    direction LR
+    tailscale["<b>Tailscale API</b><br/>which machines exist"]
+    hosts["<b>Every paired dsh host</b><br/>list · spawn · message · stop"]
+  end
+
+  rust -->|"lists the tailnet"| tailscale
+  rust -->|"unary calls"| hosts
   hosts -.->|"roster events"| rust
-  ui ==>|"open a session — hands off"| client["<b>That host's harness client</b><br/>transcripts · approvals · plans"]
+  ui ==>|"open a session"| client["<b>That host's harness client</b><br/>transcripts · approvals · plans"]
 
   classDef inside fill:#eef2ff,stroke:#4338ca,color:#1e1b4b
   classDef host fill:#ecfdf5,stroke:#047857,color:#064e3b
@@ -183,6 +189,10 @@ allowances.
 | Paired hosts, before a shell exists | The empty picker in Chinese — every string comes from the dictionary |
 | ![Connect a tailnet](apps/deeptail/tests/screenshots/tailnet-connect.png) | ![Tailnet machines](apps/deeptail/tests/screenshots/tailnet-machines.png) |
 | Either credential Tailscale issues, and an optional tailnet | Your machines, with the one awaiting approval dimmed rather than hidden |
+| ![Loading](apps/deeptail/tests/screenshots/fleet-loading.png) | ![Nothing paired](apps/deeptail/tests/screenshots/picker-empty.png) |
+| Before the first roster read settles | Nothing paired: pair a host, or choose one from Tailscale |
+| ![Dark picker](apps/deeptail/tests/screenshots/picker-dark.png) | ![Unauthorized](apps/deeptail/tests/screenshots/picker-unauthorized.png) |
+| Nothing paired, in the dark palette | Paired hosts whose device tokens the harness no longer accepts |
 
 Every state is built and screenshotted: loading, empty-after-settled, error,
 partial failure (one host down, the rest still listed), unauthorized, and
@@ -246,15 +256,26 @@ settle is a failure rather than a pass. `structure.ts` covers what no rule engin
 reports: a duplicate id, an interactive element inside another, a skipped heading
 level, an ARIA reference pointing at nothing, an item outside its list, a
 document that scrolls sideways, text clipped by its own box, a pane that scrolls
-inside a pane that also scrolls, and a target under the platform minimum. The
-geometry half lives in `structure-layout.ts`; both are shipped into the page as
-their own source text, so nothing they measure against can be left behind.
+inside a pane that also scrolls, and a target under the floor for its pointer —
+24 CSS px on any pointer per WCAG 2.2 SC 2.5.8, and 44 on a finger, which is
+what Apple's Human Interface Guidelines and SC 2.5.5 ask. The geometry half
+lives in `structure-layout.ts`; both are shipped into the page as their own
+source text, so nothing they measure against can be left behind.
 
 The suites split the same way. `structure.browser.spec.ts` walks the surfaces
 and asserts each is clean; `structure-geometry.browser.spec.ts` measures what a
 finger reaches and, because a check that never reports is indistinguishable from
 one that cannot, makes the shell scroll inside itself and asserts the pane rule
-names it.
+names it. The 44px floor is only measured on a page opened with `hasTouch`:
+`pointer: coarse` does not hold on a narrow desktop window, so measuring one
+against it would test a pairing that does not exist.
+
+Every dependency is held at the newest version this workspace can install.
+`check:outdated` reads `bun outdated` — the package manager's own report, which
+already knows about ranges, workspaces and the supply-chain hold in
+`bunfig.toml` — rather than asking the registry itself. A version the hold is
+withholding is reported and passes: that hold is policy working, and demanding
+it would make going green require bypassing it.
 
 Playwright resolves the Chromium it installed. An image that pre-ships one at a
 fixed path instead names it in `apps/deeptail/tests/chromium.json`:
