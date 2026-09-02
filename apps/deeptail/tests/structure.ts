@@ -4,18 +4,18 @@
  * These are the defects a rule engine does not report: markup that nests an
  * interactive element inside another, a heading level skipped, an ARIA
  * reference pointing at nothing, a layout that overflows its viewport, a label
- * clipped by the box it sits in, or a touch target below the platform minimum.
+ * clipped by the box it sits in, a pane that scrolls inside a pane that also
+ * scrolls, or a touch target below the platform minimum.
  * Each returns a list of offending selectors, so a failure names the element
  * rather than a count.
  *
  * @module
  */
 
-/** One structural defect, as the page reports it. */
-export interface StructureFinding {
-  readonly rule: string
-  readonly detail: string
-}
+import { checkClipping, checkHorizontalOverflow, checkNestedScroll, scrolls } from './structure-layout.ts'
+import { describe, type Report, type StructureFinding } from './structure-report.ts'
+
+export type { StructureFinding }
 
 /**
  * What the checks measure against, handed to them rather than closed over.
@@ -67,20 +67,6 @@ const INTERACTIVE = [
   '[role="menuitemcheckbox"]',
   '[role="option"]',
 ].join(', ')
-
-/**
- * A short, readable path to an element, for a failure message.
- * @param node - the element to describe.
- * @returns tag, id and classes.
- */
-function describe(node: Element): string {
-  const id = node.id === '' ? '' : `#${node.id}`
-  const classes = node.classList.length > 0 ? `.${[...node.classList].join('.')}` : ''
-  return `${node.tagName.toLowerCase()}${id}${classes}`
-}
-
-/** Collects one finding. */
-type Report = (rule: string, detail: string) => void
 
 /**
  * Every id must be unique for an ARIA reference or a label to mean anything.
@@ -187,39 +173,6 @@ function checkListOwnership(add: Report): void {
 }
 
 /**
- * The page must never scroll sideways at any width it ships to.
- * @param add - collects a finding.
- */
-function checkHorizontalOverflow(add: Report): void {
-  const doc = document.documentElement
-  if (doc.scrollWidth > doc.clientWidth) {
-    add('horizontal-overflow', `document scrolls to ${String(doc.scrollWidth)} in ${String(doc.clientWidth)}`)
-  }
-}
-
-/**
- * Text that overruns its box without a scroll or an ellipsis is simply lost.
- * @param add - collects a finding.
- */
-function checkClipping(add: Report): void {
-  // Every element that carries its own text, rather than a hand-written list of
-  // classes that goes quiet the moment a new one is added.
-  const carries = [...document.querySelectorAll('body *')].filter((node) =>
-    [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').trim() !== ''),
-  )
-  for (const node of carries) {
-    const computed = getComputedStyle(node)
-    if (
-      node.scrollWidth > node.clientWidth + 1 &&
-      computed.overflow === 'visible' &&
-      computed.textOverflow !== 'ellipsis'
-    ) {
-      add('clipped-content', `${describe(node)} overflows its box without a scroll or ellipsis`)
-    }
-  }
-}
-
-/**
  * Every control a finger reaches clears the platform minimum.
  * @param add - collects a finding.
  * @param limits - what the checks measure against.
@@ -259,6 +212,7 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   checkListOwnership(add)
   checkHorizontalOverflow(add)
   checkClipping(add)
+  checkNestedScroll(add)
   checkTouchTargets(add, limits)
   return findings
 }
@@ -286,7 +240,9 @@ export function structureCheckSource(coarsePointer: boolean): string {
     checkAriaReferences,
     checkListOwnership,
     checkHorizontalOverflow,
+    scrolls,
     checkClipping,
+    checkNestedScroll,
     checkTouchTargets,
     findStructureDefects,
   ].map(String)
