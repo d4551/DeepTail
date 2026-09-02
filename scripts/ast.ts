@@ -12,8 +12,56 @@
 
 import { parseSync } from 'oxc-parser'
 
-/** A parsed node, walked structurally rather than by declared shape. */
-export type Node = Record<string, unknown> & { readonly type: string }
+/**
+ * A parsed node.
+ *
+ * The fields are the ones the rules read, declared rather than reached for
+ * through an index signature: a bag of unknowns forces every read to be written
+ * as a lookup, which is both harder to read and indistinguishable from a typo.
+ * Anything not named here is a field no rule has needed yet.
+ */
+export interface Node {
+  readonly type: string
+  /** Byte offset the node starts at. */
+  readonly start?: number
+  /** An identifier's name. */
+  readonly name?: string
+  /** A literal's value. */
+  readonly value?: unknown
+  /** Whether a member or property key is an expression rather than a name. */
+  readonly computed?: boolean
+  /** A binary or unary operator. */
+  readonly operator?: string
+  /** A variable declaration's `var`, `let` or `const`. */
+  readonly kind?: string
+  /** A binary expression's operands. */
+  readonly left?: unknown
+  readonly right?: unknown
+  /** A member expression's parts. */
+  readonly object?: unknown
+  readonly property?: unknown
+  /** A call's target and arguments. */
+  readonly callee?: unknown
+  readonly arguments?: readonly unknown[]
+  /** What a wrapper wraps, and what a template interpolates. */
+  readonly expression?: unknown
+  readonly expressions?: readonly unknown[]
+  /** A template literal's fixed parts. */
+  readonly quasis?: readonly unknown[]
+  /** An array literal's elements. */
+  readonly elements?: readonly unknown[]
+  /** An object literal's or pattern's properties. */
+  readonly properties?: readonly unknown[]
+  /** A variable statement's declarators, and one declarator's parts. */
+  readonly declarations?: readonly unknown[]
+  readonly id?: unknown
+  readonly init?: unknown
+  /** A property's key. */
+  readonly key?: unknown
+  /** An import specifier's imported and local names. */
+  readonly imported?: unknown
+  readonly local?: unknown
+}
 
 /** One comment, which is the only form a checker directive ever takes. */
 export interface Comment {
@@ -84,7 +132,7 @@ export function unwrap(value: unknown): unknown {
   // Bounded so a tree that somehow refers to itself cannot spin here.
   for (let depth = 0; depth < 32; depth += 1) {
     if (!isNode(inner) || !TRANSPARENT.has(inner.type)) return inner
-    inner = inner['expression']
+    inner = inner.expression
   }
   return inner
 }
@@ -95,10 +143,10 @@ export function unwrap(value: unknown): unknown {
  * @returns the name, or undefined when it is computed or not an identifier.
  */
 export function memberName(node: Node): string | undefined {
-  if (node['computed'] === true) return undefined
-  const property = unwrap(node['property'])
-  return isNode(property) && property.type === 'Identifier' && typeof property['name'] === 'string'
-    ? property['name']
+  if (node.computed === true) return undefined
+  const property = unwrap(node.property)
+  return isNode(property) && property.type === 'Identifier' && typeof property.name === 'string'
+    ? property.name
     : undefined
 }
 

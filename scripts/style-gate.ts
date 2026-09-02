@@ -18,9 +18,19 @@
  * @module
  */
 
-import { isNode, memberName, type Node, unwrap, parseScript, walk } from './ast.ts'
-import { approximateString, type Constants, constants, staticString } from './fold.ts'
+import { approximateString } from './approximate.ts'
+import { isNode, memberName, type Node, parseScript, unwrap, walk } from './ast.ts'
+import { type Constants, constants, staticString } from './fold.ts'
 import { markupOffences, scanMarkup } from './markup-gate.ts'
+import {
+  ATTRIBUTE_SETTERS,
+  KEYED_WRITE_HOSTS,
+  KEYED_WRITES,
+  MERGED_WRITES,
+  OPAQUE_ATTRIBUTE_CALLS,
+  STYLE_ATTRIBUTE,
+  STYLE_PROPERTIES,
+} from './style-rules.ts'
 
 /** Extensions the script scanner reads. */
 export const SCRIPT_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const
@@ -38,50 +48,6 @@ export interface Offence {
   readonly why: string
 }
 
-/** Properties that reach an element's own style declaration, keyed in lower case. */
-const STYLE_PROPERTIES = new Map<string, string>([
-  ['style', 'an element style declaration is an inline style; put the rule in a stylesheet and add a class'],
-  ['csstext', 'writing cssText replaces an inline style block; put the rule in a stylesheet and add a class'],
-  ['attributestylemap', 'the typed style map is the style attribute; put the rule in a stylesheet and add a class'],
-])
-
-/** Calls that set an attribute, and which argument names it. */
-const ATTRIBUTE_SETTERS = new Map<string, number>([
-  ['setAttribute', 0],
-  ['setAttributeNS', 1],
-  ['createAttribute', 0],
-  ['createAttributeNS', 1],
-  ['toggleAttribute', 0],
-])
-
-/** Calls that write a property under a name, and which argument names it. */
-const KEYED_WRITES = new Map<string, number>([
-  ['set', 1],
-  ['defineProperty', 1],
-])
-
-/**
- * Calls that write every property an object literal carries.
- *
- * `Object.assign(el, { style })` reaches the same declaration as `el.style`,
- * and it is already this codebase's idiom for merging onto an object, so the
- * keys of what is being merged are read.
- */
-const MERGED_WRITES = new Set(['assign', 'defineProperties'])
-
-/** Namespaces whose keyed writes reach an object's own properties. */
-const KEYED_WRITE_HOSTS = new Set(['Reflect', 'Object'])
-
-/** Calls that set an attribute without ever naming it in the source. */
-const OPAQUE_ATTRIBUTE_CALLS = new Map<string, string>([
-  ['setAttributeNode', 'an attribute node hides its name from every checker; use setAttribute with a literal name'],
-  ['setAttributeNodeNS', 'an attribute node hides its name from every checker; use setAttributeNS with a literal name'],
-  ['setNamedItem', 'the attribute map hides the name from every checker; use setAttribute with a literal name'],
-])
-
-/** The attribute this gate exists to keep out of the product. */
-const STYLE_ATTRIBUTE = 'style'
-
 /**
  * The key a property or member names, however it is written.
  * @param env - the file's constants.
@@ -93,7 +59,7 @@ function keyOf(env: Constants, unwrapped: unknown, computed: boolean): string | 
   const node = unwrap(unwrapped)
   if (!isNode(node)) return undefined
   if (!computed) {
-    if (node.type === 'Identifier' && typeof node['name'] === 'string') return node['name']
+    if (node.type === 'Identifier' && typeof node.name === 'string') return node.name
     if (node.type === 'Literal' && typeof node.value === 'string') return node.value
     return undefined
   }
@@ -106,11 +72,11 @@ function keyOf(env: Constants, unwrapped: unknown, computed: boolean): string | 
  * @param text - the file's contents.
  * @returns one offence per rejected construct.
  */
-export function scanScript(label: string, text: string): Offence[] {
+function scanScript(label: string, text: string): Offence[] {
   const parsed = parseScript(label, text)
   const offences: Offence[] = []
   const report = (node: Node, why: string): void => {
-    offences.push({ label, line: parsed.lineAt(node['start']), why })
+    offences.push({ label, line: parsed.lineAt(node.start), why })
   }
   for (const error of parsed.errors) {
     offences.push({ label, line: 1, why: `this file does not parse, so it cannot be checked: ${error.message}` })
@@ -150,7 +116,7 @@ const INSPECTORS = new Map<string, (env: Constants, node: Node, report: (node: N
  * @param report - records an offence.
  */
 function inspectMember(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const key = keyOf(env, node['property'], node['computed'] === true)
+  const key = keyOf(env, node.property, node.computed === true)
   if (key === undefined) return
   const why = STYLE_PROPERTIES.get(key.toLowerCase())
   if (why !== undefined) report(node, why)
@@ -168,11 +134,11 @@ function inspectMember(env: Constants, node: Node, report: (node: Node, why: str
  * @param report - records an offence.
  */
 function inspectPattern(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const properties = node['properties']
+  const properties = node.properties
   if (!Array.isArray(properties)) return
   for (const property of properties) {
     if (!isNode(property) || property.type !== 'Property') continue
-    const key = keyOf(env, property['key'], property['computed'] === true)
+    const key = keyOf(env, property.key, property.computed === true)
     if (key === undefined) continue
     const why = STYLE_PROPERTIES.get(key.toLowerCase())
     if (why !== undefined) report(property, why)
@@ -189,9 +155,9 @@ function inspectPattern(env: Constants, node: Node, report: (node: Node, why: st
  * @param report - records an offence.
  */
 function inspectJsxAttribute(_env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const name = node['name']
+  const name = node.name
   if (!isNode(name)) return
-  const written = typeof name['name'] === 'string' ? name['name'] : undefined
+  const written = typeof name.name === 'string' ? name.name : undefined
   if (written === undefined) return
   const why = STYLE_PROPERTIES.get(written.toLowerCase())
   if (why !== undefined) report(node, why)
@@ -205,13 +171,13 @@ function inspectJsxAttribute(_env: Constants, node: Node, report: (node: Node, w
  * @param report - records an offence.
  */
 function inspectCall(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const callee = unwrap(node['callee'])
+  const callee = unwrap(node.callee)
   if (!isNode(callee) || callee.type !== 'MemberExpression') return
   // A method reached through brackets is the same method. Reading only the
   // plainly written form let one pair of brackets step past every rule below.
-  const method = memberName(callee) ?? staticString(env, callee['property'])
+  const method = memberName(callee) ?? staticString(env, callee.property)
   if (method === undefined) return
-  const args = Array.isArray(node['arguments']) ? node['arguments'] : []
+  const args = Array.isArray(node.arguments) ? node.arguments : []
   const opaque = OPAQUE_ATTRIBUTE_CALLS.get(method)
   if (opaque !== undefined) {
     report(node, opaque)
@@ -222,9 +188,9 @@ function inspectCall(env: Constants, node: Node, report: (node: Node, why: strin
     checkName(env, node, args[setter], 'attribute', report)
     return
   }
-  const host = unwrap(callee['object'])
-  if (!isNode(host) || host.type !== 'Identifier' || typeof host['name'] !== 'string') return
-  if (!KEYED_WRITE_HOSTS.has(host['name'])) return
+  const host = unwrap(callee.object)
+  if (!isNode(host) || host.type !== 'Identifier' || typeof host.name !== 'string') return
+  if (!KEYED_WRITE_HOSTS.has(host.name)) return
   const keyed = KEYED_WRITES.get(method)
   if (keyed !== undefined) {
     checkName(env, node, args[keyed], 'property', report)
@@ -245,11 +211,11 @@ function inspectCall(env: Constants, node: Node, report: (node: Node, why: strin
 function inspectMergedKeys(env: Constants, unwrapped: unknown, report: (node: Node, why: string) => void): void {
   const argument = unwrap(unwrapped)
   if (!isNode(argument) || argument.type !== 'ObjectExpression') return
-  const properties = argument['properties']
+  const properties = argument.properties
   if (!Array.isArray(properties)) return
   for (const property of properties) {
     if (!isNode(property) || property.type !== 'Property') continue
-    const key = keyOf(env, property['key'], property['computed'] === true)
+    const key = keyOf(env, property.key, property.computed === true)
     const why = key === undefined ? undefined : STYLE_PROPERTIES.get(key.toLowerCase())
     if (why !== undefined) report(property, why)
   }

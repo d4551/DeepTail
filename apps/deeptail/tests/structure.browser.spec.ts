@@ -161,6 +161,33 @@ function sidebarBox(page: Page): Promise<{ x: number; right: number }> {
   })
 }
 
+it('has no structural defects on a surface whose read failed', async () => {
+  // Every other case here drives a healthy fleet, so no case had ever put a
+  // failed read through these checks — which is how a retry control 18 pixels
+  // tall shipped, reported by this very checker, on both surfaces that offer it.
+  const found = await Promise.all(
+    [fleet({ remoteErrors: { 'dev-1:session/list': 'unreachable' } }), { listError: 'registry unavailable' }].map(
+      async (table) => {
+        const page = await harness.open(table)
+        await page.locator('.retry').first().waitFor({ state: 'visible' })
+        const defect = await defects(page, false)
+        await page.close()
+        return defect
+      },
+    ),
+  )
+  expect(found).toEqual(['', ''])
+})
+
+it('meets the platform touch minimum on a surface whose read failed', async () => {
+  const page = await harness.open(fleet({ remoteErrors: { 'dev-1:session/list': 'unreachable' } }), { mobile: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-action="drawer"]').click()
+  await page.locator('.retry').first().waitFor({ state: 'visible' })
+  expect(await defects(page, true)).toBe('')
+  await page.close()
+})
+
 it('slides the drawer in from the inline start in either direction', async () => {
   const measured = await Promise.all(
     (['ltr', 'rtl'] as const).map(async (direction) => {

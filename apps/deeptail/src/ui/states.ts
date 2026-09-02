@@ -75,7 +75,11 @@ export function retryStrip(tone: Tone, message: string, retryLabel: string, onRe
     data: { deeptailState: tone },
     role: TONES[tone].role,
   })
-  strip.append(button('retry', retryLabel, onRetry))
+  const retry = button('retry', retryLabel, onRetry)
+  // Named so focus can be returned to it, or to what replaced it: activating a
+  // retry starts a read that immediately removes the control that started it.
+  retry.dataset.deeptailAction = 'retry'
+  strip.append(retry)
   return strip
 }
 

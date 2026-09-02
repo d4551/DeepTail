@@ -10,7 +10,7 @@
 
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
-import { buildConnectionMenu } from './connection-menu-panel.ts'
+import { buildConnectionMenu, type MenuPanel } from './connection-menu-panel.ts'
 import { el, screenReaderText } from './dom.ts'
 import { type HostState, hostStateLabel } from './states.ts'
 
@@ -66,6 +66,12 @@ export function mountConnectionMenu(
     const active = hosts.find((host) => host.id === activeHostId)
     const open = popover.isOpen()
 
+    // Which item the operator is on, before it is thrown away. The menu is
+    // redrawn on every roster event, and a live fleet forwards those
+    // continuously — so without this, opening the menu on a working fleet threw
+    // focus back to the first host every few seconds.
+    const held = focusedMenuKey(root)
+
     trigger.replaceChildren(...triggerContent(active, ports, t))
 
     root.replaceChildren(trigger)
@@ -74,7 +80,7 @@ export function mountConnectionMenu(
 
     const panel = buildConnectionMenu({ hosts, activeHostId, ports, t, dismiss: popover.close })
     root.append(panel.menu)
-    panel.initialFocus?.focus()
+    restoreMenuFocus(panel, held)
   }
 
   wireTriggerActivation(trigger, ports, popover)
@@ -88,6 +94,33 @@ export function mountConnectionMenu(
       root.remove()
     },
   }
+}
+
+/**
+ * The name of the menu item focus is on, if it is on one.
+ * @param root - the switcher.
+ * @returns the item's key, or undefined when focus is elsewhere.
+ */
+function focusedMenuKey(root: HTMLElement): string | undefined {
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || !root.contains(active)) return undefined
+  return active.dataset.deeptailMenu
+}
+
+/**
+ * Put focus on the item it was on, or on the first one when the menu has just
+ * opened.
+ * @param panel - the freshly drawn menu.
+ * @param held - the key focus was on before the rebuild.
+ */
+function restoreMenuFocus(panel: MenuPanel, held: string | undefined): void {
+  const items = [...panel.menu.querySelectorAll<HTMLButtonElement>('[data-deeptail-menu]')]
+  const same = held === undefined ? undefined : items.find((item) => item.dataset.deeptailMenu === held)
+  const target = same ?? panel.initialFocus
+  if (target === undefined) return
+  // The roving stop follows focus, so the next arrow key continues from here.
+  for (const item of items) item.tabIndex = item === target ? 0 : -1
+  target.focus()
 }
 
 /**

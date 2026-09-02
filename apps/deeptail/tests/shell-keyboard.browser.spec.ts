@@ -6,6 +6,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
+import type { Page } from 'playwright'
 import { fleet, oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
 
@@ -141,5 +142,77 @@ it('walks the row the way it is drawn when the script runs right to left', async
   // And the key pointing away from them goes back, rather than deeper in.
   await page.keyboard.press('ArrowRight')
   expect(await page.evaluate(() => document.activeElement?.className ?? null)).toBe('session-open')
+  await page.close()
+})
+
+/**
+ * Where focus is, named so a failure says something.
+ * @param page - the page under test.
+ * @returns the focused element's tag and classes, or BODY when it escaped.
+ */
+function focusHere(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const active = document.activeElement
+    if (active === null || active === document.body) return 'BODY'
+    return `${active.tagName.toLowerCase()}.${active.className}`
+  })
+}
+
+it('keeps focus in the row whose action it just ran', async () => {
+  const page = await harness.open(oneHost())
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  expect(await focusHere(page)).toContain('row-action')
+  // Stopping disables every row action while it runs, and focus cannot be given
+  // to a disabled control — so without somewhere to wait and something to
+  // remember, the gesture threw focus to the document and never got it back.
+  await page.keyboard.press('Enter')
+  // Wait for the mutation to finish: the actions go dark while it runs and come
+  // back when it settles, and the whole roster is rebuilt at both ends.
+  await page.waitForFunction(
+    () => document.querySelector<HTMLButtonElement>('[data-deeptail-action="row-stop"]')?.disabled === false,
+  )
+  expect(await focusHere(page)).not.toBe('BODY')
+  expect(
+    await page.evaluate(() => document.activeElement?.closest('[data-deeptail-session="s-running"]') !== null),
+  ).toBe(true)
+  await page.close()
+})
+
+it('keeps focus on the host it just retried', async () => {
+  const page = await harness.open(fleet({ remoteErrors: { 'dev-1:session/list': 'unreachable' } }))
+  await page.waitForSelector('[data-deeptail-shell]')
+  const retry = page.locator('[data-deeptail-host="dev-1"] [data-deeptail-action="retry"]').first()
+  await retry.waitFor({ state: 'visible' })
+  await retry.focus()
+  // Activating a retry starts the read that removes it, so the control the
+  // operator was on is gone by the time the redraw lands.
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(200)
+  expect(await focusHere(page)).not.toBe('BODY')
+  expect(await page.evaluate(() => document.activeElement?.closest('[data-deeptail-host="dev-1"]') !== null)).toBe(true)
+  await page.close()
+})
+
+it('leaves the open menu on the item the operator walked to', async () => {
+  const page = await harness.open(fleet({ muxHosts: ['dev-1'] }))
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  const before = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.deeptailMenu ?? null)
+  expect(before).toBe('pair')
+  // The menu is redrawn on every roster event, and a live fleet forwards those
+  // continuously — so an operator walking the menu was thrown back to the first
+  // host every few seconds.
+  await harness.forward(page, 'api-session/activity', ['s-running', 1_700_000_000_000])
+  await page.waitForTimeout(150)
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.deeptailMenu ?? null)).toBe(
+    'pair',
+  )
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
   await page.close()
 })

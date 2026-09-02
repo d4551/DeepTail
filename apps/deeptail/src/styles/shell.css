@@ -457,8 +457,16 @@
   .connection-trigger,
   .new-session,
   .menu-item,
-  .menu-repair {
+  .menu-repair,
+  .retry {
     min-height: 44px;
+  }
+
+  /* A word-width control clears the floor in one direction and not the other,
+     and a target is measured in both. */
+  .retry {
+    justify-content: center;
+    min-width: 44px;
   }
 }
 

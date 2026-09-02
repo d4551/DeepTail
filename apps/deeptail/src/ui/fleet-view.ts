@@ -13,7 +13,7 @@ import type { Translate } from '../locales.ts'
 import { messageOf } from '../reason.ts'
 import type { FleetStore, HostEntry } from '../store.ts'
 import { bindRovingFocus, el } from './dom.ts'
-import { focusedControl, restoreFocus } from './roster-focus.ts'
+import { type FocusedControl, focusedControl, restoreFocus } from './roster-focus.ts'
 import { type RowHandlers, sessionRow } from './session-row.ts'
 import { emptyRow, loadingRow, retryStrip } from './states.ts'
 
@@ -38,6 +38,14 @@ interface RosterMutations {
   busy: boolean
   /** Per-host mutation failures, keyed by host id. */
   readonly failures: Map<string, string>
+  /**
+   * The control focus is owed, held across the rebuilds it cannot be given in.
+   *
+   * A row action is disabled while its mutation runs, and focus cannot be given
+   * to a disabled control, so without this the gesture that started the
+   * mutation lost focus for good.
+   */
+  owed: FocusedControl | undefined
 }
 
 /**
@@ -70,7 +78,7 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
     store,
     ports,
     t,
-    mutations: { busy: false, failures: new Map() },
+    mutations: { busy: false, failures: new Map(), owed: undefined },
     render: () => {
       renderRoster(root, view)
     },
@@ -95,11 +103,16 @@ function renderRoster(root: HTMLElement, view: RosterView): void {
   // Every roster event rebuilds these rows, and one arriving while the operator
   // is on a row would otherwise drop focus to the document body and reset the
   // roving stop to the first row.
-  const focused = focusedControl(root)
+  // What is owed outranks where focus happens to be, because where it happens
+  // to be is usually the fallback this function gave it last time. A deliberate
+  // move to another row does outrank it: that is the operator's choice.
+  const current = focusedControl(root)
+  const focused = current !== undefined && current.session !== undefined ? current : (view.mutations.owed ?? current)
   root.replaceChildren()
 
   if (entries.length === 0) {
     root.append(emptyRow(view.t('status.empty')))
+    view.mutations.owed = undefined
     return
   }
 
@@ -108,7 +121,7 @@ function renderRoster(root: HTMLElement, view: RosterView): void {
     root.append(hostGroup(entry, stops, view))
   }
   bindRovingFocus(stops)
-  restoreFocus(root, focused)
+  view.mutations.owed = restoreFocus(root, focused)
 }
 
 /**

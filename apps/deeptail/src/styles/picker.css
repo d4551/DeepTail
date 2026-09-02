@@ -293,7 +293,14 @@
 
 .retry {
   flex: 0 0 auto;
-  padding: 0;
+  /* The one way out of a failed read has to be a target, not a word. WCAG 2.2
+     puts the floor for any pointer at 24px, and this was 18 tall — the
+     project's own structure check reported it on every failed-read surface,
+     and nothing drove a failed read through that check. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 6px;
   border: none;
   background: transparent;
   color: inherit;

@@ -77,7 +77,9 @@ function appendHostRow(items: HTMLElement, host: HostRecord, options: MenuPanelO
     className: 'menu-item menu-choice',
     role: 'menuitemradio',
     aria: { checked: host.id === activeHostId ? 'true' : 'false' },
-    data: { deeptailHost: host.id },
+    // Named so focus survives a rebuild: the menu is redrawn on every roster
+    // event, and a fleet forwards those continuously.
+    data: { deeptailHost: host.id, deeptailMenu: `host:${host.id}` },
   })
   item.type = 'button'
   item.append(
@@ -108,6 +110,7 @@ function repairItem(hostId: string, options: MenuPanelOptions): HTMLButtonElemen
   })
   repair.setAttribute('role', 'menuitem')
   repair.dataset.deeptailAction = 'repair'
+  repair.dataset.deeptailMenu = `repair:${hostId}`
   return repair
 }
 
@@ -120,7 +123,7 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
   const { hosts, activeHostId, ports, t, dismiss } = options
   const footer = el('div', { className: 'menu-footer', role: 'none' })
   footer.append(
-    menuItem('menu-item', t('action.pair'), () => {
+    menuItem('menu-item', t('action.pair'), 'pair', () => {
       dismiss()
       ports.pair()
     }),
@@ -128,7 +131,7 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
   const active = hosts.find((host) => host.id === activeHostId)
   if (active !== undefined) {
     footer.append(
-      menuItem('menu-item menu-danger', t('shell.unpair'), () => {
+      menuItem('menu-item menu-danger', t('shell.unpair'), 'unpair', () => {
         dismiss()
         ports.unpair(active.id)
       }),
@@ -141,11 +144,13 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
  * A footer control that is a real menu item, so `role="menu"` owns it.
  * @param className - the item's classes.
  * @param text - its label.
+ * @param key - the name focus finds it again by after a rebuild.
  * @param onClick - its activation handler.
  * @returns the item.
  */
-function menuItem(className: string, text: string, onClick: () => void): HTMLButtonElement {
+function menuItem(className: string, text: string, key: string, onClick: () => void): HTMLButtonElement {
   const item = button(className, text, onClick)
   item.setAttribute('role', 'menuitem')
+  item.dataset.deeptailMenu = key
   return item
 }

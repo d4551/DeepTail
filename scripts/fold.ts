@@ -28,17 +28,17 @@ export function constants(program: unknown): Constants {
   const found = new Map<string, string | null>()
   const empty: Constants = new Map()
   walk(program, (node) => {
-    if (node.type !== 'VariableDeclaration' || node['kind'] !== 'const') return
-    const declarations = node['declarations']
+    if (node.type !== 'VariableDeclaration' || node.kind !== 'const') return
+    const declarations = node.declarations
     if (!Array.isArray(declarations)) return
     for (const declaration of declarations) {
       if (!isNode(declaration)) continue
-      const id = unwrap(declaration['id'])
-      if (!isNode(id) || id.type !== 'Identifier' || typeof id['name'] !== 'string') continue
-      const value = staticString(empty, declaration['init'])
+      const id = unwrap(declaration.id)
+      if (!isNode(id) || id.type !== 'Identifier' || typeof id.name !== 'string') continue
+      const value = staticString(empty, declaration.init)
       if (value === undefined) continue
-      const seen = found.get(id['name'])
-      found.set(id['name'], seen === undefined || seen === value ? value : null)
+      const seen = found.get(id.name)
+      found.set(id.name, seen === undefined || seen === value ? value : null)
     }
   })
   return found
@@ -62,7 +62,7 @@ export function staticString(env: Constants, unwrapped: unknown): string | undef
     case 'Literal':
       return typeof node.value === 'string' ? node.value : undefined
     case 'Identifier':
-      return typeof node['name'] === 'string' ? (env.get(node['name']) ?? undefined) : undefined
+      return typeof node.name === 'string' ? (env.get(node.name) ?? undefined) : undefined
     case 'TemplateLiteral':
       return foldTemplate(env, node)
     case 'BinaryExpression':
@@ -72,7 +72,7 @@ export function staticString(env: Constants, unwrapped: unknown): string | undef
     case 'TSAsExpression':
     case 'TSSatisfiesExpression':
     case 'TSNonNullExpression':
-      return staticString(env, node['expression'])
+      return staticString(env, node.expression)
     default:
       return undefined
   }
@@ -85,8 +85,8 @@ export function staticString(env: Constants, unwrapped: unknown): string | undef
  * @returns the string, or undefined.
  */
 function foldTemplate(env: Constants, node: Node): string | undefined {
-  const quasis = node['quasis']
-  const expressions = node['expressions']
+  const quasis = node.quasis
+  const expressions = node.expressions
   if (!Array.isArray(quasis) || !Array.isArray(expressions)) return undefined
   let text = ''
   for (const [index, quasi] of quasis.entries()) {
@@ -108,9 +108,9 @@ function foldTemplate(env: Constants, node: Node): string | undefined {
  * @returns the string, or undefined.
  */
 function foldConcatenation(env: Constants, node: Node): string | undefined {
-  if (node['operator'] !== '+') return undefined
-  const left = staticString(env, node['left'])
-  const right = staticString(env, node['right'])
+  if (node.operator !== '+') return undefined
+  const left = staticString(env, node.left)
+  const right = staticString(env, node.right)
   return left === undefined || right === undefined ? undefined : left + right
 }
 
@@ -122,12 +122,12 @@ function foldConcatenation(env: Constants, node: Node): string | undefined {
  * @returns the string, or undefined.
  */
 function foldCall(env: Constants, node: Node): string | undefined {
-  const callee = node['callee']
-  const args = node['arguments']
+  const callee = node.callee
+  const args = node.arguments
   if (!isNode(callee) || callee.type !== 'MemberExpression' || !Array.isArray(args)) return undefined
   const method = memberName(callee)
   if (method === 'fromCharCode' || method === 'fromCodePoint') return foldCharacters(method, args)
-  const receiver = callee['object']
+  const receiver = callee.object
   if (method === 'toLowerCase' || method === 'toUpperCase') {
     const text = staticString(env, receiver)
     return text === undefined ? undefined : method === 'toLowerCase' ? text.toLowerCase() : text.toUpperCase()
@@ -180,7 +180,7 @@ function foldParts(env: Constants, parts: readonly unknown[]): string | undefine
  */
 function foldJoin(env: Constants, receiver: unknown, args: readonly unknown[]): string | undefined {
   if (!isNode(receiver) || receiver.type !== 'ArrayExpression') return undefined
-  const elements = receiver['elements']
+  const elements = receiver.elements
   if (!Array.isArray(elements)) return undefined
   const separator = args.length === 0 ? '' : staticString(env, args[0])
   if (separator === undefined) return undefined
@@ -191,70 +191,6 @@ function foldJoin(env: Constants, receiver: unknown, args: readonly unknown[]): 
     parts.push(folded)
   }
   return parts.join(separator)
-}
-
-/**
- * The placeholder an unreadable part of a string leaves behind.
- *
- * A private-use code point, so it can never collide with anything the source
- * actually contains, and one character wide so the shape of what surrounds it
- * survives — which is the whole point: markup half-written in the source and
- * half-supplied at runtime is still markup, and its attributes are still
- * readable even when their values are not.
- */
-export const UNREADABLE = '\u{F8FF}'
-
-/**
- * The nearest string an expression can be read as, with everything undecidable
- * standing in as {@link UNREADABLE}.
- *
- * This is what `staticString` cannot do: it answers all-or-nothing, so a single
- * interpolation hides the whole string from every rule. Markup does not work
- * that way — `'<b style="' + colour + '">'` names the attribute regardless of
- * what the colour turns out to be.
- * @param env - the file's constants.
- * @param unwrapped - the expression to read, wrappers and all.
- * @returns the approximation, or undefined when the node produces no string.
- */
-export function approximateString(env: Constants, unwrapped: unknown): string | undefined {
-  const exact = staticString(env, unwrapped)
-  if (exact !== undefined) return exact
-  const node = unwrap(unwrapped)
-  if (!isNode(node)) return undefined
-  switch (node.type) {
-    case 'TemplateLiteral':
-      return approximateTemplate(env, node)
-    case 'BinaryExpression':
-      return node['operator'] === '+'
-        ? `${approximateString(env, node['left']) ?? UNREADABLE}${approximateString(env, node['right']) ?? UNREADABLE}`
-        : undefined
-    case 'TSAsExpression':
-    case 'TSSatisfiesExpression':
-    case 'TSNonNullExpression':
-      return approximateString(env, node['expression'])
-    default:
-      return undefined
-  }
-}
-
-/**
- * Read a template, standing in for each interpolation that cannot be folded.
- * @param env - the file's constants.
- * @param node - the template literal.
- * @returns the approximation, or undefined when its parts are not readable.
- */
-function approximateTemplate(env: Constants, node: Node): string | undefined {
-  const quasis = node['quasis']
-  const expressions = node['expressions']
-  if (!Array.isArray(quasis) || !Array.isArray(expressions)) return undefined
-  let text = ''
-  for (const [index, quasi] of quasis.entries()) {
-    const cooked = (quasi as { value?: { cooked?: unknown } }).value?.cooked
-    if (typeof cooked !== 'string') return undefined
-    text += cooked
-    if (index < expressions.length) text += approximateString(env, expressions[index]) ?? UNREADABLE
-  }
-  return text
 }
 
 /**
@@ -274,7 +210,7 @@ export type Aliases = ReadonlyMap<string, string>
 export function aliases(program: unknown): Aliases {
   const direct = new Map<string, string>()
   walk(program, (node) => {
-    if (node.type === 'VariableDeclaration' && node['kind'] === 'const') recordConstAliases(node, direct)
+    if (node.type === 'VariableDeclaration' && node.kind === 'const') recordConstAliases(node, direct)
     if (node.type === 'ImportSpecifier') recordImportAlias(node, direct)
   })
   const resolved = new Map<string, string>()
@@ -297,15 +233,15 @@ export function aliases(program: unknown): Aliases {
  * @param into - the map to add to.
  */
 function recordConstAliases(node: Node, into: Map<string, string>): void {
-  const declarations = node['declarations']
+  const declarations = node.declarations
   if (!Array.isArray(declarations)) return
   for (const declaration of declarations) {
     if (!isNode(declaration)) continue
-    const id = unwrap(declaration['id'])
-    const init = unwrap(declaration['init'])
+    const id = unwrap(declaration.id)
+    const init = unwrap(declaration.init)
     if (!isNode(id) || id.type !== 'Identifier' || !isNode(init) || init.type !== 'Identifier') continue
-    if (typeof id['name'] !== 'string' || typeof init['name'] !== 'string') continue
-    into.set(id['name'], init['name'])
+    if (typeof id.name !== 'string' || typeof init.name !== 'string') continue
+    into.set(id.name, init.name)
   }
 }
 
@@ -315,10 +251,10 @@ function recordConstAliases(node: Node, into: Map<string, string>): void {
  * @param into - the map to add to.
  */
 function recordImportAlias(node: Node, into: Map<string, string>): void {
-  const imported = node['imported']
-  const local = node['local']
+  const imported = node.imported
+  const local = node.local
   if (!isNode(imported) || !isNode(local)) return
-  const from = imported.type === 'Identifier' ? imported['name'] : imported['value']
-  if (typeof from !== 'string' || typeof local['name'] !== 'string' || local['name'] === from) return
-  into.set(local['name'], from)
+  const from = imported.type === 'Identifier' ? imported.name : imported.value
+  if (typeof from !== 'string' || typeof local.name !== 'string' || local.name === from) return
+  into.set(local.name, from)
 }

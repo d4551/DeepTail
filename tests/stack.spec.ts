@@ -41,6 +41,23 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@types/node': '26.4',
 }
 
+/** The parts of a parsed configuration file this suite reads. */
+interface Parsed {
+  readonly compilerOptions?: CompilerOptions
+  readonly categories?: Record<string, string>
+  readonly rules?: Record<string, string>
+  readonly ignorePatterns?: string[]
+  readonly overrides?: unknown
+}
+
+/** The compiler options this suite holds the project to. */
+interface CompilerOptions {
+  readonly strict?: unknown
+  readonly module?: unknown
+  readonly target?: unknown
+  readonly [option: string]: unknown
+}
+
 /** Every kind of dependency a manifest can declare. */
 const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
 
@@ -49,9 +66,9 @@ const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'peerDependencies',
  * @param text - the file contents.
  * @returns the parsed object.
  */
-function readJsonc(text: string): Record<string, unknown> {
+function readJsonc(text: string): Parsed {
   const errors: ParseError[] = []
-  const value = parseJsonc(text, errors, { allowTrailingComma: true }) as Record<string, unknown>
+  const value = parseJsonc(text, errors, { allowTrailingComma: true }) as Parsed
   expect(errors).toEqual([])
   return value
 }
@@ -150,12 +167,7 @@ describe('stack floors', () => {
   })
 
   it('keeps every linter category enabled', async () => {
-    const config = readJsonc(await readFile('.oxlintrc.json', 'utf8')) as {
-      categories?: Record<string, string>
-      rules?: Record<string, string>
-      ignorePatterns?: string[]
-      overrides?: unknown
-    }
+    const config = readJsonc(await readFile('.oxlintrc.json', 'utf8'))
     for (const category of ['correctness', 'suspicious', 'perf', 'pedantic']) {
       expect(config.categories?.[category]).toBe('error')
     }
@@ -186,12 +198,12 @@ describe('legacy patterns and suppressions', () => {
 
   it('states a modern compilation target', async () => {
     const base = readJsonc(await readFile('tsconfig.base.json', 'utf8'))
-    const options = (base['compilerOptions'] ?? {}) as Record<string, unknown>
+    const options = base.compilerOptions ?? {}
     // TypeScript 7 turns `strict` and `module: esnext` on by default, so the
     // failure to guard against is someone switching them back off.
-    expect(options['strict']).not.toBe(false)
-    expect(String(options['module'] ?? 'esnext').toLowerCase()).not.toBe('commonjs')
-    const target = String(options['target'] ?? '').toLowerCase()
+    expect(options.strict).not.toBe(false)
+    expect(String(options.module ?? 'esnext').toLowerCase()).not.toBe('commonjs')
+    const target = String(options.target ?? '').toLowerCase()
     expect(target === 'esnext' || Number(target.replace('es', '')) >= 2022).toBe(true)
     // Everything tightened beyond the defaults has to stay tightened.
     for (const option of [
