@@ -365,14 +365,19 @@ mod tests {
 
     #[test]
     fn builds_a_pairable_host_from_a_machine_on_the_tailnet() {
-        let host = as_tailnet_host(
-            &device("1", "workstation.tail1234.ts.net", "workstation"),
-            &[],
-        )
-        .expect("a machine with a name is pairable");
+        let mut machine = device("1", "workstation.tail1234.ts.net", "workstation");
+        machine.last_seen = "2026-09-02T05:00:00Z".to_owned();
+        machine.tags = vec!["tag:harness".to_owned()];
+        let host = as_tailnet_host(&machine, &[]).expect("a machine with a name is pairable");
         assert_eq!(host.origin, "http://workstation.tail1234.ts.net:3080");
         assert_eq!(host.label, "workstation");
         assert!(!host.paired);
+        // The picker draws all four, so all four are carried across rather than
+        // silently dropped into an empty row.
+        assert_eq!(host.id, "1");
+        assert_eq!(host.os, "linux");
+        assert_eq!(host.last_seen, "2026-09-02T05:00:00Z");
+        assert_eq!(host.tags, vec!["tag:harness".to_owned()]);
     }
 
     #[test]

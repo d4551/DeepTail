@@ -90,6 +90,8 @@ export type AnswerTable = {
   readonly tailnetDevices?: readonly TailnetFixture[]
   /** Why listing the tailnet fails, when the test needs it to. */
   readonly tailnetError?: string
+  /** The instant the page believes it is, in epoch milliseconds. */
+  readonly now?: number
 }
 
 /** How a page should be opened. */
@@ -197,7 +199,37 @@ function deeptailInvoke(
  * Install the scripted `window.__TAURI_INTERNALS__` this page will answer from.
  * @param script - the answers this page should give.
  */
+/**
+ * Make the page believe it is one fixed instant.
+ *
+ * A roster age is rendered relative to now and the suite takes minutes, so a
+ * fixture timestamp fixed at import crossed a bucket boundary partway through:
+ * the same screen shot twice read "now" and then "1m ago", and every screenshot
+ * of it churned for no reason in the product.
+ * @param frozen - the instant the page should report, in epoch milliseconds.
+ * @returns nothing.
+ */
+function freezeClock(frozen: number): void {
+  const RealDate = Date
+  const Frozen = function Frozen(this: unknown, ...args: unknown[]): unknown {
+    if (!(this instanceof Frozen)) return new RealDate(frozen).toString()
+    return args.length === 0
+      ? new RealDate(frozen)
+      : new (RealDate as unknown as new (...values: unknown[]) => Date)(...args)
+  }
+  // `prototype` is read-only on the `Date` interface, so the assignments are
+  // made through the plain function before it is handed back as one.
+  Frozen.prototype = RealDate.prototype
+  Object.assign(Frozen, { now: () => frozen, parse: RealDate.parse, UTC: RealDate.UTC })
+  globalThis.Date = Frozen as unknown as DateConstructor
+}
+
 function installTauriInternals(script: AnswerTable): void {
+  // A roster age is rendered relative to now, and the suite takes minutes: a
+  // fixture timestamp fixed at import crossed a bucket boundary partway
+  // through, so the same screen shot twice read "now" and then "1m ago" and
+  // every screenshot of it churned. The page is told what time it is.
+  if (script.now !== undefined) freezeClock(script.now)
   // Recorded so a case can assert what actually reached the host. Without it a
   // test can only see that a dialog closed, which a no-op satisfies.
   const state: IpcState = {
@@ -230,6 +262,6 @@ function installTauriInternals(script: AnswerTable): void {
  * @returns the source to evaluate.
  */
 export function initScriptSource(table: AnswerTable): string {
-  const sources = [...CARRIER_SOURCES, deeptailTailscale, deeptailInvoke, installTauriInternals]
+  const sources = [...CARRIER_SOURCES, deeptailTailscale, deeptailInvoke, freezeClock, installTauriInternals]
   return `${sources.map(String).join('\n\n')}\ninstallTauriInternals(${JSON.stringify(table)})`
 }

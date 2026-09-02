@@ -108,9 +108,10 @@ struct DeviceList {
 struct AccessGrant {
     access_token: String,
     /// Lifetime in seconds. Tailscale sends it; a grant without one is treated
-    /// as already expired rather than as eternal.
+    /// as already expired rather than as eternal, so the next call mints again
+    /// instead of presenting a bearer of unknown age forever.
     #[serde(default)]
-    expires_in: u64,
+    expires_in: Option<u64>,
 }
 
 /// An access token and the instant it stops being usable.
@@ -243,7 +244,7 @@ impl TailscaleClient {
         let value = grant.access_token;
         *cached = Some(CachedToken {
             value: value.clone(),
-            expires_at: Instant::now() + Duration::from_secs(grant.expires_in),
+            expires_at: Instant::now() + Duration::from_secs(grant.expires_in.unwrap_or(0)),
         });
         Ok(value)
     }
@@ -498,6 +499,62 @@ mod tests {
                 "HTTP {status} must map to Unauthorized, got {error:?}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn asks_the_token_endpoint_with_a_form_encoded_client_credentials_grant() {
+        // Tailscale's token endpoint takes the OAuth 2.0 client-credentials
+        // form body. Sending the same fields as JSON is refused by the real
+        // control plane and by nothing here until this reads the body.
+        let plane = ControlPlane::start(vec![grant("tok-1", 3600), empty_listing()]).await;
+        let client = TailscaleClient::at(reqwest::Client::new(), &plane.base, oauth());
+        client.devices(DEFAULT_TAILNET).await.expect("the listing succeeds");
+        let requests = plane.requests();
+        let exchange = requests.first().expect("the exchange reached the control plane");
+        assert!(
+            exchange.contains("content-type: application/x-www-form-urlencoded"),
+            "exchange sent: {exchange}"
+        );
+        assert!(exchange.contains("grant_type=client_credentials"), "exchange sent: {exchange}");
+        assert!(exchange.contains("client_id=id"), "exchange sent: {exchange}");
+        assert!(exchange.contains("client_secret=secret"), "exchange sent: {exchange}");
+    }
+
+    #[tokio::test]
+    async fn mints_again_after_a_refused_exchange_rather_than_caching_the_failure() {
+        // A refused exchange that wrote to the cache would lock the tailnet out
+        // for the token's whole lifetime after one transient rejection.
+        let plane = ControlPlane::start(vec![
+            (401, "{}".to_owned()),
+            grant("tok-1", 3600),
+            empty_listing(),
+        ])
+        .await;
+        let client = TailscaleClient::at(reqwest::Client::new(), &plane.base, oauth());
+        client.devices(DEFAULT_TAILNET).await.expect_err("the first exchange is refused");
+        client.devices(DEFAULT_TAILNET).await.expect("the second listing succeeds");
+        assert_eq!(plane.token_exchanges(), 2, "the refusal was cached");
+        let requests = plane.requests();
+        let listing = requests.get(2).expect("the listing reached the control plane");
+        assert!(listing.contains("authorization: Bearer tok-1"), "listing sent: {listing}");
+    }
+
+    #[tokio::test]
+    async fn treats_a_grant_with_no_lifetime_as_already_expired() {
+        // Tailscale sends `expires_in`; a grant without one has no known age,
+        // and caching it forever presents a bearer the control plane may have
+        // stopped honouring.
+        let plane = ControlPlane::start(vec![
+            (200, r#"{"access_token":"tok-1"}"#.to_owned()),
+            empty_listing(),
+            (200, r#"{"access_token":"tok-2"}"#.to_owned()),
+            empty_listing(),
+        ])
+        .await;
+        let client = TailscaleClient::at(reqwest::Client::new(), &plane.base, oauth());
+        client.devices(DEFAULT_TAILNET).await.expect("first listing");
+        client.devices(DEFAULT_TAILNET).await.expect("second listing");
+        assert_eq!(plane.token_exchanges(), 2, "a grant with no lifetime was cached");
     }
 
     #[tokio::test]

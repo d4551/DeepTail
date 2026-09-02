@@ -10,7 +10,6 @@
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
-import { tailnetPairingLink } from '../src/tailscale.ts'
 import { type AnswerTable, type Harness, startHarness, textOf, type Violation } from './harness.ts'
 import { defects, VIEWPORTS } from './structure-page.ts'
 
@@ -288,7 +287,10 @@ it("sends the token the viewer typed, composed onto the machine's own origin", a
   await page.locator('[data-deeptail-field="link"]').fill('launch-token-value')
   await page.locator('[data-deeptail-action="pair-submit"]').click()
   const paired = await page.evaluate(() => (window as unknown as { deeptailPairedLinks: string[] }).deeptailPairedLinks)
-  expect(paired).toEqual([tailnetPairingLink(DEVICES[0]?.origin ?? '', 'launch-token-value')])
-  expect(paired[0]).toContain('token=launch-token-value')
+  // The whole link, written out. Building the expectation by calling the
+  // function under test cancels itself: composing against any other origin
+  // moves both sides together, so the case passes while a device token goes to
+  // a host the viewer never chose.
+  expect(paired).toEqual(['http://workstation.tail1234.ts.net:3080/?token=launch-token-value'])
   await page.close()
 })
