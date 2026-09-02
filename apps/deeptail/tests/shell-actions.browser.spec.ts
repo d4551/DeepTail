@@ -7,7 +7,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { oneHost, SESSIONS } from './fixtures.ts'
+import { oneHost, sessions } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
 
 let harness: Harness
@@ -92,7 +92,7 @@ it('keeps the draft when a send fails', async () => {
 
 it('spawns with a typed preset and reports the ids a host does have', async () => {
   const page = await harness.open(
-    oneHost({ remote: { 'session/list': { items: SESSIONS }, 'session/create': { sessionId: 's-new' } } }),
+    oneHost({ remote: { 'session/list': { items: sessions() }, 'session/create': { sessionId: 's-new' } } }),
   )
   await page.waitForSelector('[data-deeptail-shell]')
   await page.locator('[data-deeptail-action="new-session"]').click()

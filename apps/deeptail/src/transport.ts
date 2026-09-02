@@ -10,7 +10,7 @@
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core'
-import type { Thrown } from './reason.ts'
+import { messageOf } from './reason.ts'
 import { SOCKET_CLOSED, SOCKET_OPEN } from './socket-state.ts'
 
 /** One frame from the Rust-held mux socket. */
@@ -20,7 +20,7 @@ type MuxFrame =
   | { readonly type: 'error'; readonly message: string }
   | { readonly type: 'close'; readonly code: number; readonly reason: string }
 
-/** The response shape `carrier_fetch` returns across the IPC boundary. */
+/** The response shape the Rust unary-call command returns across the IPC boundary. */
 interface CarrierResponse {
   readonly status: number
   readonly headers: readonly (readonly [string, string])[]
@@ -55,8 +55,8 @@ async function carrierFetch(host: string, input: URL, init: RequestInit): Promis
 }
 
 /**
- * Fetch one client plugin bundle through Rust and execute it as a classic
- * script, exactly as the served shell's same-origin `<script src>` would.
+ * Fetch one client plugin bundle through Rust and run it as a page script,
+ * exactly as the served shell loads its own same-origin bundles.
  *
  * A blob URL is used rather than `eval` so the app's CSP can stay at
  * `script-src 'self' blob:` instead of allowing arbitrary evaluation.
@@ -70,38 +70,36 @@ async function carrierLoadBundle(host: string, url: string): Promise<void> {
     path: `${path.pathname}${path.search}`,
   })
   const blob = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }))
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const element = document.createElement('script')
-      element.src = blob
-      element.addEventListener(
-        'load',
-        () => {
-          element.remove()
-          resolve()
-        },
-        { once: true },
-      )
-      element.addEventListener(
-        'error',
-        () => {
-          element.remove()
-          reject(new Error(`deeptail: bundle ${url} failed to execute`))
-        },
-        { once: true },
-      )
-      document.head.append(element)
-    })
-  } finally {
+  await new Promise<void>((resolve, reject) => {
+    const element = document.createElement('script')
+    element.src = blob
+    element.addEventListener(
+      'load',
+      () => {
+        element.remove()
+        resolve()
+      },
+      { once: true },
+    )
+    element.addEventListener(
+      'error',
+      () => {
+        element.remove()
+        reject(new Error(`deeptail: bundle ${url} failed to execute`))
+      },
+      { once: true },
+    )
+    document.head.append(element)
+  }).finally(() => {
     URL.revokeObjectURL(blob)
-  }
+  })
 }
 
 /**
  * A `WebSocket`-shaped view of the Rust-held mux socket.
  *
  * The harness gateway's mux client uses only `readyState`, `addEventListener`,
- * `removeEventListener`, `send`, and `close`, so this adapter implements
+ * `removeEventListener`, `send`, and `close`, so this class implements
  * exactly that surface and the protocol itself stays in the harness.
  */
 class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
@@ -110,20 +108,18 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
 
   /**
    * Open the socket for one host.
-   * @param host - paired host id.
+   * @param hostId - paired host id.
    */
-  constructor(host: string) {
+  constructor(hostId: string) {
     super()
-    this.#host = host
+    this.#host = hostId
     const channel = new Channel<MuxFrame>((frame) => {
       this.#receive(frame)
     })
-    invoke('carrier_open_mux', { host, channel }).catch((reason: unknown) => {
-      this.#readyState = SOCKET_CLOSED
-      this.dispatchEvent(new Event('error'))
+    invoke('carrier_open_mux', { host: hostId, channel }).then(undefined, (reason) => {
       // The harness client treats an error before open as a carrier failure and
       // retries with backoff; the close keeps its bookkeeping consistent.
-      this.dispatchEvent(new CloseEvent('close', { code: 1006, reason: String(reason) }))
+      this.#fail(reason)
     })
   }
 
@@ -137,27 +133,42 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
    * @param data - a serialized mux message.
    */
   send(data: string): void {
-    invoke('carrier_send_mux', { host: this.#host, data }).catch((reason: unknown) => {
-      // The Rust side rejects exactly when no socket is open for this host, so
-      // swallowing it would leave `readyState` reporting OPEN while every write
-      // vanished — the failure this adapter exists to make visible.
-      if (this.#readyState === SOCKET_CLOSED) return
-      this.#readyState = SOCKET_CLOSED
-      this.dispatchEvent(new Event('error'))
-      this.dispatchEvent(new CloseEvent('close', { code: 1006, reason: String(reason) }))
+    invoke('carrier_send_mux', { host: this.#host, data }).then(undefined, (reason) => {
+      // The Rust side rejects precisely when no socket is open for this host;
+      // an unreported rejection strands `readyState` at OPEN while every write
+      // vanishes — the failure this view exists to surface.
+      this.#fail(reason)
     })
   }
 
   /**
    * Close the socket and report it. The `close` event is what the harness
    * stream client watches to retire the generation and start reconnecting; a
-   * silent close would leave it waiting on a socket that is already gone.
+   * silent close leaves it waiting on a socket that is gone.
    */
   close(): void {
     if (this.#readyState === SOCKET_CLOSED) return
     this.#readyState = SOCKET_CLOSED
-    void invoke('carrier_close_mux', { host: this.#host })
+    invoke('carrier_close_mux', { host: this.#host }).then(undefined, (reason: Parameters<typeof messageOf>[0]) => {
+      // Rust rejects this when it holds no socket for the host; the page-side
+      // retire signal goes out below and #fail's guard keeps this rejection
+      // from double-signalling it.
+      this.#fail(reason)
+    })
     this.dispatchEvent(new CloseEvent('close', { code: 1000, reason: 'suspended' }))
+  }
+
+  /**
+   * Retire the socket after the Rust carrier rejected a call. Generic because
+   * a rejection callback cannot annotate its variable with anything narrower
+   * than what `messageOf` narrows by.
+   * @param reason - whatever the Rust side rejected with.
+   */
+  #fail<T>(reason: T): void {
+    if (this.#readyState === SOCKET_CLOSED) return
+    this.#readyState = SOCKET_CLOSED
+    this.dispatchEvent(new Event('error'))
+    this.dispatchEvent(new CloseEvent('close', { code: 1006, reason: messageOf(reason) }))
   }
 
   #receive(frame: MuxFrame): void {
@@ -198,17 +209,17 @@ export interface MuxSocketLike extends EventTarget {
 
 /** The carrier hooks the harness client reads from `globalThis.__DSH_TRANSPORT__`. */
 export interface CarrierHooks {
-  fetch(input: URL, init: RequestInit): Promise<Response>
-  loadBundle(url: string): Promise<void>
-  openMuxSocket(): MuxSocketLike
+  readonly fetch: (input: URL, init: RequestInit) => Promise<Response>
+  readonly loadBundle: (url: string) => Promise<void>
+  readonly openMuxSocket: () => MuxSocketLike
   /**
-   * Close the live mux socket through its adapter.
+   * Close the live mux socket through its own view.
    *
-   * Closing it by invoking the native command directly would drop the
+   * Closing it by invoking the native command directly drops the
    * connection without dispatching a `close` event, leaving the harness stream
    * client believing the socket is still open until its first failed send.
    */
-  suspendMuxSocket(): void
+  readonly suspendMuxSocket: () => void
 }
 
 /**

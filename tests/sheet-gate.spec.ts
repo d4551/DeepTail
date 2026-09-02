@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
-import { breakpointsOf, rulesetsOf, STYLE_EXTENSIONS, scanSheet, unringedSelectors } from '../scripts/sheet-gate.ts'
+import { breakpointsOf, deepSelectors, rulesetsOf, STYLE_EXTENSIONS, scanSheet, unringedSelectors } from '../scripts/sheet-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { joined } from './fixtures.ts'
 

@@ -9,6 +9,7 @@ import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { HOSTS } from './fixtures.ts'
 import { type AnswerTable, type Harness, startHarness, textOf } from './harness.ts'
+import { until } from './wait.ts'
 
 let harness: Harness
 
@@ -76,7 +77,13 @@ it('lists every paired host with its origin and spoken state', async () => {
     'https://lab.internal:3080',
   ])
   // `select_host` answers, so the probe resolves the row to a reachable host.
-  expect(await textOf(page, '[data-deeptail-host="dev-1"] .visually-hidden')).toBe('Online')
+  // Each row's probe settles a few frames after the list paints, so the read
+  // must wait for the settled word rather than race the first paint.
+  await page.waitForFunction(
+    () => document.querySelector('[data-deeptail-host="dev-1"] .visually-hidden')?.textContent === 'Online',
+    undefined,
+    { timeout: 5000 },
+  )
   await harness.shoot(page, 'picker-list')
   await page.close()
 })
@@ -116,20 +123,15 @@ it('shows a retryable alert when the host list cannot be read', async () => {
   expect(await strip.getAttribute('role')).toBe('alert')
   // The host's own message is shown rather than a generic stand-in.
   expect(await textOf(page, '[data-deeptail-state="error"]')).toContain('registry unavailable')
-  // Retry re-reads the registry rather than merely being present: the number of
-  // registry reads has to go up. Asserting that some call had happened would
-  // pass with the handler removed, because the first read already happened.
   const reads = async (): Promise<number> =>
     (await harness.commands(page)).filter((command) => command === 'list_hosts').length
   const before = await reads()
   await page.getByRole('button', { name: 'Retry' }).click()
-  await page.waitForFunction(
-    (had: number) =>
-      ((window as unknown as { deeptailInvokedCommands?: string[] }).deeptailInvokedCommands ?? []).filter(
-        (command) => command === 'list_hosts',
-      ).length > had,
-    before,
-  )
+  // Retry re-reads the registry rather than merely being present: the number of
+  // registry reads has to go up, watched through the recorded invocations the
+  // harness already exposes. Asserting that some call had happened would pass
+  // with the handler removed, because the first read already happened.
+  await until(async () => (await reads()) > before)
   expect(await reads()).toBeGreaterThan(before)
   await page.locator('[data-deeptail-state="error"]').waitFor({ state: 'visible' })
   await harness.shoot(page, 'picker-list-error')

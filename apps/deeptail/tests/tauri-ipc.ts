@@ -39,7 +39,7 @@ interface FailureDetails {
 }
 
 /** One session as the roster reports it over the wire. */
-interface SessionFixture {
+export interface SessionFixture {
   readonly sessionId: string
   readonly updatedAt: number
   readonly running: boolean
@@ -51,6 +51,38 @@ interface SessionFixture {
 export interface ForwardedEvent {
   readonly event: string
   readonly args: readonly (string | number | boolean | SessionFixture)[]
+}
+
+/** A JSON value, as the wire carries it: the shape every recorded argument has. */
+export type JsonValue = string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue }
+
+/** One machine as the native side reports it. */
+interface TailnetFixture {
+  readonly id: string
+  readonly label: string
+  readonly origin: string
+  readonly os: string
+  readonly lastSeen: string
+  readonly tags: readonly string[]
+  readonly authorized: boolean
+  readonly paired: boolean
+}
+
+/** One Remote call the page issued, as the scripted IPC saw it. */
+export interface RecordedCall {
+  readonly host: string
+  readonly endpoint: string
+  readonly args: Readonly<Record<string, JsonValue>>
+}
+
+/** What one page's scripted IPC accumulates while it runs. */
+export interface IpcState {
+  readonly channels: Map<string, ScriptChannel>
+  readonly recorded: RecordedCall[]
+  /** Every Tauri command name the page has invoked, in order. */
+  readonly commands: string[]
+  /** Every pairing link the page asked the native side to spend, in order. */
+  readonly pairedLinks: string[]
 }
 
 /** One scripted answer table for `window.__TAURI_INTERNALS__.invoke`. */
@@ -90,39 +122,6 @@ export type AnswerTable = {
   readonly tailnetDevices?: readonly TailnetFixture[]
   /** Why listing the tailnet fails, when the test needs it to. */
   readonly tailnetError?: string
-  /** The instant the page believes it is, in epoch milliseconds. */
-  readonly now?: number
-}
-
-/** How a page should be opened. */
-
-/** One machine as the native side reports it. */
-interface TailnetFixture {
-  readonly id: string
-  readonly label: string
-  readonly origin: string
-  readonly os: string
-  readonly lastSeen: string
-  readonly tags: readonly string[]
-  readonly authorized: boolean
-  readonly paired: boolean
-}
-
-/** One Remote call the page issued, as the scripted IPC saw it. */
-export interface RecordedCall {
-  readonly host: string
-  readonly endpoint: string
-  readonly args: Readonly<Record<string, unknown>>
-}
-
-/** What one page's scripted IPC accumulates while it runs. */
-export interface IpcState {
-  readonly channels: Map<string, ScriptChannel>
-  readonly recorded: RecordedCall[]
-  /** Every Tauri command name the page has invoked, in order. */
-  readonly commands: string[]
-  /** Every pairing link the page asked the native side to spend, in order. */
-  readonly pairedLinks: string[]
 }
 
 /**
@@ -175,7 +174,7 @@ function deeptailInvoke(
     case 'pair_host':
       // The link itself, not just that pairing was asked for: a case that only
       // sees the command name cannot tell a composed link from any other.
-      state.pairedLinks.push(String((args as { link?: unknown }).link ?? ''))
+      state.pairedLinks.push(String(args.link ?? ''))
       return script.pairError === undefined
         ? Promise.resolve(script.paired ?? {})
         : Promise.reject(new Error(script.pairError))
@@ -195,41 +194,7 @@ function deeptailInvoke(
   }
 }
 
-/**
- * Install the scripted `window.__TAURI_INTERNALS__` this page will answer from.
- * @param script - the answers this page should give.
- */
-/**
- * Make the page believe it is one fixed instant.
- *
- * A roster age is rendered relative to now and the suite takes minutes, so a
- * fixture timestamp fixed at import crossed a bucket boundary partway through:
- * the same screen shot twice read "now" and then "1m ago", and every screenshot
- * of it churned for no reason in the product.
- * @param frozen - the instant the page should report, in epoch milliseconds.
- * @returns nothing.
- */
-function freezeClock(frozen: number): void {
-  const RealDate = Date
-  const Frozen = function Frozen(this: unknown, ...args: unknown[]): unknown {
-    if (!(this instanceof Frozen)) return new RealDate(frozen).toString()
-    return args.length === 0
-      ? new RealDate(frozen)
-      : new (RealDate as unknown as new (...values: unknown[]) => Date)(...args)
-  }
-  // `prototype` is read-only on the `Date` interface, so the assignments are
-  // made through the plain function before it is handed back as one.
-  Frozen.prototype = RealDate.prototype
-  Object.assign(Frozen, { now: () => frozen, parse: RealDate.parse, UTC: RealDate.UTC })
-  globalThis.Date = Frozen as unknown as DateConstructor
-}
-
 function installTauriInternals(script: AnswerTable): void {
-  // A roster age is rendered relative to now, and the suite takes minutes: a
-  // fixture timestamp fixed at import crossed a bucket boundary partway
-  // through, so the same screen shot twice read "now" and then "1m ago" and
-  // every screenshot of it churned. The page is told what time it is.
-  if (script.now !== undefined) freezeClock(script.now)
   // Recorded so a case can assert what actually reached the host. Without it a
   // test can only see that a dialog closed, which a no-op satisfies.
   const state: IpcState = {
@@ -245,7 +210,7 @@ function installTauriInternals(script: AnswerTable): void {
     __TAURI_INTERNALS__: {
       invoke: (cmd: string, args?: Record<string, object>) => deeptailInvoke(script, cmd, args ?? {}, state),
       transformCallback: (callback: () => object) => callback,
-      unregisterCallback: () => {},
+      unregisterCallback: () => true,
       convertFileSrc: (path: string) => path,
     },
   })
@@ -262,6 +227,19 @@ function installTauriInternals(script: AnswerTable): void {
  * @returns the source to evaluate.
  */
 export function initScriptSource(table: AnswerTable): string {
-  const sources = [...CARRIER_SOURCES, deeptailTailscale, deeptailInvoke, freezeClock, installTauriInternals]
+  const sources = [...CARRIER_SOURCES, deeptailTailscale, deeptailInvoke, installTauriInternals]
   return `${sources.map(String).join('\n\n')}\ninstallTauriInternals(${JSON.stringify(table)})`
+}
+
+declare global {
+  interface Window {
+    /** Every Remote call the page issued, as the scripted IPC recorded it. */
+    readonly deeptailRecordedCalls?: readonly RecordedCall[]
+    /** Every Tauri command name the page invoked, in order. */
+    readonly deeptailInvokedCommands?: readonly string[]
+    /** Every pairing link the page spent, in order. */
+    readonly deeptailPairedLinks?: readonly string[]
+    /** The hook an open mux leaves for the harness to forward events through. */
+    readonly deeptailForwardEvent?: (event: string, args: ForwardedEvent['args']) => void
+  }
 }

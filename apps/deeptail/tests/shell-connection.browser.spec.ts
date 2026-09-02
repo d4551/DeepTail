@@ -7,7 +7,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { fleet, HOSTS, oneHost, SESSIONS } from './fixtures.ts'
+import { fleet, HOSTS, oneHost, sessions } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
 
 let harness: Harness
@@ -21,7 +21,7 @@ afterAll(async () => {
 })
 
 it('marks the active host with a trailing check, not a fill', async () => {
-  const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: SESSIONS } } })
+  const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: sessions() } } })
   await page.waitForSelector('[data-deeptail-shell]')
   await page.locator('[data-deeptail-connection="trigger"]').click()
   const menu = page.locator('[data-deeptail-connection="menu"]')
@@ -36,7 +36,7 @@ it('marks the active host with a trailing check, not a fill', async () => {
 })
 
 it('closes the connection menu on Escape', async () => {
-  const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: SESSIONS } } })
+  const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: sessions() } } })
   await page.waitForSelector('[data-deeptail-shell]')
   const trigger = page.locator('[data-deeptail-connection="trigger"]')
   await trigger.click()
@@ -60,7 +60,7 @@ it('reports a revoked token as needing re-pairing and offers the way out', async
 it('walks every menu item with the arrow keys and is one stop in the tab order', async () => {
   const page = await harness.open({
     hosts: HOSTS,
-    remote: { 'session/list': { items: SESSIONS } },
+    remote: { 'session/list': { items: sessions() } },
     remoteStatuses: { 'lab-2:session/list': 401 },
   })
   await page.waitForSelector('[data-deeptail-shell]')
@@ -116,7 +116,7 @@ it('takes the rows the open menu covers out of play', async () => {
 it('opens the pairing form under the name of the host being re-paired', async () => {
   const page = await harness.open({
     hosts: HOSTS,
-    remote: { 'session/list': { items: SESSIONS } },
+    remote: { 'session/list': { items: sessions() } },
     remoteStatuses: { 'lab-2:session/list': 401 },
   })
   await page.waitForSelector('[data-deeptail-shell]')

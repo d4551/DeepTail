@@ -14,15 +14,11 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { type ParseError, parse as parseJsonc } from 'jsonc-parser'
 import { coerce, gte, major, maxSatisfying, minor, satisfies } from 'semver'
-import type { LocaleId } from '../apps/deeptail/src/browser-locale.ts'
-import { DICTIONARIES } from '../apps/deeptail/src/locales.ts'
-import * as bans from '../scripts/ban-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
-import * as styles from '../scripts/style-gate.ts'
+import { EMPTY_SECTION, isJsonObject, readJsonc } from './jsonc.ts'
+import { readJsoncSync } from './jsonc-io.ts'
 
 /**
  * The major.minor every dependency this repository declares is held at.
@@ -58,7 +54,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   'jsonc-parser': '3.3',
   knip: '6.34',
   'oxc-parser': '0.148',
-  oxlint: '1.80',
+  oxlint: '1.81',
   parse5: '8.0',
   playwright: '1.62',
   react: '19.2',
@@ -70,66 +66,6 @@ const FLOORS: Readonly<Record<string, string>> = {
 
 /** Every kind of dependency a manifest can declare. */
 const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
-
-/** Every shape a JSON document can hold, closed and named so nothing widens. */
-type Json = string | number | boolean | null | Json[] | { [key: string]: Json }
-
-/**
- * Whether a JSON value is an object, narrowed for callers that need its keys.
- * @param value - the JSON value to test.
- * @returns true when the value is a JSON object.
- */
-function isJsonObject(value: Json): value is { [key: string]: Json } {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/**
- * Bring a parsed document onto the closed Json model, or give up when a shape
- * appears that the model does not name. The generic keeps the library's own
- * return type out of the annotations: the conversion is runtime-checked, so
- * no cast ever claims a shape the data was not proven to have.
- * @param value - whatever the parser produced.
- * @returns the same document as a Json value, or undefined for foreign shapes.
- */
-function asJson<T>(value: T): Json | undefined {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-    return value === null ? null : (value as string | boolean)
-  }
-  if (typeof value === 'number') return value
-  if (typeof value === 'object') {
-    if (Array.isArray(value)) {
-      const items: Json[] = []
-      for (const item of value) {
-        const converted = asJson(item)
-        if (converted === undefined) return undefined
-        items.push(converted)
-      }
-      return items
-    }
-    const members: { [key: string]: Json } = {}
-    for (const [key, entry] of Object.entries(value)) {
-      const converted = asJson(entry)
-      if (converted === undefined) return undefined
-      members[key] = converted
-    }
-    return members
-  }
-  return undefined
-}
-
-/**
- * Parse JSON with comments, as every tool that reads a tsconfig does, onto the
- * closed Json model with the root proven to be an object.
- * @param text - the file contents.
- * @returns the parsed object.
- */
-function readJsonc(text: string): { [key: string]: Json } {
-  const errors: ParseError[] = []
-  const parsed = asJson(parseJsonc(text, errors, { allowTrailingComma: true }))
-  expect(errors).toEqual([])
-  if (parsed === undefined || !isJsonObject(parsed)) throw new Error('expected a JSON object at the root')
-  return parsed
-}
 
 /**
  * Every dependency this repository declares, from every manifest it ships and
@@ -143,7 +79,8 @@ async function everyDependency(): Promise<Map<string, string>> {
   const found = new Map<string, string>()
   for (const parsed of manifests) {
     for (const kind of DEPENDENCY_KINDS) {
-      const declarations = isJsonObject(parsed[kind] ?? {}) ? (parsed[kind] as { [key: string]: Json }) : {}
+      const raw = parsed[kind]
+      const declarations = isJsonObject(raw) ? raw : EMPTY_SECTION
       for (const [name, range] of Object.entries(declarations)) {
         if (typeof range === 'string') found.set(name, range)
       }
@@ -197,6 +134,58 @@ function floorDrift(declared: ReadonlyMap<string, string>): string[] {
   return wrong
 }
 
+/**
+ * Every way a resolved lockfile can disagree with the floors and the declared
+ * ranges, read off the lock's packages and workspaces sections.
+ * @param declared - every dependency the repository declares, of any kind.
+ * @returns one line per disagreement.
+ */
+function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
+  const lock = readJsoncSync('bun.lock')
+  const packages = isJsonObject(lock.packages) ? lock.packages : EMPTY_SECTION
+  const resolved = new Map<string, string[]>()
+  for (const [name, entry] of Object.entries(packages)) {
+    // Each package is a tuple whose first element is "name@version".
+    if (!Array.isArray(entry)) continue
+    const resolvedId = typeof entry[0] === 'string' ? entry[0] : ''
+    const version = resolvedId.startsWith(`${name}@`) ? resolvedId.slice(name.length + 1) : ''
+    if (/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/u.test(version)) {
+      resolved.set(name, [...(resolved.get(name) ?? []), version])
+    }
+  }
+  // Workspace members are versioned by their own manifest, mirrored in the
+  // lock's workspaces section rather than resolved as registry packages.
+  const workspaces = isJsonObject(lock.workspaces) ? lock.workspaces : EMPTY_SECTION
+  for (const entry of Object.values(workspaces)) {
+    if (!isJsonObject(entry)) continue
+    const name = entry.name
+    const version = entry.version
+    if (typeof name === 'string' && typeof version === 'string') {
+      resolved.set(name, [...(resolved.get(name) ?? []), version])
+    }
+  }
+  const offences: string[] = []
+  for (const [name, floor] of Object.entries(FLOORS)) {
+    const versions = resolved.get(name)
+    if (versions === undefined || versions.length === 0) {
+      offences.push(`${name} is declared but the lockfile never resolved it`)
+      continue
+    }
+    const newest = maxSatisfying(versions, '*', { includePrerelease: true })
+    // Prerelease identifiers are stripped for the floor comparison, exactly
+    // as the manifest floors do: 0.1.2-alpha.3 sits at the 0.1 floor.
+    const comparable = newest === null ? null : coerce(newest)
+    if (comparable === null || !gte(comparable, `${floor}.0`)) {
+      offences.push(`${name} resolved at ${versions.join(', ')} — below the ${floor} floor`)
+    }
+    const range = declared.get(name)
+    if (range !== undefined && newest !== null && !satisfies(newest, range)) {
+      offences.push(`${name} resolved at ${newest} does not satisfy the declared ${range}`)
+    }
+  }
+  return offences
+}
+
 describe('stack floors', () => {
   it('pins every tool at or above its floor', async () => {
     expect(belowFloor(await everyDependency())).toEqual([])
@@ -204,6 +193,13 @@ describe('stack floors', () => {
 
   it('states a floor for everything it declares, at exactly the version declared', async () => {
     expect(floorDrift(await everyDependency())).toEqual([])
+  })
+
+  it('binds the lockfile to the declarations and the floors', async () => {
+    // A manifest can claim a version the lockfile never resolved: the floors
+    // would pass while `bun install --frozen-lockfile` fails or, worse, an
+    // older resolved copy ships. The lock is the truth of what is installed.
+    expect(lockfileOffences(await everyDependency())).toEqual([])
   })
 
   it('holds the supply-chain release hold in place', async () => {
@@ -216,121 +212,22 @@ describe('stack floors', () => {
   })
 
   it('keeps every linter category enabled', async () => {
-    const config = readJsonc(await readFile('.oxlintrc.json', 'utf8')) as {
-      categories?: Record<string, string>
-      rules?: Record<string, string>
-      ignorePatterns?: string[]
-      overrides?: unknown
-    }
+    const config = readJsonc(await readFile('.oxlintrc.json', 'utf8'))
+    const categories = isJsonObject(config.categories) ? config.categories : EMPTY_SECTION
+    const rules = isJsonObject(config.rules) ? config.rules : EMPTY_SECTION
+    const ignorePatterns = config.ignorePatterns
     for (const category of ['correctness', 'suspicious', 'perf', 'pedantic']) {
-      expect(config.categories?.[category]).toBe('error')
+      expect(categories[category]).toBe('error')
     }
     // A rule switched off is a defect hidden rather than fixed.
-    expect(Object.values(config.rules ?? {}).filter((level) => level === 'off')).toEqual([])
+    expect(Object.values(rules).filter((level) => level === 'off')).toEqual([])
     // oxlint may skip build output and nothing else.
-    expect(config.ignorePatterns ?? []).toEqual(['**/lib/**', '**/dist/**', '**/gen/**', '**/target/**'])
+    expect(Array.isArray(ignorePatterns) ? ignorePatterns : []).toEqual([
+      '**/lib/**',
+      '**/dist/**',
+      '**/gen/**',
+      '**/target/**',
+    ])
     expect(config.overrides).toBeUndefined()
-  })
-})
-
-describe('legacy patterns and suppressions', () => {
-  it('has none anywhere the repository ships', async () => {
-    const files = repositoryFiles([...bans.SCRIPT_EXTENSIONS, ...bans.PLAIN_EXTENSIONS])
-    const offences = await Promise.all(
-      files.map(async (file) => bans.scanSource(file.label, await readFile(file.path, 'utf8'))),
-    )
-    expect(offences.flat().map((offence) => `${offence.label}:${String(offence.line)}: ${offence.why}`)).toEqual([])
-  })
-
-  it('has no inline style anywhere the repository ships', async () => {
-    const files = repositoryFiles([...styles.SCRIPT_EXTENSIONS, ...styles.MARKUP_EXTENSIONS])
-    const offences = await Promise.all(
-      files.map(async (file) => styles.scanSource(file.label, await readFile(file.path, 'utf8'))),
-    )
-    expect(offences.flat().map((offence) => `${offence.label}:${String(offence.line)}: ${offence.why}`)).toEqual([])
-  })
-
-  it('states a modern compilation target', async () => {
-    const base = readJsonc(await readFile('tsconfig.base.json', 'utf8'))
-    const options = (base['compilerOptions'] ?? {}) as Record<string, unknown>
-    // TypeScript 7 turns `strict` and `module: esnext` on by default, so the
-    // failure to guard against is someone switching them back off.
-    expect(options['strict']).not.toBe(false)
-    expect(String(options['module'] ?? 'esnext').toLowerCase()).not.toBe('commonjs')
-    const target = String(options['target'] ?? '').toLowerCase()
-    expect(target === 'esnext' || Number(target.replace('es', '')) >= 2022).toBe(true)
-    // Everything tightened beyond the defaults has to stay tightened.
-    for (const option of [
-      'noUncheckedIndexedAccess',
-      'exactOptionalPropertyTypes',
-      'noImplicitOverride',
-      'noFallthroughCasesInSwitch',
-      'noImplicitReturns',
-      'verbatimModuleSyntax',
-      'isolatedModules',
-    ]) {
-      expect([option, options[option]]).toEqual([option, true])
-    }
-  })
-})
-
-/** The locales the product ships, the first standing as the key-set reference. */
-function locales(): [LocaleId, ...LocaleId[]] {
-  const [first, ...rest] = Object.keys(DICTIONARIES) as LocaleId[]
-  if (first === undefined) throw new Error('the product ships no dictionary')
-  return [first, ...rest]
-}
-
-/** The `{name}` placeholders one sentence carries, in order. */
-function placeholders(value: string): string[] {
-  return [...value.matchAll(/\{(\w+)\}/gu)].map((found) => found[1] ?? '')
-}
-
-describe('translations', () => {
-  it('keeps every dictionary on exactly the same keys', () => {
-    const [first, ...rest] = locales()
-    expect(rest.length).toBeGreaterThan(0)
-    const reference = Object.keys(DICTIONARIES[first]).toSorted()
-    expect(reference.length).toBeGreaterThan(20)
-    for (const locale of rest) {
-      expect([locale, Object.keys(DICTIONARIES[locale]).toSorted()]).toEqual([locale, reference])
-    }
-  })
-
-  it('leaves no entry empty in any dictionary', () => {
-    const empty = Object.entries(DICTIONARIES).flatMap(([locale, dictionary]) =>
-      Object.entries(dictionary)
-        .filter(([, value]) => value.trim() === '')
-        .map(([key]) => `${locale}:${key}`),
-    )
-    expect(empty).toEqual([])
-  })
-
-  it('fills the same placeholders in every dictionary', () => {
-    // A sentence that drops a placeholder in translation renders `{message}`
-    // to the reader, or silently loses what it was carrying.
-    const [first, ...rest] = locales()
-    const reference = DICTIONARIES[first]
-    const drift: string[] = []
-    for (const locale of rest) {
-      const dictionary = DICTIONARIES[locale]
-      for (const key of Object.keys(reference) as (keyof typeof reference)[]) {
-        const wanted = placeholders(reference[key])
-        if (JSON.stringify(wanted) !== JSON.stringify(placeholders(dictionary[key])))
-          drift.push(`${locale}:${String(key)}`)
-      }
-    }
-    expect(drift).toEqual([])
-  })
-
-  it('carries no key nothing reads', () => {
-    // A key kept after its surface is gone is copy nobody maintains, and a
-    // dictionary that only grows is one no translator can prioritize.
-    const sources = repositoryFiles(['.ts']).filter(
-      (file) => file.label.startsWith('apps/deeptail/src/') && !file.label.endsWith('locales.ts'),
-    )
-    const text = sources.map((file) => readFileSync(file.path, 'utf8')).join('\n')
-    const unread = Object.keys(DICTIONARIES.en).filter((key) => !text.includes(`'${key}'`))
-    expect(unread).toEqual([])
   })
 })

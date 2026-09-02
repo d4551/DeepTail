@@ -7,7 +7,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { fleet, HOSTS, oneHost, SESSIONS } from './fixtures.ts'
+import { fleet, HOSTS, oneHost, sessions } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
 
 let harness: Harness
@@ -41,7 +41,7 @@ it('offers Stop only on a running session', async () => {
 })
 
 it('groups sessions by host across the fleet', async () => {
-  const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: SESSIONS } } })
+  const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: sessions() } } })
   await page.waitForSelector('[data-deeptail-shell]')
   expect(await page.locator('.host-group').count()).toBe(2)
   const names = await page.locator('.group-name').allTextContents()
@@ -53,7 +53,7 @@ it('groups sessions by host across the fleet', async () => {
 it('keeps working hosts visible when one fails', async () => {
   const page = await harness.open({
     hosts: HOSTS,
-    remote: { 'session/list': { items: SESSIONS } },
+    remote: { 'session/list': { items: sessions() } },
     // Scoped to one host, or this is a total outage wearing the name of a
     // partial one and the assertions below cannot tell the difference.
     remoteErrors: { 'lab-2:session/list': 'roster unavailable' },
@@ -64,7 +64,7 @@ it('keeps working hosts visible when one fails', async () => {
   expect(await textOf(page, '[data-deeptail-state="partial"]')).toContain('roster unavailable')
   expect(await page.locator('[data-deeptail-state="partial"]').count()).toBe(1)
   expect(await textOf(page, '[data-deeptail-session="s-running"] .session-title')).toBe('Refactor the loader')
-  expect(await page.locator('.session-row').count()).toBe(SESSIONS.length)
+  expect(await page.locator('.session-row').count()).toBe(sessions().length)
   await harness.shoot(page, 'fleet-partial-failure')
   await page.close()
 })
@@ -125,11 +125,11 @@ it('drives native chrome from the same attribute as the palette', async () => {
   expect(await light.evaluate(() => document.body.dataset.dsDarkTheme !== undefined)).toBe(false)
   await light.close()
 
-  const dark = await harness.open(fleet(), { dark: true })
-  await dark.waitForSelector('[data-deeptail-shell]')
-  expect(await dark.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('dark')
-  expect(await dark.evaluate(() => document.body.dataset.dsDarkTheme !== undefined)).toBe(true)
-  await dark.close()
+  const darkPage = await harness.open(fleet(), { dark: true })
+  await darkPage.waitForSelector('[data-deeptail-shell]')
+  expect(await darkPage.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('dark')
+  expect(await darkPage.evaluate(() => document.body.dataset.dsDarkTheme !== undefined)).toBe(true)
+  await darkPage.close()
 })
 
 it('words a row age in the locale the surface is speaking', async () => {

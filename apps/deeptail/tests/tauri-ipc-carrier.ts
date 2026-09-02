@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { AnswerTable, ForwardedEvent, IpcState, MuxEventValue, ScriptChannel } from './tauri-ipc.ts'
+import type { AnswerTable, ForwardedEvent, IpcState, JsonValue, MuxEventValue, ScriptChannel } from './tauri-ipc.ts'
 
 /**
  * Answer a Typert Remote call with a server-response envelope.
@@ -21,7 +21,10 @@ import type { AnswerTable, ForwardedEvent, IpcState, MuxEventValue, ScriptChanne
 function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<object> {
   const request = args.request as { path?: string; body?: string } | undefined
   const endpoint = (request?.path ?? '').replace(/^\/api\//u, '').split('?')[0] ?? ''
-  const envelope = JSON.parse(request?.body ?? '{}') as { rpcId?: string; payload?: { args?: Record<string, unknown> } }
+  const envelope = JSON.parse(request?.body ?? '{}') as {
+    rpcId?: string
+    payload?: { args?: Record<string, JsonValue> }
+  }
   const host = typeof args.host === 'string' ? args.host : ''
   state.recorded.push({ host, endpoint, args: envelope.payload?.args ?? {} })
   const scoped = `${host}:${endpoint}`

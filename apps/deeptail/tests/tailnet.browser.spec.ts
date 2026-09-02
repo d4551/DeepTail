@@ -61,8 +61,8 @@ async function machineList(mobile = false): Promise<Page> {
 }
 
 /** Every Tauri command the page has invoked, in order. */
-function invokedCommands(page: Page): Promise<string[]> {
-  return page.evaluate(() => (window as unknown as { deeptailInvokedCommands: string[] }).deeptailInvokedCommands)
+function invokedCommands(page: Page): Promise<readonly string[]> {
+  return page.evaluate(() => window.deeptailInvokedCommands ?? [])
 }
 
 /** Two machines: one pairable, one already paired under a known origin. */
@@ -286,7 +286,7 @@ it("sends the token the viewer typed, composed onto the machine's own origin", a
   await page.locator('[data-deeptail-tailnet-device="ts-1"]').click()
   await page.locator('[data-deeptail-field="link"]').fill('launch-token-value')
   await page.locator('[data-deeptail-action="pair-submit"]').click()
-  const paired = await page.evaluate(() => (window as unknown as { deeptailPairedLinks: string[] }).deeptailPairedLinks)
+  const paired = await page.evaluate(() => window.deeptailPairedLinks ?? [])
   // The whole link, written out. Building the expectation by calling the
   // function under test cancels itself: composing against any other origin
   // moves both sides together, so the case passes while a device token goes to

@@ -7,13 +7,9 @@
  * installs a scripted one. Everything above it is the shipped code.
  */
 
-import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
-import { createServer, type Server, type ServerResponse } from 'node:http'
-import { extname, join, normalize } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { type Browser, chromium, type Page } from 'playwright'
-import { type AnswerTable, initScriptSource, type RecordedCall } from './tauri-ipc.ts'
+import { type AnswerTable, type ForwardedEvent, initScriptSource, type RecordedCall } from './tauri-ipc.ts'
 
 export type { AnswerTable } from './tauri-ipc.ts'
 
@@ -31,20 +27,22 @@ interface ChromiumConfig {
  * @returns the configured path, or `undefined` for Playwright's default.
  */
 async function chromiumPath(): Promise<string | undefined> {
-  const raw = await readFile(new URL('./chromium.json', import.meta.url), 'utf8').then(
-    (text) => JSON.parse(text) as ChromiumConfig,
-    () => null,
-  )
+  const raw = await Bun.file(new URL('./chromium.json', import.meta.url))
+    .text()
+    .then(
+      (text) => JSON.parse(text) as ChromiumConfig,
+      () => null,
+    )
   const path = raw?.executablePath ?? ''
   if (path === '') return undefined
   // The override names one machine's build. On any other machine that path is
   // simply absent, and launching against it fails outright with nothing in the
   // suite explaining why; Playwright's own resolution is the better answer
   // there than a hard stop.
-  return existsSync(path) ? path : undefined
+  return (await Bun.file(path).exists()) ? path : undefined
 }
 
-/** A JSON value carried by a scripted roster event. */
+/** How a page should be opened. */
 interface OpenOptions {
   /**
    * Writing direction the document loads under. A real right-to-left locale
@@ -61,7 +59,6 @@ interface OpenOptions {
   readonly locale?: string
 }
 
-/** One Remote call the page issued, as the scripted IPC saw it. */
 /** The conformance tags every surface is held to. */
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] as const
 
@@ -91,7 +88,7 @@ export interface Harness {
    * @param event - the event name.
    * @param args - the event's argument tuple.
    */
-  forward(page: Page, event: string, args: readonly unknown[]): Promise<void>
+  forward(page: Page, event: string, args: ForwardedEvent['args']): Promise<void>
   /**
    * Run axe-core over the page and return every WCAG 2.2 AA violation.
    *
@@ -102,7 +99,7 @@ export interface Harness {
   stop(): Promise<void>
 }
 
-const DIST = new URL('../dist/', import.meta.url).pathname
+const DIST = new URL('../dist/', import.meta.url)
 const SHOTS = new URL('./screenshots/', import.meta.url).pathname
 const TYPES: Readonly<Record<string, string>> = {
   '.html': 'text/html; charset=utf-8',
@@ -113,36 +110,29 @@ const TYPES: Readonly<Record<string, string>> = {
 }
 
 /**
- * Start the static server and browser.
- * @returns the harness.
+ * Answer one request out of the built bundle.
+ * @param request - the page's request.
+ * @returns the file, or a 404 the page can name.
  */
-async function serve(rel: string, res: ServerResponse): Promise<void> {
-  const body = await readFile(join(DIST, rel)).catch(() => null)
-  if (body === null) {
-    res.writeHead(404)
-    res.end('not found')
-    return
-  }
-  res.writeHead(200, { 'content-type': TYPES[extname(rel)] ?? 'application/octet-stream' })
-  res.end(body)
+async function serve(request: Request): Promise<Response> {
+  // URL resolution normalises any `..` a request path carries, so the answer
+  // can only ever land inside the bundle directory.
+  const requested = new URL(request.url).pathname
+  const rel = requested === '/' ? 'index.html' : requested.replace(/^\/+/u, '')
+  const file = Bun.file(new URL(rel, DIST))
+  if (!(await file.exists())) return new Response('not found', { status: 404 })
+  const dot = rel.lastIndexOf('.')
+  const type = dot === -1 ? '' : (TYPES[rel.slice(dot)] ?? 'application/octet-stream')
+  return new Response(file, { headers: { 'content-type': type } })
 }
 
 /**
  * Serve the built bundle on a loopback port.
  * @returns the server and the origin it bound.
  */
-async function startServer(): Promise<{ server: Server; origin: string }> {
-  const server: Server = createServer((req, res) => {
-    const requested = (req.url ?? '/').split('?')[0] ?? '/'
-    const rel = normalize(requested === '/' ? 'index.html' : requested.replace(/^\/+/u, ''))
-    void serve(rel, res)
-  })
-  await new Promise<void>((done) => {
-    server.listen(0, '127.0.0.1', done)
-  })
-  const address = server.address()
-  if (address === null || typeof address === 'string') throw new Error('server did not bind a port')
-  return { server, origin: `http://127.0.0.1:${String(address.port)}/` }
+function startServer(): { server: ReturnType<typeof Bun.serve>; origin: string } {
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: serve })
+  return { server, origin: `http://127.0.0.1:${server.port}/` }
 }
 
 /**
@@ -201,7 +191,7 @@ async function auditPage(page: Page): Promise<readonly Violation[]> {
 }
 
 export async function startHarness(): Promise<Harness> {
-  const { server, origin } = await startServer()
+  const { server, origin } = startServer()
   const executablePath = await chromiumPath()
   const browser: Browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
 
@@ -212,32 +202,23 @@ export async function startHarness(): Promise<Harness> {
       // mid-rotation whenever it is caught, so a running suite rewrote its own
       // screenshot on every run and left the tree dirty — a file that changes
       // when nothing changed is a file nobody can read a diff of.
-      await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true, animations: 'disabled' })
+      await page.screenshot({ path: `${SHOTS}${name}.png`, fullPage: true, animations: 'disabled' })
     },
     audit: (page) => auditPage(page),
     forward: (page, event, args) =>
       page.evaluate(
-        ([name, tuple]) => {
-          const push = (window as unknown as { deeptailForwardEvent?: (e: string, a: unknown[]) => void })
-            .deeptailForwardEvent
+        (pair: readonly [string, ForwardedEvent['args']]) => {
+          const push = window.deeptailForwardEvent
           if (push === undefined) throw new Error('no mux is open on this page')
-          push(name as string, tuple as unknown[])
+          push(pair[0], pair[1])
         },
         [event, args] as const,
       ),
-    calls: (page) =>
-      page.evaluate(
-        () => (window as unknown as { deeptailRecordedCalls?: RecordedCall[] }).deeptailRecordedCalls ?? [],
-      ),
-    commands: (page) =>
-      page.evaluate(() => (window as unknown as { deeptailInvokedCommands?: string[] }).deeptailInvokedCommands ?? []),
+    calls: (page) => page.evaluate(() => window.deeptailRecordedCalls ?? []),
+    commands: (page) => page.evaluate(() => window.deeptailInvokedCommands ?? []),
     async stop() {
       await browser.close()
-      await new Promise<void>((done) => {
-        server.close(() => {
-          done()
-        })
-      })
+      server.stop(true)
     },
   }
 }
