@@ -12,10 +12,10 @@
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.2",
     "@deepseek-ai/cordis-plugin-loader": "1.0.3",
-    "@deepseek-ai/dsh-client-store": "0.1.2-alpha.2",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.1.2-alpha.2",
-    "@deepseek-ai/dsh-client-ui-slots": "0.1.2-alpha.2",
-    "@deepseek-ai/dsh-client-web": "0.1.2-alpha.2",
+    "@deepseek-ai/dsh-client-store": "0.1.2-alpha.3",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.2-alpha.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.2-alpha.3",
+    "@deepseek-ai/dsh-client-web": "0.1.2-alpha.3",
     "@tauri-apps/api": "2.11.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
@@ -28,6 +28,6 @@
     "vite": "^8.2.2"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-client-modules": "0.1.2-alpha.2"
+    "@deepseek-ai/dsh-client-modules": "0.1.2-alpha.3"
   }
 }
