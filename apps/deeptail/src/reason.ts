@@ -12,6 +12,16 @@ import { FORBIDDEN, PROTOCOL, RemoteError, TRANSPORT, UNAUTHORIZED } from './api
 import type { PickerKey, Translate } from './locales.ts'
 
 /**
+ * Whatever a rejection carried.
+ *
+ * A rejection can be raised by anything this product calls, so the type is
+ * the union of everything a `reject` can be handed: an error, a plain object
+ * that may name a message, a primitive, or nothing at all. The only field any
+ * reader may touch is `message`, because nothing else is promised.
+ */
+export type Thrown = Error | { readonly message?: string } | string | number | boolean | null | undefined
+
+/**
  * The message a failure should be reported with.
  *
  * The raw text, for a caller that has no copy source — a log line, or a message
@@ -19,7 +29,7 @@ import type { PickerKey, Translate } from './locales.ts'
  * @param reason - whatever was thrown or rejected with.
  * @returns the text to show.
  */
-export function messageOf(reason: unknown): string {
+export function messageOf(reason: Thrown): string {
   return reason instanceof Error ? reason.message : String(reason)
 }
 
@@ -45,7 +55,7 @@ const TRANSPORT_KEYS: Readonly<Record<string, PickerKey>> = {
  * @param t - copy source.
  * @returns the text to show.
  */
-export function describeFailure(reason: unknown, t: Translate): string {
+export function describeFailure(reason: Thrown, t: Translate): string {
   if (!(reason instanceof RemoteError)) return messageOf(reason)
   const key = TRANSPORT_KEYS[reason.code]
   if (key === undefined) return reason.message

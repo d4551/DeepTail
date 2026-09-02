@@ -10,6 +10,7 @@
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core'
+import type { Thrown } from './reason.ts'
 import { SOCKET_CLOSED, SOCKET_OPEN } from './socket-state.ts'
 
 /** One frame from the Rust-held mux socket. */

@@ -17,7 +17,7 @@ import { describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { type ParseError, parse as parseJsonc } from 'jsonc-parser'
-import { coerce, gte, major, minor } from 'semver'
+import { coerce, gte, major, maxSatisfying, minor, satisfies } from 'semver'
 import type { LocaleId } from '../apps/deeptail/src/browser-locale.ts'
 import { DICTIONARIES } from '../apps/deeptail/src/locales.ts'
 import * as bans from '../scripts/ban-gate.ts'
@@ -71,16 +71,64 @@ const FLOORS: Readonly<Record<string, string>> = {
 /** Every kind of dependency a manifest can declare. */
 const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
 
+/** Every shape a JSON document can hold, closed and named so nothing widens. */
+type Json = string | number | boolean | null | Json[] | { [key: string]: Json }
+
 /**
- * Parse JSON with comments, as every tool that reads a tsconfig does.
+ * Whether a JSON value is an object, narrowed for callers that need its keys.
+ * @param value - the JSON value to test.
+ * @returns true when the value is a JSON object.
+ */
+function isJsonObject(value: Json): value is { [key: string]: Json } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Bring a parsed document onto the closed Json model, or give up when a shape
+ * appears that the model does not name. The generic keeps the library's own
+ * return type out of the annotations: the conversion is runtime-checked, so
+ * no cast ever claims a shape the data was not proven to have.
+ * @param value - whatever the parser produced.
+ * @returns the same document as a Json value, or undefined for foreign shapes.
+ */
+function asJson<T>(value: T): Json | undefined {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    return value === null ? null : (value as string | boolean)
+  }
+  if (typeof value === 'number') return value
+  if (typeof value === 'object') {
+    if (Array.isArray(value)) {
+      const items: Json[] = []
+      for (const item of value) {
+        const converted = asJson(item)
+        if (converted === undefined) return undefined
+        items.push(converted)
+      }
+      return items
+    }
+    const members: { [key: string]: Json } = {}
+    for (const [key, entry] of Object.entries(value)) {
+      const converted = asJson(entry)
+      if (converted === undefined) return undefined
+      members[key] = converted
+    }
+    return members
+  }
+  return undefined
+}
+
+/**
+ * Parse JSON with comments, as every tool that reads a tsconfig does, onto the
+ * closed Json model with the root proven to be an object.
  * @param text - the file contents.
  * @returns the parsed object.
  */
-function readJsonc(text: string): Record<string, unknown> {
+function readJsonc(text: string): { [key: string]: Json } {
   const errors: ParseError[] = []
-  const value = parseJsonc(text, errors, { allowTrailingComma: true }) as Record<string, unknown>
+  const parsed = asJson(parseJsonc(text, errors, { allowTrailingComma: true }))
   expect(errors).toEqual([])
-  return value
+  if (parsed === undefined || !isJsonObject(parsed)) throw new Error('expected a JSON object at the root')
+  return parsed
 }
 
 /**
@@ -90,15 +138,15 @@ function readJsonc(text: string): Record<string, unknown> {
  */
 async function everyDependency(): Promise<Map<string, string>> {
   const manifests = await Promise.all(
-    repositoryFiles(['package.json']).map(
-      async (manifest) => JSON.parse(await readFile(manifest.path, 'utf8')) as Record<string, unknown>,
-    ),
+    repositoryFiles(['package.json']).map(async (manifest) => readJsonc(await readFile(manifest.path, 'utf8'))),
   )
   const found = new Map<string, string>()
   for (const parsed of manifests) {
     for (const kind of DEPENDENCY_KINDS) {
-      const declarations = (parsed[kind] ?? {}) as Record<string, string>
-      for (const [name, range] of Object.entries(declarations)) found.set(name, range)
+      const declarations = isJsonObject(parsed[kind] ?? {}) ? (parsed[kind] as { [key: string]: Json }) : {}
+      for (const [name, range] of Object.entries(declarations)) {
+        if (typeof range === 'string') found.set(name, range)
+      }
     }
   }
   return found

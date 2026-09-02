@@ -1,16 +1,14 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionController } from '@deepseek-ai/dsh-api-session-controller'
 
-interface Disposer {
-  (): void
-}
+type Disposer = () => void
 
-interface Listener {
-  (): void
-}
+type Listener = () => void
 
 interface ScriptedController {
-  list(): Promise<{ readonly items: readonly { sessionId: string; running: boolean; blank: boolean; updatedAt: number }[] }>
+  list(): Promise<{
+    readonly items: readonly { sessionId: string; running: boolean; blank: boolean; updatedAt: number }[]
+  }>
   create(request: { readonly agentPreset?: string; readonly cwd?: string }): Promise<{ readonly sessionId: object }>
   prompt(request: { readonly sessionId: string; readonly mode: string }): Promise<object>
   cancel(request: { readonly sessionId: string }): Promise<{ readonly cancelled: boolean }>
@@ -20,7 +18,7 @@ interface ScriptedController {
 interface ScriptedHost {
   readonly sessionController: object
   readonly tools: { register(definition: object): Disposer }
-  readonly effect: { (install: Listener, label?: string): void }
+  readonly effect: (install: Listener, label?: string) => void
 }
 
 export function asContextConstrained<T extends ScriptedHost>(host: T): Context {
@@ -34,7 +32,8 @@ export function asContextBare<T>(host: T): Context {
 }
 
 export function asControllerGeneric<T extends ScriptedController>(controller: T): SessionController {
-  if (typeof controller !== 'object' || controller === null) throw new Error('deeptail: controller double is not an object')
+  if (typeof controller !== 'object' || controller === null)
+    throw new Error('deeptail: controller double is not an object')
   return controller as SessionController
 }
 

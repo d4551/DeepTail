@@ -54,8 +54,10 @@ function stringRef(node: Node): boolean {
 function v1TauriImport(node: Node): boolean {
   if (node.type !== 'ImportDeclaration') return false
   const source = node.source
-  if (!isNode(source) || source.type !== 'Literal' || typeof source.value !== 'string') return false
-  return TAURI_V1_PATHS.some((path) => source.value === path || source.value.startsWith(`${path}/`))
+  if (!isNode(source) || source.type !== 'Literal') return false
+  const path = source.value
+  if (typeof path !== 'string') return false
+  return TAURI_V1_PATHS.some((entry) => path === entry || path.startsWith(`${entry}/`))
 }
 
 /** A member that names the wanted property, read through renames. */
