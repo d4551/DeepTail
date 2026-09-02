@@ -9,6 +9,8 @@
  * @module
  */
 
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+
 /** The Gateway's reserved logical stream carrying forwarded host events. */
 const EVENT_STREAM_ENDPOINT = '$events'
 /** The opening payload that stream expects. */
@@ -17,17 +19,17 @@ const EVENT_STREAM_PAYLOAD = { args: {} } as const
 /** One host event forwarded to this client. */
 export interface HostEvent {
   readonly event: string
-  readonly args: readonly unknown[]
+  readonly args: readonly JsonValue[]
 }
 
 /** A server frame on the mux. */
-type ServerMessage =
-  | { readonly type: 'item'; readonly streamId: string; readonly value?: unknown }
+export type ServerMessage =
+  | { readonly type: 'item'; readonly streamId: string; readonly value?: JsonValue }
   | { readonly type: 'error'; readonly streamId: string; readonly error: { message?: string } }
   | { readonly type: 'end'; readonly streamId: string }
 
 /** What one frame asks of the connection that opened the stream. */
-type FrameOutcome =
+export type FrameOutcome =
   | { readonly kind: 'ignore' }
   | { readonly kind: 'ready' }
   | { readonly kind: 'event'; readonly event: HostEvent }
@@ -35,6 +37,9 @@ type FrameOutcome =
 
 /** A frame carrying nothing the connection can act on. */
 const IGNORE: FrameOutcome = { kind: 'ignore' }
+
+/** A parsed JSON object with string keys. */
+type JsonObject = { readonly [key: string]: JsonValue }
 
 /**
  * The frame that opens the event stream.
@@ -60,34 +65,35 @@ export function cancelFrame(streamId: string): string {
 }
 
 /**
- * Read one message the mux socket dispatched.
+ * Read one message the mux socket dispatched, as far as the wire goes.
  *
  * The socket carries every logical stream at once, so anything addressed to
- * another id belongs to another reader and is left alone.
+ * another id belongs to another reader, and text that is not JSON is not a
+ * frame; both come back null. Whether a frame is *read* depends on the
+ * connection's state, which the wire does not hold.
  *
  * @param event - whatever the socket dispatched.
  * @param streamId - the logical stream the connection opened.
- * @param ready - whether the host's ready frame has already arrived.
- * @returns what the connection should do with the message.
+ * @returns the parsed frame, or null when there is none to read.
  */
-export function readSocketFrame(event: Event, streamId: string, ready: boolean): FrameOutcome {
-  // The adapter dispatches a real MessageEvent; narrowing on the instance
+export function readSocketFrame(event: Event, streamId: string): Promise<ServerMessage | null> {
+  // The transport dispatches a real MessageEvent; narrowing on the instance
   // avoids a cast and rejects anything else the target might receive.
-  if (!(event instanceof MessageEvent)) return IGNORE
-  const data: unknown = event.data
-  if (typeof data !== 'string') return IGNORE
-  const message = parseServerMessage(data)
-  if (message === undefined || message.streamId !== streamId) return IGNORE
-  return readFrame(message, ready)
+  if (!(event instanceof MessageEvent)) return Promise.resolve(null)
+  const data: JsonValue = event.data
+  if (typeof data !== 'string') return Promise.resolve(null)
+  return parseServerMessage(data).then((message) =>
+    message !== null && message.streamId === streamId ? message : null,
+  )
 }
 
 /**
  * Decide what one frame on our own stream means.
  * @param message - the parsed frame.
- * @param ready - whether the host's ready frame has already arrived.
+ * @param ready - whether the host's ready frame has already been seen.
  * @returns what the connection should do with the frame.
  */
-function readFrame(message: ServerMessage, ready: boolean): FrameOutcome {
+export function decideFrame(message: ServerMessage, ready: boolean): FrameOutcome {
   switch (message.type) {
     case 'item': {
       if (!ready) {
@@ -113,19 +119,32 @@ function readFrame(message: ServerMessage, ready: boolean): FrameOutcome {
 
 /**
  * Parse one mux frame, discarding anything that is not a frame we handle.
+ *
+ * The parse runs through a resolved promise, so text that is not JSON is read
+ * as a discarded frame rather than an exception crossing into the listener the
+ * socket dispatched.
  * @param text - the raw text message.
- * @returns the frame, or undefined when it is not one.
+ * @returns the frame, or null when it is not one.
  */
-function parseServerMessage(text: string): ServerMessage | undefined {
-  let value: unknown
-  try {
-    value = JSON.parse(text)
-  } catch {
-    return undefined
-  }
-  if (!isRecord(value) || typeof value.streamId !== 'string') return undefined
+function parseServerMessage(text: string): Promise<ServerMessage | null> {
+  return Promise.resolve(text)
+    .then((candidate): JsonValue => JSON.parse(candidate))
+    .then(projectServerMessage, () => null)
+}
+
+/**
+ * Narrow a parsed value to a frame this wire knows.
+ * @param value - whatever the text parsed to.
+ * @returns the frame, or null when it is not one.
+ */
+function projectServerMessage(value: JsonValue): ServerMessage | null {
+  if (!isRecord(value) || typeof value.streamId !== 'string') return null
   const type = value.type
-  if (type === 'item') return { type, streamId: value.streamId, value: value.value }
+  if (type === 'item') {
+    return value.value === undefined
+      ? { type, streamId: value.streamId }
+      : { type, streamId: value.streamId, value: value.value }
+  }
   if (type === 'end') return { type, streamId: value.streamId }
   if (type === 'error') {
     const error = value.error
@@ -135,16 +154,16 @@ function parseServerMessage(text: string): ServerMessage | undefined {
       error: isRecord(error) && typeof error.message === 'string' ? { message: error.message } : {},
     }
   }
-  return undefined
+  return null
 }
 
 /** Whether an opening item is the host's ready frame. */
-function isReadyFrame(value: unknown): boolean {
+function isReadyFrame(value: JsonValue | undefined): boolean {
   return isRecord(value) && value.type === 'ready'
 }
 
 /** Project one downlink frame onto a forwarded host event. */
-function toHostEvent(value: unknown): HostEvent | undefined {
+function toHostEvent(value: JsonValue | undefined): HostEvent | undefined {
   if (!isRecord(value) || value.type !== 'emit') return undefined
   const event = value.event
   const args = value.args
@@ -153,6 +172,6 @@ function toHostEvent(value: unknown): HostEvent | undefined {
 }
 
 /** Whether a value is a plain object with string keys. */
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

@@ -19,3 +19,4 @@ apps/deeptail/src-tauri/gen/
 # Local Chromium override for the browser suite; the path is machine-specific.
 apps/deeptail/tests/chromium.json
 /.tmp-outdated
+/.tmp-validate

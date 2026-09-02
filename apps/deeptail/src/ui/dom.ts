@@ -8,6 +8,9 @@
  * @module
  */
 
+/** Releases what its caller mounted: closes a subscription or drops a listener. */
+export type Disposer = () => void
+
 /**
  * The accessible state an element is created with.
  *

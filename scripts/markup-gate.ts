@@ -56,6 +56,59 @@ const HTMX_ATTRIBUTE = /^hx-/iu
 const ARBITRARY_UTILITY = /-[^\s"']*\[[^\]]+\]/u
 
 /**
+ * Elements the platform retired because they decide alignment or type in the
+ * tag itself.
+ *
+ * The centering element, the type element and the marquee are alignment,
+ * type and motion a page ships inline; the sheet is where those decisions
+ * live, and a tag that carries one arrives with no class for a gate to read.
+ */
+const PRESENTATIONAL_ELEMENTS = new Set(['center', 'font', 'marquee'])
+
+/**
+ * Attributes that move a box or its content from the tag.
+ *
+ * `align`, `valign` and their spacing kin are layout written where markup
+ * goes, so the alignment never reaches the sheet the grid rules read.
+ */
+const ALIGNMENT_ATTRIBUTES = new Set(['align', 'valign', 'hspace', 'vspace', 'cellpadding', 'cellspacing'])
+
+/** The one element a document may carry, whose duplication splits the shell a reader lands in. */
+const LANDMARK = 'main'
+
+/**
+ * The per-attribute refusals a tag carries: wiring, raw values and layout.
+ *
+ * @param attrs - the element's attributes, as the parser read them.
+ * @param line - the line the element starts on.
+ * @param found - the refusal list to append to.
+ */
+function recordAttributeOffences(
+  attrs: readonly { readonly name: string; readonly value?: string }[],
+  line: number,
+  found: MarkupOffence[],
+): void {
+  for (const attribute of attrs) {
+    const name = attribute.name.toLowerCase()
+    if (HTMX_ATTRIBUTE.test(attribute.name)) {
+      found.push({ line, why: 'an hx attribute wires behaviour into the tag; attach the listener in a module' })
+    }
+    if (name === 'class' && ARBITRARY_UTILITY.test(attribute.value ?? '')) {
+      found.push({
+        line,
+        why: 'a bracketed utility class carries a raw value; read the size or colour from tokens.css',
+      })
+    }
+    if (ALIGNMENT_ATTRIBUTES.has(name)) {
+      found.push({
+        line,
+        why: 'an alignment attribute is layout in the tag; put the alignment in a stylesheet and add a class',
+      })
+    }
+  }
+}
+
+/**
  * Whether an attribute value navigates to a scripted URL.
  *
  * A browser strips ASCII control characters and leading whitespace before it
@@ -94,6 +147,7 @@ interface MarkupOffence {
  */
 export function markupOffences(text: string): MarkupOffence[] {
   const found: MarkupOffence[] = []
+  let landmarks = 0
   const visit = (node: Parsed): void => {
     const line = node.sourceCodeLocation?.startLine ?? 1
     const attrs = node.attrs ?? []
@@ -104,21 +158,7 @@ export function markupOffences(text: string): MarkupOffence[] {
     if (attrs.some((attribute) => HANDLER.test(attribute.name))) {
       found.push({ line, why: 'an inline event handler is a per-page script; attach the listener in a module' })
     }
-    for (const attribute of attrs) {
-      const name = attribute.name.toLowerCase()
-      if (HTMX_ATTRIBUTE.test(attribute.name)) {
-        found.push({
-          line,
-          why: 'an hx attribute wires behaviour into the tag; attach the listener in a module',
-        })
-      }
-      if (name === 'class' && ARBITRARY_UTILITY.test(attribute.value ?? '')) {
-        found.push({
-          line,
-          why: 'a bracketed utility class carries a raw value; read the size or colour from tokens.css',
-        })
-      }
-    }
+    recordAttributeOffences(attrs, line, found)
     for (const attribute of attrs) {
       if (!URL_ATTRIBUTES.has(attribute.name.toLowerCase())) continue
       const url = attribute.value ?? ''
@@ -134,6 +174,15 @@ export function markupOffences(text: string): MarkupOffence[] {
     }
     if (tag === 'style') {
       found.push({ line, why: 'an inline stylesheet is a per-page sheet; ship a file and link it' })
+    }
+    if (tag !== undefined && PRESENTATIONAL_ELEMENTS.has(tag)) {
+      found.push({ line, why: 'a retired presentational tag is alignment or type in markup; use the stylesheet' })
+    }
+    if (tag === LANDMARK) {
+      landmarks += 1
+      if (landmarks > 1) {
+        found.push({ line, why: 'a second main splits the shell; a document carries one' })
+      }
     }
     for (const child of node.childNodes ?? []) visit(child as Parsed)
     for (const child of node.content?.childNodes ?? []) visit(child as Parsed)

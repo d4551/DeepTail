@@ -1,0 +1,243 @@
+/* Host picker form: the fields, the choice rows, the status strips and the
+ * spinner. The screen frame, the card and the host list live in picker.css,
+ * which is loaded before this sheet.
+ */
+
+/* ---- form --------------------------------------------------------------- */
+
+/* A form is one child of the card, so the card's own gap sets nothing inside
+   it: every field, strip and actions row sat flush against its neighbour. The
+   form carries the same rhythm the card does. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dsh-space-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dsh-space-2);
+}
+
+.label {
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-md);
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* A radio group is a field whose control is a set of choices. The element has
+   to be a fieldset for the legend to name the group to a screen reader, and a
+   fieldset carries a border and inset padding no other field here has, so both
+   are cleared and the field's own spacing put back. */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dsh-space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.field-group > .label {
+  padding: 0;
+}
+
+/* Each choice on its own line: two of them on one line read as a sentence, and
+   the label text is a sentence, so nothing separates one option from the next. */
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-space-2);
+  min-height: var(--dsh-control-xs);
+  cursor: pointer;
+}
+
+.choice:has(.radio:disabled) {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* A native radio draws at about 13px, which is under the 24px WCAG 2.2 asks for
+   a target and well under the 44px a finger needs. The whole row is the target
+   — it is a label wrapping the control — but a 13px dot is what a viewer aims
+   at, so the control itself is sized to the floor rather than left to the
+   platform. */
+.radio {
+  flex: none;
+  inline-size: var(--dsh-target-min);
+  block-size: var(--dsh-target-min);
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+/* The control is taller than one line of its label, so the two are centred
+   against each other; aligning to the start left the text riding the top of the
+   circle. A label that wraps centres against the whole block, which is where a
+   native form control sits too. */
+.choice-label {
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-md);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The one field chrome in the product. `.select` and `.textarea` are the same
+ * control in a different shape, so they share it and override only what their
+ * shape genuinely requires. */
+.input,
+.select,
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--dsh-target-coarse);
+  padding: var(--dsh-space-inset-sm) var(--dsh-space-inset-xl);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsh-radius-action);
+  outline: none;
+  background: transparent;
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-control);
+  color: var(--dsw-alias-label-primary);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* The ring these three hide is written back on the selectors that hid it: the
+ * element-level rule in tokens.css covers `input`, `select` and `textarea`, but
+ * a class that turns the outline off has to turn one back on itself, or the two
+ * agree only by coincidence. */
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+/* ---- status strips ------------------------------------------------------ */
+
+.status {
+  padding: var(--dsh-space-inset-md);
+  font-size: var(--dsh-text-md);
+  line-height: var(--dsh-leading-lg);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--dsh-space-3);
+  padding: var(--dsh-space-inset-sm) var(--dsh-space-3);
+  border-radius: var(--dsh-radius-sm);
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-alias-label-error);
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-md);
+}
+
+/* `.error` sets `display`, and any author rule outranks the UA sheet's
+ * `[hidden] { display: none }`. Matching the attribute as well as the class
+ * wins on specificity rather than on file order, so `hidden` stays
+ * authoritative wherever this sheet is loaded. */
+.error[hidden] {
+  display: none;
+}
+
+/* A modifier over `.error`, worn as `class="error warning"` exactly as
+ * `.button-primary` is worn over `.button`. It recolours; it never relayouts. */
+.warning {
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
+  /* The state has to survive both a contrast floor and a colourblind reader, so
+   * it is carried by a rule the text colour does not have to encode. */
+  border-inline-start: 3px solid var(--dsw-alias-state-warn-primary);
+}
+
+/* It inherits the strip's 12px/18px type, which left an 18px-tall target — under
+ * the 24px floor before any spacing exception. The padding is what raises it. */
+.retry {
+  flex: 0 0 auto;
+  min-height: var(--dsh-target-fine);
+  padding: var(--dsh-space-1) var(--dsh-space-3);
+  border: none;
+  border-radius: var(--dsh-radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---- spinner ------------------------------------------------------------ */
+
+.spinner {
+  position: relative;
+  width: var(--dsh-space-6);
+  height: var(--dsh-space-6);
+  border-radius: 50%;
+  border: 2px solid var(--dsw-alias-border-l2);
+  border-top-color: var(--dsw-alias-brand-primary);
+  animation: deeptail-spin 0.8s linear infinite;
+}
+
+@keyframes deeptail-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The spinner turns until the host list resolves, which is exactly the
+   indefinite motion this setting asks to stop. The ring stays visible. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+.centered {
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-space-inset-md);
+}
+
+/* A coarse pointer has no hover to reveal anything with and a fingertip to hit
+ * with, so the retry control the strip owns stands at the touch floor. The
+ * shell and the picker screen raise their own controls the same way. */
+@media not (hover: hover) {
+  .retry {
+    min-height: var(--dsh-target-coarse);
+  }
+}
+
+/* A finger is not a mouse. On a touch pointer every choice and its radio clear
+   the 44px Apple HIG and WCAG 2.2 enhanced floor; the row is the target, but
+   the control is what a finger aims at, so it takes the same floor rather than
+   staying a dot inside a tall row. */
+@media (pointer: coarse) {
+  .choice {
+    min-block-size: var(--dsh-target-touch);
+  }
+
+  .radio {
+    inline-size: var(--dsh-target-touch);
+    block-size: var(--dsh-target-touch);
+  }
+}
+
+/* Windows high contrast substitutes the whole palette, so a state carried by a
+ * background or a border colour is simply not shown; the strips are restated
+ * against the system colour keywords the mode guarantees. */
+@media (forced-colors: active) {
+  .warning,
+  .error {
+    border: 1px solid CanvasText;
+  }
+}

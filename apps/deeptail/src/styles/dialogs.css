@@ -1,0 +1,78 @@
+/* Dialogs: the modal frame the shell's flows open over the roster.
+ *
+ * Geometry and interaction states follow the harness web client so the two
+ * products read as one. Source: ui-primitives/Modal.module.css.
+ */
+
+/* ── dialogs ──────────────────────────────────────────────────────────────── */
+
+/* Portalled to `document.body`, so it is outside the narrow-layout block in
+ * shell.css and carries its own inset handling: without it a dialog's top edge
+ * sits under the status bar and its action row under the home indicator. */
+.modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--dsh-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(var(--dsh-space-7), env(safe-area-inset-top)) max(var(--dsh-space-7), env(safe-area-inset-right))
+    max(var(--dsh-space-7), env(safe-area-inset-bottom)) max(var(--dsh-space-7), env(safe-area-inset-left));
+}
+
+.modal-mask {
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-bg-mask-1);
+  backdrop-filter: var(--dsw-mask-blur);
+}
+
+.modal-dialog {
+  position: relative;
+  z-index: var(--dsh-z-dialog);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dsh-space-6);
+  width: min(var(--dsh-card-width), 100%);
+  padding: var(--dsh-space-inset-2xl) var(--dsh-space-7) var(--dsh-space-7);
+  box-sizing: border-box;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  border-radius: var(--dsh-radius-sheet);
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-shadow-lv3);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: var(--dsh-text-body);
+  font-weight: 500;
+  line-height: var(--dsh-leading-body);
+  color: var(--dsw-alias-label-primary);
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dsh-space-4);
+  min-width: 0;
+}
+
+/* Shares `.input`'s chrome; only the shape a multi-line field needs differs. */
+.textarea {
+  min-height: var(--dsh-compose-min);
+  max-height: var(--dsh-menu-max);
+  padding: var(--dsh-space-inset-lg) var(--dsh-space-inset-xl);
+  border-radius: var(--dsh-radius-lg);
+  resize: none;
+  overflow-y: auto;
+  font-family: inherit;
+  line-height: var(--dsh-leading-body);
+}
+
+.select {
+  height: var(--dsh-control-lg);
+  padding: 0 var(--dsh-space-4);
+  border-radius: var(--dsh-radius-md);
+  font-family: inherit;
+  cursor: pointer;
+}

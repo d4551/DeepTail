@@ -58,3 +58,18 @@ export function describeFailure<T>(reason: T, t: Translate): string {
     detail: String(reason.details.detail ?? reason.message),
   })
 }
+
+/**
+ * Let a fire-and-forget promise land, reporting its failure in the operator's
+ * language.
+ *
+ * The surfaces that kick work without awaiting it still owe the operator an
+ * account when that work fails, and each used to spell that account out at the
+ * call site. This is the one place a rejection is turned into copy for them.
+ * @param work - the promise to let settle.
+ * @param t - copy source.
+ * @param report - where the failure message lands.
+ */
+export function reportSettled<T>(work: Promise<T>, t: Translate, report: (message: string) => void): void {
+  work.then(undefined, (reason: T) => report(describeFailure(reason, t)))
+}

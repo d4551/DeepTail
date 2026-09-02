@@ -11,13 +11,15 @@
  *
  * The rules are stated about declarations, so the sheet is read the way the
  * engine reads it: a comment that names a length is prose, and the token file
- * is where a length is allowed to be written.
+ * is where a length is allowed to be written. The read itself lives in
+ * `sheet-reader.ts`, shared with every gate that walks a sheet.
  *
  * @module
  */
 
 import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
+import { declarationsOf, rulesetsOf, withoutComments } from './sheet-reader.ts'
 
 /** The sheet that is allowed to hold raw values, because it is where they live. */
 export const TOKEN_SHEET = 'tokens.css'
@@ -54,13 +56,9 @@ const SCALED = new RegExp(
 )
 
 /** A viewport width a media query switches on, in either syntax. */
-const BREAKPOINT = /@media[^{]*?\b(?:width\s*<=|max-width\s*:)\s*(\d+px)/gu
-
-/** Where a comment opens and closes. */
-const COMMENTS = /\/\*[\s\S]*?\*\//gu
-
-/** A rule: its selector list, and the declarations between its braces. */
-const RULE = /([^{}]+)\{([^{}]*)\}/gu
+// Layout switches at a width in either query family the sheets use: media for
+// the document-level facts, container for a box the component fills.
+const BREAKPOINT = /@(?:media|container)[^{]*?\b(?:width\s*<=|max-width\s*:)\s*(\d+px)/gu
 
 /**
  * The at-rules the utility pipeline this product retired shipped in its sheets.
@@ -71,7 +69,34 @@ const RULE = /([^{}]+)\{([^{}]*)\}/gu
  * cascade layer CSS itself ships is untouched; only the pipeline's own names
  * are refused.
  */
-const RETIRED_AT_RULES = /@(?:apply|tailwind|config|plugin|utility|variant|source|theme|screen|responsive|layer\s+utilities)\b/u
+const RETIRED_AT_RULES =
+  /@(?:apply|tailwind|config|plugin|utility|variant|source|theme|screen|responsive|layer\s+utilities)\b/u
+
+/**
+ * A selector written relative to the rule it sits inside, the nesting
+ * operator.
+ *
+ * This gate reads a rule as one selector list and one flat brace of
+ * declarations, so a nested rule is not a structure it can see: the nest is
+ * flattened into a rule whose selector carries the operator, and the scoping
+ * the nest was doing — which page, which state — is exactly what stops being
+ * reviewed. A selector at the top level states its own scope, so none may
+ * ride on another rule's.
+ */
+const NESTED = /(^|[\s,+>~])&/gu
+
+/**
+ * Every line a sheet nests a selector on.
+ * @param text - the sheet's contents, comments already blanked.
+ * @returns one entry per nested selector, with its line.
+ */
+function nestedSelectors(text: string): { readonly line: number }[] {
+  const found: { line: number }[] = []
+  for (const match of text.matchAll(NESTED)) {
+    found.push({ line: text.slice(0, match.index).split('\n').length })
+  }
+  return found
+}
 
 /**
  * Every line a sheet writes one of the retired at-rules on.
@@ -86,63 +111,6 @@ function retiredAtRules(text: string): { readonly rule: string; readonly line: n
     if (match !== null) found.push({ rule: match[0], line: index + 1 })
   }
   return found
-}
-
-/**
- * The sheet with its comments blanked out, offsets preserved.
- *
- * A comment that names a length is prose about the design, not a decision, and
- * a selector written inside one is an example rather than a rule. Blanking
- * rather than deleting keeps every offset, so a line number stays true.
- * @param text - the sheet's contents.
- * @returns the sheet, same length, comments replaced by spaces.
- */
-function withoutComments(text: string): string {
-  return text.replaceAll(COMMENTS, (comment) => comment.replaceAll(/[^\n]/gu, ' '))
-}
-
-/**
- * One declaration, and where it was written.
- *
- * Read out of the rule's body rather than off a line, because one declaration
- * per line is a formatting convention, not a fact: a sheet written or minified
- * onto one line is still a sheet, and a gate that reads lines sees nothing in
- * it at all.
- */
-interface Declaration {
-  /** The property name, lower case. */
-  readonly property: string
-  /** Everything after the colon, trimmed. */
-  readonly value: string
-  /** One-based line the declaration is written on. */
-  readonly line: number
-}
-
-/**
- * Every declaration a sheet holds, in source order.
- * @param text - the sheet's contents, comments already blanked.
- * @returns the declarations.
- */
-function declarationsOf(text: string): Declaration[] {
-  const declarations: Declaration[] = []
-  for (const rule of text.matchAll(RULE)) {
-    const body = rule[2] ?? ''
-    const bodyAt = rule.index + (rule[1] ?? '').length + 1
-    let cursor = 0
-    for (const part of body.split(';')) {
-      const colon = part.indexOf(':')
-      if (colon !== -1) {
-        const property = part.slice(0, colon).trim().toLowerCase()
-        const value = part.slice(colon + 1).trim()
-        if (property !== '' && value !== '') {
-          const at = bodyAt + cursor + part.indexOf(property)
-          declarations.push({ property, value, line: text.slice(0, at).split('\n').length })
-        }
-      }
-      cursor += part.length + 1
-    }
-  }
-  return declarations
 }
 
 /** How a selector may reach from one compound to the next. */
@@ -196,6 +164,13 @@ export function scanSheet(label: string, text: string): Offence[] {
       why: `${deep.selector} chains past ${String(MAX_COMPOUNDS)} compounds; scope the rule by class instead of structure`,
     })
   }
+  for (const nested of nestedSelectors(withoutComments(text))) {
+    offences.push({
+      label,
+      line: nested.line,
+      why: "a nested selector rides another rule's scope; state the selector at the top level",
+    })
+  }
   for (const retired of retiredAtRules(withoutComments(text))) {
     offences.push({
       label,
@@ -240,41 +215,4 @@ export function scanSheet(label: string, text: string): Offence[] {
  */
 export function breakpointsOf(text: string): string[] {
   return [...text.matchAll(BREAKPOINT)].map((found) => found[1] ?? '')
-}
-
-/** A rule's selector list and the declarations it holds, normalized. */
-export interface Ruleset {
-  /** The selectors, comma-separated as written, with whitespace collapsed. */
-  readonly selector: string
-  /** The declarations, in source order, with whitespace collapsed. */
-  readonly body: string
-  /** One-based line the selector opens on. */
-  readonly line: number
-}
-
-/**
- * Every rule a sheet declares, with its comments stripped.
- *
- * Read so that two rules with the same selector and the same declarations can
- * be found: the token sheet carried the same four-line block twice, fifty-five
- * lines apart, each with its own paragraph explaining why it was needed, and
- * nothing could see it because both copies declared and both were read.
- * @param text - the sheet's contents.
- * @returns one entry per rule, in source order.
- */
-export function rulesetsOf(text: string): Ruleset[] {
-  const blanked = withoutComments(text)
-  const rules: Ruleset[] = []
-  for (const found of blanked.matchAll(RULE)) {
-    const raw = found[1] ?? ''
-    const selector = raw.trim().replaceAll(/\s+/gu, ' ')
-    const body = (found[2] ?? '').trim().replaceAll(/\s+/gu, ' ')
-    if (selector === '' || body === '' || selector.startsWith('@')) continue
-    // Where the selector is written, not where the match opens: the match runs
-    // back through whatever separated this rule from the last one, so a rule
-    // after a blanked comment would otherwise be reported on the comment's line.
-    const at = found.index + (raw.length - raw.trimStart().length)
-    rules.push({ selector, body, line: blanked.slice(0, at).split('\n').length })
-  }
-  return rules
 }

@@ -155,7 +155,11 @@ function followDrawer(sidebar: HTMLElement, toggle: HTMLButtonElement, open: boo
  * @returns true while the narrow layout is showing.
  */
 function isDrawerLayout(): boolean {
-  return getComputedStyle(document.documentElement).getPropertyValue('--dsh-drawer').trim() === '1'
+  // The flag is set inside the shell's own container query, which cannot style
+  // its container, so it rides on #root — the shell's root — and is read there.
+  const root = document.querySelector('#root')
+  if (!(root instanceof HTMLElement)) return false
+  return getComputedStyle(root).getPropertyValue('--dsh-drawer').trim() === '1'
 }
 
 /**

@@ -134,6 +134,27 @@ it('reports a pane that scrolls inside a pane that also scrolls', async () => {
   await page.close()
 })
 
+it('reports a control drawn over another control', async () => {
+  // Both controls render on the wide roster: the new-session action in the
+  // roster's section header and the connection trigger beside it. On the
+  // narrow layout the roster is the closed drawer — translated off the canvas
+  // and inert — so the pair is seated on the layout that holds both in play.
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  expect(await defects(page)).toBe('')
+  // A stylesheet, not an inline style: seating the new-session action on the
+  // connection trigger puts two targets in the same pixels, and the click lands
+  // on whichever of them is drawn on top.
+  await page.addStyleTag({
+    content:
+      '[data-deeptail-action="new-session"], [data-deeptail-connection="trigger"] { position: fixed; inset-block-start: 0; inset-inline-start: 0; margin: 0; }',
+  })
+  const found = await defects(page)
+  expect(found).toContain('overlapping-targets')
+  expect(found).toContain('overlaps')
+  await page.close()
+})
+
 it('meets the touch minimum on a retry a finger has to hit', async () => {
   const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }), {
     mobile: true,

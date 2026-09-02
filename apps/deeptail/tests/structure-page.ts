@@ -26,7 +26,12 @@ export const VIEWPORTS = [
  * @returns true while the narrow layout is showing.
  */
 export function isDrawerLayout(page: Page): Promise<boolean> {
-  return page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dsh-drawer').trim() === '1')
+  // Mirrors shell-frame.ts: the flag rides on #root, set by the shell's own
+  // container query, which cannot style its container.
+  return page.evaluate(() => {
+    const root = document.querySelector('#root')
+    return root instanceof HTMLElement && getComputedStyle(root).getPropertyValue('--dsh-drawer').trim() === '1'
+  })
 }
 
 /**
@@ -36,9 +41,6 @@ export function isDrawerLayout(page: Page): Promise<boolean> {
  * @returns one line per finding.
  */
 export async function defects(page: Page, coarsePointer = false): Promise<string> {
-  const found = await page.evaluate((source) => {
-    const run = new Function(source) as () => StructureFinding[]
-    return run()
-  }, structureCheckSource(coarsePointer))
+  const found = await page.evaluate<StructureFinding[]>(structureCheckSource(coarsePointer))
   return found.map((finding) => `${finding.rule}: ${finding.detail}`).join('\n')
 }

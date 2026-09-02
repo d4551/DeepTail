@@ -1,0 +1,243 @@
+/* The fleet roster: host groups and their session rows.
+ *
+ * Geometry and interaction states follow the harness web client so the two
+ * products read as one. Sources, per block: ui-workspace/rows/Rows.module.css
+ * and WorkspaceBrowser.module.css.
+ */
+
+/* ── roster ───────────────────────────────────────────────────────────────── */
+
+.section-header {
+  margin: 0;
+  font-weight: inherit;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-space-1);
+  height: var(--dsh-control-sm);
+  padding-inline-start: var(--dsh-space-1);
+  margin-bottom: var(--dsh-space-1);
+  box-sizing: border-box;
+  color: var(--dsw-alias-label-secondary);
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-md);
+}
+
+/* The seat is the sidebar's flex item, so it carries the shrink the roster
+ * needs; without it `.roster`'s own overflow can never engage. */
+.roster-seat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.roster {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-inline-start: calc(var(--dsh-space-1) * -1);
+  padding-inline-start: var(--dsh-space-1);
+  padding-bottom: var(--dsh-space-5);
+  /* Rows never shift sideways when the bar reveals. */
+  scrollbar-gutter: stable;
+}
+
+.host-group + .host-group {
+  margin-top: var(--dsh-space-1);
+}
+
+.host-group > * + * {
+  margin-top: var(--dsh-space-0);
+}
+
+/* The seats are the list's own children, so the group's `* + *` rule never
+ * reached them and adjacent rows sat flush, their hover backgrounds touching. */
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dsh-space-0);
+}
+
+.group-title {
+  margin: 0;
+  font-weight: inherit;
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-space-2);
+  height: var(--dsh-control-xs);
+  padding: 0 var(--dsh-space-3);
+  box-sizing: border-box;
+  border-radius: var(--dsh-radius-sm);
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-lg);
+}
+
+.group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.group-count {
+  flex: none;
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-lg);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-space-2);
+  width: 100%;
+  min-height: var(--dsh-space-8);
+  padding: 0 var(--dsh-space-3);
+  box-sizing: border-box;
+  border-radius: var(--dsh-radius-sm);
+  color: var(--dsw-alias-label-primary);
+  user-select: none;
+}
+
+/* Fills the row so the whole strip reads as one target, while leaving the row
+ * actions as siblings rather than descendants. */
+.session-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-space-2);
+  height: var(--dsh-space-8);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.session-row:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* The roster clips both axes, so the ring is drawn inward or it is cut off. */
+.session-open:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+  border-radius: var(--dsh-radius-sm);
+}
+
+.session-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-lg);
+}
+
+.session-time {
+  flex: none;
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-lg);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.row-actions {
+  flex: none;
+  display: none;
+  align-items: center;
+  gap: var(--dsh-space-4);
+}
+
+.row-action {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--dsh-space-7);
+  min-height: var(--dsh-space-7);
+  padding: 0 var(--dsh-space-1);
+  border: none;
+  border-radius: var(--dsh-radius-xs);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-sm);
+  cursor: pointer;
+}
+
+.row-action:hover:not(:disabled) {
+  color: var(--dsw-alias-label-primary);
+}
+
+.row-action:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+}
+
+.row-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* Hover reveal on pointers that have hover; the timestamp yields its place. */
+@media (hover: hover) {
+  .session-row:hover .row-actions,
+  .session-row:focus-within .row-actions {
+    display: inline-flex;
+  }
+
+  .session-row:hover .session-time,
+  .session-row:focus-within .session-time {
+    display: none;
+  }
+}
+
+/* Touch never fires :hover, so the controls stay put — and a finger needs a
+ * target the 16px glyph slot never offered, which the row grows to admit. */
+@media not (hover: hover) {
+  .row-actions {
+    display: inline-flex;
+    gap: var(--dsh-space-1);
+  }
+
+  .row-action {
+    min-width: var(--dsh-target-coarse);
+    min-height: var(--dsh-target-coarse);
+    padding: 0 var(--dsh-space-3);
+  }
+
+  /* The actions are permanent here, so they take their own line rather than
+     squeezing the title down to a few characters. */
+  .session-row {
+    flex-wrap: wrap;
+    min-height: var(--dsh-target-coarse);
+    padding: var(--dsh-space-1) var(--dsh-space-3);
+  }
+
+  .session-open {
+    flex: 1 0 100%;
+    min-height: var(--dsh-target-coarse);
+    height: auto;
+  }
+
+  .row-actions {
+    margin-inline-start: var(--dsh-space-inset-xl);
+  }
+
+  /* Every control a finger reaches clears the platform minimum, not only the
+     row actions. */
+  .connection-trigger,
+  .new-session,
+  .menu-item,
+  .menu-repair {
+    min-height: var(--dsh-target-coarse);
+  }
+}

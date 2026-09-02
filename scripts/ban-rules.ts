@@ -75,7 +75,11 @@ export const BANNED: readonly Rule[] = [
     why: 'import-equals is TypeScript 6 syntax; use a default import or `import type`',
   },
   {
-    holds: (node) => node.type === 'TSModuleDeclaration' && isNode(node.id) && node.id.type === 'Identifier',
+    holds: (node) =>
+      node.type === 'TSModuleDeclaration' &&
+      isNode(node.id) &&
+      node.id.type === 'Identifier' &&
+      node.id.name !== 'global',
     why: 'a namespace is a TypeScript 6 module system; use ES module exports',
   },
   {

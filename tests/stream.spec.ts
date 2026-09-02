@@ -11,10 +11,10 @@
 import { expect, it } from 'bun:test'
 import { retryDelay, subscribeRoster } from '../apps/deeptail/src/stream.ts'
 import type { CarrierHooks, MuxSocketLike } from '../apps/deeptail/src/transport.ts'
+import type { JsonValue } from '../apps/deeptail/tests/tauri-ipc.ts'
 
-/** `WebSocket.OPEN`. */
+/** WebSocket readyState: open, then closed after a drop. */
 const OPEN = 1
-/** `WebSocket.CLOSED`. */
 const CLOSED = 3
 
 /** A socket the test drives directly. */
@@ -37,16 +37,14 @@ class FakeSocket extends EventTarget implements MuxSocketLike {
     this.dispatchEvent(new Event('open'))
   }
 
-  /**
-   * Deliver one downlink frame.
-   * @param value - the frame's item value.
-   */
-  deliver(value: unknown): void {
-    const streamId = JSON.parse(this.sent[0] ?? '{}').streamId as string
+  /** Deliver one downlink frame: the given value as the item's value. */
+  deliver(value: JsonValue): void {
+    const opening = JSON.parse(this.sent[0] ?? '{}')
+    const streamId = typeof opening.streamId === 'string' ? opening.streamId : ''
     this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ type: 'item', streamId, value }) }))
   }
 
-  /** Announce that the socket has gone away. */
+  /** Announce the socket has gone away. */
   drop(): void {
     this.readyState = CLOSED
     this.dispatchEvent(new CloseEvent('close', { code: 1006 }))
@@ -54,15 +52,15 @@ class FakeSocket extends EventTarget implements MuxSocketLike {
 }
 
 /** A carrier handing out sockets the test keeps hold of. */
-function fakeCarrier(): { carrier: CarrierHooks; sockets: FakeSocket[] } {
+function fakeCarrier(): { carrier: Pick<CarrierHooks, 'openMuxSocket'>; sockets: FakeSocket[] } {
   const sockets: FakeSocket[] = []
-  const carrier = {
-    openMuxSocket: () => {
+  const carrier: Pick<CarrierHooks, 'openMuxSocket'> = {
+    openMuxSocket: (): MuxSocketLike => {
       const socket = new FakeSocket()
       sockets.push(socket)
       return socket
     },
-  } as unknown as CarrierHooks
+  }
   return { carrier, sockets }
 }
 
@@ -87,7 +85,16 @@ function recorder(): { ready: number; lost: string[]; events: string[]; sinks: P
   return state
 }
 
-it('publishes nothing before the host answers with its ready frame', () => {
+/** Advance the clock, so timers the client set have fired. */
+const tick = (ms: number): Promise<void> =>
+  new Promise((settle) => {
+    setTimeout(settle, ms)
+  })
+
+/** Lets the wire's asynchronous parse land before the test asserts. */
+const parsed = (): Promise<void> => tick(0)
+
+it('publishes nothing before the host answers with its ready frame', async () => {
   const { carrier, sockets } = fakeCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
@@ -96,8 +103,10 @@ it('publishes nothing before the host answers with its ready frame', () => {
   expect(JSON.parse(sockets[0]?.sent[0] ?? '{}').endpoint).toBe('$events')
   expect(seen.ready).toBe(0)
   sockets[0]?.deliver({ type: 'ready', clientId: 'c', host: 'h' })
+  await parsed()
   expect(seen.ready).toBe(1)
   sockets[0]?.deliver({ type: 'emit', event: 'api-session/added', args: [] })
+  await parsed()
   expect(seen.events).toEqual(['api-session/added'])
   dispose()
 })
@@ -125,9 +134,7 @@ it('never reconnects after the disposer has returned', async () => {
   sockets[0]?.drop()
   expect(seen.lost.length).toBe(1)
   dispose()
-  await new Promise<void>((settle) => {
-    setTimeout(settle, 1_800)
-  })
+  await tick(1_800)
   expect(sockets.length).toBe(1)
 })
 
@@ -150,15 +157,15 @@ it('reconnects after a drop and reports the host reachable again', async () => {
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
   sockets[0]?.deliver({ type: 'ready', clientId: 'c', host: 'h' })
+  await parsed()
   sockets[0]?.drop()
   expect(seen.lost.length).toBe(1)
-  await new Promise<void>((settle) => {
-    setTimeout(settle, 1_500)
-  })
+  await tick(1_500)
   expect(sockets.length).toBeGreaterThan(1)
   const replacement = sockets.at(-1)
   replacement?.open()
   replacement?.deliver({ type: 'ready', clientId: 'c', host: 'h' })
+  await parsed()
   expect(seen.ready).toBe(2)
   dispose()
 })
@@ -170,28 +177,29 @@ it('does not let a retired socket retire the one that replaced it', async () => 
   sockets[0]?.open()
   sockets[0]?.deliver({ type: 'ready', clientId: 'c', host: 'h' })
   sockets[0]?.drop()
-  await new Promise<void>((settle) => {
-    setTimeout(settle, 1_500)
-  })
+  await tick(1_500)
   const replacement = sockets.at(-1)
   replacement?.open()
   replacement?.deliver({ type: 'ready', clientId: 'c', host: 'h' })
+  await parsed()
   const lostBefore = seen.lost.length
   // The first socket is gone; anything it says now belongs to a connection that
   // no longer exists and must not tear down its successor.
   sockets[0]?.drop()
   expect(seen.lost.length).toBe(lostBefore)
   replacement?.deliver({ type: 'emit', event: 'api-session/removed', args: ['s-1'] })
+  await parsed()
   expect(seen.events).toContain('api-session/removed')
   dispose()
 })
 
-it('treats an opening frame that is not the ready frame as a lost connection', () => {
+it('treats an opening frame that is not the ready frame as a lost connection', async () => {
   const { carrier, sockets } = fakeCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
   sockets[0]?.deliver({ type: 'emit', event: 'api-session/added', args: [] })
+  await parsed()
   expect(seen.ready).toBe(0)
   expect(seen.lost.length).toBe(1)
   dispose()
@@ -244,25 +252,20 @@ it('starts the backoff again once a connection has been established', async () =
   // Two failures in a row, so the next wait is the third rung of the backoff.
   sockets[0]?.open()
   sockets[0]?.drop()
-  await new Promise<void>((settle) => {
-    setTimeout(settle, 800)
-  })
+  await tick(800)
   sockets.at(-1)?.open()
   sockets.at(-1)?.drop()
-  await new Promise<void>((settle) => {
-    setTimeout(settle, 1_400)
-  })
+  await tick(1_400)
   const established = sockets.length
   // This one reaches the host. A subsequent drop is a fresh outage, so it must
   // wait the first rung again rather than the third: without the reset the next
   // socket would be about two seconds away, and this would still be waiting.
   sockets.at(-1)?.open()
   sockets.at(-1)?.deliver({ type: 'ready', clientId: 'c', host: 'h' })
+  await parsed()
   expect(seen.ready).toBe(1)
   sockets.at(-1)?.drop()
-  await new Promise<void>((settle) => {
-    setTimeout(settle, 900)
-  })
+  await tick(900)
   expect(sockets.length).toBeGreaterThan(established)
   dispose()
 })

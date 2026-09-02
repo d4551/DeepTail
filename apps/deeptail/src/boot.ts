@@ -58,29 +58,45 @@ function bootReadyGate(): PromiseWithResolvers<void> {
  */
 export async function bootHost(host: HostRecord, container: HTMLElement): Promise<BootedHost> {
   const ready = bootReadyGate()
-  void ready.promise.catch(() => {})
+  ready.promise.then(undefined, () => {
+    // The barrier's rejection is already reported through the boot that failed;
+    // this reference only keeps the reader of the gate from racing an unhandled
+    // rejection warning past the consumer that acts on it.
+  })
   const carrier = createCarrier(host.id)
-  try {
-    Object.assign(globalThis, { [TRANSPORT_KEY]: carrier })
-    const injections = await invoke<readonly IndexInjection[]>('boot_injections', { host: host.id })
-    await applyIndexInjections(injections, (src: string) => carrier.loadBundle(src))
-    ready.resolve()
-  } catch (reason) {
-    // Both globals are installed before the table is applied, so a failure
-    // here must remove both, and nothing else will: the caller never receives
-    // a BootedHost, so teardown is out of reach. A page that still advertises
-    // a carrier would let a retry attach to a host it never finished reaching,
-    // and a rejected barrier can never be settled again, so leaving it behind
-    // would make the shell paint this failure's message for every later host,
-    // reachable or not.
-    Reflect.deleteProperty(globalThis, TRANSPORT_KEY)
-    Reflect.deleteProperty(globalThis, BOOT_READY_KEY)
-    ready.reject(reason)
-    throw reason
-  }
+  Object.assign(globalThis, { [TRANSPORT_KEY]: carrier })
+  const installed = await invoke<readonly IndexInjection[]>('boot_injections', { host: host.id })
+    .then((rows) => applyIndexInjections(rows, (src: string) => carrier.loadBundle(src)))
+    .then(
+      () => ({ settled: true as const }),
+      (reason) => discardFailedBoot(ready, reason),
+    )
+  if (!installed.settled) throw installed.reason
+  ready.resolve()
   const entry = new AppWebEntry(container)
   await entry.run()
   return { entry, carrier }
+}
+
+/**
+ * Undo a boot that failed partway, and report it through the barrier.
+ *
+ * Both globals are installed before the injection table is applied, so a
+ * failure must remove both, and nothing else will: the caller never receives a
+ * `BootedHost`, so teardown is out of reach. A page that still advertises a
+ * carrier would let a retry attach to a host it never finished reaching, and a
+ * rejected barrier can never be settled again, so leaving it behind would make
+ * the shell paint this failure's message for every later host, reachable or
+ * not.
+ * @param ready - the barrier the page's shell entry is waiting on.
+ * @param reason - whatever the failed step rejected with.
+ * @returns the failure, marked apart from a settled boot.
+ */
+function discardFailedBoot<T>(ready: PromiseWithResolvers<void>, reason: T): { settled: false; reason: T } {
+  Reflect.deleteProperty(globalThis, TRANSPORT_KEY)
+  Reflect.deleteProperty(globalThis, BOOT_READY_KEY)
+  ready.reject(reason)
+  return { settled: false, reason }
 }
 
 /**

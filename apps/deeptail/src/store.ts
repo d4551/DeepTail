@@ -91,7 +91,7 @@ export function createFleetStore(hosts: readonly HostRecord[], ports: FleetPorts
     },
     applyEvent(hostId, event, args) {
       applyRosterEvent(tables, hostId, { event, args }, () => {
-        void store.refresh(hostId)
+        store.refresh(hostId)
       })
     },
     setHostState(hostId, state) {
@@ -151,22 +151,42 @@ async function readRoster(
   tables.generations.set(hostId, generation)
   patchEntry(tables, hostId, { phase: { kind: 'pending' } })
   tables.buffered.set(hostId, [])
-  try {
-    const sessions = await ports.apiFor(entry.host).listSessions()
-    if (tables.generations.get(hostId) !== generation) return
-    const held = tables.buffered.get(hostId) ?? []
-    tables.buffered.delete(hostId)
-    patchEntry(tables, hostId, { phase: { kind: 'ready' }, sessions: sortByActivity(sessions) })
-    for (const event of held) replay(event)
-  } catch (reason) {
-    if (tables.generations.get(hostId) !== generation) return
-    const held = tables.buffered.get(hostId) ?? []
-    tables.buffered.delete(hostId)
-    patchEntry(tables, hostId, failedRead(reason))
-    // The read failed, so the rows stay as they were; the events that arrived
-    // while it ran are newer than those rows and still apply to them.
-    for (const event of held) replay(event)
-  }
+  const outcome: Partial<HostEntry> = await ports
+    .apiFor(entry.host)
+    .listSessions()
+    .then(
+      (sessions: readonly SessionSummary[]) => ({ phase: { kind: 'ready' }, sessions: sortByActivity(sessions) }),
+      (reason) => failedRead(reason),
+    )
+  settleRead(tables, hostId, generation, outcome, replay)
+}
+
+/**
+ * Publish a finished roster read, replaying whatever arrived while it ran.
+ *
+ * Both outcomes close the read the same way — the newest read wins, the buffer
+ * it held is spent, and the events that arrived mid-read land after the row
+ * they apply to — so they share the one closing, and differ only in what they
+ * write to the row. On a failure the rows stay as they were: the buffered
+ * events are newer than those rows and still apply to them.
+ * @param tables - the store's tables.
+ * @param hostId - the host whose read finished.
+ * @param generation - the read that is settling.
+ * @param outcome - the row to write, ready or failed.
+ * @param replay - how a held event is applied.
+ */
+function settleRead(
+  tables: FleetTables,
+  hostId: string,
+  generation: number,
+  outcome: Partial<HostEntry>,
+  replay: (held: HeldEvent) => void,
+): void {
+  if (tables.generations.get(hostId) !== generation) return
+  const held = tables.buffered.get(hostId) ?? []
+  tables.buffered.delete(hostId)
+  patchEntry(tables, hostId, outcome)
+  for (const event of held) replay(event)
 }
 
 /** The reachability each host-reported failure code stands for. */
@@ -186,7 +206,7 @@ const FAILURE_STATES: Readonly<Record<string, HostState>> = {
  * @param reason - whatever the read rejected with.
  * @returns the phase and reachability to write to the host's row.
  */
-function failedRead(reason: unknown): Partial<HostEntry> {
+function failedRead<T>(reason: T): Partial<HostEntry> {
   const message = messageOf(reason)
   const state = reason instanceof RemoteError ? (FAILURE_STATES[reason.code] ?? 'offline') : 'offline'
   return { phase: { kind: 'failed', message }, state }

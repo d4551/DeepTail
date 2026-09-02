@@ -8,19 +8,23 @@
 import { createHostApi, type HostApi } from '../api.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
+import { reportSettled } from '../reason.ts'
 import { createFleetStore, type FleetState, type FleetStore } from '../store.ts'
 import { type HostEvent, subscribeRoster } from '../stream.ts'
 import type { CarrierHooks } from '../transport.ts'
 import { openComposeSheet } from './compose-sheet.ts'
 import { mountConnectionMenu } from './connection-menu.ts'
-import { button, el } from './dom.ts'
+import { button, type Disposer, el } from './dom.ts'
 import { type FleetPorts, mountFleetView } from './fleet-view.ts'
 import { openNewSession, type SpawnPorts } from './new-session.ts'
 import { mountShellFrame, type ShellFrame } from './shell-frame.ts'
 import '../styles/tokens.css'
 import '../styles/picker.css'
+import '../styles/picker-form.css'
+import '../styles/sidebar.css'
+import '../styles/roster.css'
+import '../styles/dialogs.css'
 import '../styles/shell.css'
-import { describeFailure } from '../reason.ts'
 
 /** What the shell needs from the application. */
 export interface ShellPorts {
@@ -54,7 +58,7 @@ interface HostClients {
  * @param notice - a failure to report, when one preceded the mount.
  * @returns a disposer.
  */
-export function mountShell(container: HTMLElement, ports: ShellPorts, t: Translate, notice?: string): () => void {
+export function mountShell(container: HTMLElement, ports: ShellPorts, t: Translate, notice?: string): Disposer {
   const clients = createHostClients((host) => ports.carrierFor(host))
   const store = createFleetStore(ports.hosts, { apiFor: clients.apiFor })
 
@@ -72,7 +76,7 @@ export function mountShell(container: HTMLElement, ports: ShellPorts, t: Transla
   const disposeStreams = subscribeHostRosters(ports.hosts, clients.carrierFor, store)
   // A failure that happened while no shell was mounted has nowhere else to land.
   if (notice !== undefined) frame.showError(notice)
-  for (const host of ports.hosts) void store.refresh(host.id)
+  for (const host of ports.hosts) store.refresh(host.id)
 
   return () => {
     disposeStreams()
@@ -126,7 +130,7 @@ function mountHostSwitcher(
   ports: ShellPorts,
   store: FleetStore,
   t: Translate,
-): { render: () => void; dispose: () => void } {
+): { render: () => void; dispose: Disposer } {
   const stateNow = (): FleetState => store.getState()
   let activeHostId = ports.hosts[0]?.id
   const menu = mountConnectionMenu(
@@ -137,15 +141,13 @@ function mountHostSwitcher(
       activeHostId: () => activeHostId,
       select: (hostId) => {
         activeHostId = hostId
-        void store.refresh(hostId)
+        store.refresh(hostId)
         menu.render()
       },
       pair: ports.pair,
       repair: ports.repair,
       unpair: (hostId) => {
-        void ports.unpair(hostId).catch((reason: unknown) => {
-          frame.showError(describeFailure(reason, t))
-        })
+        reportSettled(ports.unpair(hostId), t, frame.showError)
       },
     },
     t,
@@ -226,8 +228,7 @@ function createFleetPorts(
  */
 function handOff(host: HostRecord, sessionId: string, ports: ShellPorts, frame: ShellFrame, t: Translate): void {
   frame.body.replaceChildren(el('div', { className: 'placeholder', text: t('shell.opening', { label: host.label }) }))
-  void ports.open(host, sessionId).catch((reason: unknown) => {
-    const message = describeFailure(reason, t)
+  reportSettled(ports.open(host, sessionId), t, (message) => {
     const failure = el('div', { className: 'error', text: message, role: 'alert' })
     failure.dataset.deeptailState = 'open-error'
     frame.body.replaceChildren(failure)
@@ -248,7 +249,7 @@ function subscribeHostRosters(
   hosts: readonly HostRecord[],
   carrierFor: (host: HostRecord) => CarrierHooks,
   store: FleetStore,
-): () => void {
+): Disposer {
   const disposers = hosts.map((host) =>
     subscribeRoster(carrierFor(host), {
       onReady: () => {

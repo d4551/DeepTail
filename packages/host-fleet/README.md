@@ -62,12 +62,11 @@ programmatic API so PTC mode can call it directly, and human prose lives in
 The tool schemas join prompt assembly once per agent and do not vary per turn,
 so mounting this package moves the prompt prefix once and is stable thereafter.
 
-## Known Limitations and Deferred Work
+## Boundaries
 
 - Single host. `sessions_*` reach the sessions on the host this plugin is
   mounted on; there is no cross-host routing.
 - `maxSpawned` counts creations for the life of the process, not live sessions,
   and resets on restart. It is a guard against a looping agent, not a quota.
-- `sessions_follow` returns a one-shot snapshot cut rather than a live tail. A
-  streaming variant needs a tool-side story for long-lived subscriptions, which
-  the tool pipeline does not currently offer.
+- `sessions_follow` returns a one-shot snapshot cut rather than a live tail; the
+  tool pipeline carries no long-lived subscription channel.

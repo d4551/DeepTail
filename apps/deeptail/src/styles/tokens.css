@@ -228,6 +228,19 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  /* The shell's grid plans, as tokens: the tracks are decisions, so no sheet
+   * re-derives them. The wide plan seats the sidebar beside the main column;
+   * the narrow one drops the column for the drawer the column becomes. */
+  --dsh-grid-frame: var(--dsh-sidebar-width) minmax(0, 1fr);
+  --dsh-grid-frame-narrow: minmax(0, 1fr);
+  --dsh-grid-frame-rows: 100%;
+}
+
+/* The layout is the viewport's, so the body is the size container the shell's
+ * narrow-layout query reads: the shell responds to the box it actually fills,
+ * and the breakpoint stays written in exactly one place (shell.css). */
+body {
+  container-type: inline-size;
 }
 
 body {
@@ -273,8 +286,9 @@ summary:focus-visible,
 
 .visually-hidden {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  /* Half the smallest step on the scale: the least box a reader still finds. */
+  width: calc(var(--dsh-space-0) / 2);
+  height: calc(var(--dsh-space-0) / 2);
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
@@ -289,8 +303,8 @@ summary:focus-visible,
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: var(--dsh-space-3);
+  height: var(--dsh-space-3);
 }
 
 ::-webkit-scrollbar-track {

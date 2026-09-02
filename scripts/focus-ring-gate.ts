@@ -10,7 +10,7 @@
  * @module
  */
 
-import { rulesetsOf } from './sheet-gate.ts'
+import { rulesetsOf } from './sheet-reader.ts'
 
 /** The properties that can paint a focus ring. */
 const RING_PROPERTIES = new Set(['outline', 'outline-width', 'outline-style', 'box-shadow'])

@@ -19,6 +19,7 @@ import { type TailnetPorts, tauriTailnetPorts } from './tailscale.ts'
 import type { HostState } from './ui/states.ts'
 import './styles/tokens.css'
 import './styles/picker.css'
+import './styles/picker-form.css'
 
 /** A pairing form with nothing typed into it yet. */
 const EMPTY_DRAFT = { link: '', label: '' } as const
@@ -73,7 +74,7 @@ function toPhase(run: PickerRuntime, next: Phase): void {
 function pickerActions(run: PickerRuntime): PickerActions {
   return {
     reload: () => {
-      void loadRoster(run)
+      loadRoster(run)
     },
     beginPairing: (hosts) => {
       toPhase(run, { kind: 'pairing', hosts, busy: false, draft: EMPTY_DRAFT })
@@ -83,14 +84,14 @@ function pickerActions(run: PickerRuntime): PickerActions {
     },
     submitPairing: (hosts, draft) => {
       const { phase } = run.model
-      void pairAndFinish(pairingRuntime(run), hosts, draft, phase.kind === 'pairing' ? phase.origin : undefined)
+      pairAndFinish(pairingRuntime(run), hosts, draft, phase.kind === 'pairing' ? phase.origin : undefined)
     },
     choose: run.finish,
     beginTailnet: (hosts) => {
-      void openTailnet(tailnetRuntime(run), hosts)
+      openTailnet(tailnetRuntime(run), hosts)
     },
     submitTailnet: (hosts, draft) => {
-      void connectTailnet(tailnetRuntime(run), hosts, draft)
+      connectTailnet(tailnetRuntime(run), hosts, draft)
     },
     switchTailnetKind: (hosts, draft) => {
       toPhase(run, connectPhase(hosts, draft, false))
@@ -99,7 +100,7 @@ function pickerActions(run: PickerRuntime): PickerActions {
       toPhase(run, { kind: 'ready', hosts })
     },
     forgetTailnet: (hosts) => {
-      void forgetTailnet(tailnetRuntime(run), hosts)
+      forgetTailnet(tailnetRuntime(run), hosts)
     },
     pairTailnetDevice: (hosts, device) => {
       toPhase(run, tailnetPairingPhase(hosts, device))
@@ -231,15 +232,15 @@ export function renderHostPicker(
       },
     }
     if (repairing === undefined) {
-      void loadRoster(run)
+      loadRoster(run)
       return
     }
-    void repairHost(run, repairing)
+    repairHost(run, repairing)
   })
 }
 
 /**
- * Open the pairing form for a host that already exists, with its name in place.
+ * Open the pairing form for a paired host, with its name in place.
  * @param run - the picker's runtime.
  * @param label - the name the host is filed under.
  */

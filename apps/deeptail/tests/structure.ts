@@ -5,8 +5,8 @@
  * interactive element inside another, a heading level skipped, an ARIA
  * reference pointing at nothing, a layout that overflows its viewport, a label
  * clipped by the box it sits in, a group of controls under no name, a pane that
- * scrolls inside a pane that also scrolls, or a touch target below the platform
- * minimum.
+ * scrolls inside a pane that also scrolls, a control drawn over another control,
+ * or a touch target below the platform minimum.
  * Each returns a list of offending selectors, so a failure names the element
  * rather than a count.
  *
@@ -282,5 +282,5 @@ export function structureCheckSource(coarsePointer: boolean): string {
     checkTouchTargets,
     findStructureDefects,
   ].map(String)
-  return `${functions.join('\n\n')}\nreturn findStructureDefects(${JSON.stringify(limits)})`
+  return `(() => {\n${functions.join('\n\n')}\nreturn findStructureDefects(${JSON.stringify(limits)})\n})()`
 }

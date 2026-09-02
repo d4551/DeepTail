@@ -13,9 +13,13 @@
  * @module
  */
 
-import { cancelFrame, type HostEvent, openFrame, readSocketFrame } from './frames.ts'
+import { cancelFrame, decideFrame, type HostEvent, openFrame, readSocketFrame, type ServerMessage } from './frames.ts'
 import { SOCKET_OPEN } from './socket-state.ts'
 import type { CarrierHooks, MuxSocketLike } from './transport.ts'
+import type { Disposer } from './ui/dom.ts'
+
+/** The one carrier hook a roster connection needs. */
+type SocketCarrier = Pick<CarrierHooks, 'openMuxSocket'>
 
 export type { HostEvent }
 
@@ -114,7 +118,7 @@ function wireEventStream(socket: MuxSocketLike, streamId: string, handlers: Stre
  * @returns a closer that cancels the stream, closes the socket and silences the
  *   connection; calling it again does nothing further.
  */
-function openEventStream(carrier: CarrierHooks, sinks: RosterSinks): () => void {
+function openEventStream(carrier: SocketCarrier, sinks: RosterSinks): Disposer {
   const streamId = `deeptail-${crypto.randomUUID()}`
   const socket = carrier.openMuxSocket()
   let ready = false
@@ -141,24 +145,24 @@ function openEventStream(carrier: CarrierHooks, sinks: RosterSinks): () => void 
     sinks.onLost(reason)
   }
 
-  /** Act on one message the socket dispatched. */
+  /** One frame's worth of work, kept in arrival order so outcomes are decided against the state their predecessors left. */
+  let pending: Promise<void> = Promise.resolve()
+  /** Act on one message the socket dispatched, once it has been parsed. */
   function receive(event: Event): void {
     if (closed) return
-    const outcome = readSocketFrame(event, streamId, ready)
-    switch (outcome.kind) {
-      case 'ready':
-        ready = true
-        sinks.onReady()
-        break
-      case 'event':
-        sinks.onEvent(outcome.event)
-        break
-      case 'lost':
-        fail(outcome.reason)
-        break
-      default:
-        break
+    pending = pending.then(() => readSocketFrame(event, streamId).then(takeFrame))
+  }
+
+  /** Decide one parsed frame against the connection it finds. */
+  function takeFrame(message: ServerMessage | null): void {
+    if (closed || message === null) return
+    const outcome = decideFrame(message, ready)
+    if (outcome.kind === 'ready') {
+      ready = true
+      sinks.onReady()
     }
+    if (outcome.kind === 'event') sinks.onEvent(outcome.event)
+    if (outcome.kind === 'lost') fail(outcome.reason)
   }
 
   wireEventStream(socket, streamId, { receive, fail, isClosed: () => closed })
@@ -183,8 +187,8 @@ function openEventStream(carrier: CarrierHooks, sinks: RosterSinks): () => void 
  * @returns a disposer that cancels the stream, closes the socket, and
  *   guarantees no further reconnection.
  */
-export function subscribeRoster(carrier: CarrierHooks, sinks: RosterSinks): () => void {
-  let close: (() => void) | undefined
+export function subscribeRoster(carrier: SocketCarrier, sinks: RosterSinks): Disposer {
+  let close: Disposer | undefined
   let disposed = false
   let attempt = 0
   let retry: ReturnType<typeof setTimeout> | undefined

@@ -16,6 +16,7 @@
     "@deepseek-ai/dsh-client-ui-primitives": "0.1.2-alpha.3",
     "@deepseek-ai/dsh-client-ui-slots": "0.1.2-alpha.3",
     "@deepseek-ai/dsh-client-web": "0.1.2-alpha.3",
+    "@deepseek-ai/dsh-util-values": "0.1.2-alpha.3",
     "@tauri-apps/api": "2.11.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

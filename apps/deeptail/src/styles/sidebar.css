@@ -1,0 +1,218 @@
+/* The sidebar's head: brand row, new session, and the connection menu that
+ * picks the host the shell talks to.
+ *
+ * Geometry and interaction states follow the harness web client so the two
+ * products read as one. Sources, per block: ui-layout/AppFrame.module.css,
+ * ui-sidebar/SidebarRoot.module.css, ui-primitives/Menu.module.css.
+ */
+
+/* ── sidebar head ─────────────────────────────────────────────────────────── */
+
+.brand-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-space-3);
+  height: var(--dsh-control-xl);
+  padding: var(--dsh-space-3) 0 var(--dsh-space-3) var(--dsh-space-1);
+  margin-bottom: var(--dsh-space-3);
+  box-sizing: border-box;
+}
+
+.brand-name {
+  font-size: var(--dsh-text-title);
+  font-weight: 600;
+  line-height: var(--dsh-leading-body);
+  letter-spacing: 0.04em;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* New session: 38px bar, 12px radius, elevated fill. */
+.new-session {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--dsh-space-2);
+  height: var(--dsh-control-md);
+  padding: var(--dsh-space-3) var(--dsh-space-5);
+  margin: 0 var(--dsh-space-0) var(--dsh-space-3);
+  box-sizing: border-box;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsh-radius-md);
+  background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsh-text-lg);
+  font-weight: 500;
+  line-height: var(--dsh-leading-control);
+  cursor: pointer;
+}
+
+.new-session:hover:not(:disabled) {
+  background: var(--dsw-alias-button-floating-hover);
+}
+
+.new-session:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* ── connection menu ──────────────────────────────────────────────────────── */
+
+.connection {
+  position: relative;
+  flex: none;
+  margin-bottom: var(--dsh-space-3);
+}
+
+.connection-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-space-3);
+  width: 100%;
+  min-height: var(--dsh-control-lg);
+  padding: var(--dsh-space-3) var(--dsh-space-inset-md);
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--dsh-radius-md);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-control);
+  text-align: start;
+  cursor: pointer;
+}
+
+.connection-trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.connection-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Elevated card: hairline is transparent in light, visible in dark, because
+   the shadow alone cannot separate a dark card from a dark ground. */
+.menu {
+  /* The menu hangs below the trigger, and the trigger is not at the top of the
+   * sidebar, so its own offset has to come out of the height available to it —
+   * without that subtraction the tail of a long menu, the pinned footer
+   * included, fell outside the sidebar's `overflow: hidden` with nothing to
+   * scroll it back into view. */
+  max-height: min(var(--dsh-menu-height), calc(100vh - var(--dsh-space-7) - 100%));
+  position: absolute;
+  top: calc(100% + var(--dsh-space-1));
+  inset-inline: 0;
+  z-index: var(--dsh-z-menu);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: var(--dsh-space-1);
+  border: 1px solid var(--dsw-alias-border-inverted);
+  border-radius: var(--dsh-radius-md);
+  background: var(--dsw-specific-menu);
+  box-shadow: var(--dsw-shadow-lv3);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-space-3);
+  width: 100%;
+  min-height: var(--dsh-control-lg);
+  padding: var(--dsh-space-3) var(--dsh-space-inset-md);
+  border: none;
+  border-radius: var(--dsh-radius-control);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-control);
+  text-align: start;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* `.menu-items` scrolls, and a scroll container clips both axes, so a ring
+ * drawn outside the button is cut off at its inline edges. Drawn inside, it is
+ * whole — the same treatment `.session-open` and the picker's rows carry. */
+.menu-item:focus-visible,
+.menu-repair:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+}
+
+/* Sits under the host it belongs to, quiet until the row is read. */
+.menu-repair {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--dsh-space-8);
+  padding: 0 var(--dsh-space-inset-md) 0 var(--dsh-space-inset-3xl);
+  border: none;
+  border-radius: var(--dsh-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-md);
+  text-align: start;
+  cursor: pointer;
+}
+
+.menu-repair:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Selection is a trailing mark, never a fill. Drawn rather than written, so it
+ * carries no text whose contrast would have to be judged against the card. */
+.menu-choice::after {
+  flex: none;
+  width: var(--dsh-space-2);
+  height: var(--dsh-space-inset-lg);
+  margin-inline-start: auto;
+  border: solid var(--dsw-alias-label-primary);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  content: "";
+  opacity: 0;
+}
+
+.menu-choice[aria-checked="true"]::after {
+  opacity: 1;
+}
+
+.menu-danger {
+  color: var(--dsw-alias-label-error);
+}
+
+.menu-danger:hover {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.menu-items {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.menu-footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--dsh-space-1);
+  padding-top: var(--dsh-space-1);
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
