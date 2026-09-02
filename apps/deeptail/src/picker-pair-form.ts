@@ -16,7 +16,14 @@ import { errorStrip, showFailure } from './ui/states.ts'
 
 /** What a viewer has typed into the pairing form. */
 export interface PairDraft {
-  /** The pairing link, pasted whole. */
+  /**
+   * The pairing link.
+   *
+   * Pasted whole on the link path. On the tailnet path the origin is already
+   * known and this carries the launch token alone, which the picker composes
+   * into a link — the field a viewer fills is the only thing they were ever
+   * able to supply.
+   */
   readonly link: string
   /** The name the host is listed under. */
   readonly label: string
@@ -32,6 +39,16 @@ export interface PairingState {
   readonly busy: boolean
   /** What the viewer has typed, carried across re-renders so a failure never discards it. */
   readonly draft: PairDraft
+  /**
+   * The origin this form is pairing against, when it was reached from the
+   * tailnet rather than from a pasted link.
+   *
+   * Present means the machine is already chosen: the form asks for the token
+   * that machine printed instead of a whole URL, because a viewer arriving this
+   * way has no URL to paste and typing one would be a second chance to get the
+   * host wrong.
+   */
+  readonly origin?: string
 }
 
 /** What the pairing form needs beyond {@link PickerContext}. */
@@ -86,6 +103,7 @@ function pairField(
  * @returns the fields, link first.
  */
 function pairFields(t: Translate, current: PairingState, draft: EditableDraft): HTMLElement[] {
+  if (current.origin !== undefined) return tokenFields(t, current, draft)
   const link = el('input', { className: 'input' })
   // Typed `url`, so a phone offers the right keyboard — but validated by the
   // product, not by the browser: a native bubble is untranslated, unstyled, and
@@ -101,6 +119,40 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
 
   return [
     pairField(t('pair.linkLabel'), link, current.draft.link, (value) => {
+      draft.link = value
+    }),
+    pairField(t('pair.nameLabel'), name, current.draft.label, (value) => {
+      draft.label = value
+    }),
+  ]
+}
+
+/**
+ * The token and name fields, for a machine already chosen from the tailnet.
+ *
+ * The origin is not offered as a field: it came from Tailscale and went through
+ * the native side's own admission check, so there is nothing here for a viewer
+ * to correct and every reason not to invite them to.
+ * @param t - copy source.
+ * @param current - the form state, carrying the chosen machine's name.
+ * @param draft - the draft the fields write into.
+ * @returns the fields, token first.
+ */
+function tokenFields(t: Translate, current: PairingState, draft: EditableDraft): HTMLElement[] {
+  const token = el('input', { className: 'input' })
+  token.type = 'text'
+  token.autocomplete = 'off'
+  token.spellcheck = false
+  token.placeholder = t('tailnet.tokenPlaceholder')
+  token.dataset.deeptailField = 'link'
+
+  const name = el('input', { className: 'input' })
+  name.type = 'text'
+  name.placeholder = t('pair.namePlaceholder')
+  name.dataset.deeptailField = 'name'
+
+  return [
+    pairField(t('tailnet.tokenLabel', { label: current.draft.label }), token, current.draft.link, (value) => {
       draft.link = value
     }),
     pairField(t('pair.nameLabel'), name, current.draft.label, (value) => {
@@ -163,7 +215,8 @@ export function pairView(ctx: PairContext): HTMLElement[] {
   const fields = pairFields(t, current, draft)
   // The form's subject line reads as a heading and is marked up as one, so the
   // card has a heading under its wordmark rather than a paragraph doing the job.
-  form.append(el('h2', { className: 'lede', text: t('pair.title') }), ...fields)
+  const title = current.origin === undefined ? t('pair.title') : t('tailnet.pairTitle', { label: current.draft.label })
+  form.append(el('h2', { className: 'lede', text: title }), ...fields)
   if (current.error !== undefined) {
     const strip = pairErrorStrip()
     form.append(strip)

@@ -36,6 +36,8 @@ Three rules it keeps:
   the window.
 - **The password never touches the page.** The part you see is just drawing.
   A separate Rust part holds the key for each computer and does the talking.
+- **It can find the computers for you.** If they are on your Tailscale network,
+  DeepTail lists them by name instead of asking you to type an address.
 - **One scrollbar per direction.** Panes do not nest inside other panes, so the
   wheel always moves the thing you are pointing at.
 
@@ -47,23 +49,21 @@ flowchart LR
     direction TB
     ui["<b>Webview</b><br/>shell · roster · dialogs<br/>draws only, opens no socket"]
     rust["<b>Rust core</b><br/>host registry · reqwest · mux client"]
-    store[("Keystore<br/>one device token per host")]
+    store[("Keystore<br/>device tokens · tailnet credential")]
     ui -->|"Tauri IPC"| rust
-    rust -->|"reads the token"| store
+    rust -->|"reads a secret"| store
   end
 
-  hosts["<b>Every paired dsh host</b><br/>Workstation · Lab box · …<br/>/api  ·  /api/remote.mux"]
-  client["<b>That host's harness client</b><br/>transcripts · approvals · plans"]
-
-  rust -->|"unary: list · spawn · message · stop"| hosts
-  hosts -.->|"mux: live roster events"| rust
-  ui ==>|"open a session — hands off"| client
+  rust -->|"lists the tailnet"| tailscale["<b>Tailscale API</b><br/>which machines exist"]
+  rust -->|"unary calls"| hosts["<b>Every paired dsh host</b><br/>Workstation · Lab box · …<br/>list · spawn · message · stop"]
+  hosts -.->|"roster events"| rust
+  ui ==>|"open a session — hands off"| client["<b>That host's harness client</b><br/>transcripts · approvals · plans"]
 
   classDef inside fill:#eef2ff,stroke:#4338ca,color:#1e1b4b
   classDef host fill:#ecfdf5,stroke:#047857,color:#064e3b
   classDef hand fill:#fef3c7,stroke:#b45309,color:#451a03
   class ui,rust,store inside
-  class hosts host
+  class hosts,tailscale host
   class client hand
 ```
 
@@ -84,6 +84,7 @@ conversation is a stream, and that belongs to the client already built for it.
 | DeepTail | The harness client |
 |---|---|
 | Pair, switch and unpair hosts | Transcripts and tool cards |
+| Find hosts on your tailnet | |
 | One roster across every paired host, live | Approvals, projects, plans |
 | Spawn a session from an agent preset | Everything session-local |
 | Message or steer a session | |
@@ -92,6 +93,36 @@ conversation is a stream, and that belongs to the client already built for it.
 Choosing a session hands off: DeepTail boots that host's own client. It opens at
 the client's default view — nothing in its boot surface takes a session id — and
 the copy says so rather than implying a deep link it cannot deliver.
+
+## Tailscale
+
+Typing a URL is not how anyone finds their own machines. DeepTail lists your
+tailnet through Tailscale's own API and shows which machines are already
+paired, so a host is chosen from a list rather than transcribed.
+
+Both credentials Tailscale issues work, because they are not interchangeable: an
+[API key](https://tailscale.com/kb/1101/api) is one secret that expires on a
+fixed date, authenticated as the username of an HTTP Basic pair; an
+[OAuth client](https://tailscale.com/kb/1215/oauth-clients) is the id and secret
+pair Tailscale documents for long-running integrations, exchanged at
+`/api/v2/oauth/token` for short-lived bearers and needing the `devices:core`
+scope. Either lists `/api/v2/tailnet/{tailnet}/devices?fields=all`, where the
+tailnet defaults to `-` — the one that credential belongs to. The credential is
+filed in the same platform keystore as every device token and never crosses the
+IPC boundary; the page receives machines, never the key that listed them.
+
+**Listing a tailnet is not pairing.** Tailscale can say which machines exist;
+only `dsh web` can mint the launch token a harness accepts. Choosing a machine
+therefore opens the pairing form for it — with the origin already fixed, so the
+one thing left to supply is the token that machine printed.
+
+Discovery is also what makes `http://` admissible. A tailnet peer is reached
+over WireGuard, so the packets are encrypted and peer-authenticated before the
+URL scheme has any say; `dsh web` on a tailnet terminates no TLS and does not
+need to. `canonical_origin` admits plaintext to a tailnet peer and to loopback
+and refuses it everywhere else, reading Tailscale's own ranges — `100.64.0.0/10`
+minus the `100.115.92.0/23` slice ChromeOS uses for its containers,
+`fd7a:115c:a1e0::/48`, and MagicDNS names under `.ts.net`.
 
 ## Why the wire lives in Rust
 
@@ -150,18 +181,21 @@ allowances.
 | One host down, the rest still listed, Retry on the row that failed | The refusal names what to fix, below the field it is about |
 | ![Pairing](apps/deeptail/tests/screenshots/picker-list.png) | ![Chinese](apps/deeptail/tests/screenshots/picker-zh.png) |
 | Paired hosts, before a shell exists | The empty picker in Chinese — every string comes from the dictionary |
+| ![Connect a tailnet](apps/deeptail/tests/screenshots/tailnet-connect.png) | ![Tailnet machines](apps/deeptail/tests/screenshots/tailnet-machines.png) |
+| Either credential Tailscale issues, and an optional tailnet | Your machines, with the one awaiting approval dimmed rather than hidden |
 
 Every state is built and screenshotted: loading, empty-after-settled, error,
 partial failure (one host down, the rest still listed), unauthorized, and
-offline. `apps/deeptail/tests/screenshots/` holds all 20, and each is
-written by the case that asserts the state, so none can drift from the code.
+offline, and both tailnet screens. `apps/deeptail/tests/screenshots/` holds all
+22, and each is written by the case that asserts the state, so none can drift
+from the code.
 
 ## Layout
 
 ```
 apps/deeptail/
   src/            shell, connection menu, roster, dialogs, carrier, stream client
-  src-tauri/      the entire network and credential surface
+  src-tauri/      the entire network and credential surface, Tailscale included
 packages/host-fleet/   Cordis plugin: sessions_* orchestration tools
 profile/               the dsh profile DeepTail installs on a host
 ```

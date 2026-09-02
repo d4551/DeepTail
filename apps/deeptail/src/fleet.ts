@@ -9,11 +9,13 @@
  * @module
  */
 
+import { type PairingRuntime, pairAndFinish } from './fleet-pairing.ts'
+import { connectTailnet, forgetTailnet, openTailnet, tailnetPairingPhase } from './fleet-tailnet.ts'
 import type { HostRecord } from './host.ts'
 import { createTranslate, type Translate } from './locales.ts'
-import type { PairDraft } from './picker-pair-form.ts'
 import { type PickerPorts, settled, tauriPorts } from './picker-ports.ts'
 import { mountPickerFrame, type Phase, type PickerActions, type PickerFrame, paintScreen } from './picker-screen.ts'
+import { type TailnetPorts, tauriTailnetPorts } from './tailscale.ts'
 import type { HostState } from './ui/states.ts'
 import './styles/tokens.css'
 import './styles/picker.css'
@@ -35,6 +37,7 @@ interface PickerModel {
  */
 interface PickerRuntime {
   readonly ports: PickerPorts
+  readonly tailnet: TailnetPorts
   readonly t: Translate
   readonly model: PickerModel
   readonly frame: PickerFrame
@@ -79,9 +82,59 @@ function pickerActions(run: PickerRuntime): PickerActions {
       toPhase(run, { kind: 'ready', hosts })
     },
     submitPairing: (hosts, draft) => {
-      void pairAndFinish(run, hosts, draft)
+      const { phase } = run.model
+      void pairAndFinish(pairingRuntime(run), hosts, draft, phase.kind === 'pairing' ? phase.origin : undefined)
     },
     choose: run.finish,
+    beginTailnet: (hosts) => {
+      void openTailnet(tailnetRuntime(run), hosts)
+    },
+    submitTailnet: (hosts, draft) => {
+      void connectTailnet(tailnetRuntime(run), hosts, draft)
+    },
+    switchTailnetKind: (hosts, draft) => {
+      toPhase(run, { kind: 'tailnetConnect', hosts, busy: false, draft })
+    },
+    cancelTailnet: (hosts) => {
+      toPhase(run, { kind: 'ready', hosts })
+    },
+    forgetTailnet: (hosts) => {
+      void forgetTailnet(tailnetRuntime(run), hosts)
+    },
+    pairTailnetDevice: (hosts, device) => {
+      toPhase(run, tailnetPairingPhase(hosts, device))
+    },
+  }
+}
+
+/**
+ * The slice of the picker the pairing flow drives.
+ * @param run - the running picker.
+ * @returns the pairing flow's runtime.
+ */
+function pairingRuntime(run: PickerRuntime): PairingRuntime {
+  return {
+    pairHost: (link, label) => run.ports.pairHost(link, label),
+    t: run.t,
+    toPhase: (next) => {
+      toPhase(run, next)
+    },
+    finish: run.finish,
+  }
+}
+
+/**
+ * The slice of the picker the tailnet flow drives.
+ * @param run - the running picker.
+ * @returns the tailnet flow's runtime.
+ */
+function tailnetRuntime(run: PickerRuntime): { tailnet: TailnetPorts; t: Translate; toPhase(next: Phase): void } {
+  return {
+    tailnet: run.tailnet,
+    t: run.t,
+    toPhase: (next) => {
+      toPhase(run, next)
+    },
   }
 }
 
@@ -147,61 +200,6 @@ async function loadRoster(run: PickerRuntime): Promise<void> {
 }
 
 /**
- * The name a host is paired under: it has to be listed as something, so one
- * left blank is paired as "Harness".
- * @param typed - the name as typed.
- * @returns the label to pair with.
- */
-function pairLabel(typed: string): string {
-  const trimmed = typed.trim()
-  return trimmed === '' ? 'Harness' : trimmed
-}
-
-/**
- * Pair the host the draft describes, and finish with it.
- *
- * Both refusals come back to the form still holding what was typed, so a
- * mistyped link costs a correction rather than the whole paste.
- * @param run - the running picker.
- * @param hosts - the roster the form was opened over.
- * @param draft - what the viewer typed.
- * @returns when the attempt has settled.
- */
-async function pairAndFinish(run: PickerRuntime, hosts: readonly HostRecord[], draft: PairDraft): Promise<void> {
-  const { t } = run
-  const link = draft.link.trim()
-  const refusal = linkRefusal(link, t)
-  if (refusal !== undefined) {
-    toPhase(run, { kind: 'pairing', hosts, error: refusal, busy: false, draft })
-    return
-  }
-  toPhase(run, { kind: 'pairing', hosts, busy: true, draft })
-  const added = await settled(run.ports.pairHost(link, pairLabel(draft.label)))
-  if (!added.ok) {
-    const error = t('error.pairFailed', { message: added.message })
-    toPhase(run, { kind: 'pairing', hosts, error, busy: false, draft })
-    return
-  }
-  run.finish(added.value)
-}
-
-/**
- * Why a pasted link cannot be paired with, or undefined when it can.
- *
- * The browser refuses a malformed `type="url"` itself, in a bubble this product
- * neither wrote nor translated, and the submit never runs — so the form's own
- * strip stayed empty for exactly the paste that needed it. Constraint
- * validation is off and the refusal is written here.
- * @param link - the pasted text, already trimmed.
- * @param t - copy source.
- * @returns the refusal to show, or undefined.
- */
-function linkRefusal(link: string, t: Translate): string | undefined {
-  if (link === '') return t('error.linkRequired')
-  return URL.canParse(link) ? undefined : t('error.linkInvalid')
-}
-
-/**
  * Draw the picker and resolve with the host the viewer chose.
  *
  * @param container - mount point, owned entirely by the picker until it resolves.
@@ -210,6 +208,7 @@ function linkRefusal(link: string, t: Translate): string | undefined {
  * @param repairing - the label of a host being paired again, which opens the
  * form directly with that name in place so the record is replaced rather than
  * a second one written beside it.
+ * @param tailnet - how the tailnet is reached; defaults to the real commands.
  * @returns a promise that settles when the operator has chosen.
  */
 export function renderHostPicker(
@@ -217,10 +216,12 @@ export function renderHostPicker(
   ports: PickerPorts = tauriPorts,
   translate: Translate = createTranslate(),
   repairing?: string,
+  tailnet: TailnetPorts = tauriTailnetPorts,
 ): Promise<void> {
   return new Promise<void>((resolve) => {
     const run: PickerRuntime = {
       ports,
+      tailnet,
       t: translate,
       model: { phase: { kind: 'loading' }, states: new Map() },
       frame: mountPickerFrame(container),

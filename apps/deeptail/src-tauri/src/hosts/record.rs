@@ -23,8 +23,9 @@ pub enum OriginError {
     #[error("host origin {0:?} carries a path, query, or fragment; give scheme and authority only")]
     NotBare(String),
     #[error(
-        "host origin {0:?} is plaintext and not loopback: the device token would cross the \
-         network in the clear, so pair over https or reach the host through a tunnel"
+        "host origin {0:?} is plaintext and is neither loopback nor a tailnet peer: the device \
+         token would cross the network in the clear, so pair over https or reach the host over \
+         Tailscale"
     )]
     InsecureRemote(String),
 }
@@ -32,13 +33,19 @@ pub enum OriginError {
 impl HostRecord {
     /// Normalize and admit one operator-supplied origin.
     ///
-    /// Plaintext is accepted only for loopback, matching the harness's own
-    /// posture: its browser session cookie is not `Secure` and it terminates no
-    /// TLS, which is tolerable on a local socket and not over a network.
+    /// Plaintext is accepted for loopback and for a tailnet peer, and refused
+    /// everywhere else. Loopback matches the harness's own posture: its browser
+    /// session cookie is not `Secure` and it terminates no TLS, which is
+    /// tolerable on a local socket and not over a network. A tailnet peer is a
+    /// different argument for the same conclusion — the packets travel inside
+    /// WireGuard, so they are encrypted and peer-authenticated before the HTTP
+    /// scheme has any say, and `dsh web` on a tailnet is the ordinary way to
+    /// reach a harness from another machine without terminating TLS.
     ///
     /// # Errors
     /// Returns [`OriginError`] when the origin is unparsable, is not an HTTP
-    /// scheme, carries more than an authority, or is plaintext off loopback.
+    /// scheme, carries more than an authority, or is plaintext to a host that
+    /// is neither loopback nor a tailnet peer.
     pub fn canonical_origin(raw: &str) -> Result<String, OriginError> {
         let url = Url::parse(raw.trim()).map_err(|_| OriginError::Unparsable(raw.to_owned()))?;
         if !matches!(url.scheme(), "http" | "https") {
@@ -47,8 +54,11 @@ impl HostRecord {
         if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
             return Err(OriginError::NotBare(raw.to_owned()));
         }
-        let host = url.host_str().ok_or_else(|| OriginError::Unparsable(raw.to_owned()))?;
-        if url.scheme() == "http" && !is_loopback(host) {
+        let host = url
+            .host_str()
+            .ok_or_else(|| OriginError::Unparsable(raw.to_owned()))?;
+        if url.scheme() == "http" && !is_loopback(host) && !crate::tailscale::is_tailnet_host(host)
+        {
             return Err(OriginError::InsecureRemote(raw.to_owned()));
         }
         // `Url` already lowercased the host and dropped a default port.
@@ -73,7 +83,8 @@ fn is_loopback(host: &str) -> bool {
     if host == "localhost" || host == "[::1]" {
         return true;
     }
-    host.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
+    host.parse::<std::net::IpAddr>()
+        .is_ok_and(|ip| ip.is_loopback())
 }
 
 #[cfg(test)]
@@ -94,6 +105,43 @@ mod tests {
             HostRecord::canonical_origin("http://127.0.0.1:3080").unwrap(),
             "http://127.0.0.1:3080"
         );
+    }
+
+    #[test]
+    fn accepts_plaintext_to_a_tailnet_peer() {
+        // The packets are inside WireGuard, so the scheme is not what decides
+        // whether the token is exposed.
+        assert_eq!(
+            HostRecord::canonical_origin("http://100.101.102.103:3080").unwrap(),
+            "http://100.101.102.103:3080"
+        );
+        assert_eq!(
+            HostRecord::canonical_origin("http://workstation.tail1234.ts.net:3080").unwrap(),
+            "http://workstation.tail1234.ts.net:3080"
+        );
+        assert_eq!(
+            HostRecord::canonical_origin("http://[fd7a:115c:a1e0::1]:3080").unwrap(),
+            "http://[fd7a:115c:a1e0::1]:3080"
+        );
+    }
+
+    #[test]
+    fn refuses_plaintext_to_a_host_that_only_resembles_a_tailnet_peer() {
+        // Neither the CGNAT slice ChromeOS uses nor a domain that merely ends in
+        // the same letters is a tailnet peer.
+        for origin in [
+            "http://100.115.92.5:3080",
+            "http://notts.net:3080",
+            "http://100.63.255.255:3080",
+        ] {
+            assert!(
+                matches!(
+                    HostRecord::canonical_origin(origin).unwrap_err(),
+                    OriginError::InsecureRemote(_)
+                ),
+                "{origin} must stay refused"
+            );
+        }
     }
 
     #[test]

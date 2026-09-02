@@ -12,7 +12,10 @@
 import type { HostRecord } from './host.ts'
 import type { PickerKey } from './locales.ts'
 import { type PairDraft, type PairingState, pairView } from './picker-pair-form.ts'
+import { type TailnetConnectState, type TailnetDraft, tailnetConnectView } from './picker-tailnet.ts'
+import { type TailnetListState, tailnetListView } from './picker-tailnet-list.ts'
 import { emptyView, listView, type PickerContext } from './picker-views.ts'
+import type { TailnetHost } from './tailscale.ts'
 import { el, liveRegion } from './ui/dom.ts'
 import { loadingRow, retryStrip } from './ui/states.ts'
 
@@ -25,6 +28,8 @@ export type Phase =
   | { readonly kind: 'ready'; readonly hosts: readonly HostRecord[] }
   | { readonly kind: 'failed'; readonly message: string }
   | ({ readonly kind: 'pairing' } & PairingState)
+  | ({ readonly kind: 'tailnetConnect' } & TailnetConnectState)
+  | ({ readonly kind: 'tailnet' } & TailnetListState)
 
 /** What a painted control asks the picker to do. */
 export interface PickerActions {
@@ -38,6 +43,18 @@ export interface PickerActions {
   submitPairing(hosts: readonly HostRecord[], draft: PairDraft): void
   /** Settle on a host and hand it back. */
   choose(host: HostRecord): void
+  /** Open the tailnet: its machine list, or the form that connects one. */
+  beginTailnet(hosts: readonly HostRecord[]): void
+  /** Connect the tailnet the draft describes. */
+  submitTailnet(hosts: readonly HostRecord[], draft: TailnetDraft): void
+  /** Redraw the connect form for a different credential kind. */
+  switchTailnetKind(hosts: readonly HostRecord[], draft: TailnetDraft): void
+  /** Leave the tailnet for the roster it was opened over. */
+  cancelTailnet(hosts: readonly HostRecord[]): void
+  /** Drop the stored tailnet credential and return to the roster. */
+  forgetTailnet(hosts: readonly HostRecord[]): void
+  /** Open the pairing form for one machine chosen from the tailnet. */
+  pairTailnetDevice(hosts: readonly HostRecord[], device: TailnetHost): void
 }
 
 /** The lasting parts of the picker, which every phase is painted between. */
@@ -82,12 +99,41 @@ function phaseViews(phase: Phase, ctx: PickerContext, actions: PickerActions): H
       return [retryStrip('error', phase.message, ctx.t('action.retry'), actions.reload)]
     case 'ready':
       return phase.hosts.length === 0
-        ? emptyView(ctx.t, () => {
-            actions.beginPairing([])
+        ? emptyView(
+            ctx.t,
+            () => {
+              actions.beginPairing([])
+            },
+            () => {
+              actions.beginTailnet([])
+            },
+          )
+        : listView({
+            ...ctx,
+            hosts: phase.hosts,
+            pick: actions.choose,
+            startPairing: actions.beginPairing,
+            startTailnet: actions.beginTailnet,
           })
-        : listView({ ...ctx, hosts: phase.hosts, pick: actions.choose, startPairing: actions.beginPairing })
     case 'pairing':
       return pairView({ ...ctx, current: phase, submit: actions.submitPairing, cancel: actions.cancelPairing })
+    case 'tailnetConnect':
+      return tailnetConnectView({
+        ...ctx,
+        current: phase,
+        submit: actions.submitTailnet,
+        cancel: actions.cancelTailnet,
+        switchKind: actions.switchTailnetKind,
+      })
+    case 'tailnet':
+      return tailnetListView({
+        ...ctx,
+        current: phase,
+        pair: actions.pairTailnetDevice,
+        open: actions.choose,
+        cancel: actions.cancelTailnet,
+        forget: actions.forgetTailnet,
+      })
     default:
       return assertNever(phase)
   }
@@ -112,6 +158,8 @@ const PHASE_NOTICES: Readonly<Record<Phase['kind'], PickerKey | undefined>> = {
   ready: undefined,
   failed: undefined,
   pairing: 'pair.title',
+  tailnetConnect: 'tailnet.connectTitle',
+  tailnet: 'tailnet.listTitle',
 }
 
 /**

@@ -83,6 +83,20 @@
   background: var(--dsw-alias-interactive-bg-active);
 }
 
+/* A row nothing can be done with says so, and stops answering the pointer.
+   Without this a machine awaiting approval looked identical to one ready to
+   pair, and the only difference a viewer could find was that clicking it did
+   nothing. */
+.row:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.row:disabled:hover,
+.row:disabled:active {
+  background: transparent;
+}
+
 /* A scrolling box is never overflow:visible, so the ring turns inward. */
 .row:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary);
@@ -235,6 +249,52 @@
   font-size: var(--dsh-text-sm);
   line-height: var(--dsh-leading-md);
   color: var(--dsw-alias-label-secondary);
+}
+
+/* A radio group is a field whose control is a set of choices. The element has
+   to be a fieldset for the legend to name the group to a screen reader, and a
+   fieldset carries a border and inset padding no other field here has, so both
+   are cleared and the field's own spacing put back. */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dsh-space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.field-group > .label {
+  padding: 0;
+}
+
+/* Each choice on its own line: two of them on one line read as a sentence, and
+   the label text is a sentence, so nothing separates one option from the next. */
+.choice {
+  display: flex;
+  align-items: start;
+  gap: var(--dsh-space-2);
+  min-height: var(--dsh-control-xs);
+  cursor: pointer;
+}
+
+.choice:has(.radio:disabled) {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.radio {
+  flex: none;
+  /* The control sits on the first line of its label rather than centred against
+     a label that may wrap to two. */
+  margin-block-start: var(--dsh-space-1);
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.choice-label {
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-md);
+  color: var(--dsw-alias-label-primary);
 }
 
 /* The one field chrome in the product. `.select` and `.textarea` are the same

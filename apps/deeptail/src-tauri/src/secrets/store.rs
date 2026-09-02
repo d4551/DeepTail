@@ -1,7 +1,15 @@
 use keyring_core::Entry;
 
+use crate::tailscale::Credential;
+
 /// Service name under which every DeepTail device token is filed.
 const SERVICE: &str = "dev.deeptail.app";
+/// The account name the tailnet credential is filed under.
+///
+/// Host ids come from a harness `deviceId`, so this name is prefixed with a
+/// character no such id carries: an account collision would silently overwrite
+/// one secret with the other.
+const TAILNET_ACCOUNT: &str = "@tailscale";
 
 /// Why a device token could not be read, written, or removed.
 #[derive(Debug, thiserror::Error)]
@@ -27,7 +35,8 @@ impl SecretStore {
     pub fn initialize() -> Result<Self, SecretError> {
         #[cfg(target_os = "android")]
         keyring_core::set_default_store(
-            android_native_keyring_store::Store::new().map_err(|e| SecretError::Store(e.to_string()))?,
+            android_native_keyring_store::Store::new()
+                .map_err(|e| SecretError::Store(e.to_string()))?,
         );
         // The Apple crate exposes no store at its root, and the two targets do
         // not share one: the legacy keychain is compiled only on macOS, where it
@@ -35,19 +44,23 @@ impl SecretStore {
         // protected-data store.
         #[cfg(target_os = "macos")]
         keyring_core::set_default_store(
-            apple_native_keyring_store::keychain::Store::new().map_err(|e| SecretError::Store(e.to_string()))?,
+            apple_native_keyring_store::keychain::Store::new()
+                .map_err(|e| SecretError::Store(e.to_string()))?,
         );
         #[cfg(target_os = "ios")]
         keyring_core::set_default_store(
-            apple_native_keyring_store::protected::Store::new().map_err(|e| SecretError::Store(e.to_string()))?,
+            apple_native_keyring_store::protected::Store::new()
+                .map_err(|e| SecretError::Store(e.to_string()))?,
         );
         #[cfg(target_os = "windows")]
         keyring_core::set_default_store(
-            windows_native_keyring_store::Store::new().map_err(|e| SecretError::Store(e.to_string()))?,
+            windows_native_keyring_store::Store::new()
+                .map_err(|e| SecretError::Store(e.to_string()))?,
         );
         #[cfg(target_os = "linux")]
         keyring_core::set_default_store(
-            dbus_secret_service_keyring_store::Store::new().map_err(|e| SecretError::Store(e.to_string()))?,
+            dbus_secret_service_keyring_store::Store::new()
+                .map_err(|e| SecretError::Store(e.to_string()))?,
         );
         Ok(Self { _private: () })
     }
@@ -72,7 +85,56 @@ impl SecretStore {
     /// Returns [`SecretError::Store`] when the platform store refuses the write.
     pub fn store(&self, host_id: &str, token: &str) -> Result<(), SecretError> {
         let entry = Entry::new(SERVICE, host_id).map_err(|e| SecretError::Store(e.to_string()))?;
-        entry.set_password(token).map_err(|e| SecretError::Store(e.to_string()))
+        entry
+            .set_password(token)
+            .map_err(|e| SecretError::Store(e.to_string()))
+    }
+
+    /// The stored tailnet credential, or `None` when the operator has not
+    /// connected one.
+    ///
+    /// Absence is not an error here, unlike a missing device token: a host that
+    /// has lost its token is broken, while an app with no tailnet credential is
+    /// simply an app nobody connected to Tailscale.
+    ///
+    /// # Errors
+    /// Returns [`SecretError::Store`] when the platform store refuses the read,
+    /// or [`SecretError::Store`] when the stored value is not a credential this
+    /// build understands.
+    pub fn tailnet_credential(&self) -> Result<Option<Credential>, SecretError> {
+        let entry =
+            Entry::new(SERVICE, TAILNET_ACCOUNT).map_err(|e| SecretError::Store(e.to_string()))?;
+        let stored = match entry.get_password() {
+            Ok(value) => value,
+            Err(keyring_core::Error::NoEntry) => return Ok(None),
+            Err(error) => return Err(SecretError::Store(error.to_string())),
+        };
+        serde_json::from_str(&stored).map(Some).map_err(|e| {
+            SecretError::Store(format!("stored tailnet credential is unreadable: {e}"))
+        })
+    }
+
+    /// File the tailnet credential, replacing any previous one.
+    ///
+    /// # Errors
+    /// Returns [`SecretError::Store`] when the credential cannot be serialized
+    /// or the platform store refuses the write.
+    pub fn store_tailnet_credential(&self, credential: &Credential) -> Result<(), SecretError> {
+        let entry =
+            Entry::new(SERVICE, TAILNET_ACCOUNT).map_err(|e| SecretError::Store(e.to_string()))?;
+        let encoded =
+            serde_json::to_string(credential).map_err(|e| SecretError::Store(e.to_string()))?;
+        entry
+            .set_password(&encoded)
+            .map_err(|e| SecretError::Store(e.to_string()))
+    }
+
+    /// Remove the tailnet credential. Removing an absent one is not an error.
+    ///
+    /// # Errors
+    /// Returns [`SecretError::Store`] when the platform store refuses the delete.
+    pub fn forget_tailnet_credential(&self) -> Result<(), SecretError> {
+        self.forget(TAILNET_ACCOUNT)
     }
 
     /// Remove the device token for one host. Removing an absent token is not an
