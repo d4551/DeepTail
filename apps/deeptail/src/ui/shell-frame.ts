@@ -6,7 +6,8 @@
  */
 
 import type { Translate } from '../locales.ts'
-import { button, el } from './dom.ts'
+import { button, el, liveRegion, setAria } from './dom.ts'
+import { errorStrip, showFailure } from './states.ts'
 
 /** The sidebar's id, which the drawer toggle points `aria-controls` at. */
 const SIDEBAR_ID = 'deeptail-sidebar'
@@ -34,7 +35,10 @@ export interface ShellFrame {
 export function mountShellFrame(container: HTMLElement, t: Translate): ShellFrame {
   const shell = el('div', { className: 'shell', data: { deeptailShell: '' } })
   const scrim = el('div', { className: 'drawer-scrim' })
-  const sidebar = el('nav', { className: 'sidebar', aria: { label: t('shell.sessions') } })
+  // The landmark, the section header and the page heading each name something
+  // different; one key for all three gave the navigation region and the page
+  // the same name.
+  const sidebar = el('nav', { className: 'sidebar', aria: { label: t('shell.navLabel') } })
   sidebar.id = SIDEBAR_ID
   const brandRow = el('div', { className: 'brand-row' })
   // A wordmark, not the page's heading: the sidebar it sits in is hidden on a
@@ -47,16 +51,16 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
   const header = el('div', { className: 'main-header' })
   const body = el('div', { className: 'main-body' })
   body.append(el('div', { className: 'placeholder', text: t('shell.pickSession') }))
-  const live = el('div', { className: 'visually-hidden', role: 'status' })
+  const live = liveRegion()
   main.append(header, body, live)
 
   shell.append(scrim, sidebar, main)
   container.replaceChildren(shell)
 
-  const drawer = mountDrawer({ shell, sidebar, scrim }, t)
+  const drawer = mountDrawer({ shell, sidebar, main, scrim }, t)
   // The main pane is present at every width, so the page's one heading lives
   // here rather than in the drawer.
-  header.append(drawer.toggle, el('h1', { className: 'main-title', text: t('shell.sessions') }))
+  header.append(drawer.toggle, el('h1', { className: 'main-title', text: t('shell.sessionsHeading') }))
 
   return {
     sidebar,
@@ -65,9 +69,9 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
       live.textContent = text
     },
     showError: (message) => {
-      const strip = el('div', { className: 'error', text: message, role: 'alert' })
-      strip.dataset.deeptailState = 'shell-error'
+      const strip = errorStrip('shell-error')
       body.replaceChildren(strip)
+      showFailure(strip, message)
     },
     dispose: () => {
       drawer.dispose()
@@ -80,6 +84,8 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
 interface DrawerRegions {
   readonly shell: HTMLElement
   readonly sidebar: HTMLElement
+  /** The pane the open drawer covers, which must not stay reachable behind it. */
+  readonly main: HTMLElement
   /** The backdrop, whose only gesture is to close the drawer. */
   readonly scrim: HTMLElement
 }
@@ -126,6 +132,31 @@ function isDrawerLayout(): boolean {
 }
 
 /**
+ * Put the shell into the drawer state asked for.
+ *
+ * A translated drawer still holds its controls in the tab order, so the closed
+ * one is taken out of the tree rather than merely moved off screen. The scrim
+ * covers the whole main pane, the header and the toggle included, so tabbing
+ * past the last drawer control landed on controls the reader can neither see
+ * nor click: what the open drawer covers leaves the tree for as long as it is
+ * open, which is what makes it modal. Escape and the scrim are its dismissals,
+ * and both sit outside the inert pane.
+ * @param regions - the shell, the sidebar, the pane behind it and the backdrop.
+ * @param toggle - the control whose label and `aria-expanded` report the state.
+ * @param t - copy source.
+ * @param open - the state to move to.
+ */
+function applyDrawerState(regions: DrawerRegions, toggle: HTMLButtonElement, t: Translate, open: boolean): void {
+  const { shell, sidebar, main } = regions
+  shell.dataset.drawer = open ? 'open' : 'closed'
+  setAria(toggle, { expanded: open ? 'true' : 'false' })
+  toggle.textContent = open ? t('shell.closeSessions') : t('shell.openSessions')
+  const drawer = isDrawerLayout()
+  sidebar.inert = !open && drawer
+  main.inert = open && drawer
+}
+
+/**
  * Wire the drawer: the sidebar is a permanent column on the wide layout and a
  * dismissible overlay on the narrow one, dismissed by the scrim, by Escape,
  * and by the toggle that reports its state.
@@ -134,29 +165,23 @@ function isDrawerLayout(): boolean {
  * @returns the toggle to seat in the header, and a disposer.
  */
 function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
-  const { shell, sidebar, scrim } = regions
+  const { shell, scrim } = regions
   const setDrawer = (open: boolean, moveFocus = false): void => {
-    shell.dataset.drawer = open ? 'open' : 'closed'
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
-    toggle.textContent = open ? t('shell.closeSessions') : t('shell.openSessions')
-
-    // A translated drawer still holds its controls in the tab order, so the
-    // closed one is taken out of the tree rather than merely moved off screen.
-    const drawer = isDrawerLayout()
-    sidebar.inert = !open && drawer
-    if (moveFocus && drawer) followDrawer(sidebar, toggle, open)
+    applyDrawerState(regions, toggle, t, open)
+    if (moveFocus && isDrawerLayout()) followDrawer(regions.sidebar, toggle, open)
   }
   const toggle = button('drawer-toggle', t('shell.openSessions'), () => {
     setDrawer(shell.dataset.drawer !== 'open', true)
   })
   toggle.dataset.deeptailAction = 'drawer'
-  toggle.setAttribute('aria-controls', SIDEBAR_ID)
-  toggle.setAttribute('aria-expanded', 'false')
+  setAria(toggle, { controls: SIDEBAR_ID, expanded: 'false' })
 
   scrim.addEventListener('click', () => {
     setDrawer(false, true)
   })
   const onShellKeyDown = (event: KeyboardEvent): void => {
+    // The connection menu owns Escape while it is open and stops the event
+    // there, so one press never closes both it and the drawer.
     if (event.key === 'Escape' && shell.dataset.drawer === 'open') setDrawer(false, true)
   }
   document.addEventListener('keydown', onShellKeyDown)

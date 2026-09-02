@@ -10,12 +10,12 @@
 
 import type { HostApi, SessionSummary } from '../api.ts'
 import type { Translate } from '../locales.ts'
-import { messageOf } from '../reason.ts'
+import { describeFailure } from '../reason.ts'
 import type { FleetStore, HostEntry } from '../store.ts'
-import { bindRovingFocus, el } from './dom.ts'
+import { bindRovingFocus, el, screenReaderText } from './dom.ts'
 import { focusedControl, restoreFocus } from './roster-focus.ts'
 import { type RowHandlers, sessionRow } from './session-row.ts'
-import { emptyRow, loadingRow, retryStrip } from './states.ts'
+import { emptyRow, hostStateLabel, loadingRow, retryStrip } from './states.ts'
 
 /** What the roster needs from the shell. */
 export interface FleetPorts {
@@ -120,7 +120,7 @@ function renderRoster(root: HTMLElement, view: RosterView): void {
  */
 function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterView): HTMLElement {
   const group = el('div', { className: 'host-group', data: { deeptailHost: entry.host.id } })
-  group.append(groupHeading(entry))
+  group.append(groupHeading(entry, view.t))
 
   if (entry.phase.kind === 'pending') {
     // Empty is only empty once the read settles, so a cold start never
@@ -156,17 +156,32 @@ function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterVie
 /**
  * A host's heading: its reachability dot, its label, and — once the read has
  * settled — how many sessions it holds.
+ *
+ * It is the group's heading in the document outline, not a styled `div`, so the
+ * roster reads as a set of named sections rather than one flat list. The dot is
+ * `aria-hidden` and the state travels beside it as text: the other three places
+ * that draw this dot already do that, and this one did not, which left host
+ * reachability conveyed by colour alone.
  * @param entry - the host, its phase and its sessions.
+ * @param t - copy source.
  * @returns the heading.
  */
-function groupHeading(entry: HostEntry): HTMLElement {
-  const heading = el('div', { className: 'group-title' })
+function groupHeading(entry: HostEntry, t: Translate): HTMLElement {
+  const heading = el('h3', { className: 'group-title' })
   heading.append(
     el('span', { className: 'dot', aria: { hidden: 'true' }, data: { state: entry.state } }),
     el('span', { className: 'group-name', text: entry.host.label }),
+    screenReaderText(hostStateLabel(t, entry.state)),
   )
   if (entry.phase.kind === 'ready') {
-    heading.append(el('span', { className: 'group-count', text: String(entry.sessions.length) }))
+    const count = entry.sessions.length
+    // A bare digit reads as part of the host's name. It is spoken as a counted
+    // label beside the glyph, the way the dot is: `aria-label` on a `span` that
+    // carries no role is prohibited, so the text is a real node.
+    heading.append(
+      el('span', { className: 'group-count', text: String(count), aria: { hidden: 'true' } }),
+      screenReaderText(t('sessions.count', { count })),
+    )
   }
   return heading
 }
@@ -180,9 +195,12 @@ function groupHeading(entry: HostEntry): HTMLElement {
  * @returns the list.
  */
 function sessionList(entry: HostEntry, stops: HTMLButtonElement[], view: RosterView): HTMLElement {
-  const list = el('div', { role: 'list', aria: { label: entry.host.label } })
+  // The seat is a `div`: a `span` is phrasing content and cannot hold the row's
+  // block box, and the list itself carries a class so its rows are spaced by a
+  // rule rather than sitting flush against one another.
+  const list = el('div', { className: 'session-list', role: 'list', aria: { label: entry.host.label } })
   for (const session of entry.sessions) {
-    const seat = el('span', { role: 'listitem' })
+    const seat = el('div', { className: 'session-seat', role: 'listitem' })
     seat.append(sessionRow(entry.host.id, session, view.t, rowHandlers(entry, session, view), stops))
     list.append(seat)
   }
@@ -234,7 +252,7 @@ async function cancelSession(entry: HostEntry, session: SessionSummary, view: Ro
   } catch (reason) {
     // Swallowed deliberately: the operator is told in the roster instead, and
     // an escaping rejection here would be unhandled and silent.
-    mutations.failures.set(entry.host.id, view.t('sessions.stopFailed', { message: messageOf(reason) }))
+    mutations.failures.set(entry.host.id, view.t('sessions.stopFailed', { message: describeFailure(reason, view.t) }))
   } finally {
     mutations.busy = false
     view.render()

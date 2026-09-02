@@ -20,7 +20,7 @@ import { mountShellFrame, type ShellFrame } from './shell-frame.ts'
 import '../styles/tokens.css'
 import '../styles/picker.css'
 import '../styles/shell.css'
-import { messageOf } from '../reason.ts'
+import { describeFailure } from '../reason.ts'
 
 /** What the shell needs from the application. */
 export interface ShellPorts {
@@ -63,7 +63,7 @@ export function mountShell(container: HTMLElement, ports: ShellPorts, t: Transla
   const rosterSeat = el('div', { className: 'roster-seat' })
   frame.sidebar.append(
     newSessionButton({ hosts: ports.hosts, apiFor: clients.apiFor }, t, frame.announce),
-    el('div', { className: 'section-header', text: t('shell.sessions') }),
+    el('div', { className: 'section-header', text: t('shell.sessionsSection') }),
     rosterSeat,
   )
 
@@ -144,7 +144,7 @@ function mountHostSwitcher(
       repair: ports.repair,
       unpair: (hostId) => {
         void ports.unpair(hostId).catch((reason: unknown) => {
-          frame.showError(messageOf(reason))
+          frame.showError(describeFailure(reason, t))
         })
       },
     },
@@ -227,7 +227,7 @@ function createFleetPorts(
 function handOff(host: HostRecord, sessionId: string, ports: ShellPorts, frame: ShellFrame, t: Translate): void {
   frame.body.replaceChildren(el('div', { className: 'placeholder', text: t('shell.opening', { label: host.label }) }))
   void ports.open(host, sessionId).catch((reason: unknown) => {
-    const message = messageOf(reason)
+    const message = describeFailure(reason, t)
     const failure = el('div', { className: 'error', text: message, role: 'alert' })
     failure.dataset.deeptailState = 'open-error'
     frame.body.replaceChildren(failure)

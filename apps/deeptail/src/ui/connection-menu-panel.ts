@@ -102,11 +102,15 @@ function appendHostRow(items: HTMLElement, host: HostRecord, options: MenuPanelO
  */
 function repairItem(hostId: string, options: MenuPanelOptions): HTMLButtonElement {
   const { ports, t, dismiss } = options
-  const repair = button('menu-repair', t('shell.repair'), () => {
-    dismiss()
-    ports.repair(hostId)
-  })
-  repair.setAttribute('role', 'menuitem')
+  const repair = button(
+    'menu-repair',
+    t('shell.repair'),
+    () => {
+      dismiss()
+      ports.repair(hostId)
+    },
+    { role: 'menuitem' },
+  )
   repair.dataset.deeptailAction = 'repair'
   return repair
 }
@@ -145,7 +149,5 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
  * @returns the item.
  */
 function menuItem(className: string, text: string, onClick: () => void): HTMLButtonElement {
-  const item = button(className, text, onClick)
-  item.setAttribute('role', 'menuitem')
-  return item
+  return button(className, text, onClick, { role: 'menuitem' })
 }

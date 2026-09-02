@@ -4,31 +4,35 @@
  * ui-workspace/rows/Rows.module.css.
  */
 
+/* The first screen a new operator sees, on a document that opts into
+ * viewport-fit=cover, so the card and its chrome stay clear of the notch and
+ * the home indicator rather than running under them. */
 .picker {
   box-sizing: border-box;
   min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: max(var(--dsh-space-7), env(safe-area-inset-top)) max(var(--dsh-space-7), env(safe-area-inset-right))
+    max(var(--dsh-space-7), env(safe-area-inset-bottom)) max(var(--dsh-space-7), env(safe-area-inset-left));
 }
 
 .card {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  width: min(420px, 100%);
-  padding: 24px;
+  gap: var(--dsh-space-5);
+  width: min(var(--dsh-card-width), 100%);
+  padding: var(--dsh-space-7);
   border: 1px solid var(--dsw-alias-border-inverted);
-  border-radius: 24px;
+  border-radius: var(--dsh-radius-sheet);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv3);
 }
 
 .wordmark {
-  font-size: 16px;
-  line-height: 24px;
+  font-size: var(--dsh-text-body);
+  line-height: var(--dsh-leading-body);
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--dsw-alias-label-primary);
@@ -36,8 +40,8 @@
 
 .lede {
   margin: 0;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-control);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -46,10 +50,10 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--dsh-space-0);
   margin: 0;
   padding: 0;
-  max-height: 320px;
+  max-height: var(--dsh-list-max);
   overflow-y: auto;
 }
 
@@ -57,18 +61,18 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--dsh-space-3);
   width: 100%;
-  min-height: 48px;
-  padding: 6px 10px;
+  min-height: var(--dsh-space-9);
+  padding: var(--dsh-space-2) var(--dsh-space-inset-md);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--dsh-radius-control);
   background: transparent;
   cursor: pointer;
   text-align: start;
   color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-lg);
 }
 
 .row:hover {
@@ -90,7 +94,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--dsh-space-0);
 }
 
 .row-label {
@@ -100,8 +104,8 @@
 }
 
 .row-origin {
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-md);
   color: var(--dsw-alias-label-secondary);
   word-break: break-all;
 }
@@ -111,8 +115,8 @@
 .dot {
   position: relative;
   flex: none;
-  width: 12px;
-  height: 12px;
+  width: var(--dsh-dot-size);
+  height: var(--dsh-dot-size);
   display: inline-block;
 }
 
@@ -142,6 +146,18 @@
 .dot[data-state="offline"] {
   color: var(--dsw-alias-label-error);
 }
+/* Refused, not unreachable: the same red, drawn hollow, because the two are the
+ * operator's to tell apart and there is no fifth colour to spend on it. */
+.dot[data-state="forbidden"] {
+  color: var(--dsw-alias-label-error);
+}
+.dot[data-state="forbidden"]::after {
+  inset: 30%;
+  background: transparent;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+}
+
 .dot[data-state="unknown"] {
   color: var(--dsw-alias-label-secondary);
 }
@@ -152,14 +168,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  height: 36px;
-  padding: 0 14px;
+  gap: var(--dsh-space-1);
+  height: var(--dsh-control-sm);
+  padding: 0 var(--dsh-space-inset-xl);
   border: none;
-  border-radius: 18px;
+  border-radius: var(--dsh-radius-chip);
   cursor: pointer;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-control);
   color: var(--dsw-alias-label-primary);
   background: transparent;
 }
@@ -190,20 +206,20 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--dsh-space-3);
 }
 
 .actions .button {
-  min-width: 72px;
+  min-width: var(--dsh-action-min);
 }
 
 /* Rows own their separator; the footer keeps its own above the add action. */
 .footer {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
-  padding-top: 12px;
+  gap: var(--dsh-space-3);
+  margin-top: var(--dsh-space-1);
+  padding-top: var(--dsh-space-4);
   border-top: 1px solid var(--dsw-alias-border-l2);
 }
 
@@ -212,12 +228,12 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--dsh-space-2);
 }
 
 .label {
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-md);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -229,14 +245,14 @@
 .textarea {
   box-sizing: border-box;
   width: 100%;
-  height: 44px;
-  padding: 7px 14px;
+  height: var(--dsh-target-coarse);
+  padding: var(--dsh-space-inset-sm) var(--dsh-space-inset-xl);
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 22px;
+  border-radius: var(--dsh-radius-action);
   outline: none;
   background: transparent;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: var(--dsh-text-lg);
+  line-height: var(--dsh-leading-control);
   color: var(--dsw-alias-label-primary);
 }
 
@@ -254,9 +270,9 @@
 /* ---- status strips ------------------------------------------------------ */
 
 .status {
-  padding: 10px;
-  font-size: 13px;
-  line-height: 20px;
+  padding: var(--dsh-space-inset-md);
+  font-size: var(--dsh-text-md);
+  line-height: var(--dsh-leading-lg);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -264,13 +280,13 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
-  padding: 7px 8px;
-  border-radius: 8px;
+  gap: var(--dsh-space-3);
+  padding: var(--dsh-space-inset-sm) var(--dsh-space-3);
+  border-radius: var(--dsh-radius-sm);
   background: var(--dsw-alias-interactive-bg-hover-danger);
   color: var(--dsw-alias-label-error);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--dsh-text-sm);
+  line-height: var(--dsh-leading-md);
 }
 
 /* `.error` sets `display`, and any author rule outranks the UA sheet's
@@ -291,10 +307,14 @@
   border-inline-start: 3px solid var(--dsw-alias-state-warn-primary);
 }
 
+/* It inherits the strip's 12px/18px type, which left an 18px-tall target — under
+ * the 24px floor before any spacing exception. The padding is what raises it. */
 .retry {
   flex: 0 0 auto;
-  padding: 0;
+  min-height: var(--dsh-target-fine);
+  padding: var(--dsh-space-1) var(--dsh-space-3);
   border: none;
+  border-radius: var(--dsh-radius-xs);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -306,8 +326,8 @@
 
 .spinner {
   position: relative;
-  width: 20px;
-  height: 20px;
+  width: var(--dsh-space-6);
+  height: var(--dsh-space-6);
   border-radius: 50%;
   border: 2px solid var(--dsw-alias-border-l2);
   border-top-color: var(--dsw-alias-brand-primary);
@@ -331,18 +351,30 @@
 .centered {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--dsh-space-inset-md);
 }
 
-/* Touch pointers never fire :hover, so the row affordances stay put. */
-@media (max-width: 480px) {
+/* A coarse pointer has no hover to reveal anything with and a fingertip to hit
+ * with, so every control the picker owns stands at the touch floor. The shell
+ * raises its own controls the same way. */
+@media not (hover: hover) {
+  .button,
+  .retry {
+    min-height: var(--dsh-target-coarse);
+  }
+}
+
+/* The card fills a narrow viewport rather than floating in the middle of it,
+ * and sits at the top so the keyboard does not push it off screen. */
+@media (width <= 480px) {
   .picker {
-    padding: 16px;
+    padding: max(var(--dsh-space-5), env(safe-area-inset-top)) max(var(--dsh-space-5), env(safe-area-inset-right))
+      max(var(--dsh-space-5), env(safe-area-inset-bottom)) max(var(--dsh-space-5), env(safe-area-inset-left));
     align-items: flex-start;
   }
   .card {
-    padding: 20px;
-    border-radius: 20px;
+    padding: var(--dsh-space-6);
+    border-radius: var(--dsh-radius-xl);
   }
   .actions {
     flex-direction: column-reverse;
@@ -354,5 +386,34 @@
   .warning,
   .error {
     border: 1px solid CanvasText;
+  }
+
+  /* The dot is defined in this sheet, so its high-contrast restatement belongs
+   * beside it: the picker imports only tokens and this file, and the treatment
+   * living in the shell sheet meant the picker's own dots were covered only
+   * because one bundle happens to carry both. */
+  .dot {
+    border: 1px solid CanvasText;
+    forced-color-adjust: none;
+  }
+
+  .dot[data-state="online"] {
+    background: Highlight;
+  }
+
+  .dot[data-state="offline"] {
+    background: GrayText;
+  }
+
+  /* Distinguished by shape, because the mode leaves too few colours to spend
+     one on a state the operator can act on. */
+  .dot[data-state="unauthorized"] {
+    background: Mark;
+    border-style: dashed;
+  }
+
+  .dot[data-state="forbidden"] {
+    background: GrayText;
+    border-style: dotted;
   }
 }

@@ -12,7 +12,7 @@ import type { PickerKey, Translate } from '../locales.ts'
 import { button, el } from './dom.ts'
 
 /** Reachability of one host. */
-export type HostState = 'unknown' | 'online' | 'unauthorized' | 'offline'
+export type HostState = 'unknown' | 'online' | 'unauthorized' | 'forbidden' | 'offline'
 
 /** What a host's roster read is doing. */
 export type Phase =
@@ -79,11 +79,53 @@ export function retryStrip(tone: Tone, message: string, retryLabel: string, onRe
   return strip
 }
 
+/**
+ * A strip one surface writes its refusals into.
+ *
+ * Five surfaces built this by hand and drifted: some set the text at
+ * construction, some later, and each re-decided the role. The strip is an
+ * `alert` so a refusal is spoken the moment it appears, and it starts hidden so
+ * it says nothing before there is anything to say.
+ * @param state - the `data-deeptail-state` hook the surface is found by.
+ * @param tone - `alert` interrupts; `status` waits for a pause.
+ * @returns the empty, hidden strip.
+ */
+export function errorStrip(state: string, tone: 'alert' | 'status' = 'alert'): HTMLElement {
+  const strip = el('div', { className: 'error', data: { deeptailState: state }, role: tone })
+  strip.hidden = true
+  return strip
+}
+
+/**
+ * Write a refusal into a strip.
+ *
+ * The strip is revealed before its text is written. Text inserted into a
+ * `display: none` element is inserted outside the accessibility tree, so a
+ * strip that was filled and then unhidden announced nothing on several screen
+ * readers — the insertion a live region fires on had already happened.
+ * @param strip - the strip to write into.
+ * @param message - the already-localized refusal.
+ */
+export function showFailure(strip: HTMLElement, message: string): void {
+  strip.hidden = false
+  strip.textContent = message
+}
+
+/**
+ * Take a refusal back down, so the next attempt does not read as the last one.
+ * @param strip - the strip to clear.
+ */
+export function clearFailure(strip: HTMLElement): void {
+  strip.textContent = ''
+  strip.hidden = true
+}
+
 /** The dictionary key each host state is spoken with. */
 const STATE_KEYS: Readonly<Record<HostState, PickerKey>> = {
   online: 'host.state.online',
   offline: 'host.state.offline',
   unauthorized: 'host.state.unauthorized',
+  forbidden: 'host.state.forbidden',
   unknown: 'host.state.unknown',
 }
 

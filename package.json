@@ -26,7 +26,7 @@
     "lint:rust": "cd apps/deeptail/src-tauri && cargo clippy --all-targets -- -D warnings",
     "tauri": "tauri",
     "validate": "bun run lint && bun run lint:ox && bun run check:styles && bun run typecheck && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser",
-    "check:styles": "bun scripts/check-no-inline-styles.ts"
+    "check:styles": "bun scripts/check-no-inline-styles.ts && bun scripts/check-stylesheets.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.11",

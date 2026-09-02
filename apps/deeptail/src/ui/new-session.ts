@@ -16,9 +16,10 @@
 import { type HostApi, RemoteError } from '../api.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
-import { messageOf } from '../reason.ts'
-import { button, el } from './dom.ts'
+import { describeFailure } from '../reason.ts'
+import { button, el, labelledField, setAria } from './dom.ts'
 import { type Dialog, openDialog } from './modal.ts'
+import { clearFailure, errorStrip, showFailure } from './states.ts'
 
 /** What the dialog needs to spawn. */
 export interface SpawnPorts {
@@ -74,16 +75,13 @@ interface SpawnReport {
  * @returns the labelled field and the select inside it.
  */
 function buildHostField(hosts: readonly HostRecord[], t: Translate): LabelledControl<HTMLSelectElement> {
-  const field = el('label', { className: 'field' })
-  field.append(el('span', { className: 'label', text: t('shell.connection') }))
   const control = el('select', { className: 'select', data: { deeptailField: 'host' } })
   for (const host of hosts) {
-    const option = el('option', { text: `${host.label} — ${host.origin}` })
+    const option = el('option', { text: t('spawn.hostOption', { label: host.label, origin: host.origin }) })
     option.value = host.id
     control.append(option)
   }
-  field.append(control)
-  return { field, control }
+  return { field: labelledField(t('shell.connection'), control), control }
 }
 
 /**
@@ -94,13 +92,10 @@ function buildHostField(hosts: readonly HostRecord[], t: Translate): LabelledCon
  * @returns the labelled field and the input inside it.
  */
 function buildTextField(label: string, placeholder: string, name: string): LabelledControl<HTMLInputElement> {
-  const field = el('label', { className: 'field' })
-  field.append(el('span', { className: 'label', text: label }))
   const control = el('input', { className: 'input', data: { deeptailField: name } })
   control.type = 'text'
   control.placeholder = placeholder
-  field.append(control)
-  return { field, control }
+  return { field: labelledField(label, control), control }
 }
 
 /**
@@ -116,8 +111,8 @@ function buildSpawnForm(hosts: readonly HostRecord[], t: Translate): SpawnForm {
   const host = buildHostField(hosts, t)
   const preset = buildTextField(t('spawn.preset'), t('spawn.presetPlaceholder'), 'preset')
   const cwd = buildTextField(t('spawn.cwd'), t('spawn.cwdPlaceholder'), 'cwd')
-  const failure = el('div', { className: 'error', role: 'alert', data: { deeptailState: 'spawn-error' } })
-  failure.hidden = true
+  const failure = errorStrip('spawn-error')
+  failure.id = 'deeptail-spawn-error'
   return {
     fields: [host.field, preset.field, cwd.field, failure],
     host: host.control,
@@ -160,15 +155,14 @@ async function spawnSession(
     report.dialog.close()
     report.announce(report.t('spawn.created', { label: host.label }))
   } catch (reason) {
-    const message = messageOf(reason)
+    const message = describeFailure(reason, report.t)
     if (!report.dialog.isOpen()) {
       report.announce(report.t('spawn.failed', { message }))
       return
     }
     // The dialog stays up with the typed values in it, so a rejected id can be
     // corrected in place.
-    report.failure.textContent = describeSpawnFailure(reason, message, report.t)
-    report.failure.hidden = false
+    showFailure(report.failure, describeSpawnFailure(reason, message, report.t))
     report.release()
   }
 }
@@ -204,6 +198,7 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
   const dialog = openDialog(t('shell.newSession'))
   const { fields, host: hostSelect, preset, cwd, failure } = buildSpawnForm(ports.hosts, t)
   dialog.body.append(...fields)
+  setAria(preset, { describedby: failure.id })
 
   const hostById = new Map(ports.hosts.map((host) => [host.id, host]))
   let busy = false
@@ -215,7 +210,7 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
     cwd.disabled = next
     create.disabled = next
     cancel.disabled = next
-    dialog.body.toggleAttribute('aria-busy', next)
+    setAria(dialog.body, { busy: next ? 'true' : 'false' })
   }
 
   const cancel = button('button button-outline', t('action.cancel'), () => {
@@ -225,7 +220,7 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
     if (busy) return
     const host = hostById.get(hostSelect.value)
     if (host === undefined) return
-    failure.hidden = true
+    clearFailure(failure)
     setBusy(true)
     const release = (): void => {
       setBusy(false)
@@ -236,4 +231,7 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
 
   create.dataset.deeptailAction = 'spawn-create'
   dialog.actions.append(cancel, create)
+  // The host chooser is the first decision the dialog asks for, so it is where
+  // the operator lands rather than on the dialog's own frame.
+  hostSelect.focus()
 }

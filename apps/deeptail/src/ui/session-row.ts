@@ -79,7 +79,7 @@ function wireRowKeys(row: HTMLElement): void {
     )
     const here = controls.indexOf(document.activeElement as HTMLButtonElement)
     if (here === -1) return
-    const forwards = event.key === (row.matches(':dir(rtl)') ? 'ArrowLeft' : 'ArrowRight')
+    const forwards = event.key === (getComputedStyle(row).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')
     const next = controls[here + (forwards ? 1 : -1)]
     if (next === undefined) return
     event.preventDefault()
@@ -107,10 +107,7 @@ function openControl(session: SessionSummary, t: Translate, onOpen: () => void):
       aria: { hidden: 'true' },
       data: { state: running ? 'online' : 'unknown' },
     }),
-    el('span', {
-      className: 'session-title',
-      text: session.projections?.values?.title ?? t('sessions.untitled'),
-    }),
+    el('span', { className: 'session-title', text: sessionTitle(session, t) }),
     screenReaderText(running ? t('sessions.running') : t('sessions.idle')),
     el('span', { className: 'session-time', text: relativeTime(session.updatedAt, t) }),
   )
@@ -129,20 +126,61 @@ function openControl(session: SessionSummary, t: Translate, onOpen: () => void):
  */
 function rowActions(session: SessionSummary, t: Translate, handlers: RowHandlers): HTMLElement {
   const actions = el('span', { className: 'row-actions' })
-  const message = button('row-action', t('chat.send'), handlers.message)
+  // Every row's actions read "Send" and "Stop", so across a fleet they are N
+  // identical names with nothing saying which session is about to be
+  // interrupted. The visible text stays short; the name carries the session.
+  const title = sessionTitle(session, t)
+  const message = button('row-action', t('sessions.messageAction'), handlers.message, {
+    aria: { label: t('sessions.messageAria', { title }) },
+  })
   message.tabIndex = -1
   message.dataset.deeptailAction = 'row-message'
   message.disabled = handlers.busy
   actions.append(message)
 
   if (session.running) {
-    const stop = button('row-action', t('chat.cancel'), handlers.stop)
+    const stop = button('row-action', t('sessions.stop'), handlers.stop, {
+      aria: { label: t('sessions.stopAria', { title }) },
+    })
     stop.tabIndex = -1
     stop.dataset.deeptailAction = 'row-stop'
     stop.disabled = handlers.busy
     actions.append(stop)
   }
   return actions
+}
+
+/**
+ * The name a session is known by, which is what every control about it is
+ * named after.
+ * @param session - the session the row lists.
+ * @param t - copy source.
+ * @returns the title, or the placeholder for a session that has none yet.
+ */
+function sessionTitle(session: SessionSummary, t: Translate): string {
+  return session.projections?.values?.title ?? t('sessions.untitled')
+}
+
+/**
+ * One age formatter per locale.
+ *
+ * Every roster event rebuilds every row, so a formatter built per row is one
+ * ICU object per session per event. There are two locales and they never
+ * change within a session.
+ */
+const AGE_FORMATS = new Map<string, Intl.RelativeTimeFormat>()
+
+/**
+ * The age formatter for one locale, built once.
+ * @param locale - the locale the copy source speaks.
+ * @returns the formatter.
+ */
+function ageFormat(locale: string): Intl.RelativeTimeFormat {
+  const held = AGE_FORMATS.get(locale)
+  if (held !== undefined) return held
+  const made = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'narrow' })
+  AGE_FORMATS.set(locale, made)
+  return made
 }
 
 /** The units a roster age is reported in, largest first, with their lengths. */
@@ -164,7 +202,7 @@ const AGE_UNITS: readonly (readonly [Intl.RelativeTimeFormatUnit, number])[] = [
  * @returns the label.
  */
 function relativeTime(at: number, t: Translate): string {
-  const format = new Intl.RelativeTimeFormat(t.locale, { numeric: 'auto', style: 'narrow' })
+  const format = ageFormat(t.locale)
   const seconds = Math.max(0, Math.round((Date.now() - at) / 1000))
   for (const [unit, length] of AGE_UNITS) {
     if (seconds >= length) return format.format(-Math.round(seconds / length), unit)

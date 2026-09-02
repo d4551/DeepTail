@@ -129,18 +129,61 @@ it('opens the pairing form under the name of the host being re-paired', async ()
   await page.close()
 })
 
-it('dismisses the menu when focus leaves it', async () => {
-  const page = await harness.open(fleet(), { mobile: true })
+it('dismisses the menu when a pointer lands outside it, without taking focus back', async () => {
+  const page = await harness.open(fleet())
   await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-action="drawer"]').click()
   await page.locator('[data-deeptail-connection="trigger"]').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
   // An open menu overlaps what is behind it, so it must not stay open once the
-  // operator has moved on. The drawer toggle sits in the main pane, which the
-  // open menu leaves reachable.
-  await page.locator('[data-deeptail-action="drawer"]').focus()
+  // operator has moved on. Focus stays where the pointer put it: pulling it
+  // back to the trigger would override whatever they just reached for.
+  await page.locator('.main-body').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
   expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
+  expect(await page.evaluate(() => document.activeElement?.getAttribute('data-deeptail-connection'))).not.toBe(
+    'trigger',
+  )
+  await page.close()
+})
+
+it('hands focus back to the trigger when the operator dismisses from inside', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  // Escape is a dismissal the operator made from inside the menu, so it returns
+  // them to the control they opened it from.
+  await page.keyboard.press('Escape')
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
+  expect(await page.evaluate(() => document.activeElement?.getAttribute('data-deeptail-connection'))).toBe('trigger')
+  await page.close()
+})
+
+it('holds the pane behind the open drawer out of reach', async () => {
+  const page = await harness.open(fleet(), { mobile: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-action="drawer"]').click()
+  // Opening moves focus into the drawer on the next frame, so the assertion
+  // waits for that rather than racing it.
+  await page.waitForFunction(() => document.activeElement?.closest('.sidebar') !== null)
+  // The scrim covers the whole main pane, the drawer toggle included, so a
+  // control left focusable behind it is one the reader can reach but neither
+  // see nor click.
+  const state = await page.evaluate(() => {
+    const pane = document.querySelector('.main')
+    document.querySelector<HTMLElement>('[data-deeptail-action="drawer"]')?.focus()
+    const active = document.activeElement
+    return {
+      inert: pane instanceof HTMLElement && pane.inert,
+      inPane: active instanceof HTMLElement && active.closest('.main') !== null,
+    }
+  })
+  expect(state).toEqual({ inert: true, inPane: false })
+  // Escape and the scrim both sit outside the inert pane, so the drawer always
+  // has a way out, and closing it hands the toggle back.
+  await page.keyboard.press('Escape')
+  await page.waitForFunction(() => (document.activeElement as HTMLElement | null)?.dataset.deeptailAction === 'drawer')
+  expect(await page.evaluate(() => document.querySelector('.main')?.matches('[inert]') ?? true)).toBe(false)
   await page.close()
 })
 

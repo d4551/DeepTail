@@ -10,9 +10,10 @@
 
 import type { HostApi } from '../api.ts'
 import type { Translate } from '../locales.ts'
-import { messageOf } from '../reason.ts'
-import { button, el } from './dom.ts'
+import { describeFailure } from '../reason.ts'
+import { button, el, labelledField, setAria } from './dom.ts'
 import { type Dialog, openDialog } from './modal.ts'
+import { clearFailure, errorStrip, showFailure } from './states.ts'
 
 /** What the sheet needs to send. */
 export interface ComposeTarget {
@@ -28,6 +29,8 @@ type PromptMode = 'queue' | 'steer'
 interface ComposeFields {
   /** The draft the operator types into. */
   readonly textarea: HTMLTextAreaElement
+  /** The label naming the draft field, which is what mounts it. */
+  readonly field: HTMLLabelElement
   /** The strip an empty draft or a failed send is written into. */
   readonly failure: HTMLElement
 }
@@ -62,14 +65,14 @@ function buildComposeFields(t: Translate): ComposeFields {
   textarea.placeholder = t('chat.placeholder')
   textarea.rows = 4
 
-  const failure = el('div', {
-    className: 'error',
-    data: { deeptailState: 'compose-error' },
-    role: 'alert',
-  })
-  failure.hidden = true
+  const failure = errorStrip('compose-error')
+  failure.id = 'deeptail-compose-error'
 
-  return { textarea, failure }
+  // A placeholder is the only name this field had, and a placeholder is gone
+  // the moment anything is typed into it.
+  const field = labelledField(t('chat.messageLabel'), textarea)
+
+  return { textarea, field, failure }
 }
 
 /**
@@ -105,15 +108,14 @@ function buildComposeActions(t: Translate, dismiss: () => void, submit: (mode: P
  * @param report - where the outcome is told.
  */
 function reportSendFailure(reason: unknown, report: ComposeReport): void {
-  const message = messageOf(reason)
+  const message = describeFailure(reason, report.t)
   if (!report.dialog.isOpen()) {
     report.announce(report.t('chat.sendFailed', { message }))
     return
   }
   // The draft is deliberately left intact: a failed send must not cost the
   // operator what they typed.
-  report.failure.textContent = report.t('chat.sendFailed', { message })
-  report.failure.hidden = false
+  showFailure(report.failure, report.t('chat.sendFailed', { message }))
   report.release()
 }
 
@@ -145,12 +147,17 @@ async function issuePrompt(
 /**
  * Send on Enter and keep Shift+Enter a newline, as every composer in this
  * product does.
+ *
+ * An Enter that commits an input-method candidate is not a send. The product
+ * ships a Chinese dictionary, and without this check the first Enter a Pinyin
+ * or Kana user pressed sent a half-composed prompt into a live session and
+ * closed the sheet.
  * @param textarea - the draft field.
  * @param send - what a bare Enter triggers.
  */
 function sendOnEnter(textarea: HTMLTextAreaElement, send: () => void): void {
   textarea.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' || event.shiftKey) return
+    if (event.isComposing || event.key !== 'Enter' || event.shiftKey) return
     event.preventDefault()
     send()
   })
@@ -164,8 +171,9 @@ function sendOnEnter(textarea: HTMLTextAreaElement, send: () => void): void {
  */
 export function openComposeSheet(target: ComposeTarget, t: Translate, announce: (text: string) => void): void {
   const dialog = openDialog(target.title)
-  const { textarea, failure } = buildComposeFields(t)
-  dialog.body.append(textarea, failure)
+  const { textarea, field, failure } = buildComposeFields(t)
+  dialog.body.append(field, failure)
+  setAria(textarea, { describedby: failure.id })
 
   let busy = false
 
@@ -175,19 +183,20 @@ export function openComposeSheet(target: ComposeTarget, t: Translate, announce: 
     send.disabled = next
     steer.disabled = next
     cancel.disabled = next
-    dialog.body.toggleAttribute('aria-busy', next)
+    setAria(dialog.body, { busy: next ? 'true' : 'false' })
   }
 
   const submit = (mode: PromptMode): void => {
     if (busy) return
     const text = textarea.value.trim()
     if (text === '') {
-      failure.textContent = t('chat.messageRequired')
-      failure.hidden = false
+      showFailure(failure, t('chat.messageRequired'))
+      setAria(textarea, { invalid: 'true' })
       textarea.focus()
       return
     }
-    failure.hidden = true
+    clearFailure(failure)
+    setAria(textarea, { invalid: 'false' })
     setBusy(true)
     const release = (): void => {
       setBusy(false)

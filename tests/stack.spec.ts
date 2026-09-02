@@ -41,6 +41,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@deepseek-ai/dsh-client-ui-slots': '0.1',
   '@deepseek-ai/dsh-client-web': '0.1',
   '@deepseek-ai/dsh-invariants': '0.1',
+  '@deepseek-ai/dsh-jobs': '0.1',
   '@deepseek-ai/dsh-session': '0.1',
   '@deepseek-ai/dsh-tools': '0.1',
   '@deepseek-ai/dsh-util-values': '0.1',
@@ -228,28 +229,6 @@ describe('legacy patterns and suppressions', () => {
     ]) {
       expect([option, options[option]]).toEqual([option, true])
     }
-  })
-})
-
-describe('layout', () => {
-  it('writes the drawer breakpoint exactly once', async () => {
-    const sheet = 'apps/deeptail/src/styles/shell.css'
-    const widths = [...(await readFile(sheet, 'utf8')).matchAll(/@media \(width <= (\d+px)\)/gu)].map(
-      (match) => match[1] ?? '',
-    )
-    expect(widths.length).toBe(1)
-    // The width is read out of the stylesheet rather than restated here, so
-    // this assertion cannot itself become the second place it is written.
-    const [width] = widths
-    const files = repositoryFiles(['.css', '.ts']).filter((file) => file.label !== sheet)
-    const elsewhere = await Promise.all(
-      files.map(async (file) => ((await readFile(file.path, 'utf8')).includes(width ?? '') ? [file.label] : [])),
-    )
-    // A width in a media query and the same width restated in script are two
-    // breakpoints that agree only until one of them is changed. The stylesheet
-    // decides, and publishes the decision as a custom property the script
-    // reads, so there is exactly one place the number appears.
-    expect(elsewhere.flat()).toEqual([])
   })
 })
 
