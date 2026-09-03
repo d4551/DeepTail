@@ -11,11 +11,12 @@
  */
 
 import type { SessionSummary } from './api.ts'
+import { isSessionSummary, type WireValue } from './wire.ts'
 
 /** One forwarded roster event, as the host named it. */
 export interface HeldEvent {
   readonly event: string
-  readonly args: readonly unknown[]
+  readonly args: readonly WireValue[]
 }
 
 /** What one roster event asks the store to do with a host's rows. */
@@ -68,9 +69,9 @@ export function readRosterEvent(sessions: readonly SessionSummary[], held: HeldE
  * @param args - the payload, whose first member is the summary.
  * @returns the rows to publish, or nothing when the payload is not a summary.
  */
-function withAdded(sessions: readonly SessionSummary[], args: readonly unknown[]): RosterUpdate {
+function withAdded(sessions: readonly SessionSummary[], args: readonly WireValue[]): RosterUpdate {
   const added = args[0]
-  if (!isSummary(added)) return IGNORE
+  if (!isSessionSummary(added)) return IGNORE
   return {
     kind: 'sessions',
     sessions: sortByActivity([...sessions.filter((s) => s.sessionId !== added.sessionId), added]),
@@ -83,7 +84,7 @@ function withAdded(sessions: readonly SessionSummary[], args: readonly unknown[]
  * @param args - the payload, whose first member is the session id.
  * @returns the rows to publish, or nothing when the payload names no session.
  */
-function withRemoved(sessions: readonly SessionSummary[], args: readonly unknown[]): RosterUpdate {
+function withRemoved(sessions: readonly SessionSummary[], args: readonly WireValue[]): RosterUpdate {
   const removed = args[0]
   if (typeof removed !== 'string') return IGNORE
   return { kind: 'sessions', sessions: sessions.filter((session) => session.sessionId !== removed) }
@@ -95,7 +96,7 @@ function withRemoved(sessions: readonly SessionSummary[], args: readonly unknown
  * @param args - the payload: a session id and a timestamp.
  * @returns the rows to publish, or nothing when the payload is malformed.
  */
-function withActivity(sessions: readonly SessionSummary[], args: readonly unknown[]): RosterUpdate {
+function withActivity(sessions: readonly SessionSummary[], args: readonly WireValue[]): RosterUpdate {
   const [sessionId, time] = args
   if (typeof sessionId !== 'string' || typeof time !== 'number') return IGNORE
   return {
@@ -121,7 +122,7 @@ function withActivity(sessions: readonly SessionSummary[], args: readonly unknow
  * @returns the rows to publish, a re-read when the id names no row we hold, or
  *   nothing when the payload is malformed.
  */
-function withStatus(sessions: readonly SessionSummary[], args: readonly unknown[]): RosterUpdate {
+function withStatus(sessions: readonly SessionSummary[], args: readonly WireValue[]): RosterUpdate {
   const [id, running] = args
   if (typeof id !== 'string' || typeof running !== 'boolean') return IGNORE
   if (!sessions.some((session) => session.sessionId === id)) return { kind: 'reread' }
@@ -129,11 +130,4 @@ function withStatus(sessions: readonly SessionSummary[], args: readonly unknown[
     kind: 'sessions',
     sessions: sessions.map((session) => (session.sessionId === id ? { ...session, running } : session)),
   }
-}
-
-/** Whether a forwarded payload is a session summary we can place in the roster. */
-function isSummary(value: unknown): value is SessionSummary {
-  if (typeof value !== 'object' || value === null) return false
-  const record = value as Record<string, unknown>
-  return typeof record.sessionId === 'string' && typeof record.updatedAt === 'number'
 }

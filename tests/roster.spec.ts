@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { SessionSummary } from '../apps/deeptail/src/api.ts'
 import { readRosterEvent, sortByActivity } from '../apps/deeptail/src/roster.ts'
+import type { WireValue } from '../apps/deeptail/src/wire.ts'
 
 /**
  * One row.
@@ -19,7 +20,7 @@ import { readRosterEvent, sortByActivity } from '../apps/deeptail/src/roster.ts'
  * @returns the summary.
  */
 function row(sessionId: string, updatedAt: number, running = false): SessionSummary {
-  return { sessionId, updatedAt, running, blank: false } as SessionSummary
+  return { sessionId, updatedAt, running, blank: false }
 }
 
 /** Two rows, newest first, as the store holds them. */
@@ -32,7 +33,7 @@ const HELD = [row('b', 20), row('a', 10)]
  * @param args - its arguments.
  * @returns the published ids, or the update's kind.
  */
-function reading(sessions: readonly SessionSummary[], event: string, args: readonly unknown[]): string[] | string {
+function reading(sessions: readonly SessionSummary[], event: string, args: readonly WireValue[]): string[] | string {
   const update = readRosterEvent(sessions, { event, args })
   return update.kind === 'sessions' ? update.sessions.map((session) => session.sessionId) : update.kind
 }

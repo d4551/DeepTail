@@ -111,10 +111,13 @@ function sessionsSpawnTool(controller: SessionController, limits: FleetLimits, b
           agentPreset: args.agentPreset ?? limits.defaultPreset,
           ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
         })
-        .catch((reason: unknown) => {
-          budget.refund()
-          throw reason
-        })
+        .then(
+          (made) => made,
+          (reason) => {
+            budget.refund()
+            throw reason
+          },
+        )
       await sendPrompt(controller, { sessionId: created.sessionId, text: task, mode: 'queue' }, limits.promptTimeoutMs)
       return {
         sessionId: created.sessionId,

@@ -26,12 +26,17 @@ export interface PickerPorts {
 export const settled = async <T>(
   promise: Promise<T>,
 ): Promise<
-  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string; readonly reason: unknown }
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly message: string; readonly code: string | undefined }
 > => {
   const [outcome] = await Promise.allSettled([promise])
   return outcome.status === 'fulfilled'
     ? { ok: true, value: outcome.value }
-    : { ok: false, message: messageOf(outcome.reason), reason: outcome.reason }
+    : {
+        ok: false,
+        message: messageOf(outcome.reason),
+        code: outcome.reason instanceof RemoteError ? outcome.reason.code : undefined,
+      }
 }
 
 /** The ports backed by the real Tauri commands. */
@@ -49,18 +54,18 @@ export const tauriPorts: PickerPorts = {
     // away a working pairing to fix something that is not broken.
     const reached = await settled(createHostApi(createCarrier(host.id)).listSessions())
     if (reached.ok) return 'online'
-    return probeState(reached.reason)
+    return probeState(reached.code)
   },
 }
 
 /**
- * What a failed probe says about a host.
- * @param reason - whatever the read rejected with.
+ * What a failed probe says about a host, by the failure code the read settled
+ * with.
+ * @param code - the code a failed read settled with, when it carried one.
  * @returns the reachability to draw.
  */
-function probeState(reason: unknown): HostState {
-  if (!(reason instanceof RemoteError)) return 'offline'
-  if (reason.code === UNAUTHORIZED) return 'unauthorized'
-  if (reason.code === FORBIDDEN) return 'forbidden'
+function probeState(code: string | undefined): HostState {
+  if (code === UNAUTHORIZED) return 'unauthorized'
+  if (code === FORBIDDEN) return 'forbidden'
   return 'offline'
 }

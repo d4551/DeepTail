@@ -10,9 +10,9 @@
 
 import type { HostApi, SessionSummary } from '../api.ts'
 import type { Translate } from '../locales.ts'
-import { describeFailure } from '../reason.ts'
+import { settle } from '../reason.ts'
 import type { FleetStore, HostEntry } from '../store.ts'
-import { bindRovingFocus, el, screenReaderText } from './dom.ts'
+import { bindRovingFocus, type Disposer, el, screenReaderText } from './dom.ts'
 import { focusedControl, restoreFocus } from './roster-focus.ts'
 import { type RowHandlers, sessionRow } from './session-row.ts'
 import { emptyRow, hostStateLabel, loadingRow, retryStrip } from './states.ts'
@@ -62,7 +62,7 @@ interface RosterView {
  * @param t - copy source.
  * @returns a disposer.
  */
-export function mountFleetView(container: HTMLElement, store: FleetStore, ports: FleetPorts, t: Translate): () => void {
+export function mountFleetView(container: HTMLElement, store: FleetStore, ports: FleetPorts, t: Translate): Disposer {
   const root = el('div', { className: 'roster', data: { deeptailFleet: '' } })
   container.append(root)
 
@@ -131,7 +131,9 @@ function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterVie
   if (entry.phase.kind === 'failed') {
     group.append(
       retryStrip('partial', entry.phase.message, view.t('action.retry'), () => {
-        void view.store.refresh(entry.host.id)
+        // A roster read records its own failure on the row it belongs to, so
+        // the promise it returns never rejects.
+        view.store.refresh(entry.host.id)
       }),
     )
     return group
@@ -143,7 +145,7 @@ function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterVie
     group.append(
       retryStrip('partial', failure, view.t('action.retry'), () => {
         view.mutations.failures.delete(entry.host.id)
-        void view.store.refresh(entry.host.id)
+        view.store.refresh(entry.host.id)
       }),
     )
   }
@@ -169,7 +171,7 @@ function hostGroup(entry: HostEntry, stops: HTMLButtonElement[], view: RosterVie
 function staleStrip(entry: HostEntry, view: RosterView): HTMLElement | undefined {
   if (entry.state !== 'offline' || entry.phase.kind !== 'ready') return undefined
   return retryStrip('partial', view.t('status.offline', { label: entry.host.label }), view.t('action.retry'), () => {
-    void view.store.refresh(entry.host.id)
+    view.store.refresh(entry.host.id)
   })
 }
 
@@ -245,7 +247,7 @@ function rowHandlers(entry: HostEntry, session: SessionSummary, view: RosterView
       view.ports.message(entry.host.id, session)
     },
     stop: () => {
-      void cancelSession(entry, session, view)
+      stopSession(entry, session, view)
     },
   }
 }
@@ -253,30 +255,28 @@ function rowHandlers(entry: HostEntry, session: SessionSummary, view: RosterView
 /**
  * Stop one session, then re-read the host it belongs to.
  *
- * A cancel that fails is reported on its own host rather than raised, so one
- * refused stop never blanks the fleet.
+ * A failed cancel is reported on its own host rather than raised, so one
+ * refused stop never blanks the fleet. Every arm settles, so a caller that
+ * fires this from a click handler leaves no rejected promise behind.
  * @param entry - the host the session belongs to.
  * @param session - the session to stop.
  * @param view - the fleet, its copy and its mutation state.
  */
-async function cancelSession(entry: HostEntry, session: SessionSummary, view: RosterView): Promise<void> {
+async function stopSession(entry: HostEntry, session: SessionSummary, view: RosterView): Promise<void> {
   const api = view.ports.apiFor(entry.host.id)
   const { mutations } = view
   if (api === undefined || mutations.busy) return
   mutations.busy = true
   mutations.failures.delete(entry.host.id)
   view.render()
-  try {
-    await api.cancel(session.sessionId)
-    mutations.failures.delete(entry.host.id)
-  } catch (reason) {
-    // Swallowed deliberately: the operator is told in the roster instead, and
-    // an escaping rejection here would be unhandled and silent.
-    mutations.failures.set(entry.host.id, view.t('sessions.stopFailed', { message: describeFailure(reason, view.t) }))
-  } finally {
-    mutations.busy = false
-    view.render()
-  }
-  // Outside the catch so a refresh failure cannot replace the stop failure.
-  await view.store.refresh(entry.host.id)
+  // A failed stop is reported on its own host rather than raised, so one
+  // refused stop never blanks the fleet. The busy flag clears and the host
+  // re-reads once the stop settles, so a second row action never races the
+  // first and the failure stays visible beside the rows that still answer.
+  const stopped = await settle(api.cancel(session.sessionId), view.t)
+  if (stopped.ok) mutations.failures.delete(entry.host.id)
+  else mutations.failures.set(entry.host.id, view.t('sessions.stopFailed', { message: stopped.message }))
+  mutations.busy = false
+  view.render()
+  view.store.refresh(entry.host.id)
 }

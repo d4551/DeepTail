@@ -20,3 +20,6 @@ apps/deeptail/src-tauri/gen/
 apps/deeptail/tests/chromium.json
 /.tmp-outdated
 /.tmp-validate
+
+# Local probes; their proofs live in the suite (tests/gate-coverage.spec.ts).
+/scratch

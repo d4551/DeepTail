@@ -209,7 +209,7 @@ export interface MuxSocketLike extends EventTarget {
 
 /** The carrier hooks the harness client reads from `globalThis.__DSH_TRANSPORT__`. */
 export interface CarrierHooks {
-  readonly fetch: (input: URL, init: RequestInit) => Promise<Response>
+  readonly send: (input: URL, init: RequestInit) => Promise<Response>
   readonly loadBundle: (url: string) => Promise<void>
   readonly openMuxSocket: () => MuxSocketLike
   /**
@@ -230,7 +230,7 @@ export interface CarrierHooks {
 export function createCarrier(host: string): CarrierHooks {
   let live: CarrierMuxSocket | undefined
   return {
-    fetch: (input, init) => carrierFetch(host, input, init),
+    send: (input, init) => carrierFetch(host, input, init),
     loadBundle: (url) => carrierLoadBundle(host, url),
     openMuxSocket: () => {
       live = new CarrierMuxSocket(host)

@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
+import * as parse5 from 'parse5'
 import { structureCheckSource } from '../apps/deeptail/tests/structure.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
@@ -71,6 +72,27 @@ describe('the structure checks the browser suite evaluates', () => {
     for (const source of [structureCheckSource(true), structureCheckSource(false)]) {
       expect(source).toContain('a[href], button, input, select, textarea, summary')
     }
+  })
+
+  it('cannot be handed an activation target nested in its own kind, and the parser is why', () => {
+    // The `nested-interactive` rule walks a parsed tree, and the HTML parsing
+    // algorithm closes an open activation target the moment a second start tag
+    // of its own kind arrives. That shape therefore never reaches the rule as
+    // a nesting: it arrives as siblings. Pinned here so the rule's silence on
+    // it is read as the parser's doing, and a future swap of the parser that
+    // changes this tree fails a named test instead of quietly shifting what
+    // the rule can see.
+    const tree: string[] = []
+    const walk = (node: parse5.DefaultTreeAdapterTypes.Node, depth: number): void => {
+      if ('tagName' in node) tree.push(`${'  '.repeat(depth)}${String(node.tagName)}`)
+      for (const child of 'childNodes' in node ? (node.childNodes as parse5.DefaultTreeAdapterTypes.Node[]) : []) {
+        walk(child, depth + 1)
+      }
+    }
+    // The fragment node itself sits at depth 0, so its children indent once:
+    // two `button` lines at one depth, not a `button` under a `button`.
+    walk(parse5.parseFragment('<button>a<button>b</button></button>'), 0)
+    expect(tree).toEqual(['  button', '  button'])
   })
 })
 

@@ -53,9 +53,9 @@ export function describeFailure<T>(reason: T, t: Translate): string {
   const key = TRANSPORT_KEYS[reason.code]
   if (key === undefined) return reason.message
   return t(key, {
-    endpoint: String(reason.details.endpoint ?? ''),
-    status: String(reason.details.status ?? ''),
-    detail: String(reason.details.detail ?? reason.message),
+    endpoint: typeof reason.details.endpoint === 'string' ? reason.details.endpoint : '',
+    status: typeof reason.details.status === 'number' ? reason.details.status : '',
+    detail: typeof reason.details.detail === 'string' ? reason.details.detail : reason.message,
   })
 }
 
@@ -72,4 +72,24 @@ export function describeFailure<T>(reason: T, t: Translate): string {
  */
 export function reportSettled<T>(work: Promise<T>, t: Translate, report: (message: string) => void): void {
   work.then(undefined, (reason: T) => report(describeFailure(reason, t)))
+}
+
+/** The settled outcome of work: landed, or failed with the operator's copy. */
+export type Outcome = { readonly ok: true } | { readonly ok: false; readonly message: string }
+
+/**
+ * Await work with its failure settled into copy, so a caller branches on an
+ * outcome instead of catching or chaining arms.
+ *
+ * The surfaces that stay interactive through a mutation need the failure as a
+ * message, not as a thrown value; this hands both arms back as one value.
+ * @param work - the promise to settle.
+ * @param t - copy source.
+ * @returns landed, or the localized failure message.
+ */
+export function settle<T>(work: Promise<T>, t: Translate): Promise<Outcome> {
+  return work.then(
+    (): Outcome => ({ ok: true }),
+    (reason: T): Outcome => ({ ok: false, message: describeFailure(reason, t) }),
+  )
 }

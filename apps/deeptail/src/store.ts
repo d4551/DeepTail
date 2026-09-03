@@ -14,6 +14,7 @@ import type { HostRecord } from './host.ts'
 import { messageOf } from './reason.ts'
 import { type HeldEvent, readRosterEvent, sortByActivity } from './roster.ts'
 import type { HostState, Phase } from './ui/states.ts'
+import type { WireValue } from './wire.ts'
 
 /** Everything known about one host. */
 export interface HostEntry {
@@ -41,7 +42,7 @@ export interface FleetStore {
   /** Read one host's roster. Safe to call repeatedly; the newest read wins. */
   refresh(hostId: string): Promise<void>
   /** Apply one forwarded roster event from a host. */
-  applyEvent(hostId: string, event: string, args: readonly unknown[]): void
+  applyEvent(hostId: string, event: string, args: readonly WireValue[]): void
   /** Record a host's reachability, as reported by the connection attempt. */
   setHostState(hostId: string, state: HostState): void
 }

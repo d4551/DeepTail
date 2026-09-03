@@ -50,15 +50,15 @@ const t = createTranslate()
  * @returns every paired host.
  */
 async function knownHosts(attemptsLeft = REGISTRY_ATTEMPTS): Promise<readonly HostRecord[]> {
-  try {
-    return await invoke<HostRecord[]>('list_hosts')
-  } catch (reason) {
-    // A registry that never answers is not something the picker can fix, and
-    // each trip through it mounts a fresh runtime and a fresh frame. The
-    // recursion is bounded so an unreadable registry ends in a reported failure
-    // rather than in a window that allocates until it stops responding.
-    if (attemptsLeft <= 1) throw reason
-  }
+  // A registry that never answers is a failure the picker asks the operator to
+  // retry, and each trip through it mounts a fresh runtime and a fresh frame.
+  // The recursion is bounded so an unreadable registry ends in a reported
+  // failure rather than in a window that allocates until it stops responding.
+  const read = await invoke<HostRecord[]>('list_hosts').then(
+    (hosts) => hosts,
+    (reason) => (attemptsLeft <= 1 ? Promise.reject(reason) : undefined),
+  )
+  if (read !== undefined) return read
   await renderHostPicker(container)
   return knownHosts(attemptsLeft - 1)
 }
@@ -121,16 +121,16 @@ function mountControlPlane(hosts: readonly HostRecord[], notice?: string): void 
       },
       open: openSession,
       pair: () => {
-        void pairAnother()
+        runToBootNotice(pairAnother())
       },
       repair: (hostId) => {
-        // Re-pairing is pairing the same host again, so the form opens under the
-        // name it is already filed under rather than blank.
-        void pairAnother(hosts.find((host) => host.id === hostId)?.label)
+        // Re-pairing pairs the same host again, so the form opens under the
+        // name it is filed under rather than blank.
+        runToBootNotice(pairAnother(hosts.find((host) => host.id === hostId)?.label))
       },
       unpair: async (hostId) => {
         // The socket is closed before the token is forgotten, so an unpaired
-        // host cannot keep an authenticated stream open for the process's life.
+        // host leaves no authenticated stream open for the process's life.
         await clearPage()
         await invoke('forget_host', { host: hostId })
         mountControlPlane(await knownHosts())
@@ -143,30 +143,30 @@ function mountControlPlane(hosts: readonly HostRecord[], notice?: string): void 
 
 /**
  * Boot the harness client for one host.
+ *
+ * The harness client opens at its own default view: nothing in its boot
+ * surface takes a session id, so the operator re-selects there. The copy says
+ * so rather than implying a deep link this path cannot deliver.
  * @param host - the host that owns the session.
- * @param sessionId - the session the operator chose.
  */
-async function openSession(host: HostRecord, sessionId: string): Promise<void> {
-  // The harness client opens at its own default view: nothing in its boot
-  // surface takes a session id, so the operator re-selects there. The copy says
-  // so rather than implying a deep link this cannot deliver.
-  void sessionId
+async function openSession(host: HostRecord): Promise<void> {
   if (opening) return
   opening = true
-  try {
-    await clearPage()
-    booted = await bootHost(host, container)
-    bootedHost = host
-    showReturnBar()
-  } catch (reason) {
-    // Booting replaces the page, so a failure part way through leaves nothing
-    // on screen. The control plane goes back up carrying the reason, rather
-    // than a blank window with the reason only in the console.
-    await clearPage()
-    mountControlPlane(await knownHosts(), messageOf(reason))
-  } finally {
-    opening = false
-  }
+  // Booting replaces the page, so a failure part way through leaves nothing
+  // on screen. The control plane goes back up carrying the reason, rather
+  // than a blank window with the reason only in the console.
+  const boot = clearPage()
+    .then(() => bootHost(host, container))
+    .then((client) => {
+      booted = client
+      bootedHost = host
+      return showReturnBar()
+    })
+    .then(undefined, async (reason) => {
+      await clearPage()
+      mountControlPlane(await knownHosts(), messageOf(reason))
+    })
+  await boot.then(() => (opening = false))
 }
 
 /** Pair a host, then come back to the control plane over the new registry. */
@@ -182,6 +182,31 @@ async function returnToFleet(): Promise<void> {
   mountControlPlane(await knownHosts())
 }
 
+/** Mount the control plane from the registry, from a blank or failed page. */
+async function start(): Promise<void> {
+  mountControlPlane(await resolveHosts())
+}
+
+/**
+ * Let page-owning background work settle, reporting a failure through the
+ * boot notice rather than leaving a rejected promise no surface holds.
+ * @param work - the boot step to run.
+ */
+function runToBootNotice<T>(work: Promise<T>): void {
+  work.then(undefined, (reason) => showBootNotice(messageOf(reason)))
+}
+
+/**
+ * The failure surface for a boot step that owns the page: the reason, and the
+ * one remedy the window still has — mounting again from the registry.
+ * @param message - the failure, in the operator's language.
+ */
+function showBootNotice(message: string): void {
+  const strip = el('div', { className: 'error', role: 'alert', text: message, data: { deeptailState: 'boot-error' } })
+  strip.append(button('retry', t('action.retry'), () => runToBootNotice(start())))
+  container.replaceChildren(strip)
+}
+
 /**
  * The way back out of the harness client.
  *
@@ -191,22 +216,20 @@ async function returnToFleet(): Promise<void> {
 function showReturnBar(): void {
   const bar = el('div', { className: 'return-bar' })
   bar.append(
-    button('button button-outline return-button', t('shell.backToFleet'), () => {
-      void returnToFleet()
-    }),
+    button('button button-outline return-button', t('shell.backToFleet'), () => runToBootNotice(returnToFleet())),
   )
   bar.dataset.deeptailReturn = ''
   document.body.append(bar)
   returnBar = bar
 }
 
-mountControlPlane(await resolveHosts())
+runToBootNotice(start())
 
 // A clean close beats a dropped connection the host has to time out.
 globalThis.addEventListener(
   'beforeunload',
   () => {
-    void clearPage()
+    runToBootNotice(clearPage())
   },
   { once: true },
 )

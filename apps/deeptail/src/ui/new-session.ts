@@ -87,14 +87,14 @@ function buildHostField(hosts: readonly HostRecord[], t: Translate): LabelledCon
 /**
  * A labelled text box.
  * @param label - the visible label.
- * @param placeholder - the hint carried while the box is empty.
+ * @param hint - the text carried while the box is empty.
  * @param name - the `data-deeptail-field` hook the box answers to.
  * @returns the labelled field and the input inside it.
  */
-function buildTextField(label: string, placeholder: string, name: string): LabelledControl<HTMLInputElement> {
+function buildTextField(label: string, hint: string, name: string): LabelledControl<HTMLInputElement> {
   const control = el('input', { className: 'input', data: { deeptailField: name } })
   control.type = 'text'
-  control.placeholder = placeholder
+  control.placeholder = hint
   return { field: labelledField(label, control), control }
 }
 
@@ -141,20 +141,14 @@ function draftRequest(chosen: string, directory: string): SpawnRequest {
  * @param host - the host to spawn on.
  * @param request - the preset and directory to spawn with.
  * @param report - where the outcome is told.
- * @returns once the outcome has been reported.
  */
-async function spawnSession(
-  ports: SpawnPorts,
-  host: HostRecord,
-  request: SpawnRequest,
-  report: SpawnReport,
-): Promise<void> {
-  try {
-    await ports.apiFor(host).createSession(request)
+function spawnSession(ports: SpawnPorts, host: HostRecord, request: SpawnRequest, report: SpawnReport): void {
+  const spawned = (): void => {
     // Closed first: the live region is inert while this dialog is open.
     report.dialog.close()
     report.announce(report.t('spawn.created', { label: host.label }))
-  } catch (reason) {
+  }
+  const refused = <T>(reason: T) => {
     const message = describeFailure(reason, report.t)
     if (!report.dialog.isOpen()) {
       report.announce(report.t('spawn.failed', { message }))
@@ -165,6 +159,7 @@ async function spawnSession(
     showFailure(report.failure, describeSpawnFailure(reason, message, report.t))
     report.release()
   }
+  ports.apiFor(host).createSession(request).then(spawned, refused)
 }
 
 /**
@@ -173,12 +168,12 @@ async function spawnSession(
  * An unknown preset is the one failure the operator can correct on the spot, and
  * the host sends the ids it does have alongside it, so those are shown rather
  * than the bare rejection.
- * @param reason - whatever the call threw.
+ * @param reason - whatever the call rejected with.
  * @param message - the already-extracted message text.
  * @param t - copy source.
  * @returns the text for the failure strip.
  */
-function describeSpawnFailure(reason: unknown, message: string, t: Translate): string {
+function describeSpawnFailure<T>(reason: T, message: string, t: Translate): string {
   if (reason instanceof RemoteError && reason.code === 'agent-preset-not-found') {
     const available = reason.details.available
     if (Array.isArray(available) && available.length > 0) {
@@ -226,7 +221,7 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
       setBusy(false)
     }
     const request = draftRequest(preset.value.trim(), cwd.value.trim())
-    void spawnSession(ports, host, request, { dialog, failure, t, announce, release })
+    spawnSession(ports, host, request, { dialog, failure, t, announce, release })
   })
 
   create.dataset.deeptailAction = 'spawn-create'

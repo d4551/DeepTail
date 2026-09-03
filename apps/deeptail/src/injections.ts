@@ -6,9 +6,11 @@
  * @module
  */
 
+import type { WireValue } from './wire.ts'
+
 /** One row of the boot table, as the host serves it. */
 export type IndexInjection =
-  | { readonly kind: 'global'; readonly name: string; readonly value: unknown }
+  | { readonly kind: 'global'; readonly name: string; readonly value: WireValue }
   | { readonly kind: 'script'; readonly placement: 'head' | 'body'; readonly text: string }
   | { readonly kind: 'script-src'; readonly placement: 'head' | 'body'; readonly src: string }
   | { readonly kind: 'script-preload'; readonly src: string }

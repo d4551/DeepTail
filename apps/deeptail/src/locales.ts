@@ -228,7 +228,7 @@ export interface Translate {
    * @param key - the dictionary key.
    * @param params - values for the key's placeholders.
    */
-  (key: PickerKey, params?: Readonly<Record<string, unknown>>): string
+  (key: PickerKey, params?: Readonly<Record<string, string | number>>): string
   /**
    * The locale this translator speaks.
    *
@@ -248,10 +248,13 @@ export function createTranslate(locale: LocaleId = resolveLocale()): Translate {
   if (typeof document !== 'undefined') {
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : locale
   }
-  const translate = (key: PickerKey, params?: Readonly<Record<string, unknown>>): string => {
+  const translate = (key: PickerKey, params?: Readonly<Record<string, string | number>>): string => {
     const template = dictionary[key]
     if (params === undefined) return template
-    return template.replaceAll(/\{(\w+)\}/gu, (match, name: string) => (name in params ? String(params[name]) : match))
+    return template.replaceAll(/\{(\w+)\}/gu, (match, name: string): string => {
+      const value = params[name]
+      return value === undefined ? match : String(value)
+    })
   }
   return Object.assign(translate, { locale })
 }

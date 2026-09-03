@@ -104,10 +104,10 @@ function buildComposeActions(t: Translate, dismiss: () => void, submit: (mode: P
  * Escape closes the sheet at any time, including mid-flight, and reporting into
  * a detached node would lose the failure entirely, so a sheet that has already
  * gone is answered through the live region instead.
- * @param reason - whatever the call threw.
+ * @param reason - whatever the call rejected with.
  * @param report - where the outcome is told.
  */
-function reportSendFailure(reason: unknown, report: ComposeReport): void {
+function reportSendFailure<T>(reason: T, report: ComposeReport): void {
   const message = describeFailure(reason, report.t)
   if (!report.dialog.isOpen()) {
     report.announce(report.t('chat.sendFailed', { message }))
@@ -125,23 +125,17 @@ function reportSendFailure(reason: unknown, report: ComposeReport): void {
  * @param mode - queue behind the current work, or interrupt it.
  * @param text - the drafted message.
  * @param report - where the outcome is told.
- * @returns once the outcome has been reported.
  */
-async function issuePrompt(
-  target: ComposeTarget,
-  mode: PromptMode,
-  text: string,
-  report: ComposeReport,
-): Promise<void> {
-  try {
-    await target.api.prompt(target.sessionId, text, mode)
+function sendPrompt(target: ComposeTarget, mode: PromptMode, text: string, report: ComposeReport): void {
+  const sent = (): void => {
     // Closed first: the shell's live region sits inside the root this dialog
     // holds inert, and a mutation made while it is inert is never announced.
     report.dialog.close()
     report.announce(report.t('chat.sent', { label: target.title }))
-  } catch (reason) {
-    reportSendFailure(reason, report)
   }
+  target.api.prompt(target.sessionId, text, mode).then(sent, (reason) => {
+    reportSendFailure(reason, report)
+  })
 }
 
 /**
@@ -201,7 +195,7 @@ export function openComposeSheet(target: ComposeTarget, t: Translate, announce: 
     const release = (): void => {
       setBusy(false)
     }
-    void issuePrompt(target, mode, text, { dialog, failure, t, announce, release })
+    sendPrompt(target, mode, text, { dialog, failure, t, announce, release })
   }
 
   const { cancel, steer, send } = buildComposeActions(

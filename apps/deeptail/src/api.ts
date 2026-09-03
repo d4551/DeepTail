@@ -9,6 +9,7 @@
  */
 
 import type { CarrierHooks } from './transport.ts'
+import { isSessionSummary, isWireObject, type WireObject, type WireValue } from './wire.ts'
 
 /** The failure code a revoked or expired device token arrives with. */
 export const UNAUTHORIZED = 'unauthorized'
@@ -37,23 +38,28 @@ export class RemoteError extends Error {
    * Host-supplied context. An unknown agent preset carries the ids the host
    * does have under `available`, which is the only place that list is published.
    */
-  readonly details: Readonly<Record<string, unknown>>
+  readonly details: WireObject
 
   /**
-   * @param code - the host's failure code.
-   * @param message - the host's message.
-   * @param details - the host's failure context, when it sent any.
+   * @param failureCode - the host's failure code.
+   * @param failureMessage - the host's message.
+   * @param failureDetails - the host's failure context, when it sent any.
    */
-  constructor(code: string, message: string, details: Readonly<Record<string, unknown>> = {}) {
-    super(message)
+  constructor(failureCode: string, failureMessage: string, failureDetails: WireObject = {}) {
+    super(failureMessage)
     this.name = 'RemoteError'
-    this.code = code
-    this.details = details
+    this.code = failureCode
+    this.details = failureDetails
   }
 }
 
-/** One session as the roster lists it. */
-export interface SessionSummary {
+/**
+ * One session as the roster lists it.
+ *
+ * A type alias rather than an interface: an alias carries the implicit index
+ * signature that lets a row travel as a wire value without a cast.
+ */
+export type SessionSummary = {
   readonly sessionId: string
   readonly updatedAt: number
   readonly running: boolean
@@ -61,6 +67,12 @@ export interface SessionSummary {
   readonly cwd?: string
   readonly parentSessionId?: string
   readonly projections?: { readonly values?: { readonly title?: string } }
+}
+
+/** The arguments `session/create` carries. */
+type CreateSessionInput = {
+  readonly cwd?: string
+  readonly agentPreset?: string
 }
 
 /**
@@ -74,16 +86,7 @@ export interface HostApi {
   listSessions(): Promise<readonly SessionSummary[]>
   prompt(sessionId: string, text: string, mode: 'queue' | 'steer'): Promise<void>
   cancel(sessionId: string): Promise<void>
-  createSession(input: { cwd?: string; agentPreset?: string }): Promise<string>
-}
-
-/** Minimal shape of a `server-response` envelope. */
-interface ServerResponse {
-  readonly result?: {
-    readonly ok?: boolean
-    readonly value?: unknown
-    readonly error?: { code?: string; message?: string; details?: Record<string, unknown> }
-  }
+  createSession(input: CreateSessionInput): Promise<string>
 }
 
 /**
@@ -102,7 +105,11 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
    * @param args - the method's arguments.
    * @returns whatever the method returned.
    */
-  const call = async (namespace: string, method: string, args: Readonly<Record<string, unknown>>): Promise<unknown> => {
+  const call = async (
+    namespace: string,
+    method: string,
+    args: Readonly<Record<string, WireValue>>,
+  ): Promise<WireValue | undefined> => {
     correlation += 1
     const endpoint = `${namespace}/${method}`
     const envelope = await post(carrier, endpoint, `deeptail-${String(correlation)}`, args)
@@ -111,8 +118,11 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
 
   return {
     async listSessions() {
-      const value = (await call('session', 'list', {})) as { items?: readonly SessionSummary[] }
-      return value.items ?? []
+      const value = await call('session', 'list', {})
+      if (!isWireObject(value) || !Array.isArray(value.items)) {
+        throw malformed('session/list', 'no items')
+      }
+      return value.items.filter(isSessionSummary)
     },
     async prompt(sessionId, text, mode) {
       await call('session', 'prompt', {
@@ -126,12 +136,9 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
       await call('session', 'cancel', { sessionId })
     },
     async createSession(input) {
-      const value = (await call('session', 'create', input)) as { sessionId?: string }
-      if (value.sessionId === undefined) {
-        throw new RemoteError(PROTOCOL, 'session/create returned no id', {
-          endpoint: 'session/create',
-          detail: 'no id',
-        })
+      const value = await call('session', 'create', { ...input })
+      if (!isWireObject(value) || typeof value.sessionId !== 'string') {
+        throw malformed('session/create', 'no id')
       }
       return value.sessionId
     },
@@ -139,20 +146,30 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
 }
 
 /**
- * Send one `client-request` envelope and read the reply.
+ * The failure a reply that names nothing the method promises is reported as.
+ * @param endpoint - `<namespace>/<method>`.
+ * @param detail - what the answer lacked.
+ * @returns the failure to raise.
+ */
+function malformed(endpoint: string, detail: string): RemoteError {
+  return new RemoteError(PROTOCOL, `${endpoint} returned no usable answer`, { endpoint, detail })
+}
+
+/**
+ * Send one `client-request` envelope and read the reply's result field.
  * @param carrier - the transport reaching one paired host.
  * @param endpoint - `<namespace>/<method>`.
  * @param rpcId - what the reply is correlated by.
  * @param args - the method's arguments.
- * @returns the `server-response` envelope the host sent back.
+ * @returns the `result` field of the `server-response` envelope.
  */
 async function post(
   carrier: CarrierHooks,
   endpoint: string,
   rpcId: string,
-  args: Readonly<Record<string, unknown>>,
-): Promise<ServerResponse> {
-  const response = await carrier.fetch(new URL(`/api/${endpoint}`, 'http://dsh.internal'), {
+  args: Readonly<Record<string, WireValue>>,
+): Promise<WireObject> {
+  const response = await carrier.send(new URL(`/api/${endpoint}`, 'http://dsh.internal'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -163,7 +180,9 @@ async function post(
     }),
   })
   if (!response.ok) throw transportFailure(endpoint, response.status)
-  return (await response.json()) as ServerResponse
+  const envelope: WireValue = await response.json()
+  if (!isWireObject(envelope) || !isWireObject(envelope.result)) throw malformed(endpoint, 'no result')
+  return envelope.result
 }
 
 /**
@@ -177,7 +196,7 @@ async function post(
  */
 function transportFailure(endpoint: string, status: number): RemoteError {
   const message = `${endpoint} returned HTTP ${String(status)}`
-  const details = { endpoint, status }
+  const details: WireObject = { endpoint, status }
   if (status === 401) return new RemoteError(UNAUTHORIZED, message, details)
   if (status === 403) return new RemoteError(FORBIDDEN, message, details)
   return new RemoteError(TRANSPORT, message, details)
@@ -186,20 +205,16 @@ function transportFailure(endpoint: string, status: number): RemoteError {
 /**
  * Read a reply, raising the host's own failure when it carries one so its code
  * and details reach the caller intact.
- * @param envelope - the reply.
+ * @param result - the envelope's `result` field.
  * @param endpoint - `<namespace>/<method>`.
  * @returns whatever the method returned.
  */
-function unwrap(envelope: ServerResponse, endpoint: string): unknown {
-  const result = envelope.result
-  if (result === undefined) {
-    throw new RemoteError(PROTOCOL, `${endpoint} returned no result`, { endpoint, detail: 'no result' })
-  }
+function unwrap(result: WireObject, endpoint: string): WireValue | undefined {
   if (result.ok !== true) {
-    throw new RemoteError(result.error?.code ?? 'internal', result.error?.message ?? `${endpoint} failed`, {
-      endpoint,
-      ...result.error?.details,
-    })
+    const error = isWireObject(result.error) ? result.error : {}
+    const code = typeof error.code === 'string' ? error.code : 'internal'
+    const message = typeof error.message === 'string' ? error.message : `${endpoint} failed`
+    throw new RemoteError(code, message, isWireObject(error.details) ? error.details : { endpoint })
   }
   return result.value
 }
