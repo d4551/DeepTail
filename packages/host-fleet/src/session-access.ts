@@ -6,11 +6,10 @@
  * @module @deeptail/host-fleet/session-access
  */
 
-import type { SessionController } from '@deepseek-ai/dsh-api-session-controller'
 import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionId as SessionIdType } from '@deepseek-ai/dsh-session/types'
-import type { FleetSendResult } from './types.ts'
+import type { FleetController, FleetSendResult } from './types.ts'
 
 /** One prompt this orchestrator is delivering to another session. */
 interface FleetPrompt {
@@ -58,7 +57,7 @@ export function admitSessionId(raw: string, tool: string): SessionIdType {
  * @returns the correlation the controller accepted.
  */
 export async function sendPrompt(
-  controller: SessionController,
+  controller: FleetController,
   prompt: FleetPrompt,
   timeoutMs: number,
 ): Promise<FleetSendResult> {

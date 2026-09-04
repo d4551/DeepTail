@@ -5,8 +5,8 @@
  * A wire value is the JSON tree an answer carries: scalars, arrays, and nested
  * objects, each named. The narrower shapes the rest of the surface depends on
  * (`SessionSummary`, a call's answer) are checked against `isWireObject`
- * before any field is read, so a call that hands the surface a malformed
- * value raises the same protocol failure it would have raised by a cast.
+ * before any field is read, so a call that hands the surface a malformed value
+ * raises a protocol failure instead of reading a field of the wrong shape.
  *
  * Every predicate takes its parameter generically, the way `messageOf` does:
  * a value fresh off the wire is nothing this product has narrowed yet, and a
@@ -43,13 +43,21 @@ export function isWireObject<T>(value: T | WireValue): value is WireObject {
 /**
  * The narrowest shape that can be placed in the roster.
  *
- * Validation is by field rather than by cast: the host may carry fields we do
- * not yet know, and a row that names nothing we recognise cannot land here.
- * The answer carries the index signature it was validated through, so what a
- * caller reads off it is what the predicate actually checked.
+ * Validation is by field rather than by cast, so extra fields the host sends
+ * travel with the row, and a row that names nothing we recognise cannot land
+ * here. The answer carries the index signature it was validated through, so
+ * what a caller reads off it is what the predicate actually checked: the id,
+ * the activity stamp, and the two booleans the host's own `SessionSummary`
+ * declares.
  * @param value - any value the host may have sent.
  * @returns whether the value is a row the roster can hold.
  */
 export function isSessionSummary<T>(value: T | WireValue): value is SessionSummary {
-  return isWireObject(value) && typeof value.sessionId === 'string' && typeof value.updatedAt === 'number'
+  return (
+    isWireObject(value) &&
+    typeof value.sessionId === 'string' &&
+    typeof value.updatedAt === 'number' &&
+    typeof value.running === 'boolean' &&
+    typeof value.blank === 'boolean'
+  )
 }

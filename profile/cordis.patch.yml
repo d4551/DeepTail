@@ -9,8 +9,8 @@
 # the reason to enable it.
 #
 # `requireHttps` is not a preference: the harness terminates no TLS and its
-# browser cookie is not `Secure`, which is tolerable on a local socket and not
-# for a phone on someone else's network.
+# browser cookie is not `Secure`. Plaintext is acceptable to loopback, and a
+# phone on an untrusted network must not receive it.
 - id: connection
   config:
     trustedHosts: !!js ctx.webRuntime.trustedHosts

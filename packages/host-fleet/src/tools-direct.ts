@@ -6,13 +6,11 @@
  * @module @deeptail/host-fleet/tools-direct
  */
 
-import type { Context } from '@deepseek-ai/cordis'
-import type { SessionController } from '@deepseek-ai/dsh-api-session-controller'
 import type { SessionId as SessionIdType } from '@deepseek-ai/dsh-session/types'
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { FleetLimits } from './limits.ts'
 import { admitSessionId, sendPrompt } from './session-access.ts'
-import type { FleetSendResult } from './types.ts'
+import type { FleetContext, FleetController, FleetSendResult } from './types.ts'
 
 /**
  * Sessions this orchestrator may still create in this process. The budget
@@ -66,7 +64,7 @@ function spawnBudget(max: number): SpawnBudget {
  * @param controller - host session API that owns session creation.
  * @param limits - resolved deployment limits: spawn budget, default preset, delivery timeout.
  */
-export function registerSessionsSpawn(ctx: Context, controller: SessionController, limits: FleetLimits): void {
+export function registerSessionsSpawn(ctx: FleetContext, controller: FleetController, limits: FleetLimits): void {
   const budget = spawnBudget(limits.maxSpawnsPerProcess)
   ctx.effect(() => ctx.tools.register(sessionsSpawnTool(controller, limits, budget)), 'host-fleet: sessions_spawn')
 }
@@ -78,7 +76,7 @@ export function registerSessionsSpawn(ctx: Context, controller: SessionControlle
  * @param budget - the per-process creation budget this tool spends.
  * @returns the registry-ready definition.
  */
-function sessionsSpawnTool(controller: SessionController, limits: FleetLimits, budget: SpawnBudget): ToolDefinition {
+function sessionsSpawnTool(controller: FleetController, limits: FleetLimits, budget: SpawnBudget): ToolDefinition {
   return defineTool({
     name: 'sessions_spawn',
     description:
@@ -134,7 +132,7 @@ function sessionsSpawnTool(controller: SessionController, limits: FleetLimits, b
  * @param controller - host session API that owns prompt admission.
  * @param limits - resolved deployment limits: message budget and delivery timeout.
  */
-export function registerSessionsSend(ctx: Context, controller: SessionController, limits: FleetLimits): void {
+export function registerSessionsSend(ctx: FleetContext, controller: FleetController, limits: FleetLimits): void {
   ctx.effect(() => ctx.tools.register(sessionsSendTool(controller, limits)), 'host-fleet: sessions_send')
 }
 
@@ -144,7 +142,7 @@ export function registerSessionsSend(ctx: Context, controller: SessionController
  * @param limits - resolved deployment limits: message budget and delivery timeout.
  * @returns the registry-ready definition.
  */
-function sessionsSendTool(controller: SessionController, limits: FleetLimits): ToolDefinition {
+function sessionsSendTool(controller: FleetController, limits: FleetLimits): ToolDefinition {
   return defineTool({
     name: 'sessions_send',
     description:
@@ -186,7 +184,7 @@ function sessionsSendTool(controller: SessionController, limits: FleetLimits): T
  * @returns the correlation the controller accepted.
  */
 async function deliverMessage(
-  controller: SessionController,
+  controller: FleetController,
   limits: FleetLimits,
   args: { readonly sessionId: string; readonly message: string; readonly mode?: 'queue' | 'steer' },
   owner: OwningAgent | undefined,
@@ -208,7 +206,7 @@ async function deliverMessage(
  * @param ctx - host context carrying `tools`.
  * @param controller - host session API that owns turn cancellation.
  */
-export function registerSessionsCancel(ctx: Context, controller: SessionController): void {
+export function registerSessionsCancel(ctx: FleetContext, controller: FleetController): void {
   ctx.effect(() => ctx.tools.register(sessionsCancelTool(controller)), 'host-fleet: sessions_cancel')
 }
 
@@ -217,7 +215,7 @@ export function registerSessionsCancel(ctx: Context, controller: SessionControll
  * @param controller - host session API that owns turn cancellation.
  * @returns the registry-ready definition.
  */
-function sessionsCancelTool(controller: SessionController): ToolDefinition {
+function sessionsCancelTool(controller: FleetController): ToolDefinition {
   return defineTool({
     name: 'sessions_cancel',
     description: 'Cancel the active turn of another session on this host. Its queued inbox is preserved.',

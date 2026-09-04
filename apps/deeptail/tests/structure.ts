@@ -6,7 +6,8 @@
  * reference pointing at nothing, a layout that overflows its viewport, a label
  * clipped by the box it sits in, a group of controls under no name, a pane that
  * scrolls inside a pane that also scrolls, a control drawn over another control,
- * or a touch target below the platform minimum.
+ * a class outside the shipped vocabulary, or a touch target below the platform
+ * minimum.
  * Each returns a list of offending selectors, so a failure names the element
  * rather than a count.
  *
@@ -18,9 +19,11 @@ import {
   checkHorizontalOverflow,
   checkNestedScroll,
   checkOverlappingTargets,
+  checkTouchTargets,
   scrolls,
 } from './structure-layout.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
+import { checkClassVocabulary } from './structure-vocabulary.ts'
 
 export type { StructureFinding }
 
@@ -39,6 +42,15 @@ interface StructureLimits {
   readonly target: number
   /** Elements that take focus or activation without a `tabindex`. */
   readonly interactive: string
+  /**
+   * The product surfaces the vocabulary check reads, as one selector list.
+   *
+   * The harness client shares the document and styles its own UI with classes
+   * no sheet here names, so the check reads only what this product drew.
+   */
+  readonly scope: string
+  /** Every class name the shipped stylesheets define. */
+  readonly vocabulary: readonly string[]
 }
 
 /** The smallest touch target Apple's Human Interface Guidelines admit, in CSS pixels. */
@@ -46,6 +58,20 @@ const MINIMUM_TOUCH_TARGET = 44
 
 /** The smallest target WCAG 2.2 admits for any pointer, in CSS pixels. */
 const MINIMUM_POINTER_TARGET = 24
+
+/**
+ * The surfaces this product draws, however the page is laid out.
+ *
+ * The vocabulary check reads these and nothing else: the harness client shares
+ * the document and styles its own UI with classes no sheet here names, so the
+ * check follows the product's own roots instead of the whole body.
+ */
+const PRODUCT_SURFACES = [
+  '[data-deeptail-shell]',
+  '[data-deeptail-picker]',
+  '[data-deeptail-state="boot-error"]',
+  '[data-deeptail-return]',
+].join(', ')
 
 /**
  * Elements that take focus or activation.
@@ -180,27 +206,6 @@ function checkListOwnership(add: Report): void {
 }
 
 /**
- * Every control a finger reaches clears the platform minimum.
- * @param add - collects a finding.
- * @param limits - what the checks measure against.
- */
-function checkTouchTargets(add: Report, limits: StructureLimits): void {
-  const floor = limits.target
-  for (const node of document.querySelectorAll(limits.interactive)) {
-    // An inert subtree is not reachable, so its geometry is not a target.
-    if (node.closest('[inert]') !== null) continue
-    const box = node.getBoundingClientRect()
-    if (box.width === 0 && box.height === 0) continue
-    if (box.height < floor || box.width < floor) {
-      add(
-        'target-size',
-        `${describe(node)} is ${String(Math.round(box.width))}x${String(Math.round(box.height))}, under ${String(floor)}`,
-      )
-    }
-  }
-}
-
-/**
  * A group of controls has to say what the group is.
  *
  * axe does not require it: each radio in a `fieldset` already has its own
@@ -243,6 +248,7 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   checkAriaReferences(add)
   checkListOwnership(add)
   checkGroupNames(add)
+  checkClassVocabulary(add, limits)
   checkHorizontalOverflow(add)
   checkClipping(add)
   checkNestedScroll(add)
@@ -259,12 +265,15 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
  * call. Nothing is closed over, so nothing can be left behind: what the page
  * receives is exactly what the compiler checked.
  * @param coarsePointer - whether the platform minimum touch target applies.
+ * @param vocabulary - every class name the shipped stylesheets define.
  * @returns the source to evaluate.
  */
-export function structureCheckSource(coarsePointer: boolean): string {
+export function structureCheckSource(coarsePointer: boolean, vocabulary: readonly string[]): string {
   const limits: StructureLimits = {
     target: coarsePointer ? MINIMUM_TOUCH_TARGET : MINIMUM_POINTER_TARGET,
     interactive: INTERACTIVE,
+    scope: PRODUCT_SURFACES,
+    vocabulary,
   }
   const functions = [
     describe,
@@ -274,6 +283,7 @@ export function structureCheckSource(coarsePointer: boolean): string {
     checkAriaReferences,
     checkListOwnership,
     checkGroupNames,
+    checkClassVocabulary,
     checkHorizontalOverflow,
     scrolls,
     checkClipping,

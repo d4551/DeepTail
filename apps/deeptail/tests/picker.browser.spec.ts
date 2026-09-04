@@ -84,6 +84,9 @@ it('lists every paired host with its origin and spoken state', async () => {
     undefined,
     { timeout: 5000 },
   )
+  // The live region announces the host count — hosts, not sessions, which is
+  // what a count announced through the sessions dictionary said.
+  expect(await page.locator('[data-deeptail-picker] [role="status"]').textContent()).toBe('2 hosts')
   await harness.shoot(page, 'picker-list')
   await page.close()
 })

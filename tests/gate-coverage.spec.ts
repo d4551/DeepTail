@@ -61,16 +61,20 @@ describe('the file list both gates read', () => {
 })
 
 describe('the structure checks the browser suite evaluates', () => {
-  it('carries the floor each pointer is measured against into the page', () => {
+  it('carries every floor it measures against into the page', () => {
     // The checks are shipped to the page as their own source text and close
     // over nothing, so everything they measure against travels in the call. A
     // value left behind would be a type error where they are written; that it
     // arrives at all is what is checked here, because the two floors differ and
     // shipping the wrong one would pass every case on one pointer.
-    expect(structureCheckSource(true)).toContain('"target":44')
-    expect(structureCheckSource(false)).toContain('"target":24')
-    for (const source of [structureCheckSource(true), structureCheckSource(false)]) {
+    expect(structureCheckSource(true, ['shell'])).toContain('"target":44')
+    expect(structureCheckSource(false, ['shell'])).toContain('"target":24')
+    for (const source of [structureCheckSource(true, ['shell']), structureCheckSource(false, ['shell'])]) {
       expect(source).toContain('a[href], button, input, select, textarea, summary')
+      // The vocabulary travels with the floors: a vocabulary the page never
+      // receives would refuse every class — or, refused by nothing, check none.
+      expect(source).toContain('"vocabulary":["shell"]')
+      expect(source).toContain('"scope":"[data-deeptail-shell], [data-deeptail-picker]')
     }
   })
 

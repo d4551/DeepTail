@@ -19,6 +19,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import { compare, parse } from 'semver'
 
 /** One row of the `bun outdated` table. */
 interface OutdatedRow {
@@ -80,9 +81,26 @@ export function parseOutdated(output: string): OutdatedRow[] {
  * @returns one line per package that is behind, empty when none is.
  */
 export function behindInstallable(rows: readonly OutdatedRow[]): string[] {
-  return rows
-    .filter((row) => !row.held && row.latest !== '' && row.latest !== row.current)
-    .map((row) => `${row.name} is at ${row.current} and ${row.latest} is installable now`)
+  const behind: string[] = []
+  for (const row of rows) {
+    if (row.held || row.latest === '') continue
+    // Compared by version, not by string, and parsed, not coerced: `coerce`
+    // drops the prerelease it was given, which would read 0.1.2-rc.1 and
+    // 0.1.2-alpha.3 as equal and hide a channel that has moved on. A package
+    // whose dist-tag `latest` lags a prerelease channel it publishes ahead of
+    // (current 0.1.2-rc.1, `latest` tag 0.0.1-rc.1) is ahead, not behind — the
+    // tag's age is the registry's bookkeeping, not a pin left behind.
+    const published = parse(row.latest)
+    const installed = parse(row.current)
+    if (published === null || installed === null) {
+      behind.push(`${row.name} reports versions this gate cannot read: ${row.current} vs ${row.latest}`)
+      continue
+    }
+    if (compare(published, installed) === 1) {
+      behind.push(`${row.name} is at ${row.current} and ${row.latest} is installable now`)
+    }
+  }
+  return behind
 }
 
 /**

@@ -151,7 +151,13 @@ async function readRoster(
   const generation = (tables.generations.get(hostId) ?? 0) + 1
   tables.generations.set(hostId, generation)
   patchEntry(tables, hostId, { phase: { kind: 'pending' } })
-  tables.buffered.set(hostId, [])
+  // A newer read replaces the buffer's owner, not its contents. An event held
+  // for a superseded read describes a world newer than every snapshot taken so
+  // far, so it is carried into the newest read and replayed once that one
+  // lands. Resetting the buffer here dropped it: an event that arrived between
+  // two reads was simply lost, and the newest read could still settle with a
+  // snapshot taken before it.
+  tables.buffered.set(hostId, tables.buffered.get(hostId) ?? [])
   const outcome: Partial<HostEntry> = await ports
     .apiFor(entry.host)
     .listSessions()

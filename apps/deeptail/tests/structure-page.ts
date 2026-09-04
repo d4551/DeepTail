@@ -9,6 +9,8 @@
  */
 
 import type { Page } from 'playwright'
+import { classTokensOf } from '../../../scripts/sheet-reader.ts'
+import { repositoryFiles } from '../../../scripts/source-tree.ts'
 import { type StructureFinding, structureCheckSource } from './structure.ts'
 
 /** The widths the shell is designed against, narrowest first. */
@@ -19,6 +21,29 @@ export const VIEWPORTS = [
   { label: 'laptop', width: 1280, height: 800 },
   { label: 'desktop', width: 1920, height: 1080 },
 ]
+
+/** The sheets whose class selectors are the shipped vocabulary. */
+const STYLE_DIRECTORY = 'apps/deeptail/src/styles/'
+
+/** The class names read so far, so the sheets are read once per process. */
+let vocabulary: readonly string[] | undefined
+
+/**
+ * Every class name the shipped stylesheets define.
+ *
+ * Read from the sheets themselves rather than a list kept beside the tests: a
+ * list would drift the first time a class was added without it, and the
+ * vocabulary check would then report the product's own classes as strangers.
+ * @returns the class names, in sheet order, duplicates removed.
+ */
+async function shippedVocabulary(): Promise<readonly string[]> {
+  if (vocabulary === undefined) {
+    const sheets = repositoryFiles(['.css']).filter((file) => file.label.startsWith(STYLE_DIRECTORY))
+    const tokens = await Promise.all(sheets.map(async (sheet) => classTokensOf(await Bun.file(sheet.path).text())))
+    vocabulary = tokens.flat()
+  }
+  return vocabulary
+}
 
 /**
  * Whether the sidebar is a drawer at this width, as the stylesheet decides it.
@@ -41,6 +66,6 @@ export function isDrawerLayout(page: Page): Promise<boolean> {
  * @returns one line per finding.
  */
 export async function defects(page: Page, coarsePointer = false): Promise<string> {
-  const found = await page.evaluate<StructureFinding[]>(structureCheckSource(coarsePointer))
+  const found = await page.evaluate<StructureFinding[]>(structureCheckSource(coarsePointer, await shippedVocabulary()))
   return found.map((finding) => `${finding.rule}: ${finding.detail}`).join('\n')
 }

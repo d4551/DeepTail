@@ -1,7 +1,7 @@
 /**
  * The switcher's open menu.
  *
- * `role="menu"` may own only menu items, so every wrapper here
+ * `role="menu"` may own only menu items, so every grouping element here
  * carries `role="none"`, the footer's pair and unpair controls are real menu
  * items rather than loose buttons beside the list, and the host rows share one
  * roving tab stop so the whole menu is a single stop in the page's tab order.

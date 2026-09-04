@@ -77,7 +77,11 @@ function wireRowKeys(row: HTMLElement): void {
     const controls = [...row.querySelectorAll<HTMLButtonElement>('.session-open, .row-action')].filter(
       (control) => !control.disabled,
     )
-    const here = controls.indexOf(document.activeElement as HTMLButtonElement)
+    // Narrowed rather than asserted: focus may sit anywhere, and a cast would
+    // claim the control is a button before anything has checked that it is.
+    const active = document.activeElement
+    if (!(active instanceof HTMLButtonElement)) return
+    const here = controls.indexOf(active)
     if (here === -1) return
     const forwards = event.key === (getComputedStyle(row).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')
     const next = controls[here + (forwards ? 1 : -1)]

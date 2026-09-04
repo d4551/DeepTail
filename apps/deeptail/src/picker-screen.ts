@@ -176,7 +176,10 @@ const PHASE_NOTICES: Readonly<Record<Phase['kind'], PickerKey | undefined>> = {
  */
 function phaseNotice(phase: Phase, ctx: PickerContext): string {
   if (phase.kind === 'ready') {
-    return phase.hosts.length === 0 ? ctx.t('status.empty') : ctx.t('sessions.count', { count: phase.hosts.length })
+    // The count is of hosts, not of sessions: announcing it through
+    // `sessions.count` told a reader of the host list that three sessions had
+    // been paired.
+    return phase.hosts.length === 0 ? ctx.t('status.empty') : ctx.t('picker.hostCount', { count: phase.hosts.length })
   }
   const key = PHASE_NOTICES[phase.kind]
   return key === undefined ? '' : ctx.t(key)

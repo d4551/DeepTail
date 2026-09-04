@@ -114,6 +114,25 @@ it('does not let a failed stale read tear down the newest read’s buffer', asyn
   expect(rows(store)).toEqual(['s-live', 's-old'])
 })
 
+it('carries an event held by a superseded read into the read that replaced it', async () => {
+  const first = deferredHost()
+  const second = deferredHost()
+  let next = first
+  const store = createFleetStore(HOSTS, { apiFor: () => next.api })
+  const stale = store.refresh('dev-1')
+  // The event arrives while the first read is in flight. The second read that
+  // starts afterwards must not reset the buffer that holds it: the newest
+  // read's snapshot can still be older than the event.
+  store.applyEvent('dev-1', 'api-session/added', [session('s-live', 3)])
+  next = second
+  const fresh = store.refresh('dev-1')
+  first.settle([session('s-stale', 1)])
+  await stale
+  second.settle([session('s-old', 2)])
+  await fresh
+  expect(rows(store)).toEqual(['s-live', 's-old'])
+})
+
 it('removes a row on a forwarded removal and reports the running flag', async () => {
   const host = deferredHost()
   const store = createFleetStore(HOSTS, { apiFor: () => host.api })
@@ -135,11 +154,11 @@ it('notifies the subscribers it had, not the ones a notification adds', () => {
   // time is never finished being told about one change. The ceiling is only so
   // that a store which does that ends the test rather than the process.
   let calls = 0
-  const holder = { drop: (): void => {} }
+  let drop: (() => void) | undefined
   const rebuild = (): void => {
-    holder.drop = store.subscribe(() => {
+    drop = store.subscribe(() => {
       calls += 1
-      holder.drop()
+      drop?.()
       if (calls < 20) rebuild()
     })
   }

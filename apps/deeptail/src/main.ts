@@ -24,8 +24,8 @@ import { button, el } from './ui/dom.ts'
 import { mountShell } from './ui/shell.ts'
 
 const mount = document.querySelector('#root')
-// Narrowed rather than asserted: the generic form of `querySelector` is a cast,
-// and a `#root` that is not an element would fail later and further away.
+// Narrowed rather than asserted: the generic form of `querySelector` would
+// narrow nothing, and a `#root` that is not an element fails at the mount.
 if (!(mount instanceof HTMLElement)) throw new Error('deeptail: missing #root')
 const container: HTMLElement = mount
 
@@ -169,7 +169,7 @@ async function openSession(host: HostRecord): Promise<void> {
   await boot.then(() => (opening = false))
 }
 
-/** Pair a host, then come back to the control plane over the new registry. */
+/** Pair a host, then mount the control plane over the registry as it now stands. */
 async function pairAnother(repairing?: string): Promise<void> {
   await clearPage()
   await renderHostPicker(container, undefined, undefined, repairing)

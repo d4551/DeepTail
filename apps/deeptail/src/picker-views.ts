@@ -44,9 +44,9 @@ interface ListContext extends PickerContext {
  * choose between, so the screen is the pairing call to action rather than an
  * empty list beside a button.
  *
- * The tailnet stands beside it rather than under it: with nothing paired, a
- * viewer who runs Tailscale has a list of their own machines to choose from and
- * a viewer who does not has a link to paste, and neither is the fallback.
+ * The tailnet stands beside it: with nothing paired, a viewer who runs
+ * Tailscale has a list of their own machines to choose from and a viewer who
+ * does not has a link to paste; either path starts from this screen.
  * @param t - copy source.
  * @param onPair - what the pairing call to action does.
  * @param onTailnet - what the tailnet call to action does.

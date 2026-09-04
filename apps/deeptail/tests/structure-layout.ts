@@ -119,4 +119,46 @@ function checkOverlappingTargets(add: Report, limits: { readonly interactive: st
   }
 }
 
-export { checkClipping, checkHorizontalOverflow, checkNestedScroll, checkOverlappingTargets, scrolls }
+/** What the pointer checks measure against, as the caller hands it to the page. */
+interface PointerLimits {
+  /** The smallest target this pointer admits, in CSS pixels. */
+  readonly target: number
+  /** Elements that take focus or activation without a `tabindex`. */
+  readonly interactive: string
+}
+
+/**
+ * Every control a finger reaches clears the platform minimum.
+ * @param add - collects a finding.
+ * @param limits - what the checks measure against.
+ */
+function checkTouchTargets(add: Report, limits: PointerLimits): void {
+  const floor = limits.target
+  for (const node of document.querySelectorAll(limits.interactive)) {
+    // An inert subtree is not reachable, so its geometry is not a target.
+    if (node.closest('[inert]') !== null) continue
+    if (!(node as HTMLElement).checkVisibility()) continue
+    const box = node.getBoundingClientRect()
+    // A control that is shown and takes focus but paints nothing is unreachable
+    // in fact: the operator cannot aim at what occupies no pixels.
+    if (box.width === 0 && box.height === 0) {
+      add('target-collapsed', `${describe(node)} takes focus but paints no box`)
+      continue
+    }
+    if (box.height < floor || box.width < floor) {
+      add(
+        'target-size',
+        `${describe(node)} is ${String(Math.round(box.width))}x${String(Math.round(box.height))}, under ${String(floor)}`,
+      )
+    }
+  }
+}
+
+export {
+  checkClipping,
+  checkHorizontalOverflow,
+  checkNestedScroll,
+  checkOverlappingTargets,
+  checkTouchTargets,
+  scrolls,
+}

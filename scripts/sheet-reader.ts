@@ -16,6 +16,9 @@ const COMMENTS = /\/\*[\s\S]*?\*\//gu
 /** A rule: its selector list, and the declarations between its braces. */
 const RULE = /([^{}]+)\{([^{}]*)\}/gu
 
+/** A class selector: a dot and the compound token that names the class. */
+const CLASS_TOKEN = /\.([a-zA-Z][a-zA-Z0-9-]*)/gu
+
 /**
  * The sheet with its comments blanked out, offsets preserved.
  *
@@ -108,4 +111,25 @@ export function rulesetsOf(text: string): Ruleset[] {
     rules.push({ selector, body, line: blanked.slice(0, at).split('\n').length })
   }
   return rules
+}
+
+/**
+ * Every class name a sheet's selectors name.
+ *
+ * The set is the shipped class vocabulary: the one place a class is given
+ * meaning. A class a stylesheet never names carries no style and no reviewer,
+ * so markup or script that writes one is shipping a decision outside the
+ * design system.
+ * @param text - the sheet's contents.
+ * @returns the class names, in the order first written, duplicates removed.
+ */
+export function classTokensOf(text: string): string[] {
+  const found: string[] = []
+  for (const rule of rulesetsOf(text)) {
+    for (const match of rule.selector.matchAll(CLASS_TOKEN)) {
+      const token = match[1]
+      if (token !== undefined && !found.includes(token)) found.push(token)
+    }
+  }
+  return found
 }

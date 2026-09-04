@@ -79,11 +79,18 @@ impl HostRecord {
 }
 
 /// Whether a URL host names the local loopback interface.
+///
+/// `Url::host_str` brackets IPv6 hosts, so the brackets are stripped before
+/// the address parse; the name form is compared on its own.
 fn is_loopback(host: &str) -> bool {
-    if host == "localhost" || host == "[::1]" {
+    let bare = host
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+        .unwrap_or(host);
+    if bare == "localhost" {
         return true;
     }
-    host.parse::<std::net::IpAddr>()
+    bare.parse::<std::net::IpAddr>()
         .is_ok_and(|ip| ip.is_loopback())
 }
 
@@ -104,6 +111,14 @@ mod tests {
         assert_eq!(
             HostRecord::canonical_origin("http://127.0.0.1:3080").unwrap(),
             "http://127.0.0.1:3080"
+        );
+    }
+
+    #[test]
+    fn accepts_plaintext_ipv6_loopback() {
+        assert_eq!(
+            HostRecord::canonical_origin("http://[::1]:3080").unwrap(),
+            "http://[::1]:3080"
         );
     }
 

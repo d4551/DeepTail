@@ -11,8 +11,9 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::hosts::HostRecord;
 
 /// One event from the host's Remote stream mux, shaped so the page-side
-/// adapter can present it as an ordinary `WebSocket` to the harness's own mux
-/// client. The harness protocol is text-only, so binary frames never appear.
+/// WebSocket view can present it as an ordinary `WebSocket` to the harness's
+/// own mux client. The harness protocol is text-only, so binary frames never
+/// appear.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MuxFrame {
@@ -71,7 +72,7 @@ impl MuxRegistry {
 
         let _ = channel.send(MuxFrame::Open);
 
-        // Outbound: whatever the page-side adapter sends.
+        // Outbound: whatever the page-side WebSocket view sends.
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 if write.send(message).await.is_err() {

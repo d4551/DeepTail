@@ -25,7 +25,7 @@ const DARK_QUERY = '(prefers-color-scheme: dark)'
  * A `system` preference is a subscription, not a reading: resolved once at
  * boot, switching the OS to dark left a long-running window in the light
  * palette — and its `theme-color` stale — until it was restarted. The listener
- * is replaced on each call, so a later explicit choice drops it.
+ * is replaced on each call, so an explicit choice ends the subscription.
  * @param preference - the viewer's choice.
  */
 export function applyTheme(preference: ThemePreference = 'system'): void {

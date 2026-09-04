@@ -88,8 +88,8 @@ function pairRefusal(typed: string, composed: string, origin: string | undefined
 /**
  * Pair the host the draft describes, and finish with it.
  *
- * Both refusals come back to the form still holding what was typed, so a
- * mistyped link costs a correction rather than the whole paste.
+ * Both refusals keep the typed draft in place, so a mistyped link is
+ * corrected, not re-pasted.
  * @param run - what pairing needs from the picker.
  * @param hosts - the roster the form was opened over.
  * @param draft - what the viewer typed.

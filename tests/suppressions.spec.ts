@@ -1,82 +1,44 @@
 /**
- * The lists that can silence a finding.
+ * The lists that can silence a finding, held empty.
  *
- * Each of these can hide a real defect, so each is pinned rather than merely
- * present: growing one has to be a deliberate edit to this file.
+ * A suppression list that can grow by accident is a defect hiding behind
+ * configuration, so each is pinned to its empty shape here: the only way one
+ * reappears is a deliberate edit to this test.
  */
 
 import { expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 
 /**
- * Assert that every list capable of silencing a finding still holds exactly
- * what it was agreed to hold, so growing one has to be a deliberate edit here.
+ * Assert that no checker configuration silences a finding.
  */
-async function expectSuppressionListsUnchanged(): Promise<void> {
-  // Each of these can silence a real finding, so each is pinned rather than
-  // merely present: growing one has to be a deliberate edit to this test.
+async function expectNoSuppressionLists(): Promise<void> {
   const knip = JSON.parse(await readFile('knip.json', 'utf8')) as {
     workspaces?: Record<string, { ignoreDependencies?: string[] }>
   }
-  expect(knip.workspaces?.['apps/deeptail']?.ignoreDependencies ?? []).toEqual([
-    'react',
-    'react-dom',
-    '@deepseek-ai/dsh-client-store',
-    '@deepseek-ai/dsh-client-ui-primitives',
-    '@deepseek-ai/dsh-client-ui-slots',
-  ])
   for (const [name, workspace] of Object.entries(knip.workspaces ?? {})) {
-    if (name === 'apps/deeptail') continue
     expect([name, workspace.ignoreDependencies]).toEqual([name, undefined])
   }
-  await expectIgnoredDependenciesAreSuppliedToTheClient(knip.workspaces?.['apps/deeptail']?.ignoreDependencies ?? [])
 
+  // The linter config's rule groups are string maps, and the top-level `rules`
+  // object also carries the preset name as a string — both shapes are named so
+  // nothing widens to an unreadable bag.
   const biome = JSON.parse(await readFile('biome.json', 'utf8')) as {
     files?: { includes?: string[] }
-    linter?: { enabled?: boolean; rules?: Record<string, unknown> }
-    overrides?: unknown
+    linter?: { enabled?: boolean; rules?: Record<string, string | Record<string, string>> }
+    overrides?: object
   }
   expect(biome.overrides).toBeUndefined()
   expect(biome.files?.includes ?? []).toEqual(['**', '!**/dist', '!**/lib', '!**/gen', '!**/target', '!**/*.min.js'])
-  // A rule set to `off`, or a preset dropped, is a check removed rather than
-  // satisfied. The type was read here and never asserted on.
   const rules = biome.linter?.rules ?? {}
   expect(rules.preset).toBe('recommended')
   const levels = Object.values(rules).flatMap((group) =>
-    typeof group === 'object' && group !== null ? Object.values(group as Record<string, unknown>) : [group],
+    typeof group === 'object' && group !== null ? Object.values(group) : [group],
   )
   expect(levels.filter((level) => level === 'off')).toEqual([])
   expect(biome.linter?.enabled).not.toBe(false)
 }
 
-/**
- * Assert that nothing sits in knip's ignore list on its own say-so.
- *
- * These are the modules the harness client leaves for the host application to
- * supply: it builds against them and externalises them, so they are declared
- * here, resolved at runtime, and imported by nothing in this repository. That
- * is a fact about the client's manifest rather than a claim, so it is read
- * from the client's manifest — a name that cannot be found there is a name
- * that has no business being excused.
- * @param ignored - the names the ignore list holds.
- */
-async function expectIgnoredDependenciesAreSuppliedToTheClient(ignored: readonly string[]): Promise<void> {
-  const client = JSON.parse(
-    await readFile('apps/deeptail/node_modules/@deepseek-ai/dsh-client-web/package.json', 'utf8'),
-  ) as Record<string, Record<string, string> | undefined>
-  const externalised = new Set(
-    ['dependencies', 'devDependencies', 'peerDependencies'].flatMap((kind) => Object.keys(client[kind] ?? {})),
-  )
-  expect(ignored.filter((name) => !externalised.has(name))).toEqual([])
-  expect(ignored.length).toBeGreaterThan(0)
-
-  const app = JSON.parse(await readFile('apps/deeptail/package.json', 'utf8')) as {
-    dependencies?: Record<string, string>
-  }
-  // A name excused but no longer declared is a stale excuse.
-  expect(ignored.filter((name) => app.dependencies?.[name] === undefined)).toEqual([])
-}
-
-it('keeps every suppression list at its agreed contents', async () => {
-  await expectSuppressionListsUnchanged()
+it('keeps every suppression list empty', async () => {
+  await expectNoSuppressionLists()
 })

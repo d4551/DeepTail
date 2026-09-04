@@ -6,13 +6,11 @@
  * @module @deeptail/host-fleet/tools-observe
  */
 
-import type { Context } from '@deepseek-ai/cordis'
-import type { SessionController } from '@deepseek-ai/dsh-api-session-controller'
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { FleetLimits } from './limits.ts'
 import { admitSessionId } from './session-access.ts'
 import { recentLines, summarize } from './session-projection.ts'
-import type { FleetSessionSummary } from './types.ts'
+import type { FleetContext, FleetController, FleetSessionSummary } from './types.ts'
 
 /** One listed session as the `sessions_list` renderer reads it. */
 interface ReportedSession {
@@ -29,7 +27,7 @@ interface ReportedSession {
  * @param controller - host session API that owns the session list.
  * @param limits - resolved deployment limits supplying the default row budget.
  */
-export function registerSessionsList(ctx: Context, controller: SessionController, limits: FleetLimits): void {
+export function registerSessionsList(ctx: FleetContext, controller: FleetController, limits: FleetLimits): void {
   ctx.effect(() => ctx.tools.register(sessionsListTool(controller, limits)), 'host-fleet: sessions_list')
 }
 
@@ -39,7 +37,7 @@ export function registerSessionsList(ctx: Context, controller: SessionController
  * @param limits - resolved deployment limits supplying the default row budget.
  * @returns the registry-ready definition.
  */
-function sessionsListTool(controller: SessionController, limits: FleetLimits): ToolDefinition {
+function sessionsListTool(controller: FleetController, limits: FleetLimits): ToolDefinition {
   return defineTool({
     name: 'sessions_list',
     description:
@@ -95,7 +93,7 @@ function sessionsListTool(controller: SessionController, limits: FleetLimits): T
  * @returns the projected rows, and how many sessions matched before the budget.
  */
 async function listSessions(
-  controller: SessionController,
+  controller: FleetController,
   limits: FleetLimits,
   args: { readonly runningOnly?: boolean; readonly limit?: number },
   signal: AbortSignal,
@@ -145,7 +143,7 @@ interface FollowedSession {
  * @param ctx - host context carrying `tools`.
  * @param controller - host session API that owns session follow streams.
  */
-export function registerSessionsFollow(ctx: Context, controller: SessionController): void {
+export function registerSessionsFollow(ctx: FleetContext, controller: FleetController): void {
   ctx.effect(() => ctx.tools.register(sessionsFollowTool(controller)), 'host-fleet: sessions_follow')
 }
 
@@ -154,7 +152,7 @@ export function registerSessionsFollow(ctx: Context, controller: SessionControll
  * @param controller - host session API that owns session follow streams.
  * @returns the registry-ready definition.
  */
-function sessionsFollowTool(controller: SessionController): ToolDefinition {
+function sessionsFollowTool(controller: FleetController): ToolDefinition {
   return defineTool({
     name: 'sessions_follow',
     description:
@@ -190,7 +188,7 @@ function sessionsFollowTool(controller: SessionController): ToolDefinition {
  * @returns the snapshot cut and the tail of its window.
  */
 async function readSessionSnapshot(
-  controller: SessionController,
+  controller: FleetController,
   args: { readonly sessionId: string; readonly maxMessages?: number },
   signal: AbortSignal,
 ): Promise<FollowedSession> {

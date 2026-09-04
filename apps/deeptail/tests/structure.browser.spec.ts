@@ -3,10 +3,11 @@
  *
  * These are the defects a WCAG rule engine does not report: an interactive
  * element nested inside another, a heading level skipped, an ARIA reference
- * pointing at nothing, an item outside its list, or a label clipped by its box.
- * The checks run in the page, so they see the computed layout rather than the
- * markup that produced it. What a finger has to reach, and what scrolls inside
- * what, is measured in structure-geometry.browser.spec.ts.
+ * pointing at nothing, an item outside its list, a class outside the shipped
+ * vocabulary, or a label clipped by its box. The checks run in the page, so
+ * they see the computed layout rather than the markup that produced it. What a
+ * finger has to reach, and what scrolls inside what, is measured in
+ * structure-geometry.browser.spec.ts.
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
@@ -137,6 +138,73 @@ it('has no structural defects with a row action revealed', async () => {
   // pointer they were never measured at all — a 0x0 box is not a target.
   await page.locator('[data-deeptail-session="s-running"] .session-open').first().focus()
   await page.locator('[data-deeptail-action="row-message"]').first().waitFor({ state: 'visible' })
+  expect(await defects(page)).toBe('')
+  await page.close()
+})
+
+/** Plant one element in a container, as the page itself would draw it. */
+const PLANT_STRANGERS = `(() => {
+  const stranger = document.createElement('div')
+  stranger.className = 'btn p-4'
+  stranger.dataset.deeptailProbe = 'stranger'
+  document.querySelector('[data-deeptail-shell]').append(stranger)
+  const outsider = document.createElement('div')
+  outsider.className = 'btn p-4'
+  outsider.dataset.deeptailProbe = 'outsider'
+  document.body.append(outsider)
+})()`
+
+/** Drop the probe element a previous evaluation planted. */
+const DROP = (probe: string): string => `(() => {
+  document.querySelector('[data-deeptail-probe="${probe}"]')?.remove()
+  return document.querySelector('[data-deeptail-probe="${probe}"]') === null
+})()`
+
+it('reports a class the shipped vocabulary does not define, and only inside the product', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  // A foreign utility vocabulary (`btn`, `p-4`) is the shape this refusal
+  // exists for: a styling decision made outside the design system, on an
+  // element the product itself drew.
+  await page.evaluate(PLANT_STRANGERS)
+  const found = await defects(page)
+  expect(found).toContain('unknown-class')
+  expect(found).toContain('"btn"')
+  expect(found).toContain('"p-4"')
+  // The vocabulary is this product's law, not the document's: the harness
+  // client styles its own UI with classes no sheet here names, so the same
+  // classes outside the product's surfaces are somebody else's markup and no
+  // refusal of theirs.
+  expect(await page.evaluate<boolean>(DROP('outsider'))).toBe(true)
+  const stillFound = await defects(page)
+  expect(stillFound).toContain('unknown-class')
+  expect(await page.evaluate<boolean>(DROP('stranger'))).toBe(true)
+  expect(await defects(page)).toBe('')
+  await page.close()
+})
+
+/** Paint a focusable button away to nothing, as a layout accident would. */
+const PLANT_COLLAPSED = `(() => {
+  const gone = document.createElement('button')
+  gone.textContent = 'vanished'
+  gone.dataset.deeptailProbe = 'collapsed'
+  gone.style.width = '0'
+  gone.style.height = '0'
+  gone.style.padding = '0'
+  gone.style.border = 'none'
+  document.querySelector('[data-deeptail-shell]').append(gone)
+})()`
+
+it('reports an interactive control that takes focus but paints no box', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  // A collapsed control is the reachable-but-unaimable defect: in the tab
+  // order, announced, and impossible to point at. The fixture paints itself
+  // away in the page, because the point is what the box measures at runtime.
+  await page.evaluate(PLANT_COLLAPSED)
+  const found = await defects(page)
+  expect(found).toContain('target-collapsed')
+  expect(await page.evaluate<boolean>(DROP('collapsed'))).toBe(true)
   expect(await defects(page)).toBe('')
   await page.close()
 })

@@ -3,7 +3,7 @@
  *
  * Follows the harness's `Modal` primitive: portalled to `document.body`, named
  * by its own heading, masked, and closed on `Escape` by a listener installed
- * only while it is open. Every sibling of the dialog's own wrapper is made
+ * only while it is open. Every sibling of the dialog's own root is made
  * `inert` for its lifetime — the harness's `OnboardingSurface` trick, widened:
  * `#root` alone left the return bar, which is a `document.body` sibling, in the
  * tab order behind the mask. With the rest of the document out of the tree
@@ -12,7 +12,7 @@
  * @module
  */
 
-import { el } from './dom.ts'
+import { type Disposer, el } from './dom.ts'
 
 /** The id the open dialog's heading carries, which names the dialog. */
 const HEADING_ID = 'deeptail-dialog-title'
@@ -31,7 +31,7 @@ export interface Dialog {
 
 /** The dialog's parts, before any of them reach the page. */
 interface DialogFrame {
-  /** The portalled wrapper holding the mask and the dialog. */
+  /** The portalled root holding the mask and the dialog. */
   readonly root: HTMLElement
   /** The backdrop, which closes the dialog when it is clicked. */
   readonly mask: HTMLElement
@@ -46,7 +46,7 @@ interface DialogFrame {
 /**
  * Build the dialog's structure.
  *
- * The wrapper is presentational and the mask is hidden, so the one thing
+ * The root is presentational and the mask is hidden, so the one thing
  * assistive technology finds inside is the named `role="dialog"`.
  * @param title - accessible name and visible heading.
  * @returns the parts to mount and fill.
@@ -78,10 +78,10 @@ function buildDialogFrame(title: string): DialogFrame {
  * return bar the shell appends beside it: `aria-modal` hides a sibling from
  * assistive technology and leaves it in the tab order, so a keyboard user could
  * still reach a control behind the mask.
- * @param root - the dialog's own wrapper, which stays live.
+ * @param root - the dialog's own root, which stays live.
  * @returns a call that puts every sibling back.
  */
-function inertSiblings(root: HTMLElement): () => void {
+function inertSiblings(root: HTMLElement): Disposer {
   const held = [...document.body.children].filter(
     (node): node is HTMLElement => node instanceof HTMLElement && node !== root && !node.inert,
   )
@@ -103,7 +103,7 @@ export function openDialog(title: string): Dialog {
   // remembered or a keyboard user is returned to the top of the document.
   const opener = document.activeElement
   let closed = false
-  let restore: (() => void) | undefined
+  let restore: Disposer | undefined
 
   const close = (): void => {
     if (closed) return

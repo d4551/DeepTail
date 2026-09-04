@@ -43,7 +43,7 @@ export class RemoteError extends Error {
   /**
    * @param failureCode - the host's failure code.
    * @param failureMessage - the host's message.
-   * @param failureDetails - the host's failure context, when it sent any.
+   * @param failureDetails - anything else the host included with the failure.
    */
   constructor(failureCode: string, failureMessage: string, failureDetails: WireObject = {}) {
     super(failureMessage)
@@ -57,7 +57,8 @@ export class RemoteError extends Error {
  * One session as the roster lists it.
  *
  * A type alias rather than an interface: an alias carries the implicit index
- * signature that lets a row travel as a wire value without a cast.
+ * signature that lets a row travel as a wire value without a narrowing
+ * assertion.
  */
 export type SessionSummary = {
   readonly sessionId: string

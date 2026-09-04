@@ -34,11 +34,11 @@ interface BootReadyGlobal {
 }
 
 /**
- * Install the page boot barrier the shell entry awaits before it reads any
- * global. Idempotent: a shell entry evaluating concurrently in this document
- * must observe the same deferred, not a second one. The key lives no longer
- * than the boot that installed it, so each attempt starts from an unsettled
- * barrier rather than inheriting the previous one's outcome.
+ * Install the page gate the shell entry watches before it reads any global.
+ * Idempotent: a shell entry evaluating concurrently in this document must
+ * observe the same deferred, not a second one. The key is removed when the
+ * boot that installed it finishes, so every attempt starts from an unsettled
+ * gate.
  */
 function bootReadyGate(): PromiseWithResolvers<void> {
   const page = globalThis as BootReadyGlobal

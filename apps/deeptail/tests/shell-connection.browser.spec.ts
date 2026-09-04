@@ -91,6 +91,24 @@ it('walks every menu item with the arrow keys and is one stop in the tab order',
   await page.close()
 })
 
+it('keeps the operator on their row when a fleet event repaints the open menu', async () => {
+  const page = await harness.open(fleet({ muxHosts: HOSTS.map((host) => host.id) }))
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  await page.keyboard.press('ArrowDown')
+  expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toContain('Lab box')
+  // A forwarded event repaints the switcher — the roster's own rebuild keeps
+  // focus by row, and the menu owes the operator the same rather than yanking
+  // them back to the first host every time a row arrives.
+  await harness.forward(page, 'api-session/added', [
+    { sessionId: 's-arrived', updatedAt: Date.now(), running: false, blank: false },
+  ])
+  await page.waitForSelector('[data-deeptail-session="s-arrived"]')
+  expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toContain('Lab box')
+  await page.close()
+})
+
 it('takes the rows the open menu covers out of play', async () => {
   const page = await harness.open(fleet())
   await page.waitForSelector('[data-deeptail-shell]')

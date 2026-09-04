@@ -50,8 +50,8 @@ export const tauriPorts: PickerPorts = {
     if (!held.ok) return 'unauthorized'
     // Whether the host answers is a different question, and the dot claims to
     // report it. Without this read every unreachable host — a sleeping laptop,
-    // a dropped network — was drawn as needing to be re-paired, which throws
-    // away a working pairing to fix something that is not broken.
+    // a dropped network — would be drawn as needing to be re-paired, which
+    // spends a working pairing on a host that is simply down.
     const reached = await settled(createHostApi(createCarrier(host.id)).listSessions())
     if (reached.ok) return 'online'
     return probeState(reached.code)

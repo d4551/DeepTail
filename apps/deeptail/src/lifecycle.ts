@@ -4,9 +4,9 @@
  * Mobile operating systems suspend an app's process: iOS stops executing code
  * in the Suspended state and Android's Doze suspends timers and TCP keepalives.
  * A mux socket does not survive that, and one the OS killed silently looks open
- * until the first failed send. So the socket is closed through its adapter on
- * the way out, which the harness stream client observes as a lost generation
- * and answers with its own reconnect and cursor catch-up.
+ * until the first failed send. So the socket is closed through its WebSocket
+ * view on the way out, which the harness stream client observes as a lost
+ * generation and answers with its own reconnect and cursor catch-up.
  *
  * @module
  */

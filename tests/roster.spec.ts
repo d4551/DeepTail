@@ -50,7 +50,21 @@ describe('a session the host announces', () => {
   })
 
   it('is ignored when the payload is not a summary', () => {
-    for (const payload of [undefined, null, 'a', 42, {}, { sessionId: 'x' }, { updatedAt: 1 }]) {
+    for (const payload of [
+      undefined,
+      null,
+      'a',
+      42,
+      {},
+      { sessionId: 'x' },
+      { updatedAt: 1 },
+      // The host's own summary declares `running` and `blank` required, so a
+      // row that omits them or carries them mistyped is not a summary.
+      { sessionId: 'x', updatedAt: 1 },
+      { sessionId: 'x', updatedAt: 1, running: true },
+      { sessionId: 'x', updatedAt: 1, running: 'yes', blank: false },
+      { sessionId: 'x', updatedAt: 1, running: false, blank: 'no' },
+    ]) {
       expect(reading(HELD, 'api-session/added', [payload])).toBe('ignore')
     }
   })

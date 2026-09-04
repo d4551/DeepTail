@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { rulesetsOf } from '../scripts/sheet-reader.ts'
+import { classTokensOf, rulesetsOf } from '../scripts/sheet-reader.ts'
 
 describe('the ruleset reader', () => {
   it('reads a rule as its selector and its declarations, whitespace and all', () => {
@@ -19,5 +19,28 @@ describe('the ruleset reader', () => {
     expect(rulesetsOf('/* .a { color: red } */\n.b { color: blue; }')).toEqual([
       { selector: '.b', body: 'color: blue;', line: 2 },
     ])
+  })
+})
+
+describe('the class-vocabulary reader', () => {
+  it('reads every class a selector compounds, once each', () => {
+    expect(classTokensOf('.row.session-open:hover, .dialog .row-action:focus { color: red; }')).toEqual([
+      'row',
+      'session-open',
+      'dialog',
+      'row-action',
+    ])
+  })
+
+  it('reads no class out of a comment, so prose cannot widen the vocabulary', () => {
+    expect(classTokensOf('/* .ghost is not a class */\n.real { color: blue; }')).toEqual(['real'])
+  })
+
+  it('reads none out of a declaration value, which styles nothing', () => {
+    expect(classTokensOf('.a { content: ".b .c"; }')).toEqual(['a'])
+  })
+
+  it('reads none where no rule exists at all', () => {
+    expect(classTokensOf('@layer base { :root { --x: 1; } }')).toEqual([])
   })
 })

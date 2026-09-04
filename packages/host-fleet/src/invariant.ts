@@ -3,8 +3,8 @@
  * @module @deeptail/host-fleet/invariant
  */
 
-import type { Context } from '@deepseek-ai/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
+import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
+import type { InvariantContext } from './types.ts'
 
 const PACKAGE_NAME = '@deeptail/host-fleet'
 
@@ -24,15 +24,15 @@ const TOOLS = ['sessions_list', 'sessions_spawn', 'sessions_send', 'sessions_can
  * leaves an agent believing it can reach the fleet when it cannot. That is not
  * visible from inside the registering code, which is why it is checked here.
  */
-const install: InvariantInstaller = (ctx: Context, fail: InvariantFailure): void => {
+const install: InvariantInstaller = (ctx: InvariantContext, fail) => {
   const missing = TOOLS.filter((tool) => ctx.tools.get(tool) === undefined)
   if (missing.length > 0) fail(`${PACKAGE_NAME}: ${missing.join(', ')} did not register`)
 }
 
 /**
  * Register this package's invariant companion.
- * @param ctx - Cordis context carrying the invariant service.
+ * @param ctx - host context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-export const apply = (ctx: Context): Promise<() => void> =>
+export const apply = (ctx: InvariantContext): Promise<() => unknown> =>
   Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install))

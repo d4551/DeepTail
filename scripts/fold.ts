@@ -69,13 +69,29 @@ export function staticString(env: Constants, node: Field | undefined): string | 
       return foldConcatenation(env, folded)
     case 'CallExpression':
       return foldCall(env, folded)
-    case 'TSAsExpression':
-    case 'TSSatisfiesExpression':
-    case 'TSNonNullExpression':
-      return staticString(env, folded.expression)
     default:
       return undefined
   }
+}
+
+/**
+ * A template's cooked quasis and the expressions sitting between them.
+ * @param node - the template literal.
+ * @returns the parts, or undefined when the tree does not carry them.
+ */
+function templateParts(
+  node: Node,
+): { readonly cooked: readonly string[]; readonly expressions: readonly Field[] } | undefined {
+  const quasis = node.quasis
+  const expressions = node.expressions
+  if (!Array.isArray(quasis) || !Array.isArray(expressions)) return undefined
+  const cooked: string[] = []
+  for (const quasi of quasis) {
+    const text = fieldOf(fieldOf(quasi, 'value'), 'cooked')
+    if (typeof text !== 'string') return undefined
+    cooked.push(text)
+  }
+  return { cooked, expressions }
 }
 
 /**
@@ -85,16 +101,13 @@ export function staticString(env: Constants, node: Field | undefined): string | 
  * @returns the string, or undefined.
  */
 function foldTemplate(env: Constants, node: Node): string | undefined {
-  const quasis = node.quasis
-  const expressions = node.expressions
-  if (!Array.isArray(quasis) || !Array.isArray(expressions)) return undefined
+  const parts = templateParts(node)
+  if (parts === undefined) return undefined
   let text = ''
-  for (const [index, quasi] of quasis.entries()) {
-    const cooked = fieldOf(fieldOf(quasi, 'value'), 'cooked')
-    if (typeof cooked !== 'string') return undefined
+  for (const [index, cooked] of parts.cooked.entries()) {
     text += cooked
-    if (index >= expressions.length) continue
-    const part = staticString(env, expressions[index])
+    if (index >= parts.expressions.length) continue
+    const part = staticString(env, parts.expressions[index])
     if (part === undefined) return undefined
     text += part
   }
@@ -228,10 +241,6 @@ export function approximateString(env: Constants, node: Field | undefined): stri
       return read.operator === '+'
         ? `${approximateString(env, read.left) ?? UNREADABLE}${approximateString(env, read.right) ?? UNREADABLE}`
         : undefined
-    case 'TSAsExpression':
-    case 'TSSatisfiesExpression':
-    case 'TSNonNullExpression':
-      return approximateString(env, read.expression)
     default:
       return undefined
   }
@@ -244,15 +253,12 @@ export function approximateString(env: Constants, node: Field | undefined): stri
  * @returns the approximation, or undefined when its parts are not readable.
  */
 function approximateTemplate(env: Constants, node: Node): string | undefined {
-  const quasis = node.quasis
-  const expressions = node.expressions
-  if (!Array.isArray(quasis) || !Array.isArray(expressions)) return undefined
+  const parts = templateParts(node)
+  if (parts === undefined) return undefined
   let text = ''
-  for (const [index, quasi] of quasis.entries()) {
-    const cooked = fieldOf(fieldOf(quasi, 'value'), 'cooked')
-    if (typeof cooked !== 'string') return undefined
+  for (const [index, cooked] of parts.cooked.entries()) {
     text += cooked
-    if (index < expressions.length) text += approximateString(env, expressions[index]) ?? UNREADABLE
+    if (index < parts.expressions.length) text += approximateString(env, parts.expressions[index]) ?? UNREADABLE
   }
   return text
 }

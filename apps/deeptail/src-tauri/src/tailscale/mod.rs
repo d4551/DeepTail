@@ -13,5 +13,8 @@
 pub mod api;
 pub mod net;
 
+#[cfg(test)]
+mod tests;
+
 pub use api::{Credential, DEFAULT_TAILNET, TailnetDevice, TailscaleClient};
 pub use net::is_tailnet_host;
