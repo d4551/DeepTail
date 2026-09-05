@@ -11,9 +11,10 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { fleet, oneHost } from './fixtures.ts'
+import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
 import { defects, isDrawerLayout, VIEWPORTS } from './structure-page.ts'
+import { openShell } from './surfaces.ts'
 
 let harness: Harness
 
@@ -28,9 +29,8 @@ afterAll(async () => {
 it('has no structural defects on the roster at any width', async () => {
   const checked = await Promise.all(
     VIEWPORTS.map(async (viewport) => {
-      const page = await harness.open(fleet())
+      const page = await openShell(harness)
       await page.setViewportSize({ width: viewport.width, height: viewport.height })
-      await page.waitForSelector('[data-deeptail-shell]')
       await page
         .locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]')
         .waitFor({ state: 'attached' })
@@ -43,8 +43,7 @@ it('has no structural defects on the roster at any width', async () => {
 })
 
 it('has no structural defects with the connection menu open', async () => {
-  const page = await harness.open(fleet())
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openShell(harness)
   await page.locator('[data-deeptail-connection="trigger"]').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
   expect(await defects(page)).toBe('')
@@ -76,8 +75,7 @@ it('has no structural defects on the picker', async () => {
 })
 
 it('has no structural defects with the document direction reversed', async () => {
-  const page = await harness.open(fleet(), { direction: 'rtl' })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openShell(harness, {}, { direction: 'rtl' })
   await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'attached' })
   // Layout is flow-relative, so reversing the direction must not overflow the
   // viewport or clip a label. This is what a right-to-left locale meets.
@@ -91,9 +89,8 @@ it('has no structural defects on any failure state, at every width', async () =>
   // in it was the one surface no structural check had seen.
   const checked = await Promise.all(
     VIEWPORTS.map(async (viewport) => {
-      const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }))
+      const page = await openShell(harness, { remoteErrors: { 'lab-2:session/list': 'roster unavailable' } })
       await page.setViewportSize({ width: viewport.width, height: viewport.height })
-      await page.waitForSelector('[data-deeptail-shell]')
       // Below the drawer breakpoint the roster — and the strip in it — is
       // inside the closed drawer, so it is on screen only once the drawer is
       // open. The layout decides that at this width, not the fixture.
@@ -132,8 +129,7 @@ it('has no structural defects on a pairing form that refused what was typed', as
 })
 
 it('has no structural defects with a row action revealed', async () => {
-  const page = await harness.open(fleet())
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openShell(harness)
   // The actions are `display: none` until the row is focused, so on a fine
   // pointer they were never measured at all — a 0x0 box is not a target.
   await page.locator('[data-deeptail-session="s-running"] .session-open').first().focus()
@@ -161,8 +157,7 @@ const DROP = (probe: string): string => `(() => {
 })()`
 
 it('reports a class the shipped vocabulary does not define, and only inside the product', async () => {
-  const page = await harness.open(fleet())
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openShell(harness)
   // A foreign utility vocabulary (`btn`, `p-4`) is the shape this refusal
   // exists for: a styling decision made outside the design system, on an
   // element the product itself drew.
@@ -196,8 +191,7 @@ const PLANT_COLLAPSED = `(() => {
 })()`
 
 it('reports an interactive control that takes focus but paints no box', async () => {
-  const page = await harness.open(fleet())
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openShell(harness)
   // A collapsed control is the reachable-but-unaimable defect: in the tab
   // order, announced, and impossible to point at. The fixture paints itself
   // away in the page, because the point is what the box measures at runtime.

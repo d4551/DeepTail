@@ -10,8 +10,9 @@
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
-import { type AnswerTable, type Harness, startHarness, textOf, type Violation } from './harness.ts'
+import { type AnswerTable, type Harness, startHarness, textOf } from './harness.ts'
 import { defects, VIEWPORTS } from './structure-page.ts'
+import { describeViolations } from './surfaces.ts'
 
 let harness: Harness
 
@@ -29,19 +30,6 @@ async function openPicker(extra: Partial<AnswerTable>, mobile = false): Promise<
   const page = await harness.open({ hosts: [], ...extra }, mobile ? { mobile: true } : {})
   await page.waitForSelector('[data-deeptail-picker]')
   return page
-}
-
-/**
- * Render a violation set as a failure message a reader can act on.
- * @param violations - what axe reported.
- * @returns one line per offending node.
- */
-function describeViolations(violations: readonly Violation[]): string {
-  return violations
-    .map(
-      (violation) => `${violation.id} (${violation.impact}): ${violation.help}\n    ${violation.nodes.join('\n    ')}`,
-    )
-    .join('\n  ')
 }
 
 /** Open the connect form: the tailnet with no credential stored. */

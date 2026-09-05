@@ -6,8 +6,8 @@
  * @module @deeptail/host-fleet/types
  */
 
-import type { Context } from '@deepseek-ai/cordis'
 import type { SessionController } from '@deepseek-ai/dsh-api-session-controller'
+import type { InvariantRegistry } from '@deepseek-ai/dsh-invariants'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ToolRuntime } from '@deepseek-ai/dsh-tools'
 
@@ -23,24 +23,29 @@ export type FleetController = Pick<SessionController, 'list' | 'follow' | 'creat
 /**
  * The context members the fleet tools read, and all they read.
  *
- * `sessionController` is narrowed from the host's full controller to the pick
- * above; the registry and effect surfaces travel as the host declares them, so
- * the real context satisfies this by construction and the suites implement it
- * directly.
+ * `sessionController` narrows to the pick above, and the effect face narrows to
+ * what registration needs: install this now, under this label. The full host
+ * effect returns lifecycle disposals the tools never read, and its overloaded
+ * signature is part of the host's own fiber — the real context is adapted to
+ * this face in `index.ts`, where the host lives.
  */
-export type FleetContext = Pick<Context, 'effect'> & {
+export type FleetContext = {
   readonly sessionController: FleetController
   readonly tools: Pick<ToolRuntime, 'register'>
+  readonly effect: (install: () => ReturnType<ToolRuntime['register']>, label: string) => null
 }
 
 /**
  * The context members the package invariant reads, and all it reads.
  *
- * @see FleetContext for why the registry travels as the host declares it while
- * the tools narrow to the one lookup the check performs.
+ * Both faces narrow to the single member each: the invariant registry's
+ * registration returns a plain disposer, so a test double implements it
+ * directly; the real registry satisfies the pick by construction.
+ * @see FleetContext for why the effect face is not narrowed the same way.
  */
-export type InvariantContext = Pick<Context, 'invariants'> & {
+export type InvariantContext = {
   readonly tools: Pick<ToolRuntime, 'get'>
+  readonly invariants: Pick<InvariantRegistry, 'register'>
 }
 
 /**

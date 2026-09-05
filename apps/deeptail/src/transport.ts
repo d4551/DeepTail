@@ -11,7 +11,13 @@
 
 import { Channel, invoke } from '@tauri-apps/api/core'
 import { messageOf } from './reason.ts'
-import { SOCKET_CLOSED, SOCKET_OPEN } from './socket-state.ts'
+import {
+  SOCKET_CLOSE_ABNORMAL,
+  SOCKET_CLOSE_NORMAL,
+  SOCKET_CLOSED,
+  SOCKET_CONNECTING,
+  SOCKET_OPEN,
+} from './socket-state.ts'
 
 /** One frame from the Rust-held mux socket. */
 type MuxFrame =
@@ -103,7 +109,7 @@ async function carrierLoadBundle(host: string, url: string): Promise<void> {
  * exactly that surface and the protocol itself stays in the harness.
  */
 class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
-  #readyState = 0
+  #readyState = SOCKET_CONNECTING
   readonly #host: string
 
   /**
@@ -155,7 +161,7 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
       // from double-signalling it.
       this.#fail(reason)
     })
-    this.dispatchEvent(new CloseEvent('close', { code: 1000, reason: 'suspended' }))
+    this.dispatchEvent(new CloseEvent('close', { code: SOCKET_CLOSE_NORMAL, reason: 'suspended' }))
   }
 
   /**
@@ -168,7 +174,7 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
     if (this.#readyState === SOCKET_CLOSED) return
     this.#readyState = SOCKET_CLOSED
     this.dispatchEvent(new Event('error'))
-    this.dispatchEvent(new CloseEvent('close', { code: 1006, reason: messageOf(reason) }))
+    this.dispatchEvent(new CloseEvent('close', { code: SOCKET_CLOSE_ABNORMAL, reason: messageOf(reason) }))
   }
 
   #receive(frame: MuxFrame): void {

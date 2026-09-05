@@ -40,6 +40,16 @@ const DRAWN_LENGTHS = new Set(['0px', '1px', '2px', '3px'])
 /** A stacking order written as a bare number. */
 const STACKING = /^-?\d+$/u
 
+/** An `@import` target that pulls a retired framework's pipeline in. */
+const RETIRED_IMPORT =
+  /^["']?@?(?:tailwindcss|daisyui|bootstrap|bulma|foundation-sites|htmx\.org|materialize-css|semantic-ui|uikit|animate\.css|normalize\.css)(?:\/|\.|["';]|$)/iu
+
+/** A URL that loads from outside the shipped bundle, absolute or protocol-relative. */
+const REMOTE_URL = /^(?:https?:)?\/\//iu
+
+/** A `url()` that loads from outside the shipped bundle. */
+const REMOTE_URL_VALUE = /url\(\s*["']?(?:https?:)?\/\//giu
+
 /** A length written as a number of pixels. */
 const PIXELS = /\b\d+px\b/gu
 
@@ -113,6 +123,32 @@ function retiredAtRules(text: string): { readonly rule: string; readonly line: n
   return found
 }
 
+/** One `@import` target, with the line it is written on. */
+interface SheetImport {
+  /** The imported path, quotes and `url()` stripped. */
+  readonly target: string
+  /** The line the import opens on. */
+  readonly line: number
+}
+
+/**
+ * Every `@import` target a sheet names.
+ *
+ * Read off the whole sheet rather than the rule bodies, because an import is
+ * not a declaration: it sits at the top of the sheet, outside every rule, and
+ * a reader that walks only rulesets never sees it — which is how a sheet
+ * could import a retired framework's pipeline with every other check green.
+ * @param text - the sheet's contents, comments already blanked.
+ * @returns one entry per import.
+ */
+function importsOf(text: string): SheetImport[] {
+  const found: SheetImport[] = []
+  for (const match of text.matchAll(/@import\s+(?:url\(\s*)?["']?([^"');]+)["']?\)?/gu)) {
+    found.push({ target: match[1] ?? '', line: text.slice(0, match.index).split('\n').length })
+  }
+  return found
+}
+
 /** How a selector may reach from one compound to the next. */
 const COMBINATORS = /\s*[>+~]\s*|\s+/gu
 
@@ -178,6 +214,23 @@ export function scanSheet(label: string, text: string): Offence[] {
       why: `${retired.rule} belongs to the utility pipeline this product retired; state the declarations directly`,
     })
   }
+  for (const imported of importsOf(withoutComments(text))) {
+    if (REMOTE_URL.test(imported.target)) {
+      offences.push({
+        label,
+        line: imported.line,
+        why: 'a remote import loads a sheet no local install ships; ship the sheet in the bundle',
+      })
+      continue
+    }
+    if (RETIRED_IMPORT.test(imported.target)) {
+      offences.push({
+        label,
+        line: imported.line,
+        why: `${imported.target} is a retired framework's pipeline; state the declarations directly`,
+      })
+    }
+  }
   for (const { property, value, line } of declarationsOf(withoutComments(text))) {
     if (property.startsWith('--')) continue
     if (property === 'z-index') {
@@ -189,6 +242,21 @@ export function scanSheet(label: string, text: string): Offence[] {
     if (property === 'float') {
       offences.push({ label, line, why: 'float is legacy layout; use flex or grid' })
       continue
+    }
+    if (property === 'text-align' && value.includes('justify')) {
+      offences.push({
+        label,
+        line,
+        why: 'justified text is an alignment defect; use text-align start or left',
+      })
+      continue
+    }
+    if (REMOTE_URL_VALUE.test(value)) {
+      offences.push({
+        label,
+        line,
+        why: 'a remote URL loads an asset no local install ships; ship the asset in the bundle',
+      })
     }
     offences.push(...scanColour(label, value, line))
     if (!SCALED.test(property)) continue

@@ -11,9 +11,6 @@
  * @module
  */
 
-import { execFileSync } from 'node:child_process'
-import { join } from 'node:path'
-
 /** The repository root, resolved from this module's own location. */
 export const ROOT = new URL('../', import.meta.url).pathname
 
@@ -31,14 +28,18 @@ export interface SourceFile {
  * @returns the matching files, in path order.
  */
 export function repositoryFiles(extensions: readonly string[]): SourceFile[] {
-  const listed = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+  const listed = Bun.spawnSync(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
     cwd: ROOT,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
+    stderr: 'pipe',
   })
-  return listed
+  if (listed.exitCode !== 0) {
+    throw new Error(`source-tree: git ls-files exited ${String(listed.exitCode)}: ${listed.stderr?.toString() ?? ''}`)
+  }
+  // `ROOT` ends with its separator, and `ls-files -z` reports paths relative
+  // to it, so the join is concatenation.
+  return (listed.stdout?.toString() ?? '')
     .split('\0')
     .filter((label) => label !== '' && extensions.some((extension) => label.endsWith(extension)))
     .toSorted()
-    .map((label) => ({ label, path: join(ROOT, label) }))
+    .map((label) => ({ label, path: `${ROOT}${label}` }))
 }

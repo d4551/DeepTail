@@ -6,6 +6,12 @@
 # own tree rather than a sibling's. This matches the harness repo's policy.
 linker = "isolated"
 
+# The cache lives in the workspace rather than the user's home directory, so
+# the gate chain is hermetic: a read-only home or a missing global cache never
+# changes what `bun install`, `bun outdated` and the outdated gate resolve.
+# The directory is git-ignored, never shipped, never scanned.
+cache = { dir = ".tmp-bun/cache" }
+
 # Supply-chain hold: a newly published version is not installable until it has
 # been on the registry long enough to be withdrawn.
 minimumReleaseAge = 86400

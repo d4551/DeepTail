@@ -50,5 +50,15 @@ export function apply(ctx: Context, config: Partial<FleetLimits> = {}): void {
   if (limits.defaultPreset.trim() === '') {
     throw new Error('host-fleet: defaultPreset must name an agent preset')
   }
-  applyFleetTools(ctx, limits)
+  applyFleetTools(
+    {
+      sessionController: ctx.sessionController,
+      tools: ctx.tools,
+      effect: (install, label) => {
+        ctx.effect(install, label)
+        return null
+      },
+    },
+    limits,
+  )
 }

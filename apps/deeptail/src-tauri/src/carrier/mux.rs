@@ -10,6 +10,9 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::hosts::HostRecord;
 
+/// RFC 6455 close code 1005: the peer closed without sending a status code.
+const CLOSE_NO_STATUS: u16 = 1005;
+
 /// One event from the host's Remote stream mux, shaped so the page-side
 /// WebSocket view can present it as an ordinary `WebSocket` to the harness's
 /// own mux client. The harness protocol is text-only, so binary frames never
@@ -101,7 +104,7 @@ impl MuxRegistry {
                     Ok(Message::Close(frame)) => {
                         let (code, reason) = frame
                             .map(|f| (u16::from(f.code), f.reason.to_string()))
-                            .unwrap_or((1005, String::new()));
+                            .unwrap_or((CLOSE_NO_STATUS, String::new()));
                         let _ = registry_channel.send(MuxFrame::Close { code, reason });
                         break;
                     }

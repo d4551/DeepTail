@@ -64,6 +64,30 @@ const FLOORS: Readonly<Record<string, string>> = {
   vite: '8.2',
 }
 
+/**
+ * The UI frameworks this product retired, by name.
+ *
+ * The design system is tokens.css and shipped sheets only: a utility pipeline
+ * or a component framework is a second vocabulary no gate reads. Installing
+ * one — at any version — is the regression, so the check is absence, not a
+ * floor. The scope covers the scoped packages each framework publishes too.
+ */
+const RETIRED_FRAMEWORKS: readonly string[] = [
+  'daisyui',
+  'tailwindcss',
+  'htmx.org',
+  'alpinejs',
+  'jquery',
+  'bootstrap',
+  'bootstrap-icons',
+  'bulma',
+  'foundation-sites',
+  'materialize-css',
+  'semantic-ui',
+  'uikit',
+  'animate.css',
+]
+
 /** Every kind of dependency a manifest can declare. */
 const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
 
@@ -87,6 +111,15 @@ async function everyDependency(): Promise<Map<string, string>> {
     }
   }
   return found
+}
+
+/**
+ * Whether a package name belongs to a framework the design system retired.
+ * @param name - the package name, as a manifest or a lockfile writes it.
+ * @returns true when the name is one of the retired frameworks or their scopes.
+ */
+function isRetiredFramework(name: string): boolean {
+  return RETIRED_FRAMEWORKS.includes(name) || name.startsWith('@tailwindcss/') || name.startsWith('@daisyui/')
 }
 
 /**
@@ -186,6 +219,27 @@ function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
   return offences
 }
 
+/**
+ * Every package name the lockfile resolves, scopes included.
+ * @returns one entry per resolved package.
+ */
+function lockfileNames(): Set<string> {
+  const lock = readJsoncSync('bun.lock')
+  const packages = isJsonObject(lock.packages) ? lock.packages : EMPTY_SECTION
+  const names = new Set<string>()
+  for (const key of Object.keys(packages)) {
+    // A key is "name@version" (scoped names carry an extra @ before the
+    // version), so the last @ splits the name off.
+    const at = key.lastIndexOf('@')
+    names.add(at > 0 ? key.slice(0, at) : key)
+  }
+  const workspaces = isJsonObject(lock.workspaces) ? lock.workspaces : EMPTY_SECTION
+  for (const entry of Object.values(workspaces)) {
+    if (isJsonObject(entry) && typeof entry.name === 'string') names.add(entry.name)
+  }
+  return names
+}
+
 describe('stack floors', () => {
   it('pins every tool at or above its floor', async () => {
     expect(belowFloor(await everyDependency())).toEqual([])
@@ -202,6 +256,53 @@ describe('stack floors', () => {
     expect(lockfileOffences(await everyDependency())).toEqual([])
   })
 
+  it('installs none of the UI frameworks the design system retired', async () => {
+    // Absence, not a floor: a retired framework at its newest version is still
+    // a second vocabulary the tokens and the sheets never read. The manifests
+    // and the lockfile are both read, so a declaration that never resolves
+    // cannot hide in either.
+    const declared = [...(await everyDependency()).keys()]
+    expect(declared.filter(isRetiredFramework)).toEqual([])
+    expect([...lockfileNames()].filter(isRetiredFramework)).toEqual([])
+  })
+
+  it('ships no legacy pipeline configuration file', async () => {
+    // The v3-and-earlier pipeline was configured by a file; the v4-and-later
+    // one compiles away inside the build. Either is a pipeline this product
+    // retired, and a config file is the shape a reintroduction takes first.
+    const legacy = repositoryFiles(['.js', '.cjs', '.mjs', '.ts', '.json', '.yml', '.yaml', '.toml'])
+      .map((file) => file.label)
+      .filter((label) =>
+        /(?:^|\/)(?:tailwind|postcss|daisyui|purgecss|autoprefixer)\.config\b|\.postcssrc\b/u.test(label),
+      )
+    expect(legacy).toEqual([])
+  })
+
+  it('ships exactly one page, wired to exactly the one module entry', async () => {
+    // A second page is a second shell, and a second script entry is a
+    // per-page module the design system and the gates never read: the SSOT is
+    // one page loading one module.
+    const pages = repositoryFiles(['.html', '.htm']).map((file) => file.label)
+    expect(pages).toEqual(['apps/deeptail/index.html'])
+    const html = await readFile('apps/deeptail/index.html', 'utf8')
+    const entries = [...html.matchAll(/<script\b([^>]*)>/gu)].map((match) => match[1] ?? '')
+    expect(entries).toEqual([' type="module" src="/src/main.ts"'])
+  })
+
+  it('runs on a bun at the floor, and pins the manager to exactly what runs', async () => {
+    const manifest = readJsonc(await readFile('package.json', 'utf8'))
+    const manager = typeof manifest.packageManager === 'string' ? manifest.packageManager : ''
+    const match = /^bun@(\d+\.\d+\.\d+)$/u.exec(manager)
+    if (match === null) throw new Error('package.json must pin the package manager as bun@x.y.z')
+    const pinned = coerce(match[1] ?? '')
+    if (pinned === null) throw new Error('the bun pin is unreadable')
+    expect(gte(pinned, '1.4.0')).toBe(true)
+    // The pin and the runtime drift apart silently — an upgraded bun with a
+    // stale pin, or a pin ahead of the binary — so the pin must say exactly
+    // what runs, and moving either is a decision this test witnesses.
+    expect(Bun.version).toBe(match[1])
+  })
+
   it('holds the supply-chain release hold in place', async () => {
     const bunfig = await readFile('bunfig.toml', 'utf8')
     // A newly published version must age before it can be installed, so a
@@ -209,6 +310,10 @@ describe('stack floors', () => {
     const hold = /minimumReleaseAge\s*=\s*(\d+)/u.exec(bunfig)
     expect(hold).not.toBeNull()
     expect(Number(hold?.[1] ?? 0)).toBeGreaterThanOrEqual(86_400)
+    // The installer cache is redirected into the workspace so the gate chain
+    // is hermetic: a read-only home directory cannot change what resolves.
+    const cache = /cache\s*=\s*\{\s*dir\s*=\s*["']([^"']+)["']/u.exec(bunfig)
+    expect(cache?.[1]).toBe('.tmp-bun/cache')
   })
 
   it('keeps every linter category enabled', async () => {

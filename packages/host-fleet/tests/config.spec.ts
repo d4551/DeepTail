@@ -5,28 +5,36 @@
  */
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { apply, Config } from '../src/index.ts'
+import { applyFleetTools } from '../src/tools.ts'
+import type { FleetContext } from '../src/types.ts'
+import { refusingController } from './controller-double.ts'
 
 /**
  * A host context that accepts every registration and records the tool names.
+ * The controller face is present but refuses every drive: the registration
+ * tests exercise name collection only, so a scripted answer would be dead
+ * weight. The limits come from the schema itself, never restated here.
  * @param registered - collects the name of each tool the plugin registers.
  * @returns the context.
  */
-function hostContext(registered: string[] = []): Context {
-  return {
-    effect: (run: () => unknown) => {
-      run()
+function hostContext(registered: string[]): FleetContext {
+  const tools: { register(definition: ToolDefinition): () => null } = {
+    register: (definition: ToolDefinition) => {
+      registered.push(definition.name)
       return () => null
     },
-    tools: {
-      register: (tool: { name: string }) => {
-        registered.push(tool.name)
-        return () => null
-      },
+  }
+  return {
+    sessionController: refusingController(),
+    tools,
+    effect: (install) => {
+      install()
+      return null
     },
-    sessionController: {},
-  } as unknown as Context
+  }
 }
 
 describe('host-fleet config', () => {
@@ -56,19 +64,16 @@ describe('host-fleet config', () => {
   })
 
   it('refuses a preset name that names nothing', () => {
-    // The schema's default only applies to an absent value. A blank one reaches
-    // every spawn and asks the host for a preset called "", which it refuses
-    // one session at a time rather than at load.
+    // The schema default applies only to an absent value, and the blank check
+    // runs before any registration, so a bare context carries the whole case.
     for (const defaultPreset of ['', '   ', '\t']) {
-      expect(() => {
-        apply(hostContext(), { defaultPreset })
-      }).toThrow('must name an agent preset')
+      expect(() => apply(new Context(), { defaultPreset })).toThrow('must name an agent preset')
     }
   })
 
   it('registers its tools when the preset names one', () => {
     const registered: string[] = []
-    apply(hostContext(registered), { defaultPreset: 'standard' })
+    applyFleetTools(hostContext(registered), new Config({ defaultPreset: 'standard' }))
     expect(registered.toSorted()).toEqual([
       'sessions_cancel',
       'sessions_follow',
@@ -84,10 +89,12 @@ describe('the deployment profile', () => {
     const patch = await readFile('profile/cordis.patch.yml', 'utf8')
     const row = /- id: host-fleet\n((?:\s{6}.*\n)*)/u.exec(patch)?.[1] ?? ''
     expect(row).toContain("name: './lib/index.js'")
-    // Every limit is declared once, with its default, in the schema. A profile
-    // that restates one has made a second copy of it, and the two agree only
-    // until someone changes the schema.
-    const defaults = new Config({}) as unknown as Record<string, unknown>
+    const defaults: Record<string, string | number | boolean> = {}
+    for (const [key, value] of Object.entries(new Config({}))) {
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        defaults[key] = value
+      }
+    }
     const restated = Object.entries(defaults)
       .filter(([key, value]) => new RegExp(`^\\s*${key}:\\s*${String(value)}\\s*$`, 'mu').test(row))
       .map(([key]) => key)

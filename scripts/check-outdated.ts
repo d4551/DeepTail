@@ -18,7 +18,6 @@
  * @module
  */
 
-import { spawnSync } from 'node:child_process'
 import { compare, parse } from 'semver'
 
 /** One row of the `bun outdated` table. */
@@ -113,12 +112,12 @@ export function heldByPolicy(rows: readonly OutdatedRow[]): string[] {
 }
 
 if (import.meta.main) {
-  const run = spawnSync('bun', ['outdated'], { encoding: 'utf8' })
-  if (run.status !== 0) {
-    process.stderr.write(`check-outdated: bun outdated exited ${String(run.status)}\n${run.stderr}`)
+  const run = Bun.spawnSync(['bun', 'outdated'], { stderr: 'pipe' })
+  if (run.exitCode !== 0) {
+    process.stderr.write(`check-outdated: bun outdated exited ${String(run.exitCode)}\n${run.stderr?.toString() ?? ''}`)
     process.exit(1)
   }
-  const rows = parseOutdated(run.stdout)
+  const rows = parseOutdated(run.stdout?.toString() ?? '')
   const behind = behindInstallable(rows)
   const held = heldByPolicy(rows)
   if (held.length > 0) {
