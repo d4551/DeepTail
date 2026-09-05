@@ -19,6 +19,7 @@
 
 import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
+import { importOffences } from './sheet-imports.ts'
 import { declarationsOf, rulesetsOf, withoutComments } from './sheet-reader.ts'
 
 /** The sheet that is allowed to hold raw values, because it is where they live. */
@@ -40,15 +41,10 @@ const DRAWN_LENGTHS = new Set(['0px', '1px', '2px', '3px'])
 /** A stacking order written as a bare number. */
 const STACKING = /^-?\d+$/u
 
-/** An `@import` target that pulls a retired framework's pipeline in. */
-const RETIRED_IMPORT =
-  /^["']?@?(?:tailwindcss|daisyui|bootstrap|bulma|foundation-sites|htmx\.org|materialize-css|semantic-ui|uikit|animate\.css|normalize\.css)(?:\/|\.|["';]|$)/iu
-
-/** A URL that loads from outside the shipped bundle, absolute or protocol-relative. */
-const REMOTE_URL = /^(?:https?:)?\/\//iu
-
 /** A `url()` that loads from outside the shipped bundle. */
-const REMOTE_URL_VALUE = /url\(\s*["']?(?:https?:)?\/\//giu
+// No `g` flag: this is tested with RegExp.test across declarations, and a
+// global regex keeps lastIndex between calls, so one match would hide the next.
+const REMOTE_URL_VALUE = /url\(\s*["']?(?:https?:)?\/\//iu
 
 /** A length written as a number of pixels. */
 const PIXELS = /\b\d+px\b/gu
@@ -123,32 +119,6 @@ function retiredAtRules(text: string): { readonly rule: string; readonly line: n
   return found
 }
 
-/** One `@import` target, with the line it is written on. */
-interface SheetImport {
-  /** The imported path, quotes and `url()` stripped. */
-  readonly target: string
-  /** The line the import opens on. */
-  readonly line: number
-}
-
-/**
- * Every `@import` target a sheet names.
- *
- * Read off the whole sheet rather than the rule bodies, because an import is
- * not a declaration: it sits at the top of the sheet, outside every rule, and
- * a reader that walks only rulesets never sees it — which is how a sheet
- * could import a retired framework's pipeline with every other check green.
- * @param text - the sheet's contents, comments already blanked.
- * @returns one entry per import.
- */
-function importsOf(text: string): SheetImport[] {
-  const found: SheetImport[] = []
-  for (const match of text.matchAll(/@import\s+(?:url\(\s*)?["']?([^"');]+)["']?\)?/gu)) {
-    found.push({ target: match[1] ?? '', line: text.slice(0, match.index).split('\n').length })
-  }
-  return found
-}
-
 /** How a selector may reach from one compound to the next. */
 const COMBINATORS = /\s*[>+~]\s*|\s+/gu
 
@@ -185,53 +155,39 @@ export function deepSelectors(text: string): { readonly selector: string; readon
 }
 
 /**
- * Every rule a stylesheet breaks.
+ * The physical side properties, which break when the document direction
+ * reverses.
+ *
+ * A sheet written with left and right sides is a sheet that only reads
+ * correctly in one writing mode: the logical start/end spellings follow the
+ * direction, so they are the only side spellings a sheet may use.
+ */
+const PHYSICAL_SIDES = new Set([
+  'margin-left',
+  'margin-right',
+  'padding-left',
+  'padding-right',
+  'border-left',
+  'border-right',
+  'border-left-width',
+  'border-right-width',
+  'border-left-color',
+  'border-right-color',
+  'border-left-style',
+  'border-right-style',
+  'left',
+  'right',
+])
+
+/**
+ * Every declaration a sheet writes that it may not write.
  * @param label - the path to report offences under.
- * @param text - the sheet's contents.
+ * @param text - the sheet's contents, comments already blanked.
  * @returns one offence per rejected declaration.
  */
-export function scanSheet(label: string, text: string): Offence[] {
-  if (label.endsWith(TOKEN_SHEET)) return []
+function declarationOffences(label: string, text: string): Offence[] {
   const offences: Offence[] = []
-  for (const deep of deepSelectors(text)) {
-    offences.push({
-      label,
-      line: deep.line,
-      why: `${deep.selector} chains past ${String(MAX_COMPOUNDS)} compounds; scope the rule by class instead of structure`,
-    })
-  }
-  for (const nested of nestedSelectors(withoutComments(text))) {
-    offences.push({
-      label,
-      line: nested.line,
-      why: "a nested selector rides another rule's scope; state the selector at the top level",
-    })
-  }
-  for (const retired of retiredAtRules(withoutComments(text))) {
-    offences.push({
-      label,
-      line: retired.line,
-      why: `${retired.rule} belongs to the utility pipeline this product retired; state the declarations directly`,
-    })
-  }
-  for (const imported of importsOf(withoutComments(text))) {
-    if (REMOTE_URL.test(imported.target)) {
-      offences.push({
-        label,
-        line: imported.line,
-        why: 'a remote import loads a sheet no local install ships; ship the sheet in the bundle',
-      })
-      continue
-    }
-    if (RETIRED_IMPORT.test(imported.target)) {
-      offences.push({
-        label,
-        line: imported.line,
-        why: `${imported.target} is a retired framework's pipeline; state the declarations directly`,
-      })
-    }
-  }
-  for (const { property, value, line } of declarationsOf(withoutComments(text))) {
+  for (const { property, value, line } of declarationsOf(text)) {
     if (property.startsWith('--')) continue
     if (property === 'z-index') {
       if (STACKING.test(value)) {
@@ -243,11 +199,19 @@ export function scanSheet(label: string, text: string): Offence[] {
       offences.push({ label, line, why: 'float is legacy layout; use flex or grid' })
       continue
     }
-    if (property === 'text-align' && value.includes('justify')) {
+    if (PHYSICAL_SIDES.has(property)) {
       offences.push({
         label,
         line,
-        why: 'justified text is an alignment defect; use text-align start or left',
+        why: `${property} is a physical side; use the logical start or end spelling so the direction follows the writing mode`,
+      })
+      continue
+    }
+    if (property === 'text-align' && (value.includes('justify') || value === 'left' || value === 'right')) {
+      offences.push({
+        label,
+        line,
+        why: 'justified or physical text alignment is an alignment defect; use text-align start or end',
       })
       continue
     }
@@ -268,6 +232,41 @@ export function scanSheet(label: string, text: string): Offence[] {
       why: `${lengths.join(', ')} is written out rather than read from the scale in tokens.css`,
     })
   }
+  return offences
+}
+
+/**
+ * Every rule a stylesheet breaks.
+ * @param label - the path to report offences under.
+ * @param text - the sheet's contents.
+ * @returns one offence per rejected construct.
+ */
+export function scanSheet(label: string, text: string): Offence[] {
+  if (label.endsWith(TOKEN_SHEET)) return []
+  const blanked = withoutComments(text)
+  const offences: Offence[] = []
+  for (const deep of deepSelectors(text)) {
+    offences.push({
+      label,
+      line: deep.line,
+      why: `${deep.selector} chains past ${String(MAX_COMPOUNDS)} compounds; scope the rule by class instead of structure`,
+    })
+  }
+  for (const nested of nestedSelectors(blanked)) {
+    offences.push({
+      label,
+      line: nested.line,
+      why: "a nested selector rides another rule's scope; state the selector at the top level",
+    })
+  }
+  for (const retired of retiredAtRules(blanked)) {
+    offences.push({
+      label,
+      line: retired.line,
+      why: `${retired.rule} belongs to the utility pipeline this product retired; state the declarations directly`,
+    })
+  }
+  offences.push(...importOffences(label, blanked), ...declarationOffences(label, blanked))
   return offences
 }
 

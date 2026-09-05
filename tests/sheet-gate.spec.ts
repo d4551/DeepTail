@@ -19,6 +19,9 @@ import { joined } from './fixtures.ts'
 /** This suite's own path, which reads widths rather than restating them. */
 const OWNER = 'tests/sheet-gate.spec.ts'
 
+/** A remote host, assembled so this file's own source carries none whole. */
+const remoteHost = (): string => joined('ht', 'tps://cdn.example.com')
+
 /** The reasons a sheet is rejected for. */
 function sheetOffences(text: string, label = 'apps/deeptail/src/styles/shell.css'): string[] {
   return scanSheet(label, text).map((offence) => offence.why)
@@ -61,6 +64,35 @@ describe('the stylesheet gate rejects', () => {
     expect(sheetOffences('.a { padding: 18px 22px; }')).toEqual([
       '18px, 22px is written out rather than read from the scale in tokens.css',
     ])
+  })
+
+  it('justified text, which is an alignment defect', () => {
+    expect(sheetOffences('.a { text-align: justify; }')).toEqual([
+      'justified or physical text alignment is an alignment defect; use text-align start or end',
+    ])
+    expect(sheetOffences('.a { text-align: start; }')).toEqual([])
+    expect(sheetOffences('.a { text-align: end; }')).toEqual([])
+  })
+
+  it('a physical side, which breaks when the direction reverses', () => {
+    // The banned spellings are assembled, so this file's own source carries
+    // none of them whole.
+    const ml = joined('margin-', 'left')
+    const pr = joined('padding-', 'right')
+    const bl = joined('border-', 'left-width')
+    const left = joined('le', 'ft')
+    const right = joined('ri', 'ght')
+    expect(sheetOffences(`.a { ${ml}: 12px; }`)).not.toEqual([])
+    expect(sheetOffences(`.a { ${pr}: 4px; }`)).not.toEqual([])
+    expect(sheetOffences(`.a { ${bl}: 1px; }`)).not.toEqual([])
+    expect(sheetOffences(`.a { ${left}: 0; }`)).not.toEqual([])
+    expect(sheetOffences(`.a { ${right}: 0; }`)).not.toEqual([])
+    expect(sheetOffences(`.a { text-align: ${left}; }`)).not.toEqual([])
+    expect(sheetOffences(`.a { text-align: ${right}; }`)).not.toEqual([])
+    // The logical spellings are the ones the direction follows.
+    expect(sheetOffences('.a { margin-inline-start: var(--dsh-space-3); }')).toEqual([])
+    expect(sheetOffences('.a { text-align: start; }')).toEqual([])
+    expect(sheetOffences('.a { text-align: end; }')).toEqual([])
   })
 })
 
@@ -107,6 +139,30 @@ describe('the stylesheet gate rejects a raw palette and cascade', () => {
       `a nested selector rides another rule's scope; state the selector at the top level`,
     ])
     expect(sheetOffences(joined('.a { .b ', `${ampersand}::before { color: currentcolor; } }`))).not.toEqual([])
+  })
+})
+
+describe('the stylesheet gate rejects a remote or retired dependency', () => {
+  it('a remote asset, which no local install ships', () => {
+    const host = remoteHost()
+    expect(sheetOffences(`.a { background: url("${host}/bg.png"); }`)).not.toEqual([])
+    expect(sheetOffences(`.a { cursor: url("${host}/c.cur"), auto; }`)).not.toEqual([])
+    expect(sheetOffences(`@import url("${host}/theme.css");`)).not.toEqual([])
+    expect(sheetOffences(`@import "${host}/theme.css";`)).not.toEqual([])
+  })
+
+  it('an import of a retired framework pipeline, in either quoting', () => {
+    const tail = joined('tail', 'windcss')
+    const daisy = joined('dais', 'yui')
+    expect(sheetOffences(`@import "${tail}";`)).not.toEqual([])
+    expect(sheetOffences(`@import '${daisy}';`)).not.toEqual([])
+    expect(sheetOffences(`@import url(${daisy}.css);`)).not.toEqual([])
+  })
+
+  it('but allows an asset the bundle ships, and a data payload', () => {
+    expect(sheetOffences('.a { background: url("/bg.png"); }')).toEqual([])
+    expect(sheetOffences('.a { mask-image: url(data:image/svg+xml,<svg></svg>); }')).toEqual([])
+    expect(sheetOffences('@import url("/theme.css");')).toEqual([])
   })
 })
 
