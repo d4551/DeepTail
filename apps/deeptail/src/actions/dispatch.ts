@@ -113,7 +113,7 @@ export interface Preconditions {
 type Handler<A extends ActionId> = (deps: ActionDeps, input: ActionInputs[A], t: Translate) => Promise<ActionEffect>
 
 /** Every handler, keyed by the action it answers for. */
-export type ActionHandlers = { readonly [A in ActionId]: Handler<A> }
+type ActionHandlers = { readonly [A in ActionId]: Handler<A> }
 
 /** A dispatcher, ready to run one action. */
 export interface Dispatcher {

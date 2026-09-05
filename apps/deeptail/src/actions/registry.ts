@@ -24,7 +24,7 @@ export type CapabilityId =
   | 'tailnet.forget'
   | 'shell.navigate'
 
-export type PlacementId =
+type PlacementId =
   | 'boot'
   | 'return'
   | 'drawer'
@@ -79,13 +79,13 @@ export type ActionMarker =
   | 'tailnet-connect'
   | 'tailnet-forget'
 
-export type AvailabilityId = 'always' | 'hasHosts' | 'hasActiveHost' | 'running' | 'unauthorized' | 'tailnetConnected'
+type AvailabilityId = 'always' | 'hasHosts' | 'hasActiveHost' | 'running' | 'unauthorized' | 'tailnetConnected'
 
-export type SubjectKind = 'device' | 'host'
+type SubjectKind = 'device' | 'host'
 
-export type ActionKind = 'query' | 'mutation' | 'navigation' | 'toggle' | 'dialog'
+type ActionKind = 'query' | 'mutation' | 'navigation' | 'toggle' | 'dialog'
 
-export type ActionPane = 'main' | 'sheet' | 'menu' | 'drawer' | 'none'
+type ActionPane = 'main' | 'sheet' | 'menu' | 'drawer' | 'none'
 
 /** One declared capability, and how long a grant of it stays spendable. */
 export interface CapabilityDescriptor {
@@ -372,23 +372,6 @@ export const ACTION_IDS: readonly ActionId[] = [
   'tailnet.forget',
 ]
 
-/** Every declared capability id, in registry order. */
-export const CAPABILITY_IDS: readonly CapabilityId[] = [
-  'host.read',
-  'host.pair',
-  'host.forget',
-  'host.select',
-  'session.read',
-  'session.create',
-  'session.message',
-  'session.cancel',
-  'session.open',
-  'tailnet.read',
-  'tailnet.connect',
-  'tailnet.forget',
-  'shell.navigate',
-]
-
 /**
  * Whether a string off the wire names a declared capability.
  *
@@ -417,22 +400,4 @@ export function isCapabilityId(value: string): value is CapabilityId {
     default:
       return false
   }
-}
-
-/**
- * The actions seated in one placement, in registry order.
- * @param placement - the surface to read.
- * @returns the actions seated there.
- */
-export function actionsInPlacement(placement: PlacementId): readonly ActionDescriptor[] {
-  return ACTION_LIST.filter((action) => action.placement === placement)
-}
-
-/**
- * The actions one capability pays for.
- * @param capability - the capability to read.
- * @returns the actions that cost it.
- */
-export function actionsForCapability(capability: CapabilityId): readonly ActionDescriptor[] {
-  return ACTION_LIST.filter((action) => action.capability === capability)
 }

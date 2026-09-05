@@ -19,7 +19,7 @@
 import type { DenialReason } from './grants.ts'
 
 /** One refusal, as it was recorded. */
-export interface DenialEvent {
+interface DenialEvent {
   /** The interaction's identity, shared with the copy shown and the native refusal. */
   readonly traceId: string
   /** The action the operator reached for. */

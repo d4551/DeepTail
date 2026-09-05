@@ -25,13 +25,13 @@ import type { PickerKey, Translate } from '../locales.ts'
 export type UnavailableReason = 'no-hosts' | 'no-active-host' | 'not-running' | 'not-unauthorized' | 'no-tailnet'
 
 /** Why what was supplied could not be acted on. */
-export type InvalidReason = 'no-host' | 'no-session' | 'empty-message' | 'incomplete-credential' | 'host-refused'
+type InvalidReason = 'no-host' | 'no-session' | 'empty-message' | 'incomplete-credential' | 'host-refused'
 
 /** The invalid reasons this product writes the sentence for itself. */
-export type RefusedReason = Exclude<InvalidReason, 'host-refused'>
+type RefusedReason = Exclude<InvalidReason, 'host-refused'>
 
 /** What the action reached for that this page has nothing to run it on. */
-export type UnwiredReason = 'no-booted-client' | 'no-tailnet-credential' | 'no-host'
+type UnwiredReason = 'no-booted-client' | 'no-tailnet-credential' | 'no-host'
 
 /** The five answers an interaction can end with. */
 export type ActionOutcome =

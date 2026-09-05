@@ -24,7 +24,7 @@ import { isWireObject, type WireObject, type WireValue } from '../wire.ts'
 export type GrantSubject = { readonly kind: 'device' } | { readonly kind: 'host'; readonly hostId: string }
 
 /** One live grant. */
-export interface Grant {
+interface Grant {
   readonly capability: CapabilityId
   readonly subject: GrantSubject
   readonly revision: number
@@ -43,12 +43,12 @@ export type DenialReason =
   | 'not-issued-natively'
 
 /** The outcome of asking to spend a capability. */
-export type SpendResult =
+type SpendResult =
   | { readonly ok: true; readonly grant: Grant }
   | { readonly ok: false; readonly reason: DenialReason }
 
 /** What the ledger reports when its contents change. */
-export interface LedgerChange {
+interface LedgerChange {
   /** Why the contents moved: a fresh snapshot, or a clear and its reason. */
   readonly reason: 'hydrated' | DenialReason
   /** How many grants are live now. */
