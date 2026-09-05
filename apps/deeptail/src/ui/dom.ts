@@ -8,6 +8,8 @@
  * @module
  */
 
+import type { ActionMarker } from '../actions/registry.ts'
+
 /** Releases what its caller mounted: closes a subscription or drops a listener. */
 export type Disposer = () => void
 
@@ -145,7 +147,7 @@ export interface FormActionOptions {
   /** The submit button's visible label. */
   readonly submitText: string
   /** The submit's `data-deeptail-action`, which the suites drive it by. */
-  readonly submitAction: string
+  readonly submitAction: ActionMarker
   /** Whether an attempt is in flight, which disables both. */
   readonly busy: boolean
   /** What cancelling does. */

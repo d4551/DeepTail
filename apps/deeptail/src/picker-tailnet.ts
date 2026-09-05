@@ -8,6 +8,7 @@
  * @module
  */
 
+import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import type { PickerContext } from './picker-views.ts'
@@ -259,7 +260,7 @@ export function tailnetConnectView(ctx: ConnectContext): HTMLElement[] {
     formActions({
       cancelText: t('action.cancel'),
       submitText: t('tailnet.connect'),
-      submitAction: 'tailnet-connect',
+      submitAction: ACTIONS['tailnet.connect'].marker,
       busy: current.busy,
       cancel: () => {
         ctx.cancel(current.hosts)

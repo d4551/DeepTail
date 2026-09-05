@@ -14,6 +14,7 @@
  * @module
  */
 
+import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import { bindRovingFocus, el, screenReaderText } from './ui/dom.ts'
@@ -65,7 +66,7 @@ export function emptyView(t: Translate, onPair: () => void, onTailnet: () => voi
   add.addEventListener('click', onPair)
   const tailnet = el('button', { className: 'button button-outline', text: t('tailnet.action') })
   tailnet.type = 'button'
-  tailnet.dataset.deeptailAction = 'tailnet'
+  tailnet.dataset.deeptailAction = ACTIONS['picker.tailnet'].marker
   tailnet.addEventListener('click', onTailnet)
   const actions = el('div', { className: 'actions' })
   actions.append(add, tailnet)
@@ -137,7 +138,7 @@ export function listView(ctx: ListContext): HTMLElement[] {
   })
   const tailnet = el('button', { className: 'button button-outline', text: ctx.t('tailnet.action') })
   tailnet.type = 'button'
-  tailnet.dataset.deeptailAction = 'tailnet'
+  tailnet.dataset.deeptailAction = ACTIONS['picker.tailnet'].marker
   tailnet.addEventListener('click', () => {
     ctx.startTailnet(ctx.hosts)
   })

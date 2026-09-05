@@ -37,8 +37,20 @@ function quote(value: string): string {
  */
 function union(names: readonly string[]): string {
   const parts = names.map((name) => quote(name))
-  const oneLine = parts.join(' | ')
-  return oneLine.length <= 96 ? oneLine : `\n${parts.map((part) => `  | ${part}`).join('\n')}\n`
+  const oneLine = ` ${parts.join(' | ')}`
+  return oneLine.length <= 97 ? oneLine : `\n${parts.map((part) => `  | ${part}`).join('\n')}`
+}
+
+/**
+ * One array literal, wrapped onto lines when it will not sit on one.
+ * @param declaration - everything up to and including the `=`.
+ * @param items - the elements, already rendered as source.
+ * @returns the declaration.
+ */
+function array(declaration: string, items: readonly string[]): string {
+  const oneLine = `${declaration} [${items.join(', ')}]`
+  if (oneLine.length <= 120) return oneLine
+  return `${declaration} [\n${items.map((item) => `  ${item},`).join('\n')}\n]`
 }
 
 /**
@@ -59,7 +71,7 @@ function emitAction(action: ActionRow): string {
   if (action.labelKey !== undefined) fields.push(`labelKey: ${quote(action.labelKey)}`)
   if (action.labelKeyOn !== undefined) fields.push(`labelKeyOn: ${quote(action.labelKeyOn)}`)
   if (action.remote !== undefined) fields.push(`remote: ${quote(action.remote)}`)
-  return `  ${quote(action.id)}: { ${fields.join(', ')} },`
+  return `  ${quote(action.id)}: {\n${fields.map((field) => `    ${field}`).join(',\n')},\n  },`
 }
 
 /**
@@ -82,13 +94,13 @@ export function emitTypeScript(registry: Registry): string {
     '',
     "import type { PickerKey } from '../locales.ts'",
     '',
-    `export type CapabilityId = ${union(capabilityIds)}`,
+    `export type CapabilityId =${union(capabilityIds)}`,
     '',
-    `export type PlacementId = ${union(placementIds)}`,
+    `export type PlacementId =${union(placementIds)}`,
     '',
-    `export type ActionId = ${union(actionIds)}`,
+    `export type ActionId =${union(actionIds)}`,
     '',
-    `export type ActionMarker = ${union(markers)}`,
+    `export type ActionMarker =${union(markers)}`,
     '',
     `export type AvailabilityId = ${AVAILABILITY.map((name) => quote(name)).join(' | ')}`,
     '',
@@ -138,13 +150,16 @@ export function emitTypeScript(registry: Registry): string {
     '}',
     '',
     '/** Every declared action, in registry order. */',
-    `export const ACTION_LIST: readonly ActionDescriptor[] = [${actionIds.map((id) => `ACTIONS[${quote(id)}]`).join(', ')}]`,
+    array(
+      'export const ACTION_LIST: readonly ActionDescriptor[] =',
+      actionIds.map((id) => `ACTIONS[${quote(id)}]`),
+    ),
     '',
     '/** Every declared action id, in registry order. */',
-    `export const ACTION_IDS: readonly ActionId[] = [${actionIds.map(quote).join(', ')}]`,
+    array('export const ACTION_IDS: readonly ActionId[] =', actionIds.map(quote)),
     '',
     '/** Every declared capability id, in registry order. */',
-    `export const CAPABILITY_IDS: readonly CapabilityId[] = [${capabilityIds.map(quote).join(', ')}]`,
+    array('export const CAPABILITY_IDS: readonly CapabilityId[] =', capabilityIds.map(quote)),
     '',
     '/**',
     ' * Whether a string off the wire names a declared capability.',
@@ -181,7 +196,6 @@ export function emitTypeScript(registry: Registry): string {
     'export function actionsForCapability(capability: CapabilityId): readonly ActionDescriptor[] {',
     '  return ACTION_LIST.filter((action) => action.capability === capability)',
     '}',
-    '',
   ].join('\n')}\n`
 }
 
@@ -207,9 +221,9 @@ export function emitRust(registry: Registry): string {
     '/// One remote route and the capability it costs.',
     'pub struct RouteCapability {',
     '    /// The `namespace/method` the page asked for.',
-    '    pub route: &\'static str,',
+    "    pub route: &'static str,",
     '    /// The capability the page must hold a live grant of.',
-    '    pub capability: &\'static str,',
+    "    pub capability: &'static str,",
     '}',
     '',
     '/// Every route the registry reaches, and what it costs.',
@@ -223,7 +237,7 @@ export function emitRust(registry: Registry): string {
     '];',
     '',
     '/// The capability one route costs, or None when no action reaches it.',
-    'pub fn capability_for_route(route: &str) -> Option<&\'static str> {',
+    "pub fn capability_for_route(route: &str) -> Option<&'static str> {",
     '    ROUTE_CAPABILITIES',
     '        .iter()',
     '        .find(|entry| entry.route == route)',

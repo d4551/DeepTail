@@ -9,6 +9,7 @@
  * @module
  */
 
+import { ACTIONS } from '../actions/registry.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
 import type { ConnectionPorts } from './connection-menu.ts'

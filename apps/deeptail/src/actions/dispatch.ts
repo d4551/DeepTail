@@ -13,16 +13,16 @@
  * @module
  */
 
-import type { HostRecord } from '../host.ts'
-import type { HostState } from '../ui/states.ts'
-import type { Translate } from '../locales.ts'
-import { describeFailure } from '../reason.ts'
-import type { ActionDescriptor, ActionId } from './registry.ts'
-import { CAPABILITIES } from './registry.ts'
 import type { DenialAudit } from '../capabilities/audit.ts'
 import { newTraceId } from '../capabilities/audit.ts'
 import type { GrantLedger, GrantSubject } from '../capabilities/grants.ts'
+import type { HostRecord } from '../host.ts'
+import type { Translate } from '../locales.ts'
+import { describeFailure } from '../reason.ts'
+import type { HostState } from '../ui/states.ts'
 import type { ActionEffect, ActionOutcome, UnavailableReason } from './outcomes.ts'
+import type { ActionDescriptor, ActionId } from './registry.ts'
+import { CAPABILITIES } from './registry.ts'
 
 /** What each action is activated with. */
 export interface ActionInputs {
@@ -261,11 +261,7 @@ function buildHandlers(t: Translate): ActionHandlers {
  * @param facts - what the surface that drew it knows.
  * @returns the reason, or undefined.
  */
-function precondition(
-  deps: ActionDeps,
-  action: ActionDescriptor,
-  facts: Preconditions,
-): UnavailableReason | undefined {
+function precondition(deps: ActionDeps, action: ActionDescriptor, facts: Preconditions): UnavailableReason | undefined {
   switch (action.availability) {
     case 'always':
       return undefined
@@ -325,12 +321,7 @@ function settleHandler<T>(work: Promise<ActionEffect>, t: Translate): Promise<Ac
  * @param t - copy source.
  * @returns the dispatcher.
  */
-export function createDispatcher(
-  deps: ActionDeps,
-  ledger: GrantLedger,
-  audit: DenialAudit,
-  t: Translate,
-): Dispatcher {
+export function createDispatcher(deps: ActionDeps, ledger: GrantLedger, audit: DenialAudit, t: Translate): Dispatcher {
   const handlers = buildHandlers(t)
   return {
     available: (action, facts) => precondition(deps, action, facts) === undefined,

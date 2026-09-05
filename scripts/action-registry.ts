@@ -16,7 +16,7 @@
  * @module
  */
 
-import { type Json, isJsonObject, readJsonc } from './jsonc.ts'
+import { isJsonObject, type Json, readJsonc } from './jsonc.ts'
 
 /** What a grant is bound to. */
 export type SubjectKind = 'device' | 'host'

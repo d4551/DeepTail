@@ -9,7 +9,7 @@
 
 import type { PickerKey } from '../locales.ts'
 
-export type CapabilityId = 
+export type CapabilityId =
   | 'host.read'
   | 'host.pair'
   | 'host.forget'
@@ -24,8 +24,7 @@ export type CapabilityId =
   | 'tailnet.forget'
   | 'shell.navigate'
 
-
-export type PlacementId = 
+export type PlacementId =
   | 'boot'
   | 'return'
   | 'drawer'
@@ -38,8 +37,7 @@ export type PlacementId =
   | 'picker-form'
   | 'tailnet'
 
-
-export type ActionId = 
+export type ActionId =
   | 'boot.retry'
   | 'client.return'
   | 'drawer.toggle'
@@ -60,8 +58,7 @@ export type ActionId =
   | 'tailnet.connect'
   | 'tailnet.forget'
 
-
-export type ActionMarker = 
+export type ActionMarker =
   | 'boot-retry'
   | 'return-fleet'
   | 'drawer'
@@ -81,7 +78,6 @@ export type ActionMarker =
   | 'tailnet'
   | 'tailnet-connect'
   | 'tailnet-forget'
-
 
 export type AvailabilityId = 'always' | 'hasHosts' | 'hasActiveHost' | 'running' | 'unauthorized' | 'tailnetConnected'
 
@@ -136,35 +132,262 @@ export const CAPABILITIES: Record<CapabilityId, CapabilityDescriptor> = {
 
 /** Every declared action, by id. */
 export const ACTIONS: Record<ActionId, ActionDescriptor> = {
-  'boot.retry': { id: 'boot.retry', capability: 'host.read', placement: 'boot', kind: 'query', pane: 'none', marker: 'boot-retry', availability: 'always', labelKey: 'action.retry' },
-  'client.return': { id: 'client.return', capability: 'shell.navigate', placement: 'return', kind: 'navigation', pane: 'main', marker: 'return-fleet', availability: 'always', labelKey: 'shell.backToFleet' },
-  'drawer.toggle': { id: 'drawer.toggle', capability: 'shell.navigate', placement: 'drawer', kind: 'toggle', pane: 'drawer', marker: 'drawer', availability: 'always', labelKey: 'shell.openSessions', labelKeyOn: 'shell.closeSessions' },
-  'drawer.dismiss': { id: 'drawer.dismiss', capability: 'shell.navigate', placement: 'drawer', kind: 'navigation', pane: 'drawer', marker: 'drawer-dismiss', availability: 'always', labelKey: 'shell.closeSessions' },
-  'session.spawn': { id: 'session.spawn', capability: 'session.create', placement: 'sidebar', kind: 'dialog', pane: 'sheet', marker: 'new-session', availability: 'hasHosts', labelKey: 'shell.newSession' },
-  'connection.pair': { id: 'connection.pair', capability: 'host.pair', placement: 'connection-menu', kind: 'navigation', pane: 'none', marker: 'pair', availability: 'always', labelKey: 'action.pair' },
-  'connection.repair': { id: 'connection.repair', capability: 'host.pair', placement: 'connection-menu', kind: 'navigation', pane: 'none', marker: 'repair', availability: 'unauthorized', labelKey: 'shell.repair' },
-  'connection.unpair': { id: 'connection.unpair', capability: 'host.forget', placement: 'connection-menu', kind: 'mutation', pane: 'none', marker: 'unpair', availability: 'hasActiveHost', labelKey: 'shell.unpair' },
-  'connection.select': { id: 'connection.select', capability: 'host.select', placement: 'connection-menu', kind: 'navigation', pane: 'main', marker: 'select-host', availability: 'always' },
-  'session.open': { id: 'session.open', capability: 'session.open', placement: 'roster-row', kind: 'navigation', pane: 'main', marker: 'row-open', availability: 'always', remote: 'session/list' },
-  'session.message': { id: 'session.message', capability: 'session.message', placement: 'roster-row', kind: 'dialog', pane: 'sheet', marker: 'row-message', availability: 'always', labelKey: 'sessions.messageAction' },
-  'session.cancel': { id: 'session.cancel', capability: 'session.cancel', placement: 'roster-row', kind: 'mutation', pane: 'main', marker: 'row-stop', availability: 'running', labelKey: 'sessions.stop', remote: 'session/cancel' },
-  'compose.send': { id: 'compose.send', capability: 'session.message', placement: 'compose-sheet', kind: 'mutation', pane: 'sheet', marker: 'compose-send', availability: 'always', labelKey: 'chat.send', remote: 'session/prompt' },
-  'compose.steer': { id: 'compose.steer', capability: 'session.message', placement: 'compose-sheet', kind: 'mutation', pane: 'sheet', marker: 'compose-steer', availability: 'always', labelKey: 'chat.steer', remote: 'session/prompt' },
-  'spawn.create': { id: 'spawn.create', capability: 'session.create', placement: 'new-session', kind: 'mutation', pane: 'sheet', marker: 'spawn-create', availability: 'always', remote: 'session/create' },
-  'picker.pair': { id: 'picker.pair', capability: 'host.pair', placement: 'picker-form', kind: 'mutation', pane: 'none', marker: 'pair-submit', availability: 'always' },
-  'picker.tailnet': { id: 'picker.tailnet', capability: 'tailnet.read', placement: 'picker', kind: 'navigation', pane: 'none', marker: 'tailnet', availability: 'always', labelKey: 'tailnet.action' },
-  'tailnet.connect': { id: 'tailnet.connect', capability: 'tailnet.connect', placement: 'tailnet', kind: 'mutation', pane: 'none', marker: 'tailnet-connect', availability: 'always', labelKey: 'tailnet.connect' },
-  'tailnet.forget': { id: 'tailnet.forget', capability: 'tailnet.forget', placement: 'tailnet', kind: 'mutation', pane: 'none', marker: 'tailnet-forget', availability: 'tailnetConnected', labelKey: 'tailnet.disconnect' },
+  'boot.retry': {
+    id: 'boot.retry',
+    capability: 'host.read',
+    placement: 'boot',
+    kind: 'query',
+    pane: 'none',
+    marker: 'boot-retry',
+    availability: 'always',
+    labelKey: 'action.retry',
+  },
+  'client.return': {
+    id: 'client.return',
+    capability: 'shell.navigate',
+    placement: 'return',
+    kind: 'navigation',
+    pane: 'main',
+    marker: 'return-fleet',
+    availability: 'always',
+    labelKey: 'shell.backToFleet',
+  },
+  'drawer.toggle': {
+    id: 'drawer.toggle',
+    capability: 'shell.navigate',
+    placement: 'drawer',
+    kind: 'toggle',
+    pane: 'drawer',
+    marker: 'drawer',
+    availability: 'always',
+    labelKey: 'shell.openSessions',
+    labelKeyOn: 'shell.closeSessions',
+  },
+  'drawer.dismiss': {
+    id: 'drawer.dismiss',
+    capability: 'shell.navigate',
+    placement: 'drawer',
+    kind: 'navigation',
+    pane: 'drawer',
+    marker: 'drawer-dismiss',
+    availability: 'always',
+    labelKey: 'shell.closeSessions',
+  },
+  'session.spawn': {
+    id: 'session.spawn',
+    capability: 'shell.navigate',
+    placement: 'sidebar',
+    kind: 'dialog',
+    pane: 'sheet',
+    marker: 'new-session',
+    availability: 'hasHosts',
+    labelKey: 'shell.newSession',
+  },
+  'connection.pair': {
+    id: 'connection.pair',
+    capability: 'host.pair',
+    placement: 'connection-menu',
+    kind: 'navigation',
+    pane: 'none',
+    marker: 'pair',
+    availability: 'always',
+    labelKey: 'action.pair',
+  },
+  'connection.repair': {
+    id: 'connection.repair',
+    capability: 'host.pair',
+    placement: 'connection-menu',
+    kind: 'navigation',
+    pane: 'none',
+    marker: 'repair',
+    availability: 'unauthorized',
+    labelKey: 'shell.repair',
+  },
+  'connection.unpair': {
+    id: 'connection.unpair',
+    capability: 'host.forget',
+    placement: 'connection-menu',
+    kind: 'mutation',
+    pane: 'none',
+    marker: 'unpair',
+    availability: 'hasActiveHost',
+    labelKey: 'shell.unpair',
+  },
+  'connection.select': {
+    id: 'connection.select',
+    capability: 'host.select',
+    placement: 'connection-menu',
+    kind: 'navigation',
+    pane: 'main',
+    marker: 'select-host',
+    availability: 'always',
+  },
+  'session.open': {
+    id: 'session.open',
+    capability: 'session.open',
+    placement: 'roster-row',
+    kind: 'navigation',
+    pane: 'main',
+    marker: 'row-open',
+    availability: 'always',
+    remote: 'session/list',
+  },
+  'session.message': {
+    id: 'session.message',
+    capability: 'session.message',
+    placement: 'roster-row',
+    kind: 'dialog',
+    pane: 'sheet',
+    marker: 'row-message',
+    availability: 'always',
+    labelKey: 'sessions.messageAction',
+  },
+  'session.cancel': {
+    id: 'session.cancel',
+    capability: 'session.cancel',
+    placement: 'roster-row',
+    kind: 'mutation',
+    pane: 'main',
+    marker: 'row-stop',
+    availability: 'running',
+    labelKey: 'sessions.stop',
+    remote: 'session/cancel',
+  },
+  'compose.send': {
+    id: 'compose.send',
+    capability: 'session.message',
+    placement: 'compose-sheet',
+    kind: 'mutation',
+    pane: 'sheet',
+    marker: 'compose-send',
+    availability: 'always',
+    labelKey: 'chat.send',
+    remote: 'session/prompt',
+  },
+  'compose.steer': {
+    id: 'compose.steer',
+    capability: 'session.message',
+    placement: 'compose-sheet',
+    kind: 'mutation',
+    pane: 'sheet',
+    marker: 'compose-steer',
+    availability: 'always',
+    labelKey: 'chat.steer',
+    remote: 'session/prompt',
+  },
+  'spawn.create': {
+    id: 'spawn.create',
+    capability: 'session.create',
+    placement: 'new-session',
+    kind: 'mutation',
+    pane: 'sheet',
+    marker: 'spawn-create',
+    availability: 'always',
+    remote: 'session/create',
+  },
+  'picker.pair': {
+    id: 'picker.pair',
+    capability: 'host.pair',
+    placement: 'picker-form',
+    kind: 'mutation',
+    pane: 'none',
+    marker: 'pair-submit',
+    availability: 'always',
+  },
+  'picker.tailnet': {
+    id: 'picker.tailnet',
+    capability: 'tailnet.read',
+    placement: 'picker',
+    kind: 'navigation',
+    pane: 'none',
+    marker: 'tailnet',
+    availability: 'always',
+    labelKey: 'tailnet.action',
+  },
+  'tailnet.connect': {
+    id: 'tailnet.connect',
+    capability: 'tailnet.connect',
+    placement: 'tailnet',
+    kind: 'mutation',
+    pane: 'none',
+    marker: 'tailnet-connect',
+    availability: 'always',
+    labelKey: 'tailnet.connect',
+  },
+  'tailnet.forget': {
+    id: 'tailnet.forget',
+    capability: 'tailnet.forget',
+    placement: 'tailnet',
+    kind: 'mutation',
+    pane: 'none',
+    marker: 'tailnet-forget',
+    availability: 'tailnetConnected',
+    labelKey: 'tailnet.disconnect',
+  },
 }
 
 /** Every declared action, in registry order. */
-export const ACTION_LIST: readonly ActionDescriptor[] = [ACTIONS['boot.retry'], ACTIONS['client.return'], ACTIONS['drawer.toggle'], ACTIONS['drawer.dismiss'], ACTIONS['session.spawn'], ACTIONS['connection.pair'], ACTIONS['connection.repair'], ACTIONS['connection.unpair'], ACTIONS['connection.select'], ACTIONS['session.open'], ACTIONS['session.message'], ACTIONS['session.cancel'], ACTIONS['compose.send'], ACTIONS['compose.steer'], ACTIONS['spawn.create'], ACTIONS['picker.pair'], ACTIONS['picker.tailnet'], ACTIONS['tailnet.connect'], ACTIONS['tailnet.forget']]
+export const ACTION_LIST: readonly ActionDescriptor[] = [
+  ACTIONS['boot.retry'],
+  ACTIONS['client.return'],
+  ACTIONS['drawer.toggle'],
+  ACTIONS['drawer.dismiss'],
+  ACTIONS['session.spawn'],
+  ACTIONS['connection.pair'],
+  ACTIONS['connection.repair'],
+  ACTIONS['connection.unpair'],
+  ACTIONS['connection.select'],
+  ACTIONS['session.open'],
+  ACTIONS['session.message'],
+  ACTIONS['session.cancel'],
+  ACTIONS['compose.send'],
+  ACTIONS['compose.steer'],
+  ACTIONS['spawn.create'],
+  ACTIONS['picker.pair'],
+  ACTIONS['picker.tailnet'],
+  ACTIONS['tailnet.connect'],
+  ACTIONS['tailnet.forget'],
+]
 
 /** Every declared action id, in registry order. */
-export const ACTION_IDS: readonly ActionId[] = ['boot.retry', 'client.return', 'drawer.toggle', 'drawer.dismiss', 'session.spawn', 'connection.pair', 'connection.repair', 'connection.unpair', 'connection.select', 'session.open', 'session.message', 'session.cancel', 'compose.send', 'compose.steer', 'spawn.create', 'picker.pair', 'picker.tailnet', 'tailnet.connect', 'tailnet.forget']
+export const ACTION_IDS: readonly ActionId[] = [
+  'boot.retry',
+  'client.return',
+  'drawer.toggle',
+  'drawer.dismiss',
+  'session.spawn',
+  'connection.pair',
+  'connection.repair',
+  'connection.unpair',
+  'connection.select',
+  'session.open',
+  'session.message',
+  'session.cancel',
+  'compose.send',
+  'compose.steer',
+  'spawn.create',
+  'picker.pair',
+  'picker.tailnet',
+  'tailnet.connect',
+  'tailnet.forget',
+]
 
 /** Every declared capability id, in registry order. */
-export const CAPABILITY_IDS: readonly CapabilityId[] = ['host.read', 'host.pair', 'host.forget', 'host.select', 'session.read', 'session.create', 'session.message', 'session.cancel', 'session.open', 'tailnet.read', 'tailnet.connect', 'tailnet.forget', 'shell.navigate']
+export const CAPABILITY_IDS: readonly CapabilityId[] = [
+  'host.read',
+  'host.pair',
+  'host.forget',
+  'host.select',
+  'session.read',
+  'session.create',
+  'session.message',
+  'session.cancel',
+  'session.open',
+  'tailnet.read',
+  'tailnet.connect',
+  'tailnet.forget',
+  'shell.navigate',
+]
 
 /**
  * Whether a string off the wire names a declared capability.
@@ -213,4 +436,3 @@ export function actionsInPlacement(placement: PlacementId): readonly ActionDescr
 export function actionsForCapability(capability: CapabilityId): readonly ActionDescriptor[] {
   return ACTION_LIST.filter((action) => action.capability === capability)
 }
-

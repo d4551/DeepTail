@@ -9,6 +9,7 @@
  * @module
  */
 
+import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import type { PickerContext } from './picker-views.ts'
@@ -124,7 +125,7 @@ export function tailnetListView(ctx: ListContext): HTMLElement[] {
   })
   const disconnect = el('button', { className: 'button button-outline', text: t('tailnet.disconnect') })
   disconnect.type = 'button'
-  disconnect.dataset.deeptailAction = 'tailnet-forget'
+  disconnect.dataset.deeptailAction = ACTIONS['tailnet.forget'].marker
   disconnect.addEventListener('click', () => {
     ctx.forget(current.hosts)
   })

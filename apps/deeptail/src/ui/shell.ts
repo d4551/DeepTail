@@ -5,6 +5,7 @@
  * @module
  */
 
+import { ACTIONS } from '../actions/registry.ts'
 import { createHostApi, type HostApi } from '../api.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'

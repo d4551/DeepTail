@@ -8,6 +8,7 @@
  * @module
  */
 
+import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import type { PickerContext } from './picker-views.ts'
@@ -183,7 +184,7 @@ export function pairView(ctx: PairContext): HTMLElement[] {
     formActions({
       cancelText: t('action.cancel'),
       submitText: t('action.pair'),
-      submitAction: 'pair-submit',
+      submitAction: ACTIONS['picker.pair'].marker,
       busy: current.busy,
       cancel: () => {
         ctx.cancel(current.hosts)

@@ -10,28 +10,28 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { emitRust, emitTypeScript } from '../scripts/action-registry-emit.ts'
-import { readRegistry } from '../scripts/action-registry.ts'
 import {
-  ACTIONS,
+  type ActionDeps,
+  type ActionInputs,
+  createDispatcher,
+  type Preconditions,
+} from '../apps/deeptail/src/actions/dispatch.ts'
+import { outcomeCopy } from '../apps/deeptail/src/actions/outcomes.ts'
+import {
   ACTION_IDS,
   ACTION_LIST,
+  ACTIONS,
   type ActionDescriptor,
   type ActionId,
   isCapabilityId,
 } from '../apps/deeptail/src/actions/registry.ts'
-import {
-  createDispatcher,
-  type ActionDeps,
-  type ActionInputs,
-  type Preconditions,
-} from '../apps/deeptail/src/actions/dispatch.ts'
-import { outcomeCopy } from '../apps/deeptail/src/actions/outcomes.ts'
-import { createGrantLedger } from '../apps/deeptail/src/capabilities/grants.ts'
 import { createDenialAudit } from '../apps/deeptail/src/capabilities/audit.ts'
-import { DICTIONARIES } from '../apps/deeptail/src/locales.ts'
+import { createGrantLedger } from '../apps/deeptail/src/capabilities/grants.ts'
 import type { PickerKey, Translate } from '../apps/deeptail/src/locales.ts'
-import { repositoryFiles, ROOT } from '../scripts/source-tree.ts'
+import { DICTIONARIES } from '../apps/deeptail/src/locales.ts'
+import { readRegistry } from '../scripts/action-registry.ts'
+import { emitRust, emitTypeScript } from '../scripts/action-registry-emit.ts'
+import { ROOT, repositoryFiles } from '../scripts/source-tree.ts'
 import { clock, deviceGrant, hostGrant, snapshot } from './grant-fixture.ts'
 
 /** The registry as it ships. */
@@ -126,7 +126,8 @@ describe('the action registry', () => {
     const literals: string[] = []
     for (const file of sources) {
       const text = await Bun.file(file.path).text()
-      for (const found of text.matchAll(/deeptailAction\s*=\s*'/gu)) literals.push(`${file.label}:${String(found.index)}`)
+      for (const found of text.matchAll(/deeptailAction\s*=\s*'/gu))
+        literals.push(`${file.label}:${String(found.index)}`)
     }
     expect(literals).toEqual([])
   })
@@ -232,7 +233,12 @@ describe('the dispatcher', () => {
   it('refuses an action whose capability was never issued, and records why', async () => {
     const calls: Calls = { names: [] }
     const audit = createDenialAudit()
-    const dispatcher = createDispatcher(stubDeps(calls), createGrantLedger(() => 1_000_000), audit, t)
+    const dispatcher = createDispatcher(
+      stubDeps(calls),
+      createGrantLedger(() => 1_000_000),
+      audit,
+      t,
+    )
     const outcome = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
     expect(outcome.kind).toBe('denied')
     expect(calls.names).toEqual([])
@@ -243,7 +249,12 @@ describe('the dispatcher', () => {
 
   it('tells the operator which grant was missing, in their language', async () => {
     const calls: Calls = { names: [] }
-    const dispatcher = createDispatcher(stubDeps(calls), createGrantLedger(() => 1_000_000), createDenialAudit(), t)
+    const dispatcher = createDispatcher(
+      stubDeps(calls),
+      createGrantLedger(() => 1_000_000),
+      createDenialAudit(),
+      t,
+    )
     const outcome = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
     const copy = outcomeCopy(outcome, t)
     expect(copy).toContain('has not granted you this action')
@@ -265,11 +276,15 @@ describe('the dispatcher', () => {
   it('refuses an empty message before it reaches the host', async () => {
     const calls: Calls = { names: [] }
     const dispatcher = createDispatcher(stubDeps(calls), fullLedger(), createDenialAudit(), t)
-    const outcome = await dispatcher.dispatch(ACTIONS['compose.send'], {
-      hostId: 'host-a',
-      sessionId: 's-1',
-      text: '   ',
-    }, facts)
+    const outcome = await dispatcher.dispatch(
+      ACTIONS['compose.send'],
+      {
+        hostId: 'host-a',
+        sessionId: 's-1',
+        text: '   ',
+      },
+      facts,
+    )
     expect(outcome.kind).toBe('invalid')
     expect(calls.names).toEqual([])
     expect(outcomeCopy(outcome, t)).toBe(DICTIONARIES.en['chat.messageRequired'])

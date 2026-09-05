@@ -10,8 +10,8 @@
  * @module
  */
 
-import type { SessionSummary } from '../api.ts'
 import { ACTIONS } from '../actions/registry.ts'
+import type { SessionSummary } from '../api.ts'
 import type { Translate } from '../locales.ts'
 import { button, el, screenReaderText } from './dom.ts'
 

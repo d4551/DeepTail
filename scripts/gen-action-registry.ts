@@ -10,8 +10,8 @@
 
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { emitRust, emitTypeScript } from './action-registry-emit.ts'
 import { readRegistry } from './action-registry.ts'
+import { emitRust, emitTypeScript } from './action-registry-emit.ts'
 import { ROOT } from './source-tree.ts'
 
 /** Where the registry lives, and where each face is written. */
@@ -30,7 +30,8 @@ const SOURCES = {
  * @param id - the entry that named it.
  */
 function requireLane(lane: string, id: string): void {
-  if (!existsSync(`${ROOT}${lane}`)) throw new Error(`actions.bao: action "${id}" names lane "${lane}", which is not a file`)
+  if (!existsSync(`${ROOT}${lane}`))
+    throw new Error(`actions.bao: action "${id}" names lane "${lane}", which is not a file`)
 }
 
 /**

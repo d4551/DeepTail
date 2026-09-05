@@ -18,8 +18,8 @@
  * @module
  */
 
-import type { PickerKey, Translate } from '../locales.ts'
 import type { DenialReason } from '../capabilities/grants.ts'
+import type { PickerKey, Translate } from '../locales.ts'
 
 /** Why a control is not offered at all. */
 export type UnavailableReason = 'no-hosts' | 'no-active-host' | 'not-running' | 'not-unauthorized' | 'no-tailnet'
