@@ -8,8 +8,15 @@
  * that are not ignored. That answer is the one the checkers, the packager and
  * CI all use, so the gates use it too and cannot drift from it.
  *
+ * A path git lists from its index whose bytes are gone is a deletion waiting to
+ * be recorded, and a file that is not on disk ships to nobody. It is left out of
+ * the list; every path that does have bytes is read, including one git has never
+ * seen, so nothing a gate should read can hide behind the index.
+ *
  * @module
  */
+
+import { existsSync } from 'node:fs'
 
 /** The repository root, resolved from this module's own location. */
 export const ROOT = new URL('../', import.meta.url).pathname
@@ -20,6 +27,19 @@ export interface SourceFile {
   readonly label: string
   /** Absolute path on disk. */
   readonly path: string
+}
+
+/**
+ * The files whose bytes are on disk.
+ *
+ * Exported because it is the whole of the rule the index forces on the list: a
+ * path git still carries whose bytes are gone is a deletion waiting to be
+ * recorded, and there is nothing in it for a gate to read.
+ * @param files - the paths git listed, in any order.
+ * @returns the ones that exist, in the order they were given.
+ */
+export function onlyPresent(files: readonly SourceFile[]): SourceFile[] {
+  return files.filter((file) => existsSync(file.path))
 }
 
 /**
@@ -37,9 +57,11 @@ export function repositoryFiles(extensions: readonly string[]): SourceFile[] {
   }
   // `ROOT` ends with its separator, and `ls-files -z` reports paths relative
   // to it, so the join is concatenation.
-  return (listed.stdout?.toString() ?? '')
-    .split('\0')
-    .filter((label) => label !== '' && extensions.some((extension) => label.endsWith(extension)))
-    .toSorted()
-    .map((label) => ({ label, path: `${ROOT}${label}` }))
+  return onlyPresent(
+    (listed.stdout?.toString() ?? '')
+      .split('\0')
+      .filter((label) => label !== '' && extensions.some((extension) => label.endsWith(extension)))
+      .toSorted()
+      .map((label) => ({ label, path: `${ROOT}${label}` })),
+  )
 }

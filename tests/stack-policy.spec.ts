@@ -12,8 +12,8 @@
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { coerce, gte } from 'semver'
+import { readJsonc } from '../scripts/jsonc.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
-import { readJsonc } from './jsonc.ts'
 import { everyDependency, lockfileNames } from './manifests.ts'
 
 /**

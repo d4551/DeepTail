@@ -111,7 +111,7 @@ function repairItem(hostId: string, options: MenuPanelOptions): HTMLButtonElemen
     },
     { role: 'menuitem' },
   )
-  repair.dataset.deeptailAction = 'repair'
+  repair.dataset.deeptailAction = ACTIONS['connection.repair'].marker
   return repair
 }
 

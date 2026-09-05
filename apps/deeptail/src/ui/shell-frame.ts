@@ -5,6 +5,7 @@
  * @module
  */
 
+import { ACTIONS } from '../actions/registry.ts'
 import type { Translate } from '../locales.ts'
 import { button, el, liveRegion, setAria } from './dom.ts'
 import { errorStrip, showFailure } from './states.ts'
@@ -97,7 +98,7 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
  */
 function buildDrawerDismissal(sidebar: HTMLElement, t: Translate, onDismiss: () => void): HTMLButtonElement {
   const dismiss = button('drawer-dismiss', t('shell.closeSessions'), onDismiss)
-  dismiss.dataset.deeptailAction = 'drawer-dismiss'
+  dismiss.dataset.deeptailAction = ACTIONS['drawer.dismiss'].marker
   dismiss.hidden = true
   sidebar.prepend(dismiss)
   return dismiss
@@ -209,7 +210,7 @@ function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
   const toggle = button('drawer-toggle', t('shell.openSessions'), () => {
     setDrawer(shell.dataset.drawer !== 'open', true)
   })
-  toggle.dataset.deeptailAction = 'drawer'
+  toggle.dataset.deeptailAction = ACTIONS['drawer.toggle'].marker
   setAria(toggle, { controls: SIDEBAR_ID, expanded: 'false' })
 
   scrim.addEventListener('click', () => {

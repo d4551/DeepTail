@@ -16,7 +16,7 @@
  */
 
 import { type DefaultTreeAdapterTypes, parse } from 'parse5'
-import { type MarkupOffence, recordAttributeOffences, REMOTE_URL } from './markup-attributes.ts'
+import { type MarkupOffence, REMOTE_URL, recordAttributeOffences } from './markup-attributes.ts'
 import type { Offence } from './offence.ts'
 
 /** The attribute this gate exists to keep out of the product. */

@@ -11,6 +11,7 @@
  */
 
 import type { SessionSummary } from '../api.ts'
+import { ACTIONS } from '../actions/registry.ts'
 import type { Translate } from '../locales.ts'
 import { button, el, screenReaderText } from './dom.ts'
 
@@ -138,7 +139,7 @@ function rowActions(session: SessionSummary, t: Translate, handlers: RowHandlers
     aria: { label: t('sessions.messageAria', { title }) },
   })
   message.tabIndex = -1
-  message.dataset.deeptailAction = 'row-message'
+  message.dataset.deeptailAction = ACTIONS['session.message'].marker
   message.disabled = handlers.busy
   actions.append(message)
 
@@ -147,7 +148,7 @@ function rowActions(session: SessionSummary, t: Translate, handlers: RowHandlers
       aria: { label: t('sessions.stopAria', { title }) },
     })
     stop.tabIndex = -1
-    stop.dataset.deeptailAction = 'row-stop'
+    stop.dataset.deeptailAction = ACTIONS['session.cancel'].marker
     stop.disabled = handlers.busy
     actions.append(stop)
   }

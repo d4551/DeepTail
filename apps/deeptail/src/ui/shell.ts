@@ -167,7 +167,7 @@ function newSessionButton(ports: SpawnPorts, t: Translate, announce: (text: stri
   const spawn = button('new-session', t('shell.newSession'), () => {
     openNewSession(ports, t, announce)
   })
-  spawn.dataset.deeptailAction = 'new-session'
+  spawn.dataset.deeptailAction = ACTIONS['session.spawn'].marker
   spawn.disabled = ports.hosts.length === 0
   return spawn
 }

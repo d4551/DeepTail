@@ -1,0 +1,272 @@
+{
+  // DeepTail's one action registry.
+  //
+  // Every control the product renders, every capability it consumes, the remote
+  // route it reaches and the surface it is allowed to appear on are declared
+  // here and nowhere else. `scripts/gen-action-registry.ts` reads this file and
+  // writes the typed face both halves of the app compile against:
+  // `apps/deeptail/src/actions/registry.ts` for the page and
+  // `apps/deeptail/src-tauri/src/capability/catalog.rs` for the native boundary.
+  //
+  // A control that is not in this file cannot be rendered: the builders take a
+  // registry id, not a string. A capability that is not in this file cannot be
+  // consumed: the native catalog is generated from the same rows, so the page
+  // and Rust cannot disagree about what a route costs. A row whose `lane` names
+  // no test is refused by the generator, so no entry can ship unverified.
+  "version": 1,
+
+  // A grant is bound to its subject, its revision and its expiry. `subject`
+  // decides what the identity is: one paired host, or this device as a whole.
+  // `ttlSeconds` is how long an issued grant stays spendable before the page
+  // must hear it again from the native authority.
+  "capabilities": [
+    { "id": "host.read", "subject": "device", "ttlSeconds": 900 },
+    { "id": "host.pair", "subject": "device", "ttlSeconds": 300 },
+    { "id": "host.forget", "subject": "host", "ttlSeconds": 300 },
+    { "id": "host.select", "subject": "device", "ttlSeconds": 3600 },
+    { "id": "session.read", "subject": "host", "ttlSeconds": 300 },
+    { "id": "session.create", "subject": "host", "ttlSeconds": 120 },
+    { "id": "session.message", "subject": "host", "ttlSeconds": 120 },
+    { "id": "session.cancel", "subject": "host", "ttlSeconds": 120 },
+    { "id": "session.open", "subject": "host", "ttlSeconds": 600 },
+    { "id": "tailnet.read", "subject": "device", "ttlSeconds": 300 },
+    { "id": "tailnet.connect", "subject": "device", "ttlSeconds": 300 },
+    { "id": "tailnet.forget", "subject": "device", "ttlSeconds": 300 },
+    { "id": "shell.navigate", "subject": "device", "ttlSeconds": 3600 }
+  ],
+
+  // The surfaces a control may be seated in. A placement with no action is
+  // refused: it is a hole in the matrix, not an empty seat.
+  "placements": [
+    { "id": "boot", "surface": "The page before a shell exists." },
+    { "id": "return", "surface": "The bar beside a booted harness client." },
+    { "id": "drawer", "surface": "The sidebar's own open and dismiss controls." },
+    { "id": "sidebar", "surface": "The sidebar, above the roster." },
+    { "id": "connection-menu", "surface": "The host switcher's open menu." },
+    { "id": "roster-row", "surface": "One session row." },
+    { "id": "compose-sheet", "surface": "The compose dialog's actions." },
+    { "id": "new-session", "surface": "The new-session dialog's actions." },
+    { "id": "picker", "surface": "The host picker." },
+    { "id": "picker-form", "surface": "The picker's pairing form." },
+    { "id": "tailnet", "surface": "Both tailnet screens." }
+  ],
+
+  // `availability` is the predicate that decides whether the control exists at
+  // all, as opposed to whether the operator may spend it right now. A control
+  // whose capability is missing is rendered and refused; a control whose
+  // availability does not hold is not rendered, because there is nothing to
+  // refuse.
+  "actions": [
+    {
+      "id": "boot.retry",
+      "capability": "host.read",
+      "placement": "boot",
+      "kind": "query",
+      "pane": "none",
+      "marker": "boot-retry",
+      "labelKey": "action.retry",
+      "availability": "always",
+      "lane": "tests/actions.spec.ts"
+    },
+    {
+      "id": "client.return",
+      "capability": "shell.navigate",
+      "placement": "return",
+      "kind": "navigation",
+      "pane": "main",
+      "marker": "return-fleet",
+      "labelKey": "shell.backToFleet",
+      "availability": "always",
+      "lane": "apps/deeptail/tests/shell-actions.browser.spec.ts"
+    },
+    {
+      "id": "drawer.toggle",
+      "capability": "shell.navigate",
+      "placement": "drawer",
+      "kind": "toggle",
+      "pane": "drawer",
+      "marker": "drawer",
+      "labelKey": "shell.openSessions",
+      "labelKeyOn": "shell.closeSessions",
+      "availability": "always",
+      "lane": "apps/deeptail/tests/shell-keyboard.browser.spec.ts"
+    },
+    {
+      "id": "drawer.dismiss",
+      "capability": "shell.navigate",
+      "placement": "drawer",
+      "kind": "navigation",
+      "pane": "drawer",
+      "marker": "drawer-dismiss",
+      "labelKey": "shell.closeSessions",
+      "availability": "always",
+      "lane": "apps/deeptail/tests/shell-connection.browser.spec.ts"
+    },
+    {
+      "id": "session.spawn",
+      "capability": "shell.navigate",
+      "placement": "sidebar",
+      "kind": "dialog",
+      "pane": "sheet",
+      "marker": "new-session",
+      "labelKey": "shell.newSession",
+      "availability": "hasHosts",
+      "lane": "apps/deeptail/tests/shell-actions.browser.spec.ts"
+    },
+    {
+      "id": "connection.pair",
+      "capability": "host.pair",
+      "placement": "connection-menu",
+      "kind": "navigation",
+      "pane": "none",
+      "marker": "pair",
+      "labelKey": "action.pair",
+      "availability": "always",
+      "lane": "apps/deeptail/tests/shell-connection.browser.spec.ts"
+    },
+    {
+      "id": "connection.repair",
+      "capability": "host.pair",
+      "placement": "connection-menu",
+      "kind": "navigation",
+      "pane": "none",
+      "marker": "repair",
+      "labelKey": "shell.repair",
+      "availability": "unauthorized",
+      "lane": "apps/deeptail/tests/shell-connection.browser.spec.ts"
+    },
+    {
+      "id": "connection.unpair",
+      "capability": "host.forget",
+      "placement": "connection-menu",
+      "kind": "mutation",
+      "pane": "none",
+      "marker": "unpair",
+      "labelKey": "shell.unpair",
+      "availability": "hasActiveHost",
+      "lane": "apps/deeptail/tests/shell-connection.browser.spec.ts"
+    },
+    {
+      "id": "connection.select",
+      "capability": "host.select",
+      "placement": "connection-menu",
+      "kind": "navigation",
+      "pane": "main",
+      "marker": "select-host",
+      "availability": "always",
+      "lane": "apps/deeptail/tests/shell-connection.browser.spec.ts"
+    },
+    {
+      "id": "session.open",
+      "capability": "session.open",
+      "placement": "roster-row",
+      "kind": "navigation",
+      "pane": "main",
+      "marker": "row-open",
+      "availability": "always",
+      "remote": "session/list",
+      "lane": "apps/deeptail/tests/shell-roster.browser.spec.ts"
+    },
+    {
+      "id": "session.message",
+      "capability": "session.message",
+      "placement": "roster-row",
+      "kind": "dialog",
+      "pane": "sheet",
+      "marker": "row-message",
+      "labelKey": "sessions.messageAction",
+      "availability": "always",
+      "lane": "apps/deeptail/tests/shell-actions.browser.spec.ts"
+    },
+    {
+      "id": "session.cancel",
+      "capability": "session.cancel",
+      "placement": "roster-row",
+      "kind": "mutation",
+      "pane": "main",
+      "marker": "row-stop",
+      "labelKey": "sessions.stop",
+      "availability": "running",
+      "remote": "session/cancel",
+      "lane": "apps/deeptail/tests/shell-actions.browser.spec.ts"
+    },
+    {
+      "id": "compose.send",
+      "capability": "session.message",
+      "placement": "compose-sheet",
+      "kind": "mutation",
+      "pane": "sheet",
+      "marker": "compose-send",
+      "labelKey": "chat.send",
+      "availability": "always",
+      "remote": "session/prompt",
+      "lane": "apps/deeptail/tests/shell-actions.browser.spec.ts"
+    },
+    {
+      "id": "compose.steer",
+      "capability": "session.message",
+      "placement": "compose-sheet",
+      "kind": "mutation",
+      "pane": "sheet",
+      "marker": "compose-steer",
+      "labelKey": "chat.steer",
+      "availability": "always",
+      "remote": "session/prompt",
+      "lane": "apps/deeptail/tests/shell-actions.browser.spec.ts"
+    },
+    {
+      "id": "spawn.create",
+      "capability": "session.create",
+      "placement": "new-session",
+      "kind": "mutation",
+      "pane": "sheet",
+      "marker": "spawn-create",
+      "availability": "always",
+      "remote": "session/create",
+      "lane": "apps/deeptail/tests/shell-actions.browser.spec.ts"
+    },
+    {
+      "id": "picker.pair",
+      "capability": "host.pair",
+      "placement": "picker-form",
+      "kind": "mutation",
+      "pane": "none",
+      "marker": "pair-submit",
+      "availability": "always",
+      "lane": "apps/deeptail/tests/picker.browser.spec.ts"
+    },
+    {
+      "id": "picker.tailnet",
+      "capability": "tailnet.read",
+      "placement": "picker",
+      "kind": "navigation",
+      "pane": "none",
+      "marker": "tailnet",
+      "labelKey": "tailnet.action",
+      "availability": "always",
+      "lane": "apps/deeptail/tests/tailnet.browser.spec.ts"
+    },
+    {
+      "id": "tailnet.connect",
+      "capability": "tailnet.connect",
+      "placement": "tailnet",
+      "kind": "mutation",
+      "pane": "none",
+      "marker": "tailnet-connect",
+      "labelKey": "tailnet.connect",
+      "availability": "always",
+      "lane": "apps/deeptail/tests/tailnet.browser.spec.ts"
+    },
+    {
+      "id": "tailnet.forget",
+      "capability": "tailnet.forget",
+      "placement": "tailnet",
+      "kind": "mutation",
+      "pane": "none",
+      "marker": "tailnet-forget",
+      "labelKey": "tailnet.disconnect",
+      "availability": "tailnetConnected",
+      "lane": "apps/deeptail/tests/tailnet.browser.spec.ts"
+    }
+  ]
+}

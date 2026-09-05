@@ -13,6 +13,7 @@
  * @module
  */
 
+import { ACTIONS } from '../actions/registry.ts'
 import { type HostApi, RemoteError } from '../api.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
@@ -224,7 +225,7 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
     spawnSession(ports, host, request, { dialog, failure, t, announce, release })
   })
 
-  create.dataset.deeptailAction = 'spawn-create'
+  create.dataset.deeptailAction = ACTIONS['spawn.create'].marker
   dialog.actions.append(cancel, create)
   // The host chooser is the first decision the dialog asks for, so it is where
   // the operator lands rather than on the dialog's own frame.

@@ -9,8 +9,8 @@
  */
 
 import { readFile } from 'node:fs/promises'
+import { EMPTY_SECTION, isJsonObject, readJsonc } from '../scripts/jsonc.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
-import { EMPTY_SECTION, isJsonObject, readJsonc } from './jsonc.ts'
 import { readJsoncSync } from './jsonc-io.ts'
 
 /** Every kind of dependency a manifest can declare. */

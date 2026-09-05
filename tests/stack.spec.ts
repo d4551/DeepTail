@@ -17,7 +17,7 @@
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { coerce, gte, major, maxSatisfying, minor, satisfies } from 'semver'
-import { EMPTY_SECTION, isJsonObject, readJsonc } from './jsonc.ts'
+import { EMPTY_SECTION, isJsonObject, readJsonc } from '../scripts/jsonc.ts'
 import { readJsoncSync } from './jsonc-io.ts'
 import { everyDependency } from './manifests.ts'
 

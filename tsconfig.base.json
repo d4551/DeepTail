@@ -1,12 +1,23 @@
 {
-  // Shared compiler face. TypeScript 7 turns `strict`, `module: esnext` and
-  // `noUncheckedSideEffectImports` on by default and defaults `types` to `[]`;
-  // the options restated here are the ones we tighten beyond those defaults or
-  // that the emit layout depends on.
+  // Shared compiler face, written out against the file `tsc --init` produces on
+  // TypeScript 7 — the canonical face, restated rather than inherited, so a
+  // compiler that moves a default moves this file first and not a build.
+  // `types` defaults to `[]` and each project names the ones it actually uses.
+  // `skipLibCheck` is the one canonical recommendation this repository refuses:
+  // it silences a dependency's diagnostics instead of fixing them.
+  // The canonical style block is enabled beyond its default wherever it costs
+  // nothing the codebase disagrees with; `noPropertyAccessFromIndexSignature`
+  // is the one left off, because every `dataset` read in the DOM is an index
+  // access and the flag rewrites markup hooks into bracket notation for no
+  // added safety.
   "compilerOptions": {
     "target": "esnext",
+    "module": "esnext",
     "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "types": [],
     "lib": ["esnext", "dom", "dom.iterable"],
+    "strict": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -17,10 +28,13 @@
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
     "verbatimModuleSyntax": true,
+    "noUncheckedSideEffectImports": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   }
 }

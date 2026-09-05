@@ -25,9 +25,11 @@
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
     "lint:rust": "cd apps/deeptail/src-tauri && cargo clippy --all-targets -- -D warnings",
     "tauri": "tauri",
-    "validate": "bun run lint && bun run check:outdated && bun run lint:ox && bun run check:styles && bun run typecheck && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser",
+    "validate": "bun run lint && bun run check:outdated && bun run lint:ox && bun run check:styles && bun run check:registry && bun run typecheck && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser",
     "check:styles": "bun scripts/check-no-inline-styles.ts && bun scripts/check-stylesheets.ts",
     "check:outdated": "bun scripts/check-outdated.ts",
+    "gen:registry": "bun scripts/gen-action-registry.ts",
+    "check:registry": "bun scripts/gen-action-registry.ts --check",
     "a11y": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests/a11y.browser.spec.ts --timeout 60000 && echo 'axe: no accessibility violations'"
   },
   "devDependencies": {

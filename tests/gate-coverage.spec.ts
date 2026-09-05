@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises'
 import * as parse5 from 'parse5'
 import { structureCheckSource } from '../apps/deeptail/tests/structure.ts'
 import * as bans from '../scripts/ban-gate.ts'
-import { repositoryFiles } from '../scripts/source-tree.ts'
+import { onlyPresent, ROOT, repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
 
 describe('the file list both gates read', () => {
@@ -41,7 +41,18 @@ describe('the file list both gates read', () => {
     expect(labels).toContain('bunfig.toml')
   })
 
-  it('leaves the repository clean under both gates', async () => {
+  it('reads a path whose bytes are on disk and refuses one whose are not', () => {
+    // `git ls-files --cached` keeps listing a file until its deletion is
+    // recorded, and a gate that opened it then failed with ENOENT reported
+    // nothing about the repository. The list carries what has bytes to read.
+    const present: SourceFile = { label: 'scripts/source-tree.ts', path: `${ROOT}scripts/source-tree.ts` }
+    const deleted: SourceFile = { label: 'scripts/never-shipped.ts', path: `${ROOT}scripts/never-shipped.ts` }
+    expect(onlyPresent([present, deleted]).map((file) => file.label)).toEqual(['scripts/source-tree.ts'])
+  })
+})
+
+describe('the repository under both gates', () => {
+  it('is clean when every file it ships is actually read', async () => {
     const files = repositoryFiles([...styles.SCRIPT_EXTENSIONS, ...styles.MARKUP_EXTENSIONS, ...bans.PLAIN_EXTENSIONS])
     const offences = await Promise.all(
       files.map(async (file) => {
