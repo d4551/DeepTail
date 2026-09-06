@@ -18,6 +18,7 @@
     "build": "tsc --build tsconfig.json && bun run --filter @deeptail/app build",
     "check:bans": "bun scripts/check-bans.ts",
     "check:cargo": "bun scripts/cargo-freshness.ts",
+    "check:entries": "bun scripts/check-entries.ts",
     "check:outdated": "bun scripts/check-outdated.ts",
     "check:registry": "bun scripts/gen-action-registry.ts --check",
     "check:styles": "bun scripts/check-no-inline-styles.ts && bun scripts/check-stylesheets.ts",
@@ -29,6 +30,7 @@
     "lint:ox": "oxlint . --deny-warnings",
     "lint:rust": "cd apps/deeptail/src-tauri && cargo clippy --all-targets -- -D warnings",
     "mutate": "bun run mutate:host-fleet && bun run mutate:sheets && bun run mutate:gates && bun run mutate:tools",
+    "mutate:app": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.app.json",
     "mutate:gates": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.gates.json",
     "mutate:host-fleet": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.host-fleet.json",
     "mutate:sheets": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.sheets.json",
@@ -38,7 +40,7 @@
     "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests --timeout 60000",
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
     "typecheck": "tsc --build tsconfig.json && tsc -p tsconfig.tools.json && tsc -p packages/host-fleet/tsconfig.tests.json && tsc -p apps/deeptail/tsconfig.tests.json",
-    "validate": "bun run lint && bun run check:tree && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:bans && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser"
+    "validate": "bun run lint && bun run check:tree && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:bans && bun run check:entries && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",

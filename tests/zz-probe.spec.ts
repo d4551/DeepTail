@@ -7,11 +7,16 @@
  * about them silently stop matching, so each shape the walks rely on is pinned
  * here, one assertion per shape.
  *
+ * The markup parser is pinned the same way and for the same reason. Its probe
+ * shipped in a `scratch/` directory no command ran: a check nothing runs is a
+ * check that has already stopped working and cannot say so.
+ *
  * @module
  */
 
 import { describe, expect, it } from 'bun:test'
 import { parseSync } from 'oxc-parser'
+import { type DefaultTreeAdapterTypes, parseFragment } from 'parse5'
 
 describe('oxc jsx parsing', () => {
   it('emits a jsx attribute node for a string attribute', () => {
@@ -45,5 +50,30 @@ describe('oxc module parsing', () => {
       throw new Error('probe.tsx: expected an import declaration')
     }
     expect(imported.source.type).toBe('Literal')
+  })
+})
+
+/** One parsed markup node, as parse5 hands it over. */
+type MarkupNode = DefaultTreeAdapterTypes.Node
+
+/**
+ * The tag names a fragment parses to, indented by depth.
+ * @param node - the node to read.
+ * @param depth - how deep it sits.
+ * @param out - the lines to append to.
+ */
+function tagTree(node: MarkupNode, depth: number, out: string[]): void {
+  if ('tagName' in node) out.push(`${'  '.repeat(depth)}${node.tagName}`)
+  for (const child of 'childNodes' in node ? (node.childNodes as MarkupNode[]) : []) tagTree(child, depth + 1, out)
+}
+
+describe('parse5 nesting', () => {
+  // The markup gate cannot reject an activation target nested in its own kind:
+  // the HTML parsing algorithm closes the open element when the second start
+  // tag arrives, so the tree a parser hands a gate never carries that shape.
+  it('closes an open activation target when its own kind opens inside it', () => {
+    const out: string[] = []
+    tagTree(parseFragment('<button>a<button>b</button></button>') as MarkupNode, 0, out)
+    expect(out).toEqual(['  button', '  button'])
   })
 })

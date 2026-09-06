@@ -21,14 +21,21 @@ import { PLAIN_EXTENSIONS, SCRIPT_EXTENSIONS, scanSource } from './ban-gate.ts'
 import { repositoryFiles } from './source-tree.ts'
 import { MARKUP_EXTENSIONS } from './style-gate.ts'
 
-const extensions = [...new Set([...SCRIPT_EXTENSIONS, ...PLAIN_EXTENSIONS, ...MARKUP_EXTENSIONS])]
-const files = repositoryFiles(extensions)
-const scanned = await Promise.all(files.map(async (file) => scanSource(file.label, await readFile(file.path, 'utf8'))))
-const offences = scanned.flat()
+// Guarded, as every runnable script here is: importing a module must run
+// nothing. A suite that imports one for the readers it exports would
+// otherwise run the whole gate as a side effect of the import.
+if (import.meta.main) {
+  const extensions = [...new Set([...SCRIPT_EXTENSIONS, ...PLAIN_EXTENSIONS, ...MARKUP_EXTENSIONS])]
+  const files = repositoryFiles(extensions)
+  const scanned = await Promise.all(
+    files.map(async (file) => scanSource(file.label, await readFile(file.path, 'utf8'))),
+  )
+  const offences = scanned.flat()
 
-if (offences.length > 0) {
-  const lines = offences.map((offence) => `  ${offence.label}:${String(offence.line)}: ${offence.why}`)
-  process.stderr.write(`the repository carries a banned idiom or a suppression:\n${lines.join('\n')}\n`)
-  process.exit(1)
+  if (offences.length > 0) {
+    const lines = offences.map((offence) => `  ${offence.label}:${String(offence.line)}: ${offence.why}`)
+    process.stderr.write(`the repository carries a banned idiom or a suppression:\n${lines.join('\n')}\n`)
+    process.exit(1)
+  }
+  process.stdout.write(`no banned idiom or suppression (${String(files.length)} files)\n`)
 }
-process.stdout.write(`no banned idiom or suppression (${String(files.length)} files)\n`)

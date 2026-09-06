@@ -21,18 +21,23 @@ import { repositoryFiles } from './source-tree.ts'
 /** The switch the instrumenter wraps around every mutated expression. */
 const MARKER = ['stry', 'MutAct_'].join('')
 
-const files = repositoryFiles(['.ts', '.tsx', '.js'])
-const read = await Promise.all(
-  files.map(async (file) => ({ label: file.label, text: await readFile(file.path, 'utf8') })),
-)
-const carrying = read.flatMap((file) => (file.text.includes(MARKER) ? [file.label] : []))
-
-if (carrying.length > 0) {
-  process.stderr.write(
-    `a mutation run left these files instrumented; run \`bun scripts/mutate-restore.ts\`:\n${carrying
-      .map((label) => `  ${label}`)
-      .join('\n')}\n`,
+// Guarded, as every runnable script here is: importing a module must run
+// nothing. A suite that imports one for the readers it exports would
+// otherwise run the whole gate as a side effect of the import.
+if (import.meta.main) {
+  const files = repositoryFiles(['.ts', '.tsx', '.js'])
+  const read = await Promise.all(
+    files.map(async (file) => ({ label: file.label, text: await readFile(file.path, 'utf8') })),
   )
-  process.exit(1)
+  const carrying = read.flatMap((file) => (file.text.includes(MARKER) ? [file.label] : []))
+
+  if (carrying.length > 0) {
+    process.stderr.write(
+      `a mutation run left these files instrumented; run \`bun scripts/mutate-restore.ts\`:\n${carrying
+        .map((label) => `  ${label}`)
+        .join('\n')}\n`,
+    )
+    process.exit(1)
+  }
+  process.stdout.write(`no instrumentation left behind (${String(files.length)} files)\n`)
 }
-process.stdout.write(`no instrumentation left behind (${String(files.length)} files)\n`)

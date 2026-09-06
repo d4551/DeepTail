@@ -120,6 +120,21 @@ describe('the focus-ring reader reads only what can carry a ring', () => {
   })
 })
 
+describe('the focus-ring reader still reads the defect it was written for', () => {
+  it('names a control hidden by a class whose restoration does not cover it', () => {
+    // What shipped: `select` and `textarea` had the ring switched off by a
+    // class rule, and the rule that painted one back named the elements the
+    // class did not cover. Combining a selector's rules must not lose this —
+    // the restoration is on a different selector, not on another rule of the
+    // same one.
+    const sheet = [
+      '.field:focus { outline: none; }',
+      'input:focus-visible, button:focus-visible { outline: 2px solid Highlight; }',
+    ].join('\n')
+    expect(unringedSelectors(sheet)).toEqual(['.field:focus'])
+  })
+})
+
 describe('the focus-ring reader reads what each rule does, not what it might', () => {
   it('reads no restoration out of a rule that paints no ring', () => {
     // Only a ring property paints a ring: a rule that sets a colour on the
@@ -153,6 +168,20 @@ describe('the focus-ring reader reads which state paints the ring back', () => {
     // And a selector that only ever hides is still reported, however many
     // rules it takes to do it.
     expect(unringedSelectors('.a { outline: none; }\n.a { color: red; }')).toEqual(['.a'])
+    // A later rule that paints nothing does not undo an earlier one that
+    // paints: combining is a union across every rule, not the last word.
+    expect(
+      unringedSelectors(
+        [
+          '.a { outline: none; }',
+          '.a:focus-visible { box-shadow: 0 0 0 2px red; }',
+          '.a:focus-visible { color: red; }',
+        ].join('\n'),
+      ),
+    ).toEqual([])
+    // And the same for hiding: an earlier rule that hides is not undone by a
+    // later one that touches no ring property.
+    expect(unringedSelectors('.a { outline: none; }\n.a { color: red; }\n.a { padding: 0; }')).toEqual(['.a'])
   })
 
   it('reads no restoration from a bare state with nothing in front of it', () => {

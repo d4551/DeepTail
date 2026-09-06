@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "commandRunner": {
+    "command": "bun test tests/actions.spec.ts tests/capability.spec.ts tests/dispatcher.spec.ts tests/locales.spec.ts tests/roster.spec.ts tests/store.spec.ts tests/stream.spec.ts apps/deeptail/tests --timeout 60000"
+  },
+  "mutate": ["apps/deeptail/src/**/*.ts"],
+  "coverageAnalysis": "off",
+  "disableTypeChecks": false,
+  "thresholds": {
+    "high": 99,
+    "low": 99,
+    "break": 99
+  },
+  "reporters": ["progress", "clear-text", "json"],
+  "timeoutMS": 300000,
+  "concurrency": 4,
+  "inPlace": true,
+  "buildCommand": "bun run --filter @deeptail/app build"
+}

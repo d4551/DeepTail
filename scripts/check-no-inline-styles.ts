@@ -9,13 +9,20 @@ import { readFile } from 'node:fs/promises'
 import { repositoryFiles } from './source-tree.ts'
 import { MARKUP_EXTENSIONS, SCRIPT_EXTENSIONS, scanSource } from './style-gate.ts'
 
-const files = repositoryFiles([...SCRIPT_EXTENSIONS, ...MARKUP_EXTENSIONS])
-const scanned = await Promise.all(files.map(async (file) => scanSource(file.label, await readFile(file.path, 'utf8'))))
-const offences = scanned.flat()
+// Guarded, as every runnable script here is: importing a module must run
+// nothing. A suite that imports one for the readers it exports would
+// otherwise run the whole gate as a side effect of the import.
+if (import.meta.main) {
+  const files = repositoryFiles([...SCRIPT_EXTENSIONS, ...MARKUP_EXTENSIONS])
+  const scanned = await Promise.all(
+    files.map(async (file) => scanSource(file.label, await readFile(file.path, 'utf8'))),
+  )
+  const offences = scanned.flat()
 
-if (offences.length > 0) {
-  const lines = offences.map((offence) => `  ${offence.label}:${String(offence.line)}: ${offence.why}`)
-  process.stderr.write(`inline styles are not allowed:\n${lines.join('\n')}\n`)
-  process.exit(1)
+  if (offences.length > 0) {
+    const lines = offences.map((offence) => `  ${offence.label}:${String(offence.line)}: ${offence.why}`)
+    process.stderr.write(`inline styles are not allowed:\n${lines.join('\n')}\n`)
+    process.exit(1)
+  }
+  process.stdout.write(`no inline styles (${String(files.length)} files)\n`)
 }
-process.stdout.write(`no inline styles (${String(files.length)} files)\n`)

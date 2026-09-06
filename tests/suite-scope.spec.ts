@@ -126,9 +126,11 @@ describe('the gates the chain runs', () => {
     expect(gates.filter((gate) => !chain.includes(`bun run ${gate}`))).toEqual([])
   })
 
-  it('runs each gate script against the tree rather than against a fixture', () => {
-    // Each names a reader in `scripts/`, so the rule it enforces is the rule
-    // its own fixtures prove: one gate, read twice, never two.
+  it('names a reader that ships, for each gate script it declares', () => {
+    // Each names a module in `scripts/`, so the rule it enforces is the rule
+    // that module's own fixtures prove: one gate, read twice, never two. That
+    // the named module exists is what is checked; what it does is checked
+    // where it is driven.
     const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
     const scripts = manifest.scripts ?? {}
     const shipped = new Set(repositoryFiles(['.ts']).map((file) => file.label))

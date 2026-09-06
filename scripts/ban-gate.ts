@@ -68,32 +68,28 @@ function orphanedDocs(parsed: Parsed, text: string): { readonly line: number }[]
   return docs.flatMap((comment, index) => {
     const next = docs[index + 1]
     if (next === undefined || opensFile(comment.start)) return []
-    // What stands between them, with every other comment blanked out: a note
-    // written between two doc blocks consumes neither of them, so the first is
-    // stranded just the same, while a declaration between them is what the
+    // A note written between two doc blocks consumes neither of them, so the
+    // first is stranded just the same; a declaration between them is what the
     // first documents.
-    const between = blankComments(text, comment.end, next.start, parsed.comments)
-    return between.trim() === '' ? [{ line: parsed.lineAt(comment.start) }] : []
+    return onlyComments(text, comment.end, next.start, parsed.comments) ? [{ line: parsed.lineAt(comment.start) }] : []
   })
 }
 
 /**
- * One span of a file with every comment inside it replaced by spaces.
+ * Whether a span of a file holds nothing but whitespace and comments.
  * @param text - the file's contents.
  * @param from - where the span starts.
  * @param to - where it ends.
  * @param comments - every comment in the file.
- * @returns the span, same length, comments blanked.
+ * @returns true when nothing in the span is code.
  */
-function blankComments(text: string, from: number, to: number, comments: readonly Comment[]): string {
-  let span = text.slice(from, to)
-  for (const comment of comments) {
-    if (comment.end <= from || comment.start >= to) continue
-    const opens = Math.max(comment.start, from) - from
-    const closes = Math.min(comment.end, to) - from
-    span = span.slice(0, opens) + ' '.repeat(closes - opens) + span.slice(closes)
+function onlyComments(text: string, from: number, to: number, comments: readonly Comment[]): boolean {
+  for (let at = from; at < to; at += 1) {
+    const character = text[at] ?? ''
+    if (character.trim() === '') continue
+    if (!comments.some((comment) => comment.start <= at && at < comment.end)) return false
   }
-  return span
+  return true
 }
 
 /**

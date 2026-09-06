@@ -74,5 +74,13 @@ export async function restoreInstrumented(root = '.'): Promise<string[]> {
   return wanted.map((file) => relative(root, file.target))
 }
 
-const restored = await restoreInstrumented()
-if (restored.length > 0) process.stderr.write(`mutate: restored ${String(restored.length)} instrumented file(s)\n`)
+// Guarded, as every runnable script here is: importing a module must run
+// nothing. This one shipped unguarded, and the consequence was not a warning —
+// the suite that drives `restoreInstrumented` was named in a mutation command,
+// so every mutant run imported this file, restored the tree Stryker had just
+// instrumented, and reported the scope as nought per cent with nothing amiss
+// in the log. A whole scope's number was fictitious.
+if (import.meta.main) {
+  const restored = await restoreInstrumented()
+  if (restored.length > 0) process.stderr.write(`mutate: restored ${String(restored.length)} instrumented file(s)\n`)
+}
