@@ -1,15 +1,6 @@
 /**
  * The names a piece of source reaches for but does not bring with it.
  *
- * Two of this repository's suites hand their checks to a browser as *source
- * text*: the structural checks and the scripted Tauri IPC are both stringified
- * and evaluated in the page. A function moved into another module keeps
- * compiling and keeps type-checking — the import is still there, for the
- * module — while the text that arrives in the page names something the page has
- * not got. What follows is a `ReferenceError` thrown deep inside a callback,
- * which in one case silenced every structural check on the page and in another
- * hydrated the capability ledger to empty, both without a single red test.
- *
  * A name is free when nothing in the source binds it, so the reader here is a
  * scope walk rather than a search: parameters, declarations, catch bindings,
  * class and function names all bind, while a property name, a label and an
@@ -117,7 +108,6 @@ function hoistVars(value: Field | undefined, into: Set<string>): void {
   if (!isNode(value)) return
   const node = value
   if (FUNCTION_LIKE.has(node.type)) {
-    // Its name is hoisted into the scope holding it; its body is not.
     if (node.type === 'FunctionDeclaration') declarePattern(node.id, into)
     return
   }

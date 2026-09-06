@@ -1,12 +1,6 @@
 /**
  * The plugin face a cordis host loads: what it is called, what it declares it
  * needs, and what it does to the context it is applied to.
- *
- * None of it was covered. The loader reads `name` and `inject` before anything
- * else runs, and the registration path `apply` builds — the one that hands each
- * registration to `ctx.effect` so a scope teardown takes the tools with it —
- * could have been emptied with every other suite still green, because every
- * other suite registers through the double rather than through the plugin.
  */
 
 import { expect, it } from 'bun:test'
@@ -41,9 +35,6 @@ function applyPlugin(config: Parameters<typeof apply>[1] = {}): Applied {
   const read = new Set<string>()
   const host = new Context()
   const effect = host.effect.bind(host)
-  // The recording parameters are read off the host's own `effect` face, so the
-  // call below is checked against the signature the plugin really calls rather
-  // than against a widened copy of it.
   type EffectInstall = Parameters<Context['effect']>[0]
   type EffectLabel = Parameters<Context['effect']>[1]
   Object.assign(host, {
@@ -74,9 +65,6 @@ it('names itself for loader diagnostics', () => {
 })
 
 it('declares every service it reaches for, and nothing it does not', () => {
-  // Checked against what the application actually reads off the context rather
-  // than against a copy of the declaration: a service dropped from `inject`
-  // is a plugin the loader starts before its dependency exists.
   const applied = applyPlugin()
   expect([...inject].toSorted()).toEqual(['sessionController', 'tools'])
   expect([...inject].filter((service) => !applied.read.has(service))).toEqual([])
@@ -97,8 +85,6 @@ it('registers every tool through the context effect, so a teardown takes them', 
 })
 
 it('resolves the schema defaults for a caller that configured nothing', () => {
-  // The default preset is what makes an unconfigured application legal, so an
-  // application with no config at all has to reach registration.
   expect(applyPlugin().registered.length).toBe(5)
 })
 

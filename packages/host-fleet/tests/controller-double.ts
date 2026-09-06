@@ -4,14 +4,7 @@
  * One double, so a change to what the controller answers cannot leave one suite
  * asserting against a shape the other no longer produces. It implements the
  * narrow structural faces in `src/types.ts` directly: a change to what the host
- * context or controller requires is a compile error here, not a silent pass.
- *
- * One conversion remains, and it is the whole reason `run` exists as its own
- * seam: the registry-owned execution token is a branded symbol minted only by
- * the real registry, and the owning agent is the host's own live fiber, so a
- * suite that drives `execute` directly holds stand-ins for exactly those two.
- * The fixture declares them, the real context is assignable to the fixture, and
- * the compiler checks the conversion against that declaration.
+ * context or controller requires is a compile error here.
  *
  * @module
  */
@@ -33,11 +26,9 @@ type PromptRequest = Parameters<FleetController['prompt']>[0]
 
 /**
  * The execution fixture: everything the run context carries, with the members
- * whose concrete types the double cannot mint declared at their widest honest
- * type — call identities as strings, the owning agent as the handle the tools
- * read, the token as an opaque symbol. The real context is assignable to this
- * fixture, which is what makes the single conversion in `run` a narrowing the
- * compiler checks, not a bridge.
+ * the double cannot mint declared at their widest honest type — call
+ * identities as strings, the owning agent as the handle the tools read, the
+ * token as an opaque symbol.
  */
 type ExecFixture = Omit<ToolRunContext, 'agent' | 'token' | 'callId' | 'rootCallId'> & {
   readonly callId: string
@@ -74,16 +65,7 @@ function refuse(): never {
 /** What a scripted controller recorded, and how it should answer. */
 export interface Script {
   readonly created: { agentPreset?: string; cwd?: string }[]
-  /**
-   * Every prompt the controller admitted, whole.
-   *
-   * The content blocks and the correlation are recorded, not just the target
-   * and the mode: what a session actually receives is the content, and the
-   * caller-minted request id is the only handle either side has on the
-   * delivery, so a suite that reads neither cannot tell a delivered prompt
-   * from an empty one. The recorded fields carry the controller face's own
-   * types, so a change to what a prompt is is a compile error here.
-   */
+  /** Every prompt the controller admitted, whole, in the controller face's own types. */
   readonly prompted: {
     sessionId: string
     mode: PromptRequest['mode']
@@ -91,14 +73,7 @@ export interface Script {
     requestId: string
   }[]
   readonly cancelled: string[]
-  /**
-   * Every follow request the controller received, whole.
-   *
-   * The budget is recorded as the key the request carried rather than as its
-   * value: a request that names the key with nothing under it is a different
-   * request from one that omits it, and a host that reads `in` rather than the
-   * value sees the difference.
-   */
+  /** Every follow request the controller received, with the budget key it carried. */
   readonly followed: { sessionId: string; maxMessages: number | 'absent' }[]
   createFails?: Error | undefined
   /** The preset the controller reports back on a creation, when it reports one. */
@@ -136,10 +111,6 @@ function toFrame(frame: ScriptFrame): SessionFollowFrame {
 
 /**
  * The async iterable `session.follow` hands back.
- *
- * The consumer leaving the stream early closes it: `closed` is recorded only
- * when frames remained unconsumed, so a stream drained to its end and one
- * abandoned mid-read stay distinguishable.
  * @param recording - the script, which records the early exit.
  * @returns the scripted frames.
  */
@@ -186,10 +157,6 @@ function scriptedController(recording: Script): FleetController {
         items: (recording.listed ?? []).map((row) => ({ ...row, sessionId: SessionId(row.sessionId) })),
       }),
     follow: (request) => {
-      // The observe tools address one session directly, so the subagent shape
-      // of the address union is a drive no tool sends: refusing it here keeps
-      // a tool that starts sending one from being recorded as the string
-      // "undefined" and passing every suite beneath it.
       if (request.address.kind !== 'session') {
         throw new Error('controller double: sessions_follow was handed a subagent address')
       }
@@ -255,22 +222,16 @@ export function script(): Script {
 
 /**
  * Run one tool through the double's execution fixture.
- *
- * The fixture covers every member of the run context except the four declared
- * in its type; the conversion at the call is the compiler-checked narrowing
- * from fixture to context.
  * @param tools - the registered tools.
  * @param name - which one to run.
  * @param args - its arguments.
- * @param agent - the session the caller speaks for.
+ * @param agent - the session the caller speaks for, or null for none.
  * @returns whatever the tool returned.
  */
 export function run(
   tools: Map<string, ToolDefinition>,
   name: string,
   args: ToolArguments,
-  // `null` is how a suite says the call has no owning agent, which is the state
-  // a tool must refuse rather than address a session for nobody.
   agent: string | null = 'caller',
 ): Promise<ToolOutcome> {
   const tool = tools.get(name)

@@ -1,16 +1,12 @@
 /**
  * Put the tree back after a mutation run, however that run ended.
  *
- * The runs mutate in place — the gates read the repository through
- * `git ls-files`, and a sandbox copy is not a repository — so an interrupted
- * run leaves every file it touched rewritten with the instrumenter's switch
- * wrapped around every expression. That tree still type-checks and still passes
- * its suites, so nothing says so; it happened here, to all of `scripts/`.
+ * The runs mutate in place, and only a file that still carries the
+ * instrumenter's marker is restored, so a stale backup can never overwrite
+ * work done since.
  *
  * The `mutate` scripts run this on exit, whether the run finished, failed or
- * was interrupted. Only a file that still carries the instrumenter's marker is
- * restored, so a stale backup can never overwrite work done since, and running
- * this on a tree that is already whole restores nothing at all.
+ * was interrupted.
  *
  * @module
  */
@@ -51,9 +47,6 @@ async function filesUnder(root: string, at = ''): Promise<string[]> {
 /**
  * Put back every file a run left instrumented.
  *
- * A file is restored only when it still carries the marker, so a run that
- * finished whole leaves nothing to restore, and an edit made since the run is
- * never overwritten.
  * @param root - the tree to restore, which a suite points at its own.
  * @returns the paths restored.
  */
@@ -88,12 +81,7 @@ export async function restoreInstrumented(root = '.'): Promise<string[]> {
   return wanted.map((file) => relative(root, file.target))
 }
 
-// Guarded, as every runnable script here is: importing a module must run
-// nothing. This one shipped unguarded, and the consequence was not a warning —
-// the suite that drives `restoreInstrumented` was named in a mutation command,
-// so every mutant run imported this file, restored the tree Stryker had just
-// instrumented, and reported the scope as nought per cent with nothing amiss
-// in the log. A whole scope's number was fictitious.
+// Guarded, as every runnable script here is: importing a module must run nothing.
 if (import.meta.main) {
   const restored = await restoreInstrumented()
   if (restored.length > 0) process.stderr.write(`mutate: restored ${String(restored.length)} instrumented file(s)\n`)

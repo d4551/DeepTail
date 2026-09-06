@@ -52,13 +52,8 @@ export function styleOffences(text: string, label = 'fixture.ts'): string[] {
 }
 
 /**
- * Whether the gate read a name and found it to be the style one, rather than
- * refusing a name it could not read.
- *
- * The difference is the whole of the constant folder. Both outcomes reject the
- * source, so a suite that asks only whether something was reported cannot tell
- * a fold that works from a fold that has been deleted — which is exactly what
- * an audit found: every folding rule could be removed with the suite green.
+ * Whether every offence the gate reports on this fixture names the style
+ * attribute or property.
  * @param text - the fixture.
  * @returns true when the offence names the style attribute or property.
  */

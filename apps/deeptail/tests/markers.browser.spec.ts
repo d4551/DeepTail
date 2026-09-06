@@ -2,16 +2,8 @@
  * Every control the registry declares, drawn where the registry says it is.
  *
  * `tests/actions.spec.ts` holds one direction: no page may write a marker as a
- * literal, so a control that is not in the registry cannot be drawn. Its own
- * comment claimed the converse — that a control not in the registry cannot be
- * drawn at all — while nothing asserted it, and eight of the nineteen declared
- * markers reached no page: the connection menu's own items carried none, the
- * roster's open control carried none, and the boot notice and return bar
- * carried none. A registry row nothing renders is a row nothing can dispatch,
- * and a marker-driven suite cannot see the control at all.
- *
- * The `placement` each row declares is what says which surface should carry
- * it. That field was read by nothing before this; it is the contract now.
+ * literal, so a control that is not in the registry cannot be drawn. The
+ * `placement` each row declares says which surface should carry it.
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
@@ -50,12 +42,6 @@ async function openPicker(extra: Partial<AnswerTable> = {}): Promise<Page> {
 /**
  * The boot notice, which is where the application falls back when it cannot
  * read the registry at all.
- *
- * The read is retried through the picker, so reaching the notice means pairing
- * a host each time the registry answers and then failing the read again — the
- * registry has to fail *after* it has already answered once, which is why the
- * scripted registry can be told when to start failing. A client boot that
- * fails is a different surface: the shell comes back carrying the reason.
  * @returns the page, showing the notice.
  */
 async function bootNotice(): Promise<Page> {
@@ -63,14 +49,8 @@ async function bootNotice(): Promise<Page> {
     hosts: [],
     paired: { id: 'dev-1', label: 'Workstation', origin: 'https://harness.local:3080' },
     listError: 'the registry is unreadable',
-    // The application reads the registry, then the picker reads it for itself,
-    // and they alternate. These are the application's reads: three failures in
-    // a row at that level is what exhausts the attempts.
     listErrorOn: [3, 5, 7],
   })
-  // Three rounds: the registry answers the first read, then fails the next
-  // three, and each failure sends the operator back through the picker before
-  // the attempts run out.
   await pairUntilNotice(page, 4)
   await page.locator('[data-deeptail-state="boot-error"]').waitFor({ state: 'visible' })
   return page
@@ -190,9 +170,6 @@ it('draws every marker the registry declares, on the surface it places it', asyn
 }, 180_000)
 
 it('draws no marker the registry does not declare', async () => {
-  // The other direction, over the same gathered set: a control carrying a
-  // marker off the union is one no registry row prices, so nothing decides
-  // whether the operator may use it.
   const found = await everyMarkerDrawn()
   const declared = new Set(ACTION_LIST.map((action) => action.marker))
   expect(

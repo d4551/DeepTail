@@ -23,14 +23,15 @@ import { type CarrierHooks, createCarrier } from './transport.ts'
 const BOOT_READY_KEY = '__DSH_BOOT_READY__'
 const TRANSPORT_KEY = '__DSH_TRANSPORT__'
 
+declare global {
+  /** The page gate the shell entry watches before it reads any global. */
+  var __DSH_BOOT_READY__: PromiseWithResolvers<void> | undefined
+}
+
 /** A running shell and the carrier feeding it. */
 export interface BootedHost {
   readonly entry: AppWebEntry
   readonly carrier: CarrierHooks
-}
-
-interface BootReadyGlobal {
-  [BOOT_READY_KEY]?: PromiseWithResolvers<void>
 }
 
 /**
@@ -41,11 +42,10 @@ interface BootReadyGlobal {
  * gate.
  */
 function bootReadyGate(): PromiseWithResolvers<void> {
-  const page = globalThis as BootReadyGlobal
-  const existing = page[BOOT_READY_KEY]
+  const existing = globalThis.__DSH_BOOT_READY__
   if (existing !== undefined) return existing
   const created = Promise.withResolvers<void>()
-  page[BOOT_READY_KEY] = created
+  globalThis.__DSH_BOOT_READY__ = created
   return created
 }
 
@@ -58,11 +58,7 @@ function bootReadyGate(): PromiseWithResolvers<void> {
  */
 export async function bootHost(host: HostRecord, container: HTMLElement): Promise<BootedHost> {
   const ready = bootReadyGate()
-  ready.promise.then(undefined, () => {
-    // The barrier's rejection is already reported through the boot that failed;
-    // this reference only keeps the reader of the gate from racing an unhandled
-    // rejection warning past the consumer that acts on it.
-  })
+  ready.promise.then(undefined, () => null)
   const carrier = createCarrier(host.id)
   Object.assign(globalThis, { [TRANSPORT_KEY]: carrier })
   const installed = await invoke<readonly IndexInjection[]>('boot_injections', { host: host.id })
@@ -73,11 +69,6 @@ export async function bootHost(host: HostRecord, container: HTMLElement): Promis
     )
   if (!installed.settled) throw installed.reason
   ready.resolve()
-  // Imported here rather than at the top of the module: the client is the
-  // heaviest thing this app can load, the shell exists precisely to be usable
-  // without it, and a static import made every shell boot parse and evaluate
-  // it to paint a roster it is not part of. It is fetched the moment a session
-  // is actually opened, which is the only moment it is needed.
   const { AppWebEntry } = await import('@deepseek-ai/dsh-client-web')
   const entry = new AppWebEntry(container)
   await entry.run()
@@ -87,13 +78,6 @@ export async function bootHost(host: HostRecord, container: HTMLElement): Promis
 /**
  * Undo a boot that failed partway, and report it through the barrier.
  *
- * Both globals are installed before the injection table is applied, so a
- * failure must remove both, and nothing else will: the caller never receives a
- * `BootedHost`, so teardown is out of reach. A page that still advertises a
- * carrier would let a retry attach to a host it never finished reaching, and a
- * rejected barrier can never be settled again, so leaving it behind would make
- * the shell paint this failure's message for every later host, reachable or
- * not.
  * @param ready - the barrier the page's shell entry is waiting on.
  * @param reason - whatever the failed step rejected with.
  * @returns the failure, marked apart from a settled boot.
@@ -107,11 +91,6 @@ function discardFailedBoot<T>(ready: PromiseWithResolvers<void>, reason: T): { s
 
 /**
  * Tear down the current shell so another host can boot in the same webview.
- *
- * Switching by teardown rather than a second webview is not a simplification:
- * multiwebview is desktop-only behind Tauri's `unstable` feature, and
- * `ctx.connection` refuses a second generation source in one client runtime,
- * so one shell at a time is the only shape that works on every target.
  *
  * @param booted - the shell entry and carrier to dispose.
  * @param host - the host whose mux socket should be closed with it.

@@ -7,10 +7,11 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import type { Page } from 'playwright'
-import { type Harness, startHarness } from './harness.ts'
-import { defects } from './structure-page.ts'
-import { openShell } from './surfaces.ts'
+import { type Harness, startHarness } from '../apps/deeptail/tests/harness.ts'
+import { defects } from '../apps/deeptail/tests/structure-page.ts'
+import { openShell } from '../apps/deeptail/tests/surfaces.ts'
+
+type Page = Awaited<ReturnType<typeof openShell>>
 
 let harness: Harness
 

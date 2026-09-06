@@ -1,9 +1,7 @@
 /**
  * The JSONC reader every gate shares, driven both ways.
  *
- * A second copy of this parser lived in `tests/jsonc.ts` and nothing imported
- * it, so the suites could not tell the shipped reader from a fork that had
- * drifted. These cases hit `scripts/jsonc.ts` — the one the gates actually call.
+ * These cases hit `scripts/jsonc.ts` — the one the gates actually call.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -25,9 +23,6 @@ describe('the jsonc reader', () => {
   })
 
   it('narrows an object and rejects a missing member as not one', () => {
-    // The bare `undefined` is accepted only because the reader's parameter
-    // carries the `Json | undefined` face, so the case fails to compile if
-    // that face narrows.
     expect(isJsonObject({ strict: true })).toBe(true)
     expect(isJsonObject(undefined)).toBe(false)
     expect(isJsonObject([])).toBe(false)

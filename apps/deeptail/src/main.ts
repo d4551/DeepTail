@@ -27,8 +27,6 @@ import { button, el } from './ui/dom.ts'
 import { mountShell } from './ui/shell.ts'
 
 const mount = document.querySelector('#root')
-// Narrowed rather than asserted: the generic form of `querySelector` would
-// narrow nothing, and a `#root` that is not an element fails at the mount.
 if (!(mount instanceof HTMLElement)) throw new Error('deeptail: missing #root')
 const container: HTMLElement = mount
 
@@ -43,39 +41,19 @@ const REGISTRY_ATTEMPTS = 3
 applyTheme()
 const t = createTranslate()
 
-/**
- * The page's mirror of what the native authority has issued.
- *
- * The mirror is only a mirror: Rust decides what reaches a host, and refuses a
- * priced route this page holds no live grant for. Holding the mirror here is
- * what lets the shell tell a control it may attempt from one it may not,
- * rather than finding out at the wire.
- */
+/** The page's mirror of what the native authority has issued. */
 const ledger = createGrantLedger()
 
 /**
  * Read the host registry, handing any failure to the picker.
- *
- * An unreadable registry is not a fatal boot. The picker reads the registry
- * itself and renders the host's own message with a retry, so every path that
- * needs the list goes through here rather than letting a rejection escape and
- * leave the window blank with the reason only in the console.
  * @returns every paired host.
  */
 async function knownHosts(attemptsLeft = REGISTRY_ATTEMPTS): Promise<readonly HostRecord[]> {
-  // A registry that never answers is a failure the picker asks the operator to
-  // retry, and each trip through it mounts a fresh runtime and a fresh frame.
-  // The recursion is bounded so an unreadable registry ends in a reported
-  // failure rather than in a window that allocates until it stops responding.
   const read = await invoke<HostRecord[]>('list_hosts').then(
     (hosts) => hosts,
     (reason) => (attemptsLeft <= 1 ? Promise.reject(reason) : undefined),
   )
   if (read !== undefined) {
-    // Taken here because this is the one place the registry is read, and the
-    // pairing set is exactly what the authority scopes grants to. A refusal to
-    // issue empties the mirror rather than leaving a stale one: the ledger
-    // refuses anything that is not this device's own snapshot.
     ledger.hydrate(
       await readNativeGrants().then(
         (grants) => grants,
@@ -106,12 +84,8 @@ let booted: BootedHost | undefined
 let bootedHost: HostRecord | undefined
 let disposeShell: (() => void) | undefined
 let returnBar: HTMLElement | undefined
-// A boot spans an IPC call and every plugin bundle load. A second row click in
-// that window would boot a second client over the first and leak it.
 let opening = false
 
-// One watcher for the whole app: the shell's own sockets are open long before
-// any client boots, and those are the ones a suspend kills silently.
 followAppLifecycle(function* carriers() {
   yield* shellCarriers.values()
   if (booted !== undefined) yield booted.carrier
@@ -149,13 +123,9 @@ function mountControlPlane(hosts: readonly HostRecord[], notice?: string): void 
         runToBootNotice(pairAnother())
       },
       repair: (hostId) => {
-        // Re-pairing pairs the same host again, so the form opens under the
-        // name it is filed under rather than blank.
         runToBootNotice(pairAnother(hosts.find((host) => host.id === hostId)?.label))
       },
       unpair: async (hostId) => {
-        // The socket is closed before the token is forgotten, so an unpaired
-        // host leaves no authenticated stream open for the process's life.
         await clearPage()
         await invoke('forget_host', { host: hostId })
         mountControlPlane(await knownHosts())
@@ -170,16 +140,12 @@ function mountControlPlane(hosts: readonly HostRecord[], notice?: string): void 
  * Boot the harness client for one host.
  *
  * The harness client opens at its own default view: nothing in its boot
- * surface takes a session id, so the operator re-selects there. The copy says
- * so rather than implying a deep link this path cannot deliver.
+ * surface takes a session id, so the operator re-selects there.
  * @param host - the host that owns the session.
  */
 async function openSession(host: HostRecord): Promise<void> {
   if (opening) return
   opening = true
-  // Booting replaces the page, so a failure part way through leaves nothing
-  // on screen. The control plane goes back up carrying the reason, rather
-  // than a blank window with the reason only in the console.
   const boot = clearPage()
     .then(() => bootHost(host, container))
     .then((client) => {

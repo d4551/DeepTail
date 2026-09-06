@@ -66,10 +66,6 @@ describe('the folder reads a name however it is assembled', () => {
   })
 
   it('reads a template, with and without interpolation', () => {
-    // The fixtures are template-literal source text, so the dollar is spelt
-    // escaped: the sequence a linter reads as an accidental placeholder is
-    // here the very syntax under test, and the escaped spelling carries the
-    // identical string value.
     expect(folded('const subject = `style`')).toBe('style')
     expect(folded('const subject = `sty\u0024{"le"}`')).toBe('style')
     expect(read('const part = "le"\nconst subject = `sty\u0024{part}`')).toBe('style')
@@ -95,9 +91,6 @@ describe('the folder reads a name a call assembles from parts', () => {
   it('reads characters spelt from their codes, by either spelling', () => {
     expect(folded('const subject = String.fromCharCode(115, 116, 121, 108, 101)')).toBe('style')
     expect(folded('const subject = String.fromCodePoint(115, 116, 121, 108, 101)')).toBe('style')
-    // `fromCharCode` truncates each argument to sixteen bits, and the folder
-    // has to truncate with it or read a different character than the source
-    // produces.
     expect(folded('const subject = String.fromCharCode(65601)')).toBe('A')
     expect(folded('const subject = String.fromCodePoint(65601)')).toBe('\u{10041}')
     expect(folded('const subject = String.fromCharCode(code)')).toBeUndefined()
@@ -123,8 +116,6 @@ describe('the folder reads a name a call assembles', () => {
   it('reads a name held in another constant, once the table is built', () => {
     expect(read('const a = "style"\nconst subject = a')).toBe('style')
     expect(read('const subject = unknown')).toBeUndefined()
-    // A constant assembled out of another is folded where it is read: the
-    // table itself is built against an empty environment, in one pass.
     expect(read('const a = "sty"\nconst b = a + "le"\nconst subject = b')).toBeUndefined()
   })
 
@@ -147,9 +138,6 @@ describe('the constant table', () => {
   })
 
   it('marks a name bound twice to different strings as undecided rather than picking one', () => {
-    // Two declarations of one name, in two scopes, is a name that is neither
-    // value. Reporting either would be a rule stated about source that does
-    // not exist.
     const env = constants(parsedBody('const a = "x"\nfunction f() { const a = "y"; return a }'))
     expect(env.get('a')).toBeNull()
   })
@@ -160,9 +148,6 @@ describe('the constant table', () => {
   })
 
   it('folds a later constant against nothing, so a declaration cannot read one after it', () => {
-    // The table is built in one pass with an empty environment, so a constant
-    // assembled out of another is folded where it is read rather than where it
-    // is written.
     expect(
       staticString(constants(parsedBody('const a = "x"\nconst b = a')), nodeOfType('const b = a', 'Identifier')),
     ).toBeUndefined()
