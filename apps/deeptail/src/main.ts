@@ -13,6 +13,8 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { type BootedHost, bootHost, teardownHost } from './boot.ts'
+import { createGrantLedger } from './capabilities/grants.ts'
+import { readNativeGrants } from './capabilities/native.ts'
 import { renderHostPicker } from './fleet.ts'
 import type { HostRecord } from './host.ts'
 import { followAppLifecycle } from './lifecycle.ts'
@@ -41,6 +43,16 @@ applyTheme()
 const t = createTranslate()
 
 /**
+ * The page's mirror of what the native authority has issued.
+ *
+ * The mirror is only a mirror: Rust decides what reaches a host, and refuses a
+ * priced route this page holds no live grant for. Holding the mirror here is
+ * what lets the shell tell a control it may attempt from one it may not,
+ * rather than finding out at the wire.
+ */
+const ledger = createGrantLedger()
+
+/**
  * Read the host registry, handing any failure to the picker.
  *
  * An unreadable registry is not a fatal boot. The picker reads the registry
@@ -58,7 +70,14 @@ async function knownHosts(attemptsLeft = REGISTRY_ATTEMPTS): Promise<readonly Ho
     (hosts) => hosts,
     (reason) => (attemptsLeft <= 1 ? Promise.reject(reason) : undefined),
   )
-  if (read !== undefined) return read
+  if (read !== undefined) {
+    // Taken here because this is the one place the registry is read, and the
+    // pairing set is exactly what the authority scopes grants to. A refusal to
+    // issue empties the mirror rather than leaving a stale one: the ledger
+    // refuses anything that is not this device's own snapshot.
+    ledger.hydrate(await readNativeGrants().catch(() => null))
+    return read
+  }
   await renderHostPicker(container)
   return knownHosts(attemptsLeft - 1)
 }

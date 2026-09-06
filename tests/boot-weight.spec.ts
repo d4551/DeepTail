@@ -18,12 +18,42 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { parseSync } from 'oxc-parser'
-import { repositoryFiles } from '../scripts/source-tree.ts'
+import { ROOT, repositoryFiles } from '../scripts/source-tree.ts'
 
 /** The dependency the shell must not need in order to paint. */
 const CLIENT = '@deepseek-ai/dsh-client-web'
+
+/** Where the build writes its chunks. */
+const ASSETS = `${ROOT}apps/deeptail/dist/assets/`
+
+/**
+ * The most the entry chunk may weigh, in bytes.
+ *
+ * It is about 66KB with the client split out and the client's own chunk is
+ * about 1.3MB, so this sits far above what the shell's own growth can reach
+ * and far below what pulling the client back in would cost — by any route,
+ * including one this file's source reader cannot see, such as a transitive
+ * dependency of some other import.
+ */
+const ENTRY_BUDGET = 300 * 1024
+
+/**
+ * Every built chunk, by name and size.
+ *
+ * The build is a precondition rather than something to skip around: a weight
+ * check with nothing to weigh reports nothing, and reporting nothing is what
+ * this file exists to prevent.
+ * @returns each chunk's name and byte length.
+ */
+function builtChunks(): { readonly name: string; readonly bytes: number }[] {
+  const listed = readdirSync(ASSETS, { withFileTypes: true }).filter(
+    (entry) => entry.isFile() && entry.name.endsWith('.js'),
+  )
+  if (listed.length === 0) throw new Error(`no built chunks under ${ASSETS}; run \`bun run build\` first`)
+  return listed.map((entry) => ({ name: entry.name, bytes: statSync(`${ASSETS}${entry.name}`).size }))
+}
 
 /**
  * Every module under the shell that imports a package for its value.
@@ -55,6 +85,31 @@ describe('the shell’s entry weight', () => {
     // actually opened. A static import here puts it back in the entry chunk,
     // and nothing else in the suite would notice.
     expect(valueImporters(CLIENT)).toEqual([])
+  })
+
+  it('ships an entry chunk the shell can parse before it paints', () => {
+    // The source reader above sees one specifier. This weighs what the bundler
+    // actually produced, so the client returning by any route at all -- a
+    // transitive dependency, a re-export, a differently spelled specifier --
+    // is caught by the thing that matters, which is what the page must parse.
+    const chunks = builtChunks()
+    const entry = chunks.filter((chunk) => chunk.name.startsWith('index-'))
+    expect(entry.length).toBe(1)
+    expect([entry[0]?.name ?? '', (entry[0]?.bytes ?? Number.MAX_SAFE_INTEGER) <= ENTRY_BUDGET]).toEqual([
+      entry[0]?.name ?? '',
+      true,
+    ])
+  })
+
+  it('splits the client into a chunk of its own, which is the weight being deferred', () => {
+    // If the whole build were small the budget above would pass for the wrong
+    // reason -- nothing deferred, nothing to defer. The client's own chunk is
+    // by far the heaviest thing here, and it must exist separately from the
+    // entry for the budget to mean anything.
+    const chunks = builtChunks()
+    const heaviest = chunks.reduce((most, chunk) => (chunk.bytes > most.bytes ? chunk : most))
+    expect(heaviest.name.startsWith('index-')).toBe(false)
+    expect(heaviest.bytes).toBeGreaterThan(ENTRY_BUDGET)
   })
 
   it('reads a value import as one, so the check cannot pass by accident', () => {

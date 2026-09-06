@@ -17,6 +17,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 
 /** Where the browser suites live, and the suffix that keeps them out of the unit run. */
@@ -30,6 +31,46 @@ function specs(): { readonly browser: string[]; readonly unit: string[] } {
     browser: all.filter((label) => label.startsWith(BROWSER_DIRECTORY)),
     unit: all.filter((label) => !label.startsWith(BROWSER_DIRECTORY)),
   }
+}
+
+/**
+ * The positional arguments the `test` script hands bun, read from the manifest
+ * rather than restated here.
+ *
+ * Restating them is what this file was doing, and it made the case below a
+ * claim about a command nobody had read: the script could have been changed to
+ * `bun test .` and every assertion would still have passed while the unit run
+ * swept the whole browser suite.
+ * @returns the shell words after `bun test`, flags dropped.
+ */
+function unitTestArguments(): string[] {
+  const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
+  const script = manifest.scripts?.test ?? ''
+  const words = script.trim().split(/\s+/u)
+  const start = words.indexOf('test')
+  if (words[0] !== 'bun' || start === -1) throw new Error(`the test script is not a bun test run: ${script}`)
+  return words.slice(start + 1).filter((word) => !word.startsWith('-'))
+}
+
+/**
+ * The paths one shell glob expands to, against the files the repository ships.
+ *
+ * Only `*` is honoured, which is the whole of what the script uses; a pattern
+ * carrying anything else would expand to nothing here and is refused rather
+ * than passing silently.
+ * @param pattern - one positional argument from the script.
+ * @param files - every spec the repository ships.
+ * @returns the paths the shell would hand bun.
+ */
+function expand(pattern: string, files: readonly string[]): string[] {
+  if (/[?[\]{}]/u.test(pattern)) throw new Error(`this reader cannot expand ${pattern}`)
+  if (!pattern.includes('*')) return [pattern]
+  const source = `^${pattern
+    .split('*')
+    .map((part) => part.replaceAll(/[.+^$()|\\]/gu, String.raw`\$&`))
+    .join('[^/]*')}$`
+  const matcher = new RegExp(source, 'u')
+  return files.filter((label) => matcher.test(label))
 }
 
 describe('the suites the gate chain runs', () => {
@@ -49,13 +90,23 @@ describe('the suites the gate chain runs', () => {
     expect(collisions).toEqual([])
   })
 
-  it('runs no browser spec under the unit command’s own filters', () => {
-    // The filters the `test` script expands to, matched the way bun matches
-    // them: a browser spec selected by any of them is one the unit run would
-    // execute without a bundle to serve.
-    const { browser, unit } = specs()
-    const filters = unit.filter((label) => label.startsWith('tests/') || label.startsWith('packages/'))
+  it('selects no browser spec when the script’s own arguments are expanded and matched', () => {
+    // The arguments the manifest actually carries, expanded the way the shell
+    // expands them, then matched the way bun matches them: as substrings of a
+    // path, not as paths.
+    const { browser } = specs()
+    const all = [...browser, ...specs().unit]
+    const filters = unitTestArguments().flatMap((pattern) => expand(pattern, all))
+    expect(filters.length).toBeGreaterThan(0)
     const selected = browser.filter((label) => filters.some((filter) => label.includes(filter)))
     expect(selected).toEqual([])
+  })
+
+  it('reads arguments out of the script rather than assuming them', () => {
+    // If this returned nothing, the case above would be green whatever the
+    // script said, because an empty filter list selects nothing.
+    const args = unitTestArguments()
+    expect(args.length).toBeGreaterThan(0)
+    expect(args.every((word) => word.endsWith('.spec.ts'))).toBe(true)
   })
 })

@@ -15,6 +15,9 @@ import { defects } from './structure-page.ts'
 import { openDrawerIfPresent } from './surfaces.ts'
 import { pointerFlags, SMALL_PHONE_VIEWPORT, TABLET_VIEWPORT, VIEWPORTS } from './viewports.ts'
 
+/** The smallest target any pointer admits, and so the least a row can occupy. */
+const MINIMUM_ROW = 24
+
 let harness: Harness
 
 beforeAll(async () => {
@@ -242,14 +245,18 @@ it('keeps the roster on screen at every designed view', async () => {
         // it is: the pane the shell exists to show is not there.
         if (roster === null) return { within: false, height: 0 }
         const edges = roster.getBoundingClientRect()
-        // Any part of it inside the window, and a height a row can be read in.
+        // Wholly inside the window on the block axis, not merely intersecting
+        // it: one pixel of the roster on screen satisfied "on screen" while the
+        // rest of it sat past the edge, which is the defect this case is about.
         return {
-          within: edges.top < window.innerHeight && edges.bottom > 0,
+          within: edges.top >= 0 && edges.bottom <= window.innerHeight,
           height: Math.round(edges.height),
         }
       })
       await page.close()
-      return [viewport.label, box.within, box.height > 0]
+      // Tall enough for one row of the platform's minimum target, because a
+      // roster too short to show a row is a roster the reader cannot use.
+      return [viewport.label, box.within, box.height >= MINIMUM_ROW]
     }),
   )
   expect(seen).toEqual(VIEWPORTS.map((viewport) => [viewport.label, true, true]))

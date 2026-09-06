@@ -9,6 +9,7 @@
  * @module
  */
 
+import { CAPABILITIES, type CapabilityDescriptor } from '../src/actions/capabilities.ts'
 import { CARRIER_SOURCES, deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux } from './tauri-ipc-carrier.ts'
 
 export type MuxEventValue =
@@ -139,6 +140,31 @@ function deeptailTailscale(script: AnswerTable, cmd: string): Promise<object | b
 }
 
 /**
+ * Issue the grants the native authority would, for the hosts this page knows.
+ *
+ * The real authority mints one grant per declared capability, scoped to the
+ * device or to each paired host as the registry declares, and the page's ledger
+ * refuses a snapshot that is not shaped like one. Building it from the same
+ * registry the product reads means a case exercises the page's real hydration
+ * rather than a stub the ledger would have taken whatever it looked like.
+ * @param script - the answers this page should give.
+ * @returns the snapshot, in the shape the ledger reads.
+ */
+function deeptailGrants(script: AnswerTable): object {
+  const hosts = (script.hosts ?? []).map((host) => host.id)
+  const declared: CapabilityDescriptor[] = Object.values(CAPABILITIES)
+  const grants = declared.flatMap((capability) =>
+    (capability.subject === 'host' ? hosts : ['device']).map((subject) => ({
+      capability: capability.id,
+      subject,
+      revision: 1,
+      expiresAt: Date.now() + capability.ttlSeconds * 1000,
+    })),
+  )
+  return { issuer: 'native', context: 'scripted-pairing', grants }
+}
+
+/**
  * Dispatch one Tauri command to its scripted answer.
  * @param script - the answers this page should give.
  * @param cmd - the command name.
@@ -167,6 +193,8 @@ function deeptailInvoke(
       return script.selectError === undefined ? Promise.resolve({}) : Promise.reject(new Error(script.selectError))
     case 'forget_host':
       return Promise.resolve(null)
+    case 'capability_grants':
+      return Promise.resolve(deeptailGrants(script))
     case 'boot_injections':
       return script.bootError === undefined ? Promise.resolve([]) : Promise.reject(new Error(script.bootError))
     case 'carrier_close_mux':

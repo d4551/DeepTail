@@ -161,11 +161,18 @@ async function auditAt(page: Page, at: number): Promise<Pass> {
  */
 export async function auditPage(page: Page): Promise<readonly Violation[]> {
   const resting = await auditOnce(page)
-  if (!(await scrollPanes(page, SCROLL_POSITIONS[0]))) return [...resting.decided, ...resting.undecided]
-  const passes = [resting, await auditAt(page, 0), await auditAt(page, 0.5), await auditAt(page, 1)]
+  const [top, middle, bottom] = SCROLL_POSITIONS
+  if (!(await scrollPanes(page, top))) return [...resting.decided, ...resting.undecided]
+  // The positions come from the table above rather than being written out here
+  // again: restating them left the constant deciding nothing, so editing it
+  // would have changed no pass this suite runs.
+  const passes = [resting, await auditAt(page, top), await auditAt(page, middle), await auditAt(page, bottom)]
   const decided = new Map<string, Violation>()
-  let undecided: Map<string, Violation> | undefined
-  for (const pass of passes) {
+  // Seeded from the first pass rather than left absent: `passes` always holds
+  // four entries, so a branch for "no pass has been seen yet" could never be
+  // taken and read as a state this can be in.
+  let undecided = new Map<string, Violation>()
+  for (const [index, pass] of passes.entries()) {
     for (const finding of pass.decided.flatMap((one) => perNode(one))) {
       decided.set(keyOf(finding.id, finding.nodes[0] ?? ''), finding)
     }
@@ -174,7 +181,7 @@ export async function auditPage(page: Page): Promise<readonly Violation[]> {
     )
     // Every node this pass could not decide, kept only while every earlier pass
     // could not decide it either.
-    undecided = undecided === undefined ? open : new Map([...undecided].filter(([id]) => open.has(id)))
+    undecided = index === 0 ? open : new Map([...undecided].filter(([id]) => open.has(id)))
   }
-  return [...decided.values(), ...(undecided?.values() ?? [])]
+  return [...decided.values(), ...undecided.values()]
 }

@@ -36,10 +36,14 @@ async function expectNoSuppressionLists(): Promise<void> {
   expect(biome.files?.includes ?? []).toEqual(['**', '!**/dist', '!**/lib', '!**/gen', '!**/target', '!**/*.min.js'])
   const rules = biome.linter?.rules ?? {}
   expect(rules.preset).toBe('recommended')
-  const levels = Object.values(rules).flatMap((group) =>
-    typeof group === 'object' && group !== null ? Object.values(group) : [group],
+  // Every level this config states, with the preset name -- which is not a
+  // level -- left out. Filtering for `off` alone was the same oversight this
+  // file's own header describes: a rule dropped to `warn` or `info` reports
+  // nothing that fails a build, and reads as nothing at all in a diff.
+  const levels = Object.entries(rules).flatMap(([group, value]) =>
+    typeof value === 'object' && value !== null ? Object.values(value) : group === 'preset' ? [] : [value],
   )
-  expect(levels.filter((level) => level === 'off')).toEqual([])
+  expect(levels.filter((level) => level !== 'error')).toEqual([])
   expect(biome.linter?.enabled).not.toBe(false)
 
   // The second linter had no such pin at all, so a category could have been

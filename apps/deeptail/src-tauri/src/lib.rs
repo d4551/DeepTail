@@ -12,6 +12,7 @@
 
 use tauri::Manager;
 
+mod capability;
 mod carrier;
 mod commands;
 mod hosts;
@@ -31,6 +32,9 @@ pub struct AppState {
     pub secrets: secrets::SecretStore,
     pub sockets: carrier::MuxRegistry,
     pub http: reqwest::Client,
+    /// What the webview may spend, and until when. The page holds a mirror of
+    /// this; this is the copy that decides.
+    pub capabilities: capability::authority::GrantAuthority,
 }
 
 /// Build and run the application. Called by the desktop binary and, on mobile,
@@ -68,6 +72,7 @@ pub fn run() {
                 secrets,
                 sockets: carrier::MuxRegistry::default(),
                 http,
+                capabilities: capability::authority::GrantAuthority::default(),
             });
             Ok(())
         })
@@ -77,6 +82,7 @@ pub fn run() {
             commands::forget_host,
             commands::pair_host,
             commands::boot_injections,
+            commands::capability_grants,
             commands::carrier_fetch,
             commands::carrier_load_bundle,
             commands::carrier_open_mux,

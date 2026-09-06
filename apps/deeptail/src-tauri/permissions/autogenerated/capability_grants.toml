@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-capability-grants"
+description = "Enables the capability_grants command without any pre-configured scope."
+commands.allow = ["capability_grants"]
+
+[[permission]]
+identifier = "deny-capability-grants"
+description = "Denies the capability_grants command without any pre-configured scope."
+commands.deny = ["capability_grants"]
