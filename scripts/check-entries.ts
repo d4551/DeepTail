@@ -10,20 +10,24 @@
  * the same always-failing case scores a hundred while proving nothing.
  */
 
-import { readFile } from 'node:fs/promises'
 import { scanEntry } from './entry-gate.ts'
-import { repositoryFiles } from './source-tree.ts'
+import { CONSOLE, type Gate, readGate, reportGate } from './gate-runner.ts'
+
+/**
+ * What this gate reads and refuses.
+ *
+ * Exported because it is the gate's whole declaration — which files, what it
+ * says when it refuses, and what it says when it does not — and a declaration
+ * only the command line can reach is one no suite can read.
+ */
+export const GATE: Gate = {
+  extensions: ['.ts'],
+  only: (file) => file.label.startsWith('scripts/'),
+  refusal: 'a script does work when it is imported',
+  clean: (scripts) => `every script does nothing when imported (${String(scripts)} scripts)`,
+  scan: scanEntry,
+}
 
 // Guarded, as every runnable script here is: importing a module must run
 // nothing.
-if (import.meta.main) {
-  const files = repositoryFiles(['.ts']).filter((file) => file.label.startsWith('scripts/'))
-  const scanned = await Promise.all(files.map(async (file) => scanEntry(file.label, await readFile(file.path, 'utf8'))))
-  const offences = scanned.flat()
-  if (offences.length > 0) {
-    const lines = offences.map((offence) => `  ${offence.label}:${String(offence.line)}: ${offence.why}`)
-    process.stderr.write(`a script does work when it is imported:\n${lines.join('\n')}\n`)
-    process.exit(1)
-  }
-  process.stdout.write(`every script does nothing when imported (${String(files.length)} scripts)\n`)
-}
+if (import.meta.main) process.exitCode = reportGate(await readGate(GATE), CONSOLE)

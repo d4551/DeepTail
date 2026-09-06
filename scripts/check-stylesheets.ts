@@ -5,22 +5,23 @@
  * drives, so what runs here and what is proved there are the same code.
  */
 
-import { readFile } from 'node:fs/promises'
+import { CONSOLE, type Gate, readGate, reportGate } from './gate-runner.ts'
 import { STYLE_EXTENSIONS, scanSheet } from './sheet-gate.ts'
-import { repositoryFiles } from './source-tree.ts'
+
+/**
+ * What this gate reads and refuses.
+ *
+ * Exported because it is the gate's whole declaration — which files, what it
+ * says when it refuses, and what it says when it does not — and a declaration
+ * only the command line can reach is one no suite can read.
+ */
+export const GATE: Gate = {
+  extensions: [...STYLE_EXTENSIONS],
+  refusal: 'stylesheets carry values that belong to the scale',
+  clean: (sheets) => `stylesheets read the scale (${String(sheets)} sheets)`,
+  scan: scanSheet,
+}
 
 // Guarded, as every runnable script here is: importing a module must run
-// nothing. A suite that imports one for the readers it exports would
-// otherwise run the whole gate as a side effect of the import.
-if (import.meta.main) {
-  const files = repositoryFiles([...STYLE_EXTENSIONS])
-  const scanned = await Promise.all(files.map(async (file) => scanSheet(file.label, await readFile(file.path, 'utf8'))))
-  const offences = scanned.flat()
-
-  if (offences.length > 0) {
-    const lines = offences.map((offence) => `  ${offence.label}:${String(offence.line)}: ${offence.why}`)
-    process.stderr.write(`stylesheets carry values that belong to the scale:\n${lines.join('\n')}\n`)
-    process.exit(1)
-  }
-  process.stdout.write(`stylesheets read the scale (${String(files.length)} sheets)\n`)
-}
+// nothing.
+if (import.meta.main) process.exitCode = reportGate(await readGate(GATE), CONSOLE)
