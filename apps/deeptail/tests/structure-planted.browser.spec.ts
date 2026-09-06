@@ -52,178 +52,188 @@ async function plantTarget(page: Page, probe: string, px: number): Promise<void>
   )
 }
 
-it('reports nested interactive controls', async () => {
-  const page = await openShell(harness)
-  await page.evaluate(() => {
-    const link = document.createElement('a')
-    link.href = '#probe'
-    link.dataset.deeptailProbe = 'nested'
-    const inner = document.createElement('button')
-    inner.textContent = 'inner'
-    link.append(inner)
-    document.querySelector('[data-deeptail-shell]')?.append(link)
+/** One planted defect: what is put on the page, what the check must name, and what it drops. */
+interface PlantedCase {
+  /** The rule the case proves, as the case title. */
+  readonly label: string
+  /** The view to open under; absent is the wide fine-pointer roster. */
+  readonly view?: Parameters<Harness['open']>[1]
+  /** Hold the page to the pointer's own touch floor while measuring. */
+  readonly strict?: boolean
+  /** Put the defect on the page. */
+  readonly plant: (page: Page) => Promise<void>
+  /** The check's names the page must carry while the probe is planted. */
+  readonly reports: readonly string[]
+  /** The probes to drop; a case that styled a product element drops nothing. */
+  readonly drop?: readonly string[]
+}
+
+const CASES: readonly PlantedCase[] = [
+  {
+    label: 'reports nested interactive controls',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const link = document.createElement('a')
+        link.href = '#probe'
+        link.dataset.deeptailProbe = 'nested'
+        const inner = document.createElement('button')
+        inner.textContent = 'inner'
+        link.append(inner)
+        document.querySelector('[data-deeptail-shell]')?.append(link)
+      })
+    },
+    reports: ['nested-interactive'],
+    drop: ['nested'],
+  },
+  {
+    label: 'reports a skipped heading level',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const heading = document.createElement('h5')
+        heading.textContent = 'skipped'
+        heading.dataset.deeptailProbe = 'heading'
+        document.querySelector('[data-deeptail-shell] main')?.append(heading)
+      })
+    },
+    reports: ['heading-skip'],
+    drop: ['heading'],
+  },
+  {
+    label: 'reports a group of controls under no name',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const group = document.createElement('fieldset')
+        group.dataset.deeptailProbe = 'group'
+        const input = document.createElement('input')
+        input.type = 'radio'
+        input.name = 'probe'
+        group.append(input)
+        document.querySelector('[data-deeptail-shell]')?.append(group)
+      })
+    },
+    reports: ['unnamed-group'],
+    drop: ['group'],
+  },
+  {
+    label: 'reports physical text alignment',
+    plant: async (page) => {
+      // The physical spelling, assembled from parts so this file's own source
+      // does not carry it: the rule under test is what refuses it on the page.
+      // A stylesheet over a product element, so there is no probe to drop and
+      // no clean state to return to — the case ends when the page is measured.
+      const side = ['lef', 't'].join('')
+      await page.addStyleTag({ content: `[data-deeptail-shell] .main-title { text-align: ${side}; }` })
+    },
+    reports: ['alignment'],
+  },
+  {
+    label: 'reports a nested grid',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const inner = document.createElement('div')
+        inner.dataset.deeptailProbe = 'grid'
+        inner.className = 'main-body'
+        document.querySelector('[data-deeptail-shell]')?.append(inner)
+      })
+      await page.addStyleTag({ content: '[data-deeptail-probe="grid"] { display: grid; }' })
+    },
+    reports: ['nested-grid'],
+    drop: ['grid'],
+  },
+  {
+    label: 'reports a layout table with no header',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const table = document.createElement('table')
+        table.dataset.deeptailProbe = 'table'
+        const row = table.insertRow()
+        row.insertCell().textContent = 'layout'
+        document.querySelector('[data-deeptail-shell]')?.append(table)
+      })
+    },
+    reports: ['layout-table'],
+    drop: ['table'],
+  },
+  {
+    label: 'reports a second shell, and a shell nested in a shell',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const extra = document.createElement('div')
+        extra.dataset.deeptailShell = ''
+        extra.dataset.deeptailProbe = 'shell'
+        document.querySelector('[data-deeptail-shell]')?.append(extra)
+      })
+    },
+    reports: ['nested-shell', 'split-shell'],
+    drop: ['shell'],
+  },
+  {
+    label: 'reports an inline script inside a product surface',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const script = document.createElement('script')
+        script.dataset.deeptailProbe = 'script'
+        script.textContent = 'void 0'
+        document.querySelector('[data-deeptail-shell]')?.append(script)
+      })
+    },
+    reports: ['inline-script'],
+    drop: ['script'],
+  },
+  {
+    label: 'reports a sourced helper script hanging off a product surface',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const script = document.createElement('script')
+        script.dataset.deeptailProbe = 'src-script'
+        script.src = '/one-off-helper.js'
+        document.querySelector('[data-deeptail-shell]')?.append(script)
+      })
+    },
+    reports: ['inline-script', 'one-off-helper.js'],
+    drop: ['src-script'],
+  },
+  {
+    label: 'reports a sourced helper script appended to the document body',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const script = document.createElement('script')
+        script.dataset.deeptailProbe = 'body-script'
+        script.src = '/body-helper.js'
+        document.body.append(script)
+      })
+    },
+    reports: ['inline-script', 'body-helper.js'],
+    drop: ['body-script'],
+  },
+  {
+    label: 'reports a control under the WCAG 2.5.8 24px floor',
+    plant: (page) => plantTarget(page, 'tiny', 23),
+    reports: ['target-size', 'under 24'],
+    drop: ['tiny'],
+  },
+  {
+    label: 'reports a control under the Apple HIG 44px floor on a coarse pointer',
+    view: { mobile: true },
+    strict: true,
+    plant: (page) => plantTarget(page, 'short', 43),
+    reports: ['target-size', 'under 44'],
+    drop: ['short'],
+  },
+]
+
+for (const planted of CASES) {
+  it(planted.label, async () => {
+    const page = await openShell(harness, {}, planted.view)
+    await planted.plant(page)
+    const found = await defects(page, planted.strict === true)
+    for (const reason of planted.reports) expect(found).toContain(reason)
+    // A case that styled a product element cannot be un-planted, so only the
+    // probe-carrying cases owe the check a page that is clean again.
+    if (planted.drop !== undefined) {
+      for (const probe of planted.drop) expect(await page.evaluate<boolean>(DROP(probe))).toBe(true)
+      expect(await defects(page, planted.strict === true)).toBe('')
+    }
+    await page.close()
   })
-  const found = await defects(page)
-  expect(found).toContain('nested-interactive')
-  expect(await page.evaluate<boolean>(DROP('nested'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports a skipped heading level', async () => {
-  const page = await openShell(harness)
-  await page.evaluate(() => {
-    const heading = document.createElement('h5')
-    heading.textContent = 'skipped'
-    heading.dataset.deeptailProbe = 'heading'
-    document.querySelector('[data-deeptail-shell] main')?.append(heading)
-  })
-  const found = await defects(page)
-  expect(found).toContain('heading-skip')
-  expect(await page.evaluate<boolean>(DROP('heading'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports a group of controls under no name', async () => {
-  const page = await openShell(harness)
-  await page.evaluate(() => {
-    const group = document.createElement('fieldset')
-    group.dataset.deeptailProbe = 'group'
-    const input = document.createElement('input')
-    input.type = 'radio'
-    input.name = 'probe'
-    group.append(input)
-    document.querySelector('[data-deeptail-shell]')?.append(group)
-  })
-  const found = await defects(page)
-  expect(found).toContain('unnamed-group')
-  expect(await page.evaluate<boolean>(DROP('group'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports physical text alignment', async () => {
-  const page = await openShell(harness)
-  await page.addStyleTag({ content: '[data-deeptail-shell] .main-title { text-align: left; }' })
-  const found = await defects(page)
-  expect(found).toContain('alignment')
-  await page.close()
-})
-
-it('reports a nested grid', async () => {
-  const page = await openShell(harness)
-  await page.evaluate(() => {
-    const inner = document.createElement('div')
-    inner.dataset.deeptailProbe = 'grid'
-    inner.className = 'main-body'
-    document.querySelector('[data-deeptail-shell]')?.append(inner)
-  })
-  await page.addStyleTag({ content: '[data-deeptail-probe="grid"] { display: grid; }' })
-  const found = await defects(page)
-  expect(found).toContain('nested-grid')
-  expect(await page.evaluate<boolean>(DROP('grid'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports a layout table with no header', async () => {
-  const page = await openShell(harness)
-  await page.evaluate(() => {
-    const table = document.createElement('table')
-    table.dataset.deeptailProbe = 'table'
-    const row = table.insertRow()
-    row.insertCell().textContent = 'layout'
-    document.querySelector('[data-deeptail-shell]')?.append(table)
-  })
-  const found = await defects(page)
-  expect(found).toContain('layout-table')
-  expect(await page.evaluate<boolean>(DROP('table'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports a second shell, and a shell nested in a shell', async () => {
-  const page = await openShell(harness)
-  await page.evaluate(() => {
-    const extra = document.createElement('div')
-    extra.dataset.deeptailShell = ''
-    extra.dataset.deeptailProbe = 'shell'
-    document.querySelector('[data-deeptail-shell]')?.append(extra)
-  })
-  const found = await defects(page)
-  expect(found).toContain('nested-shell')
-  expect(found).toContain('split-shell')
-  expect(await page.evaluate<boolean>(DROP('shell'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports an inline script inside a product surface', async () => {
-  const page = await openShell(harness)
-  await page.evaluate(() => {
-    const script = document.createElement('script')
-    script.dataset.deeptailProbe = 'script'
-    script.textContent = 'void 0'
-    document.querySelector('[data-deeptail-shell]')?.append(script)
-  })
-  const found = await defects(page)
-  expect(found).toContain('inline-script')
-  expect(await page.evaluate<boolean>(DROP('script'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports a sourced helper script hanging off a product surface', async () => {
-  const page = await openShell(harness)
-  await page.evaluate(() => {
-    const script = document.createElement('script')
-    script.dataset.deeptailProbe = 'src-script'
-    script.src = '/one-off-helper.js'
-    document.querySelector('[data-deeptail-shell]')?.append(script)
-  })
-  const found = await defects(page)
-  expect(found).toContain('inline-script')
-  expect(found).toContain('one-off-helper.js')
-  expect(await page.evaluate<boolean>(DROP('src-script'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports a sourced helper script appended to the document body', async () => {
-  const page = await openShell(harness)
-  await page.evaluate(() => {
-    const script = document.createElement('script')
-    script.dataset.deeptailProbe = 'body-script'
-    script.src = '/body-helper.js'
-    document.body.append(script)
-  })
-  const found = await defects(page)
-  expect(found).toContain('inline-script')
-  expect(found).toContain('body-helper.js')
-  expect(await page.evaluate<boolean>(DROP('body-script'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports a control under the WCAG 2.5.8 24px floor', async () => {
-  const page = await openShell(harness)
-  await plantTarget(page, 'tiny', 23)
-  const found = await defects(page)
-  expect(found).toContain('target-size')
-  expect(found).toContain('under 24')
-  expect(await page.evaluate<boolean>(DROP('tiny'))).toBe(true)
-  expect(await defects(page)).toBe('')
-  await page.close()
-})
-
-it('reports a control under the Apple HIG 44px floor on a coarse pointer', async () => {
-  const page = await openShell(harness, {}, { mobile: true })
-  await plantTarget(page, 'short', 43)
-  const found = await defects(page, true)
-  expect(found).toContain('target-size')
-  expect(found).toContain('under 44')
-  expect(await page.evaluate<boolean>(DROP('short'))).toBe(true)
-  expect(await defects(page, true)).toBe('')
-  await page.close()
-})
+}

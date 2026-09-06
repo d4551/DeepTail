@@ -29,14 +29,20 @@ afterAll(async () => {
 })
 
 /**
- * Open a page over `table` under `view` and wait for the shell to show.
+ * Open a page over `table` under `view` and wait for the surface to show.
  * @param table - the registry the page boots against.
  * @param view - the pointer, width and palette the case is measured under.
- * @returns the page, showing the shell.
+ * @param shows - the selector naming the surface the case measures; the shell,
+ * unless the case opens the picker or another surface.
+ * @returns the page, showing the surface.
  */
-async function opened(table: AnswerTable, view: Parameters<Harness['open']>[1] = {}): Promise<Page> {
+async function opened(
+  table: AnswerTable,
+  view: Parameters<Harness['open']>[1] = {},
+  shows = '[data-deeptail-shell]',
+): Promise<Page> {
   const page = await harness.open(table, view)
-  await page.waitForSelector('[data-deeptail-shell]')
+  await page.waitForSelector(shows)
   return page
 }
 
@@ -69,8 +75,9 @@ it('meets the Apple HIG touch minimum on the menu a finger opens, on a tablet', 
 })
 
 it('meets the Apple HIG touch minimum on the pairing form, on a tablet', async () => {
-  const page = await opened({ hosts: [] }, { tablet: true })
-  await page.waitForSelector('[data-deeptail-picker]')
+  // No hosts, so the page is the picker: the pairing form is the surface
+  // measured here, not the shell.
+  const page = await opened({ hosts: [] }, { tablet: true }, '[data-deeptail-picker]')
   await page.getByRole('button', { name: 'Pair a host' }).click()
   await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
   await expectTargetsMeetable(page)
