@@ -187,19 +187,24 @@ function checkAlignment(add: Report, limits: { readonly scope: string }): void {
  * @param add - collects a finding.
  * @param limits - the product surfaces to read.
  */
+function gridAncestor(element: Element): Element | undefined {
+  let ancestor = element.parentElement
+  while (ancestor !== null) {
+    const display = getComputedStyle(ancestor).display
+    if (display === 'grid' || display === 'inline-grid') return ancestor
+    ancestor = ancestor.parentElement
+  }
+  return undefined
+}
+
 function checkGrid(add: Report, limits: { readonly scope: string }): void {
   for (const node of document.querySelectorAll(limits.scope)) {
     for (const element of [node, ...node.querySelectorAll('*')]) {
       const display = getComputedStyle(element).display
       if (display === 'grid' || display === 'inline-grid') {
-        let ancestor = element.parentElement
-        while (ancestor !== null) {
-          const parentDisplay = getComputedStyle(ancestor).display
-          if (parentDisplay === 'grid' || parentDisplay === 'inline-grid') {
-            add('nested-grid', `${describe(element)} is a grid inside ${describe(ancestor)}, which is also a grid`)
-            break
-          }
-          ancestor = ancestor.parentElement
+        const parent = gridAncestor(element)
+        if (parent !== undefined) {
+          add('nested-grid', `${describe(element)} is a grid inside ${describe(parent)}, which is also a grid`)
         }
       }
       if (display === 'table' && element.tagName !== 'TABLE') {
@@ -222,5 +227,6 @@ export {
   checkNestedScroll,
   checkOverlappingTargets,
   checkTouchTargets,
+  gridAncestor,
   scrolls,
 }

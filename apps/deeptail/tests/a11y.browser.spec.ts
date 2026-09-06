@@ -222,13 +222,17 @@ it('has no WCAG violations in the compose sheet at mobile, tablet and desktop, i
 }, 180_000)
 
 it('has no WCAG violations with the drawer open in both palettes on a phone', async () => {
-  for (const dark of [false, true]) {
-    const page = await openShell(harness, {}, { mobile: true, dark })
-    await page.locator('[data-deeptail-action="drawer"]').click()
-    await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
-    await expectNoViolations(harness, page)
-    await page.close()
-  }
+  await Promise.all(
+    [false, true].map(async (dark) => {
+      const page = await openShell(harness, {}, { mobile: true, dark })
+      await page.locator('[data-deeptail-action="drawer"]').click()
+      await page
+        .locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]')
+        .waitFor({ state: 'visible' })
+      await expectNoViolations(harness, page)
+      await page.close()
+    }),
+  )
 })
 
 it('reports an unlabeled control as a WCAG violation', async () => {

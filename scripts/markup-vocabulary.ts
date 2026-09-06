@@ -151,7 +151,7 @@ const TAILWIND_UTILITY_RE = new RegExp(`^(?:${TAILWIND_UTILITY})${TAILWIND_SCALE
 function utilityOf(token: string): string {
   const important = token.startsWith('!') ? token.slice(1) : token
   const parts = important.split(':')
-  return parts[parts.length - 1] ?? important
+  return parts.at(-1) ?? important
 }
 
 /**

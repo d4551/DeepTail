@@ -19,6 +19,7 @@
  */
 
 import { compare, parse } from 'semver'
+import { declaredPins } from './pins.ts'
 
 /** One row of the `bun outdated` table. */
 interface OutdatedRow {
@@ -154,6 +155,11 @@ if (import.meta.main) {
     process.stderr.write('check-outdated: bun printed a table this gate could not read\n')
     process.exit(1)
   }
+  const pins = declaredPins()
+  if (pins.size === 0) {
+    process.stderr.write('check-outdated: no dependencies are declared in any workspace manifest\n')
+    process.exit(1)
+  }
   const behind = behindInstallable(rows)
   const held = heldByPolicy(rows)
   if (held.length > 0) {
@@ -164,6 +170,6 @@ if (import.meta.main) {
     process.exit(1)
   }
   process.stdout.write(
-    `every dependency is at the newest version this workspace can install (${String(rows.length)} checked)\n`,
+    `every dependency is at the newest version this workspace can install (${String(pins.size)} declared pins current; bun listed ${String(rows.length)} outdated-or-held)\n`,
   )
 }

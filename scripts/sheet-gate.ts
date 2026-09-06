@@ -225,25 +225,25 @@ function declarationOffences(label: string, text: string): Offence[] {
         why: 'a remote URL loads an asset no local install ships; ship the asset in the bundle',
       })
     }
-    offences.push(...scanColour(label, value, line))
-    if (!SCALED.test(property)) continue
-    const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
-    if (lengths.length === 0) continue
-    if (property === 'grid-template-columns' || property === 'grid-template-rows') {
-      offences.push({
+    offences.push(...scanColour(label, value, line), ...scaledLengthOffences(label, property, value, line))
+  }
+  return offences
+}
+
+function scaledLengthOffences(label: string, property: string, value: string, line: number): Offence[] {
+  if (!SCALED.test(property)) return []
+  const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
+  if (lengths.length === 0) return []
+  if (property === 'grid-template-columns' || property === 'grid-template-rows') {
+    return [
+      {
         label,
         line,
         why: `hardcoded-grid: ${lengths.join(', ')} in ${property} belongs to the scale in tokens.css`,
-      })
-      continue
-    }
-    offences.push({
-      label,
-      line,
-      why: `${lengths.join(', ')} is written out rather than read from the scale in tokens.css`,
-    })
+      },
+    ]
   }
-  return offences
+  return [{ label, line, why: `${lengths.join(', ')} is written out rather than read from the scale in tokens.css` }]
 }
 
 /**

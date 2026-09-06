@@ -14,6 +14,7 @@ import {
   parseOutdated,
   tablePrinted,
 } from '../scripts/check-outdated.ts'
+import { declaredPins } from '../scripts/pins.ts'
 
 /**
  * A table with one package behind, one held, and one at the newest.
@@ -130,7 +131,9 @@ describe('the outdated gate', () => {
     expect(parseOutdated('bun outdated v1.4.0\n')).toEqual([])
     expect(behindInstallable([])).toEqual([])
   })
+})
 
+describe('the outdated gate against a table it cannot read, and against none', () => {
   it('reads the all-workspace table, including a pin behind in a nested workspace', () => {
     const rows = parseOutdated(ALL_WORKSPACES)
     expect(rows.map((row) => row.name)).toEqual(['@types/bun', 'playwright', 'oxlint'])
@@ -155,5 +158,17 @@ describe('the outdated gate', () => {
     expect(parseOutdated(extra)).toEqual([])
     expect(tablePrinted('bun outdated v1.4.2\n')).toBe(false)
     expect(tablePrinted(ALL_WORKSPACES)).toBe(true)
+  })
+
+  it('counts declared pins, so an empty bun table is currency not a miss', () => {
+    // Live bun outdated --filter "*" prints only a version line when nothing
+    // is behind. That is empty-by-currency. Reporting "0 checked" would be a
+    // parse miss dressed as success: the manifests still declare pins.
+    const pins = declaredPins()
+    expect(pins.size).toBeGreaterThan(20)
+    expect(pins.has('typescript')).toBe(true)
+    expect(pins.has('playwright')).toBe(true)
+    expect(tablePrinted('bun outdated v1.4.2 (744846f84)\n')).toBe(false)
+    expect(parseOutdated('bun outdated v1.4.2 (744846f84)\n')).toEqual([])
   })
 })

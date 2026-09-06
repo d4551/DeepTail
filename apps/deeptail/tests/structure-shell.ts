@@ -28,8 +28,7 @@ function checkShell(add: Report, limits: ShellLimits): void {
     add('split-shell', `the document has ${String(shells.length)} [data-deeptail-shell] roots; a document carries one`)
   }
   for (const shell of shells) {
-    const nested = [...shell.querySelectorAll('[data-deeptail-shell]')].filter((node) => node !== shell)
-    const inner = nested[0]
+    const inner = [...shell.querySelectorAll('[data-deeptail-shell]')].find((node) => node !== shell)
     if (inner !== undefined) add('nested-shell', `${describe(shell)} contains another shell ${describe(inner)}`)
     const mains = shell.querySelectorAll('main')
     if (mains.length === 0) add('shell-without-main', `${describe(shell)} has no main landmark`)

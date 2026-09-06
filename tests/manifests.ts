@@ -8,34 +8,17 @@
  * @module
  */
 
-import { readFile } from 'node:fs/promises'
-import { EMPTY_SECTION, isJsonObject, readJsonc } from '../scripts/jsonc.ts'
-import { repositoryFiles } from '../scripts/source-tree.ts'
+import { EMPTY_SECTION, isJsonObject } from '../scripts/jsonc.ts'
+import { declaredPins } from '../scripts/pins.ts'
 import { readJsoncSync } from './jsonc-io.ts'
-
-/** Every kind of dependency a manifest can declare. */
-const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
 
 /**
  * Every dependency this repository declares, from every manifest it ships and
  * every kind each one uses.
  * @returns name to declared range.
  */
-export async function everyDependency(): Promise<Map<string, string>> {
-  const manifests = await Promise.all(
-    repositoryFiles(['package.json']).map(async (manifest) => readJsonc(await readFile(manifest.path, 'utf8'))),
-  )
-  const found = new Map<string, string>()
-  for (const parsed of manifests) {
-    for (const kind of DEPENDENCY_KINDS) {
-      const raw = parsed[kind]
-      const declarations = isJsonObject(raw) ? raw : EMPTY_SECTION
-      for (const [name, range] of Object.entries(declarations)) {
-        if (typeof range === 'string') found.set(name, range)
-      }
-    }
-  }
-  return found
+export function everyDependency(): Map<string, string> {
+  return declaredPins()
 }
 
 /**

@@ -70,17 +70,20 @@ export async function expectNoViolationsAtEachWidth(
   harness: Harness,
   open: (view: { mobile?: boolean; tablet?: boolean; dark?: boolean }) => Promise<Page>,
 ): Promise<void> {
-  const found: string[] = []
-  const widths: number[] = []
-  for (const view of AUDIT_VIEWS) {
-    const page = await open(view)
-    const size = page.viewportSize()?.width
-    if (view.width !== undefined) expect(size).toBe(view.width)
-    if (size !== undefined) widths.push(size)
-    const violations = describeViolations(await harness.audit(page))
-    if (violations !== '') found.push(`${view.label} (${String(size)}): ${violations}`)
-    await page.close()
-  }
+  const results = await Promise.all(
+    AUDIT_VIEWS.map(async (view) => {
+      const page = await open(view)
+      const size = page.viewportSize()?.width
+      if (view.width !== undefined) expect(size).toBe(view.width)
+      const violations = describeViolations(await harness.audit(page))
+      await page.close()
+      return { label: view.label, size, violations }
+    }),
+  )
+  const widths = results.flatMap((result) => (result.size === undefined ? [] : [result.size]))
+  const found = results
+    .filter((result) => result.violations !== '')
+    .map((result) => `${result.label} (${String(result.size)}): ${result.violations}`)
   expect(widths).toContain(PHONE_VIEWPORT.width)
   expect(widths).toContain(TABLET_VIEWPORT.width)
   expect(found).toEqual([])

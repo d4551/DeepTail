@@ -87,6 +87,7 @@ describe('the structure checks the browser suite evaluates', () => {
       expect(source).toContain('"vocabulary":["shell"]')
       expect(source).toContain('"scope":"[data-deeptail-shell], [data-deeptail-picker]')
       expect(source).toContain('checkAlignment')
+      expect(source).toContain('gridAncestor')
       expect(source).toContain('checkGrid')
       expect(source).toContain('checkShell')
       expect(source).toContain('checkInlineScripts')
