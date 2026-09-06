@@ -26,8 +26,8 @@ afterAll(async () => {
 /** Every `data-deeptail-action` the page is currently drawing. */
 function drawn(page: Page): Promise<string[]> {
   return page.evaluate(() =>
-    [...document.querySelectorAll('[data-deeptail-action]')].map(
-      (node) => node.getAttribute('data-deeptail-action') ?? '',
+    [...document.querySelectorAll<HTMLElement>('[data-deeptail-action]')].map(
+      (node) => node.dataset.deeptailAction ?? '',
     ),
   )
 }

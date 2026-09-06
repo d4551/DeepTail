@@ -24,7 +24,7 @@ describe('the jsonc reader', () => {
 
   it('narrows an object and rejects a missing member as not one', () => {
     expect(isJsonObject({ strict: true })).toBe(true)
-    expect(isJsonObject(undefined)).toBe(false)
+    expect(isJsonObject(readJsonc('{}').missing)).toBe(false)
     expect(isJsonObject([])).toBe(false)
   })
 })

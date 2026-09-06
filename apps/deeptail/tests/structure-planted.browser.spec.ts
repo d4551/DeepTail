@@ -22,6 +22,19 @@ afterAll(async () => {
   await harness?.stop()
 })
 
+/**
+ * Open the shell view one case plants under.
+ *
+ * The mutable harness is read here rather than inside the closures the
+ * registration loop creates: a function a loop creates may not name a binding
+ * a later turn can change, so the harness never appears inside the loop.
+ * @param view - the viewport and palette the case runs under; absent is the wide fine-pointer roster.
+ * @returns the page, showing the shell.
+ */
+function openPlanted(view?: Parameters<Harness['open']>[1]): Promise<Page> {
+  return openShell(harness, {}, view)
+}
+
 /** Drop the probe element a previous evaluation planted. */
 const DROP = (probe: string): string => `(() => {
   document.querySelector('[data-deeptail-probe="${probe}"]')?.remove()
@@ -220,12 +233,13 @@ const CASES: readonly PlantedCase[] = [
 
 for (const planted of CASES) {
   it(planted.label, async () => {
-    const page = await openShell(harness, {}, planted.view)
+    const page = await openPlanted(planted.view)
     await planted.plant(page)
     const found = await defects(page, planted.strict === true)
     for (const reason of planted.reports) expect(found).toContain(reason)
     if (planted.drop !== undefined) {
-      for (const probe of planted.drop) expect(await page.evaluate<boolean>(DROP(probe))).toBe(true)
+      const dropped = await Promise.all(planted.drop.map((name) => page.evaluate<boolean>(DROP(name))))
+      for (const gone of dropped) expect(gone).toBe(true)
       expect(await defects(page, planted.strict === true)).toBe('')
     }
     await page.close()

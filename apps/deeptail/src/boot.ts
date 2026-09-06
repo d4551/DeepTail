@@ -25,7 +25,10 @@ const TRANSPORT_KEY = '__DSH_TRANSPORT__'
 
 declare global {
   /** The page gate the shell entry watches before it reads any global. */
-  var __DSH_BOOT_READY__: PromiseWithResolvers<void> | undefined
+  interface Window {
+    /** The gate's deferred; removed when the boot that installed it finishes. */
+    __DSH_BOOT_READY__: PromiseWithResolvers<void> | undefined
+  }
 }
 
 /** A running shell and the carrier feeding it. */
@@ -42,10 +45,10 @@ export interface BootedHost {
  * gate.
  */
 function bootReadyGate(): PromiseWithResolvers<void> {
-  const existing = globalThis.__DSH_BOOT_READY__
+  const existing = window[BOOT_READY_KEY]
   if (existing !== undefined) return existing
   const created = Promise.withResolvers<void>()
-  globalThis.__DSH_BOOT_READY__ = created
+  window[BOOT_READY_KEY] = created
   return created
 }
 
