@@ -7,6 +7,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
+import type { Page } from 'playwright'
 import { type Harness, startHarness } from './harness.ts'
 import { defects } from './structure-page.ts'
 import { openShell } from './surfaces.ts'
@@ -24,8 +25,32 @@ afterAll(async () => {
 /** Drop the probe element a previous evaluation planted. */
 const DROP = (probe: string): string => `(() => {
   document.querySelector('[data-deeptail-probe="${probe}"]')?.remove()
+  document.querySelector('[data-deeptail-probe="${probe}-sheet"]')?.remove()
   return document.querySelector('[data-deeptail-probe="${probe}"]') === null
 })()`
+
+/**
+ * Plant a labelled button of a known CSS-pixel box, beating UA padding.
+ * @param page - the page under test.
+ * @param probe - probe id, also used for the injected sheet.
+ * @param px - width and height to force.
+ */
+async function plantTarget(page: Page, probe: string, px: number): Promise<void> {
+  await page.evaluate(
+    (args: { probe: string; px: number }) => {
+      const button = document.createElement('button')
+      button.textContent = 'probe'
+      button.dataset.deeptailProbe = args.probe
+      document.querySelector('[data-deeptail-shell] main')?.append(button)
+      const sheet = document.createElement('style')
+      sheet.dataset.deeptailProbe = `${args.probe}-sheet`
+      const size = String(args.px)
+      sheet.textContent = `[data-deeptail-probe="${args.probe}"]{box-sizing:border-box;width:${size}px;height:${size}px;min-width:${size}px;min-height:${size}px;max-width:${size}px;max-height:${size}px;padding:0;border:0;margin:0;font-size:1px;line-height:1;overflow:hidden}`
+      document.head.append(sheet)
+    },
+    { probe, px },
+  )
+}
 
 it('reports nested interactive controls', async () => {
   const page = await openShell(harness)
@@ -146,5 +171,59 @@ it('reports an inline script inside a product surface', async () => {
   expect(found).toContain('inline-script')
   expect(await page.evaluate<boolean>(DROP('script'))).toBe(true)
   expect(await defects(page)).toBe('')
+  await page.close()
+})
+
+it('reports a sourced helper script hanging off a product surface', async () => {
+  const page = await openShell(harness)
+  await page.evaluate(() => {
+    const script = document.createElement('script')
+    script.dataset.deeptailProbe = 'src-script'
+    script.src = '/one-off-helper.js'
+    document.querySelector('[data-deeptail-shell]')?.append(script)
+  })
+  const found = await defects(page)
+  expect(found).toContain('inline-script')
+  expect(found).toContain('one-off-helper.js')
+  expect(await page.evaluate<boolean>(DROP('src-script'))).toBe(true)
+  expect(await defects(page)).toBe('')
+  await page.close()
+})
+
+it('reports a sourced helper script appended to the document body', async () => {
+  const page = await openShell(harness)
+  await page.evaluate(() => {
+    const script = document.createElement('script')
+    script.dataset.deeptailProbe = 'body-script'
+    script.src = '/body-helper.js'
+    document.body.append(script)
+  })
+  const found = await defects(page)
+  expect(found).toContain('inline-script')
+  expect(found).toContain('body-helper.js')
+  expect(await page.evaluate<boolean>(DROP('body-script'))).toBe(true)
+  expect(await defects(page)).toBe('')
+  await page.close()
+})
+
+it('reports a control under the WCAG 2.5.8 24px floor', async () => {
+  const page = await openShell(harness)
+  await plantTarget(page, 'tiny', 23)
+  const found = await defects(page)
+  expect(found).toContain('target-size')
+  expect(found).toContain('under 24')
+  expect(await page.evaluate<boolean>(DROP('tiny'))).toBe(true)
+  expect(await defects(page)).toBe('')
+  await page.close()
+})
+
+it('reports a control under the Apple HIG 44px floor on a coarse pointer', async () => {
+  const page = await openShell(harness, {}, { mobile: true })
+  await plantTarget(page, 'short', 43)
+  const found = await defects(page, true)
+  expect(found).toContain('target-size')
+  expect(found).toContain('under 44')
+  expect(await page.evaluate<boolean>(DROP('short'))).toBe(true)
+  expect(await defects(page, true)).toBe('')
   await page.close()
 })

@@ -14,7 +14,7 @@ import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
 import { defects, isDrawerLayout, VIEWPORTS } from './structure-page.ts'
-import { openShell } from './surfaces.ts'
+import { openShell, openShellAt } from './surfaces.ts'
 
 let harness: Harness
 
@@ -29,12 +29,12 @@ afterAll(async () => {
 it('has no structural defects on the roster at any width', async () => {
   const checked = await Promise.all(
     VIEWPORTS.map(async (viewport) => {
-      const page = await openShell(harness)
-      await page.setViewportSize({ width: viewport.width, height: viewport.height })
+      const page = await openShellAt(harness, viewport)
+      if (await isDrawerLayout(page)) await page.locator('[data-deeptail-action="drawer"]').click()
       await page
         .locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]')
-        .waitFor({ state: 'attached' })
-      const found = await defects(page)
+        .waitFor({ state: 'visible' })
+      const found = await defects(page, viewport.coarse)
       await page.close()
       return [viewport.label, found]
     }),
@@ -89,14 +89,15 @@ it('has no structural defects on any failure state, at every width', async () =>
   // in it was the one surface no structural check had seen.
   const checked = await Promise.all(
     VIEWPORTS.map(async (viewport) => {
-      const page = await openShell(harness, { remoteErrors: { 'lab-2:session/list': 'roster unavailable' } })
-      await page.setViewportSize({ width: viewport.width, height: viewport.height })
+      const page = await openShellAt(harness, viewport, {
+        remoteErrors: { 'lab-2:session/list': 'roster unavailable' },
+      })
       // Below the drawer breakpoint the roster — and the strip in it — is
       // inside the closed drawer, so it is on screen only once the drawer is
       // open. The layout decides that at this width, not the fixture.
       if (await isDrawerLayout(page)) await page.locator('[data-deeptail-action="drawer"]').click()
       await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
-      const found = await defects(page)
+      const found = await defects(page, viewport.coarse)
       await page.close()
       return `${viewport.label}: ${found}`
     }),

@@ -59,6 +59,16 @@ it('has no WCAG violations on a host that needs re-pairing', async () => {
   await page.close()
 })
 
+it('has no WCAG violations on a host that needs re-pairing at mobile, tablet and desktop, in both palettes', async () => {
+  await expectNoViolationsAtEachWidth(harness, async (view) => {
+    const page = await openShell(harness, { remoteStatuses: { 'lab-2:session/list': 401 } }, view)
+    await openDrawerIfPresent(page)
+    await page.locator('[data-deeptail-connection="trigger"]').click()
+    await page.locator('[data-deeptail-action="repair"]').waitFor({ state: 'visible' })
+    return page
+  })
+}, 180_000)
+
 it('has no WCAG violations while a host is failing beside one that answers', async () => {
   const page = await openShell(harness, { remoteErrors: { 'lab-2:session/list': 'roster unavailable' } })
   await page.waitForSelector('[data-deeptail-state="partial"]')
@@ -217,6 +227,35 @@ it('has no WCAG violations in the compose sheet at mobile, tablet and desktop, i
     await page.locator('[data-deeptail-field="message"]').fill('please rerun the tests')
     await page.locator('[data-deeptail-action="compose-send"]').click()
     await page.locator('[data-deeptail-state="compose-error"]').waitFor({ state: 'visible' })
+    return page
+  })
+}, 180_000)
+
+it('has no WCAG violations on the pairing form at mobile, tablet and desktop, in both palettes', async () => {
+  await expectNoViolationsAtEachWidth(harness, async (view) => {
+    const page = await harness.open({ hosts: [] }, view)
+    await page.waitForSelector('[data-deeptail-picker]')
+    await page.getByRole('button', { name: 'Pair a host' }).click()
+    await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+    return page
+  })
+}, 180_000)
+
+it('has no WCAG violations on the picker error at mobile, tablet and desktop, in both palettes', async () => {
+  await expectNoViolationsAtEachWidth(harness, async (view) => {
+    const page = await harness.open({ hosts: [], listError: 'the registry is unreadable' }, view)
+    await page.waitForSelector('[data-deeptail-state="error"]')
+    return page
+  })
+}, 180_000)
+
+it('has no WCAG violations on the picker listing already-paired hosts at mobile, tablet and desktop, in both palettes', async () => {
+  await expectNoViolationsAtEachWidth(harness, async (view) => {
+    const page = await openShell(harness, {}, view)
+    await openDrawerIfPresent(page)
+    await page.locator('[data-deeptail-connection="trigger"]').click()
+    await page.getByRole('menuitem', { name: 'Pair a host' }).click()
+    await page.locator('[data-deeptail-state="ready"]').waitFor({ state: 'visible' })
     return page
   })
 }, 180_000)

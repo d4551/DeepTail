@@ -63,6 +63,12 @@ interface OpenOptions {
    * two-column layout a finger still has to hit.
    */
   readonly tablet?: boolean
+  /**
+   * Explicit CSS-pixel box. Combined with `mobile` / `tablet` so a 320-wide
+   * phone is still a touch context, not a resized desktop window.
+   */
+  readonly width?: number
+  readonly height?: number
   readonly locale?: string
 }
 
@@ -157,16 +163,24 @@ function startServer(): { server: ReturnType<typeof Bun.serve>; origin: string }
  * @returns the page, loaded.
  */
 async function openPage(browser: Browser, origin: string, table: AnswerTable, options: OpenOptions): Promise<Page> {
+  const coarse = options.mobile === true || options.tablet === true
+  const preset = options.tablet === true ? TABLET_VIEWPORT : options.mobile === true ? PHONE_VIEWPORT : undefined
+  const width = options.width ?? preset?.width
+  const height = options.height ?? preset?.height
   const context = await browser.newContext({
     colorScheme: options.dark === true ? 'dark' : 'light',
     // A phone viewport is not a phone: the row actions are revealed by
     // `not (hover: hover)`, which only holds once the context emulates a touch
-    // device rather than merely a narrow window.
-    ...(options.mobile === true
-      ? { viewport: { width: PHONE_VIEWPORT.width, height: PHONE_VIEWPORT.height }, hasTouch: true, isMobile: true }
-      : {}),
-    ...(options.tablet === true
-      ? { viewport: { width: TABLET_VIEWPORT.width, height: TABLET_VIEWPORT.height }, hasTouch: true, isMobile: true }
+    // device rather than merely a narrow window. An explicit width (320 CSS
+    // pixels) keeps that touch context; it does not fall back to a desktop
+    // resize.
+    ...(width !== undefined && height !== undefined
+      ? {
+          viewport: { width, height },
+          // Touch, not Chromium's mobile text-autosize: `isMobile` at 320 CSS
+          // pixels boosts 12px type and makes axe's contrast sampler lie.
+          ...(coarse ? { hasTouch: true } : {}),
+        }
       : {}),
     locale: options.locale ?? 'en-GB',
     ...(options.forcedColors === true ? { forcedColors: 'active' as const } : {}),

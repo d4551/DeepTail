@@ -12,7 +12,7 @@ import type { Page } from 'playwright'
 import { fleet, oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
 import { defects } from './structure-page.ts'
-import { TABLET_VIEWPORT } from './viewports.ts'
+import { SMALL_PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
 
 let harness: Harness
 
@@ -36,6 +36,25 @@ it('meets the platform minimum on the menu a finger opens', async () => {
   await page.close()
 })
 
+it('meets the Apple HIG touch minimum on the menu a finger opens, on a tablet', async () => {
+  const page = await harness.open(fleet(), { tablet: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  expect(page.viewportSize()?.width).toBe(TABLET_VIEWPORT.width)
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  expect(await defects(page, true)).toBe('')
+  await page.close()
+})
+
+it('meets the Apple HIG touch minimum on the pairing form, on a tablet', async () => {
+  const page = await harness.open({ hosts: [] }, { tablet: true })
+  await page.waitForSelector('[data-deeptail-picker]')
+  await page.getByRole('button', { name: 'Pair a host' }).click()
+  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+  expect(await defects(page, true)).toBe('')
+  await page.close()
+})
+
 it('meets the platform touch minimum on every control a finger can reach', async () => {
   const page = await harness.open(fleet(), { mobile: true })
   await page.waitForSelector('[data-deeptail-shell]')
@@ -49,6 +68,17 @@ it('meets the Apple HIG touch minimum on a tablet', async () => {
   const page = await harness.open(fleet(), { tablet: true })
   await page.waitForSelector('[data-deeptail-shell]')
   expect(page.viewportSize()?.width).toBe(TABLET_VIEWPORT.width)
+  await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
+  expect(await defects(page, true)).toBe('')
+  await page.close()
+})
+
+it('meets the Apple HIG touch minimum on a small phone', async () => {
+  const page = await harness.open(fleet(), { mobile: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.setViewportSize({ width: SMALL_PHONE_VIEWPORT.width, height: SMALL_PHONE_VIEWPORT.height })
+  expect(page.viewportSize()?.width).toBe(SMALL_PHONE_VIEWPORT.width)
+  await page.locator('[data-deeptail-action="drawer"]').click()
   await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
   expect(await defects(page, true)).toBe('')
   await page.close()
@@ -176,6 +206,16 @@ it('meets the touch minimum on a retry a finger has to hit', async () => {
   await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
   // The retry inherits the strip's 12px type. Left unpadded it was an 18px
   // target, and no case had ever rendered it while the floor was being applied.
+  expect(await defects(page, true)).toBe('')
+  await page.close()
+})
+
+it('meets the Apple HIG touch minimum on a retry a finger has to hit, on a tablet', async () => {
+  const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }), {
+    tablet: true,
+  })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
   expect(await defects(page, true)).toBe('')
   await page.close()
 })

@@ -1,50 +1,60 @@
 /**
  * Choosing a harness host from the tailnet, end to end through the real bundle.
- *
- * The Tailscale credential lives on the native side, so what these drive is the
- * only part a page can reach: the four commands, and what the picker does with
- * their answers. Every assertion is on rendered text, roles and the commands
- * that actually reached the native side — a screen that draws a tailnet without
- * having asked for one is exactly the failure a screenshot cannot see.
+ * Assertions are on rendered text, roles, and native commands actually invoked.
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { type AnswerTable, type Harness, startHarness, textOf } from './harness.ts'
 import { defects, VIEWPORTS } from './structure-page.ts'
-import { describeViolations } from './surfaces.ts'
+import { AUDIT_VIEWS, describeViolations, realizeView } from './surfaces.ts'
+import { pointerFlags } from './viewports.ts'
 
 let harness: Harness
 
 /**
  * Open the picker with nothing paired, which is where the tailnet is offered.
- *
- * The picker is reached only when no host is paired; once one is, the shell
- * takes over. Starting empty is also the state the tailnet is for — a viewer
- * with machines but no pairings yet.
  * @param extra - answer-table overrides for the case.
- * @param mobile - emulate a touch device, so `pointer: coarse` actually holds.
- * @returns the page, with the picker mounted.
+ * @param view - viewport and palette; `true` is the phone touch context.
  */
-async function openPicker(extra: Partial<AnswerTable>, mobile = false): Promise<Page> {
-  const page = await harness.open({ hosts: [], ...extra }, mobile ? { mobile: true } : {})
+async function openPicker(
+  extra: Partial<AnswerTable>,
+  view: boolean | { mobile?: boolean; tablet?: boolean; dark?: boolean; width?: number; height?: number } = false,
+): Promise<Page> {
+  const options = view === true ? { mobile: true } : view === false ? {} : view
+  const page = await harness.open({ hosts: [], ...extra }, options)
+  if (typeof view === 'object' && view.width !== undefined && view.height !== undefined) {
+    await realizeView(page, { width: view.width, height: view.height })
+  }
   await page.waitForSelector('[data-deeptail-picker]')
   return page
 }
 
 /** Open the connect form: the tailnet with no credential stored. */
-async function connectForm(mobile = false): Promise<Page> {
-  const page = await openPicker({ tailnetConnected: false, tailnetDevices: DEVICES }, mobile)
+async function connectForm(
+  view: boolean | { mobile?: boolean; tablet?: boolean; dark?: boolean } = false,
+): Promise<Page> {
+  const page = await openPicker({ tailnetConnected: false, tailnetDevices: DEVICES }, view)
   await page.locator('[data-deeptail-action="tailnet"]').click()
   await page.locator('[data-deeptail-view="tailnet-connect"]').waitFor({ state: 'visible' })
   return page
 }
 
 /** Open the machine list: the tailnet with a credential already stored. */
-async function machineList(mobile = false): Promise<Page> {
-  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES }, mobile)
+async function machineList(
+  view: boolean | { mobile?: boolean; tablet?: boolean; dark?: boolean } = false,
+): Promise<Page> {
+  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES }, view)
   await page.locator('[data-deeptail-action="tailnet"]').click()
   await page.locator('[data-deeptail-tailnet-device="ts-1"]').waitFor({ state: 'visible' })
+  return page
+}
+
+/** Open the pair form: a machine chosen from the stored tailnet. */
+async function pairForm(view: boolean | { mobile?: boolean; tablet?: boolean; dark?: boolean } = false): Promise<Page> {
+  const page = await machineList(view)
+  await page.locator('[data-deeptail-tailnet-device="ts-1"]').click()
+  await page.locator('[data-deeptail-action="pair-submit"]').waitFor({ state: 'visible' })
   return page
 }
 
@@ -217,14 +227,15 @@ it('says so plainly when the tailnet has no pairable machine', async () => {
   await page.close()
 })
 
-it('has no WCAG violations on either tailnet screen, on a desktop and on a phone', async () => {
+it('has no WCAG violations on every tailnet screen at mobile, tablet and desktop, in both palettes', async () => {
   // The screens the picker gained were in neither the accessibility suite nor
   // the structural one, so two surfaces shipped without the coverage every
-  // other surface has.
+  // other surface has. Tablet must be opened as a touch context, not a resize.
+  // The pair form is a third view: choosing a machine replaces the list.
   const audits = await Promise.all(
-    [connectForm, machineList].flatMap((open) =>
-      [false, true].map(async (mobile) => {
-        const page = await open(mobile)
+    [connectForm, machineList, pairForm].flatMap((open) =>
+      AUDIT_VIEWS.map(async (view) => {
+        const page = await open(view)
         const violations = await harness.audit(page)
         await page.close()
         return violations
@@ -233,15 +244,15 @@ it('has no WCAG violations on either tailnet screen, on a desktop and on a phone
   )
   const found = audits.flat()
   expect(found, describeViolations(found)).toEqual([])
-})
+}, 180_000)
 
-it('has no structural defects on either tailnet screen, at every width', async () => {
+it('has no structural defects on every tailnet screen, at every width', async () => {
   const checked = await Promise.all(
-    [connectForm, machineList].flatMap((open) =>
+    [connectForm, machineList, pairForm].flatMap((open) =>
       VIEWPORTS.map(async (viewport) => {
-        const page = await open()
-        await page.setViewportSize({ width: viewport.width, height: viewport.height })
-        const found = await defects(page)
+        const page = await open(pointerFlags(viewport))
+        await realizeView(page, viewport)
+        const found = await defects(page, viewport.coarse)
         await page.close()
         return found === '' ? '' : `${viewport.label}: ${found}`
       }),
@@ -250,18 +261,21 @@ it('has no structural defects on either tailnet screen, at every width', async (
   expect(checked.filter((line) => line !== '')).toEqual([])
 })
 
-it('clears the platform touch minimum on both tailnet screens, on a phone', async () => {
+it('clears the platform touch minimum on every tailnet screen, on a phone and a tablet', async () => {
   // The 44px floor is what a finger needs, and it is applied where a finger is:
   // `pointer: coarse` only holds once the context emulates a touch device, so a
   // desktop page measured against it would be testing a pairing that does not
-  // exist.
+  // exist. Tablet is the other coarse pointer this product ships to.
   const checked = await Promise.all(
-    [connectForm, machineList].map(async (open) => {
-      const page = await open(true)
-      const found = await defects(page, true)
-      await page.close()
-      return found
-    }),
+    [connectForm, machineList, pairForm].flatMap((open) =>
+      VIEWPORTS.filter((viewport) => viewport.coarse).map(async (viewport) => {
+        const page = await open(pointerFlags(viewport))
+        await realizeView(page, viewport)
+        const found = await defects(page, true)
+        await page.close()
+        return found
+      }),
+    ),
   )
   expect(checked.filter((line) => line !== '')).toEqual([])
 })

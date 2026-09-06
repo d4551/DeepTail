@@ -262,7 +262,7 @@
     padding: var(--dsh-space-6);
     border-radius: var(--dsh-radius-xl);
   }
-  .actions {
+  .card .actions {
     flex-direction: column-reverse;
     align-items: stretch;
   }

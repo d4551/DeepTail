@@ -42,3 +42,19 @@ export const PHONE_VIEWPORT = namedViewport('phone')
 
 /** The tablet viewport the harness opens for `{ tablet: true }`. */
 export const TABLET_VIEWPORT = namedViewport('tablet')
+
+/** The 320 CSS-pixel coarse width, opened as a touch context then sized. */
+export const SMALL_PHONE_VIEWPORT = namedViewport('small phone')
+
+/**
+ * Harness pointer flags for one designed width.
+ *
+ * Coarse widths must emulate a touch device. Resizing a desktop page keeps a
+ * fine pointer and would measure 24px targets as if they were for a finger.
+ * @param viewport - one row of `VIEWPORTS`.
+ */
+export function pointerFlags(viewport: Viewport): { mobile?: true; tablet?: true } {
+  if (viewport.label === 'tablet') return { tablet: true }
+  if (viewport.coarse) return { mobile: true }
+  return {}
+}

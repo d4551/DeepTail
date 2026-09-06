@@ -50,9 +50,10 @@ function cellsOf(line: string): string[] | undefined {
     .split('|')
     .slice(1, -1)
     .map((cell) => cell.trim())
-  // Four columns is one workspace; five is the all-workspace table, which
-  // appends a Workspace column the gate does not judge.
-  return cells.length === 4 || cells.length === 5 ? cells : undefined
+  // Four columns is one workspace. Five is the all-workspace table (Workspace
+  // appended). Six or more is a later bun column the gate does not judge.
+  // Dropping those rows used to hide an outdated pin behind an extra cell.
+  return cells.length >= 4 ? cells : undefined
 }
 
 /**

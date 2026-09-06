@@ -30,7 +30,7 @@
     "check:outdated": "bun scripts/check-outdated.ts",
     "gen:registry": "bun scripts/gen-action-registry.ts",
     "check:registry": "bun scripts/gen-action-registry.ts --check",
-    "a11y": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests/a11y.browser.spec.ts --timeout 60000 && echo 'axe: no accessibility violations'"
+    "a11y": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests/a11y.browser.spec.ts apps/deeptail/tests/a11y-errors.browser.spec.ts apps/deeptail/tests/tailnet.browser.spec.ts --timeout 180000 && echo 'axe: no accessibility violations'"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",

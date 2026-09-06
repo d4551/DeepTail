@@ -26,7 +26,7 @@ import {
   scrolls,
 } from './structure-layout.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
-import { checkInlineScripts, checkShell } from './structure-shell.ts'
+import { checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import { checkClassVocabulary } from './structure-vocabulary.ts'
 
 export type { StructureFinding }
@@ -228,6 +228,7 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   checkGrid(add, limits)
   checkShell(add, limits)
   checkInlineScripts(add, limits)
+  checkOneOffScripts(add, limits)
   return findings
 }
 
@@ -269,6 +270,7 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     checkGrid,
     checkShell,
     checkInlineScripts,
+    checkOneOffScripts,
     findStructureDefects,
   ].map(String)
   return `(() => {\n${functions.join('\n\n')}\nreturn findStructureDefects(${JSON.stringify(limits)})\n})()`

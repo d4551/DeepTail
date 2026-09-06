@@ -62,4 +62,24 @@ function checkInlineScripts(add: Report, limits: ShellLimits): void {
   }
 }
 
-export { checkInlineScripts, checkShell }
+/**
+ * A sourced helper on `body`/`head` that is not the page's one module entry.
+ *
+ * Product-root scripts are `checkInlineScripts`. Harness/axe inject inline
+ * scripts with no `src` on `html`/`head`/`body`, so those stay silent. A
+ * `src` that is not the shipped entry or a hashed bundler chunk is a second
+ * page the gates never typecheck — including one appended to `document.body`.
+ * @param add - collects a finding.
+ * @param limits - the product surfaces already covered by `checkInlineScripts`.
+ */
+function checkOneOffScripts(add: Report, limits: ShellLimits): void {
+  const shipped = /\/(?:src\/main\.ts|assets\/[^/]+-[A-Za-z0-9_-]+\.js)$/u
+  for (const script of document.querySelectorAll('script')) {
+    if (script.closest(limits.scope) !== null) continue
+    const src = (script.getAttribute('src') ?? '').trim()
+    if (src === '' || shipped.test(src)) continue
+    add('inline-script', `${describe(script)} loads ${src}; the page has one module entry`)
+  }
+}
+
+export { checkInlineScripts, checkOneOffScripts, checkShell }

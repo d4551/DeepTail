@@ -123,6 +123,11 @@ export function openDialog(title: string): Dialog {
   document.addEventListener('keydown', onKeyDown)
   document.body.append(root)
   restore = inertSiblings(root)
+  // A drawer left open sits under the dialog in the same pixels. Axe cannot
+  // name the dialog's background while that overlap holds, and a finger
+  // aiming at the dialog would hit two layers.
+  const drawerScrim = document.querySelector('.drawer-scrim')
+  if (drawerScrim instanceof HTMLElement) drawerScrim.click()
 
   // The dialog owns the interaction, so focus moves into it rather than being
   // left behind on the control that opened it.

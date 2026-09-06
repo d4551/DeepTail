@@ -91,10 +91,12 @@ describe('the structure checks the browser suite evaluates', () => {
       expect(source).toContain('checkGrid')
       expect(source).toContain('checkShell')
       expect(source).toContain('checkInlineScripts')
+      expect(source).toContain('checkOneOffScripts')
       expect(source).toContain('"alignment"')
       expect(source).toContain('"nested-grid"')
       expect(source).toContain('"split-shell"')
       expect(source).toContain('"inline-script"')
+      expect(source).toContain('"target-size"')
     }
   })
 

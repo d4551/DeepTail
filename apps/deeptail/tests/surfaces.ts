@@ -10,18 +10,46 @@
 import { expect } from 'bun:test'
 import type { Page } from 'playwright'
 import { fleet } from './fixtures.ts'
-import type { Harness, Violation } from './harness.ts'
-import { PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
+import type { AnswerTable, Harness, Violation } from './harness.ts'
+import { pointerFlags, VIEWPORTS, type Viewport } from './viewports.ts'
 
-/** One width × palette the a11y suite must actually open, not merely list. */
-const AUDIT_VIEWS = [
-  { label: 'mobile light', mobile: true, dark: false, width: PHONE_VIEWPORT.width },
-  { label: 'mobile dark', mobile: true, dark: true, width: PHONE_VIEWPORT.width },
-  { label: 'tablet light', tablet: true, dark: false, width: TABLET_VIEWPORT.width },
-  { label: 'tablet dark', tablet: true, dark: true, width: TABLET_VIEWPORT.width },
-  { label: 'desktop light', dark: false, width: undefined },
-  { label: 'desktop dark', dark: true, width: undefined },
-] as const
+/** One designed width × palette the a11y suite must actually open, not merely list. */
+export interface AuditView {
+  readonly label: string
+  readonly dark: boolean
+  readonly width: number
+  readonly height: number
+  readonly mobile?: true
+  readonly tablet?: true
+}
+
+/** Every `VIEWPORTS` row in both palettes. Tablet/phone keep a coarse pointer. */
+export const AUDIT_VIEWS: readonly AuditView[] = VIEWPORTS.flatMap((viewport) =>
+  ([false, true] as const).map((dark) => ({
+    label: `${viewport.label} ${dark ? 'dark' : 'light'}`,
+    dark,
+    width: viewport.width,
+    height: viewport.height,
+    ...pointerFlags(viewport),
+  })),
+)
+
+/**
+ * Size the page to a designed width after opening with the matching pointer.
+ *
+ * Coarse rows open through `{ mobile: true }` / `{ tablet: true }` (hasTouch).
+ * A 320 CSS-pixel phone is that touch context resized, not a desktop window
+ * squeezed: a resize alone would keep a fine pointer.
+ * @param page - the page just opened.
+ * @param view - the width and height to realize.
+ */
+export async function realizeView(page: Page, view: { width: number; height: number }): Promise<void> {
+  const size = page.viewportSize()
+  if (size?.width !== view.width || size.height !== view.height) {
+    await page.setViewportSize({ width: view.width, height: view.height })
+  }
+  expect(page.viewportSize()?.width).toBe(view.width)
+}
 
 /**
  * Render a violation set as a failure message a reader can act on.
@@ -49,15 +77,6 @@ export async function expectNoViolations(harness: Harness, page: Page): Promise<
 }
 
 /**
- * Audit one arranged surface at mobile, tablet and desktop, in both palettes.
- *
- * Tablet is opened through the harness (`tablet: true`), not by resizing a
- * desktop page: a resize would keep the fine pointer and the audit would
- * claim a width it never actually emulated.
- * @param harness - the suite's browser harness.
- * @param open - opens the surface under one view and leaves it ready to audit.
- */
-/**
  * Open the drawer when this width seats the roster behind it.
  * @param page - the page showing the shell.
  */
@@ -66,15 +85,24 @@ export async function openDrawerIfPresent(page: Page): Promise<void> {
   if (await drawer.isVisible()) await drawer.click()
 }
 
+/**
+ * Audit one arranged surface at mobile, tablet and desktop, in both palettes.
+ *
+ * Tablet is opened through the harness (`tablet: true`), not by resizing a
+ * desktop page: a resize would keep the fine pointer and the audit would
+ * claim a width it never actually emulated.
+ * @param harness - the suite's browser harness.
+ * @param open - opens the surface under one view and leaves it ready to audit.
+ */
 export async function expectNoViolationsAtEachWidth(
   harness: Harness,
-  open: (view: { mobile?: boolean; tablet?: boolean; dark?: boolean }) => Promise<Page>,
+  open: (view: AuditView) => Promise<Page>,
 ): Promise<void> {
   const results = await Promise.all(
     AUDIT_VIEWS.map(async (view) => {
       const page = await open(view)
+      await realizeView(page, view)
       const size = page.viewportSize()?.width
-      if (view.width !== undefined) expect(size).toBe(view.width)
       const violations = describeViolations(await harness.audit(page))
       await page.close()
       return { label: view.label, size, violations }
@@ -84,8 +112,7 @@ export async function expectNoViolationsAtEachWidth(
   const found = results
     .filter((result) => result.violations !== '')
     .map((result) => `${result.label} (${String(result.size)}): ${result.violations}`)
-  expect(widths).toContain(PHONE_VIEWPORT.width)
-  expect(widths).toContain(TABLET_VIEWPORT.width)
+  for (const viewport of VIEWPORTS) expect(widths).toContain(viewport.width)
   expect(found).toEqual([])
 }
 
@@ -103,5 +130,36 @@ export async function openShell(
 ): Promise<Page> {
   const page = await harness.open(fleet(fixture), view)
   await page.waitForSelector('[data-deeptail-shell]')
+  return page
+}
+
+/**
+ * Open the shell at one designed width with that width's pointer.
+ * @param harness - the suite's browser harness.
+ * @param viewport - the designed width.
+ * @param fixture - the registry the page boots against.
+ * @param extra - palette and writing-direction overrides.
+ */
+export async function openShellAt(
+  harness: Harness,
+  viewport: Viewport,
+  fixture: Parameters<typeof fleet>[0] = {},
+  extra?: Parameters<Harness['open']>[1],
+): Promise<Page> {
+  const page = await harness.open(fleet(fixture), { ...extra, ...pointerFlags(viewport) })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await realizeView(page, viewport)
+  return page
+}
+
+/**
+ * Open a scripted page at one designed width with that width's pointer.
+ * @param harness - the suite's browser harness.
+ * @param table - the answers this page should give.
+ * @param viewport - the designed width.
+ */
+export async function openAt(harness: Harness, table: AnswerTable, viewport: Viewport): Promise<Page> {
+  const page = await harness.open(table, pointerFlags(viewport))
+  await realizeView(page, viewport)
   return page
 }

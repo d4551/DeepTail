@@ -133,6 +133,28 @@ describe('the outdated gate', () => {
   })
 })
 
+describe('the outdated gate against extra columns bun may add', () => {
+  it('reads a table that gained a sixth column rather than dropping the row', () => {
+    const extra = `bun outdated v1.4.2
+| Package | Current | Update | Latest | Workspace | Extra |
+|---------|---------|--------|--------|-----------|-------|
+| knip    | 6.33.0  | 6.33.0 | 6.34.0 | root      | x     |
+`
+    expect(tablePrinted(extra)).toBe(true)
+    expect(behindInstallable(parseOutdated(extra))).toEqual(['knip is at 6.33.0 and 6.34.0 is installable now'])
+  })
+
+  it('still reports a six-column outdated row sitting beside a five-column one', () => {
+    const mixed = `bun outdated v1.4.2
+| Package    | Current | Update | Latest | Workspace |
+|------------|---------|--------|--------|-----------|
+| oxlint     | 1.81.0  | 1.81.0 | 1.81.0 | root      |
+| playwright | 1.62.1  | 1.62.1 | 1.63.0 | app       | leftover |
+`
+    expect(behindInstallable(parseOutdated(mixed))).toEqual(['playwright is at 1.62.1 and 1.63.0 is installable now'])
+  })
+})
+
 describe('the outdated gate against a table it cannot read, and against none', () => {
   it('reads the all-workspace table, including a pin behind in a nested workspace', () => {
     const rows = parseOutdated(ALL_WORKSPACES)
@@ -148,14 +170,14 @@ describe('the outdated gate against a table it cannot read, and against none', (
     expect([...OUTDATED_COMMAND]).toEqual(['bun', 'outdated', '--filter', '*'])
   })
 
-  it('names a table it cannot read rather than reporting zero packages checked', () => {
-    const extra = `bun outdated v1.4.2
-| Package | Current | Update | Latest | Workspace | Extra |
-|---------|---------|--------|--------|-----------|-------|
-| knip    | 6.33.0  | 6.33.0 | 6.34.0 | root      | x     |
+  it('names a table whose rows have too few cells rather than reporting zero packages checked', () => {
+    const short = `bun outdated v1.4.2
+| Package | Current | Update | Latest |
+|---------|---------|--------|--------|
+| knip    | 6.33.0  |
 `
-    expect(tablePrinted(extra)).toBe(true)
-    expect(parseOutdated(extra)).toEqual([])
+    expect(tablePrinted(short)).toBe(true)
+    expect(parseOutdated(short)).toEqual([])
     expect(tablePrinted('bun outdated v1.4.2\n')).toBe(false)
     expect(tablePrinted(ALL_WORKSPACES)).toBe(true)
   })

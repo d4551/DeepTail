@@ -128,6 +128,8 @@ describe('the markup gate rejects retired class vocabulary', () => {
     expect(styleOffences('<a class="link" href="/x">go</a>', 'index.html')).toEqual([])
     expect(styleOffences('<div data-deeptail-shell="true">x</div>', 'index.html')).toEqual([])
     expect(styleOffences('<button class="button-primary drawer-toggle menu-item">x</button>', 'index.html')).toEqual([])
+    expect(styleOffences('<input class="input">', 'index.html')).toEqual([])
+    expect(styleOffences('<div class="list status label">x</div>', 'index.html')).toEqual([])
   })
 })
 
@@ -137,6 +139,12 @@ describe('the markup gate rejects a retired framework class or directive', () =>
     expect(styleOffences(`<div class="${joined('btn-', 'group')}">x</div>`, 'index.html')).not.toEqual([])
     expect(styleOffences(`<div class="${joined('theme-', 'controller')}">x</div>`, 'index.html')).not.toEqual([])
     expect(styleOffences(`<div class="${joined('dock-', 'active')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('vali', 'dator')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<input class="${joined('input-', 'sm')}">`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('status-', 'error')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('list-', 'row')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('list-', 'col')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('divi', 'der')}">x</div>`, 'index.html')).not.toEqual([])
   })
 
   it('a Tailwind numeric utility, with or without a variant', () => {

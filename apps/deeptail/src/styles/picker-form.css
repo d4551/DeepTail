@@ -135,12 +135,14 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--dsh-space-3);
+  min-width: 0;
   padding: var(--dsh-space-inset-sm) var(--dsh-space-3);
   border-radius: var(--dsh-radius-sm);
-  background: var(--dsw-alias-interactive-bg-hover-danger);
-  color: var(--dsw-alias-label-error);
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-text-sm);
   line-height: var(--dsh-leading-md);
+  border-inline-start: 3px solid var(--dsw-alias-label-error);
 }
 
 /* `.error` sets `display`, and any author rule outranks the UA sheet's
