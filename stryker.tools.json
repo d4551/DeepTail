@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "commandRunner": {
+    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/mutation-config.spec.ts"
+  },
+  "mutate": [
+    "scripts/action-registry.ts",
+    "scripts/action-registry-emit.ts",
+    "scripts/action-registry-rust.ts",
+    "scripts/registry-readers.ts",
+    "scripts/gen-action-registry.ts",
+    "scripts/jsonc.ts",
+    "scripts/pins.ts",
+    "scripts/check-outdated.ts",
+    "scripts/check-no-inline-styles.ts",
+    "scripts/check-stylesheets.ts",
+    "scripts/check-tree.ts",
+    "scripts/compiler-face.ts",
+    "scripts/cargo-freshness.ts",
+    "scripts/mutate-restore.ts",
+    "scripts/mutation-survivors.ts"
+  ],
+  "coverageAnalysis": "off",
+  "disableTypeChecks": false,
+  "thresholds": {
+    "high": 99,
+    "low": 99,
+    "break": 99
+  },
+  "reporters": ["progress", "clear-text", "json"],
+  "timeoutMS": 60000,
+  "concurrency": 4,
+  "inPlace": true
+}

@@ -21,7 +21,7 @@ import { declarationsOf } from './sheet-reader.ts'
  * the same number twice. Everything else is a spacing, radius or type decision
  * and belongs to the scale.
  */
-const DRAWN_LENGTHS = new Set(['0px', '1px', '2px', '3px'])
+export const DRAWN_LENGTHS: ReadonlySet<string> = new Set(['0px', '1px', '2px', '3px'])
 
 /** A stacking order written as a bare number. */
 const STACKING = /^-?\d+$/u
@@ -68,7 +68,7 @@ const SCALED = new RegExp(
  * correctly in one writing mode: the logical start/end spellings follow the
  * direction, so they are the only side spellings a sheet may use.
  */
-const PHYSICAL_SIDES = new Set([
+export const PHYSICAL_SIDES: ReadonlySet<string> = new Set([
   'margin-left',
   'margin-right',
   'padding-left',
@@ -144,7 +144,10 @@ function valueOffences(label: string, value: string, line: number): Offence[] {
     offences.push({
       label,
       line,
-      why: `${viewportUnit[0]} is measured against a viewport the reader may not have; use the dynamic unit d${viewportUnit[1] ?? ''}`,
+      // The dynamic spelling is the static one with a `d` in front, read off
+      // what was found rather than off a capture that has to be defended
+      // against being absent when the pattern cannot leave it so.
+      why: `${viewportUnit[0]} is measured against a viewport the reader may not have; use the dynamic unit d${viewportUnit[0].slice(-2)}`,
     })
   }
   if (REMOTE_URL_VALUE.test(value)) {

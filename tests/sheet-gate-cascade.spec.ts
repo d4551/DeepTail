@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { scanSheet } from '../scripts/sheet-gate.ts'
+import { breakpointsOf, scanSheet } from '../scripts/sheet-gate.ts'
 import { joined } from './fixtures.ts'
 
 /** A remote host, assembled so this file's own source carries none whole. */
@@ -89,5 +89,60 @@ describe('the stylesheet gate reads a value the cascade reads', () => {
     expect(sheetOffences('.a { --probe: 1px; }')).toEqual([])
     expect(sheetOffences('.a { --probe: 1; }')).toEqual([])
     expect(sheetOffences('.a { --probe: 100dvh; }')).toEqual([])
+  })
+})
+
+describe('the retired at-rule reader', () => {
+  it('names the line the pipeline directive is written on', () => {
+    // The offence points a reader at the directive; a line off by one points at
+    // whatever happens to be next to it.
+    expect(
+      scanSheet('apps/deeptail/src/styles/shell.css', `.a { color: currentcolor }\n\n${joined('@tail', 'wind base;')}`),
+    ).toEqual([
+      {
+        label: 'apps/deeptail/src/styles/shell.css',
+        line: 3,
+        why: `${joined('@tail', 'wind')} belongs to the utility pipeline this product retired; state the declarations directly`,
+      },
+    ])
+  })
+
+  it('reads the layer directive however wide the space inside it', () => {
+    for (const spacing of [' ', '  ', '\t']) {
+      expect(sheetOffences(joined('@lay', `er${spacing}utilities { .a { color: currentcolor; } }`))).not.toEqual([])
+    }
+  })
+
+  it('says nothing about the cascade layer CSS itself ships', () => {
+    expect(sheetOffences(joined('@lay', 'er base { .a { color: currentcolor; } }'))).toEqual([])
+    expect(sheetOffences(joined('@lay', 'er components, utilities-of-ours;'))).toEqual([])
+  })
+})
+
+describe('the breakpoint reader reads a query however it is spaced', () => {
+  it('reads a range query with and without space around its operator', () => {
+    expect(breakpointsOf(joined('@med', 'ia (wid', 'th<=900px) { .a { color: red } }'))).toEqual(['900px'])
+    expect(breakpointsOf(joined('@med', 'ia (wid', 'th  <=  900px) { .a { color: red } }'))).toEqual(['900px'])
+  })
+
+  it('reads a maximum query with and without space around its colon', () => {
+    expect(breakpointsOf(joined('@med', 'ia (max-wid', 'th:900px) { .a { color: red } }'))).toEqual(['900px'])
+    expect(breakpointsOf(joined('@med', 'ia (max-wid', 'th  :  900px) { .a { color: red } }'))).toEqual(['900px'])
+  })
+
+  it('reads every query a sheet writes, in order', () => {
+    const sheet = joined(
+      '@med',
+      'ia (max-wid',
+      'th: 900px) { .a { color: red } }\n',
+      '@cont',
+      'ainer (heig',
+      'ht <= 640px) { .b { color: red } }',
+    )
+    expect(breakpointsOf(sheet)).toEqual(['900px', '640px'])
+  })
+
+  it('reads no size where the query switches on nothing sized', () => {
+    expect(breakpointsOf('.a { color: red }')).toEqual([])
   })
 })

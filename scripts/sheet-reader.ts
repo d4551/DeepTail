@@ -18,6 +18,8 @@
  * @module
  */
 
+import { lineReader } from './lines.ts'
+
 /** Where a comment opens and closes. */
 const COMMENTS = /\/\*[\s\S]*?\*\//gu
 
@@ -71,26 +73,6 @@ export interface Block {
 /** A block being read: the same block, while its declarations still arrive. */
 interface OpenBlock extends Block {
   readonly declarations: Declaration[]
-}
-
-/**
- * A reader that turns an offset into a one-based line.
- * @param text - the whole sheet.
- * @returns the reader.
- */
-function lineAt(text: string): (offset: number) => number {
-  const breaks: number[] = []
-  for (let index = text.indexOf('\n'); index !== -1; index = text.indexOf('\n', index + 1)) breaks.push(index)
-  return (offset) => {
-    let low = 0
-    let high = breaks.length
-    while (low < high) {
-      const middle = (low + high) >> 1
-      if ((breaks[middle] ?? 0) < offset) low = middle + 1
-      else high = middle
-    }
-    return low + 1
-  }
 }
 
 /**
@@ -150,7 +132,7 @@ interface Read {
  */
 function scan(text: string): Read {
   const sheet = withoutComments(text)
-  const line = lineAt(sheet)
+  const line = lineReader(sheet)
   const stack: OpenBlock[] = []
   const read: Read = { blocks: [], declarations: [] }
   let segment = 0
@@ -176,13 +158,17 @@ function scan(text: string): Read {
     }
     if (character !== ';' && character !== '}') continue
     const open = stack.at(-1)
-    const found = open === undefined ? undefined : declarationIn(sheet, segment, index, line)
-    if (found !== undefined && open !== undefined) {
-      open.declarations.push(found)
-      read.declarations.push(found)
+    if (open !== undefined) {
+      const found = declarationIn(sheet, segment, index, line)
+      if (found !== undefined) {
+        open.declarations.push(found)
+        read.declarations.push(found)
+      }
     }
     segment = index + 1
-    if (character === '}' && open !== undefined) stack.pop()
+    // Popping an empty stack is a no-op, so the brace alone decides: stating
+    // the same guard twice is one statement that can be deleted unnoticed.
+    if (character === '}') stack.pop()
   }
   return read
 }
@@ -252,10 +238,10 @@ export function classTokensOf(text: string): string[] {
   const found: string[] = []
   for (const block of blocksOf(text)) {
     if (block.atRule) continue
-    for (const match of block.prelude.matchAll(CLASS_TOKEN)) {
-      const token = match[1]
-      if (token !== undefined) found.push(token)
-    }
+    // Every captured group of every match, which is one group: reading it by
+    // index needs a guard for a case the pattern cannot produce, and a guard
+    // for an impossible case is a line no test can ever reach.
+    found.push(...[...block.prelude.matchAll(CLASS_TOKEN)].flatMap((match) => [...match].slice(1)))
   }
   return [...new Set(found)]
 }

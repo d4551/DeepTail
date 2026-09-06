@@ -145,5 +145,7 @@ export function scanSheet(label: string, text: string): Offence[] {
  * @returns the sizes, in the order they are written.
  */
 export function breakpointsOf(text: string): string[] {
-  return [...text.matchAll(BREAKPOINT)].map((found) => found[1] ?? '')
+  // Every captured group of every match, which is one group: reading it by
+  // index needs a guard for a case the pattern cannot produce.
+  return [...text.matchAll(BREAKPOINT)].flatMap((found) => [...found].slice(1))
 }

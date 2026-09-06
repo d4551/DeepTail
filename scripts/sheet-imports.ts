@@ -11,17 +11,18 @@
  * @module
  */
 
+import { lineReader } from './lines.ts'
 import type { Offence } from './offence.ts'
 
 /** An `@import` target that pulls a retired framework's pipeline in. */
 const RETIRED_IMPORT =
-  /^["']?@?(?:tailwindcss|daisyui|bootstrap|bulma|foundation-sites|htmx(?:\.org)?|alpinejs|materialize-css|semantic-ui|uikit|animate\.css|normalize\.css)(?:\/|\.|["';]|$)/iu
+  /^@?(?:tailwindcss|daisyui|bootstrap|bulma|foundation-sites|htmx(?:\.org)?|alpinejs|materialize-css|semantic-ui|uikit|animate\.css|normalize\.css)(?:\/|\.|["';]|$)/iu
 
 /** A URL that loads from outside the shipped bundle, absolute or protocol-relative. */
 const REMOTE_URL = /^(?:https?:)?\/\//iu
 
 /** One `@import` target, with the line it is written on. */
-interface SheetImport {
+export interface SheetImport {
   /** The imported path, quotes and `url()` stripped. */
   readonly target: string
   /** The line the import opens on. */
@@ -29,14 +30,34 @@ interface SheetImport {
 }
 
 /**
+ * The line an offset falls on.
+ * @param text - the sheet's contents.
+ * @param at - the offset.
+ * @returns the one-based line.
+ */
+function lineOf(text: string, at: number): number {
+  return lineReader(text)(at)
+}
+
+/**
  * Every `@import` target a sheet names.
+ *
+ * Exported because it is a contract of its own: what counts as the target of an
+ * import, and which line it is written on, is what every rule below is stated
+ * about, and neither is observable through those rules once a target has been
+ * judged.
  * @param text - the sheet's contents, comments already blanked.
  * @returns one entry per import.
  */
-function importsOf(text: string): SheetImport[] {
+export function importsOf(text: string): SheetImport[] {
   const found: SheetImport[] = []
-  for (const match of text.matchAll(/@import\s+(?:url\(\s*)?["']?([^"');]+)["']?\)?/gu)) {
-    found.push({ target: match[1] ?? '', line: text.slice(0, match.index).split('\n').length })
+  // The target stops at the closing quote, the parenthesis or the semicolon,
+  // so nothing after it needs matching; and the capture is read as the group it
+  // is rather than by an index that has to be defended against being absent.
+  for (const match of text.matchAll(/@import\s+(?:url\(\s*)?["']?([^"');]+)/gu)) {
+    for (const target of [...match].slice(1)) {
+      found.push({ target, line: lineOf(text, match.index) })
+    }
   }
   return found
 }

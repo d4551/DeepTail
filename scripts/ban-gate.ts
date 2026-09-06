@@ -15,9 +15,10 @@
  */
 
 import { aliases } from './aliases.ts'
-import { type Comment, lineReader, type Parsed, parseScript, walk } from './ast.ts'
+import { type Comment, type Parsed, parseScript, walk } from './ast.ts'
 import { BANNED } from './ban-rules.ts'
 import { constants } from './fold.ts'
+import { lineReader } from './lines.ts'
 import type { Offence } from './offence.ts'
 import type { Names } from './rule-helpers.ts'
 import { LINT_LEVEL, rustAttributes } from './rust-attributes.ts'
