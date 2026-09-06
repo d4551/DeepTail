@@ -5,7 +5,11 @@
  * @module
  */
 
+import { aliases } from '../scripts/aliases.ts'
+import { type Node, parseScript, walk } from '../scripts/ast.ts'
 import * as bans from '../scripts/ban-gate.ts'
+import { constants } from '../scripts/fold.ts'
+import type { Names } from '../scripts/rule-helpers.ts'
 import * as styles from '../scripts/style-gate.ts'
 
 /**
@@ -107,4 +111,41 @@ export function concatenatedMarkup(attribute: string): string {
  */
 export function badge(attribute: string): string {
   return `export const Badge = () => <div ${attribute}={{ color: 'red' }} />`
+}
+
+/**
+ * The parsed body of one fixture.
+ * @param text - the source.
+ * @param label - the path to attribute it to, which selects the dialect.
+ * @returns the program body.
+ */
+export function parsedBody(text: string, label = 'fixture.ts'): readonly Node[] {
+  const parsed = parseScript(label, text)
+  if (parsed.errors.length > 0) throw new Error(`fixture does not parse: ${parsed.errors[0]?.message ?? ''}`)
+  return parsed.body
+}
+
+/**
+ * The first node of a given type in one fixture.
+ * @param text - the source.
+ * @param type - the node type to look for.
+ * @returns the node.
+ */
+export function nodeOfType(text: string, type: string): Node {
+  let found: Node | undefined
+  walk(parsedBody(text), (node) => {
+    if (found === undefined && node.type === type) found = node
+  })
+  if (found === undefined) throw new Error(`fixture carries no ${type}`)
+  return found
+}
+
+/**
+ * What one fixture renamed and what it holds in constants.
+ * @param text - the source.
+ * @returns the names a rule reads through.
+ */
+export function namesOf(text: string): Names {
+  const body = parsedBody(text)
+  return { aliases: aliases(body), constants: constants(body) }
 }
