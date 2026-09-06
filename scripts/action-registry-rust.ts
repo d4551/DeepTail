@@ -47,11 +47,6 @@ function routeCapabilities(registry: Registry): { readonly route: string; readon
 }
 
 /**
- * Emit the native boundary's capability table.
- * @param registry - the validated registry.
- * @returns the contents of `apps/deeptail/src-tauri/src/capability/catalog.rs`.
- */
-/**
  * The types the native table is written in terms of.
  * @returns the declarations.
  */

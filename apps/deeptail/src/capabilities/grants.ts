@@ -206,11 +206,6 @@ function applyGrants(grants: Map<string, Grant>, arriving: readonly Grant[]): vo
 }
 
 /**
- * Build a ledger.
- * @param now - the clock, so a suite can move time without waiting for it.
- * @returns the ledger.
- */
-/**
  * How many of a ledger's grants are live at one instant.
  * @param grants - what the ledger holds.
  * @param at - the instant to judge expiry against.
@@ -247,6 +242,11 @@ function hydrateInto<T>(
   return { reason: 'hydrated', context: snapshot.context }
 }
 
+/**
+ * Build a ledger.
+ * @param now - the clock, so a suite can move time without waiting for it.
+ * @returns the ledger.
+ */
 export function createGrantLedger(now: () => number = () => Date.now()): GrantLedger {
   const grants = new Map<string, Grant>()
   const listeners = new Set<(change: LedgerChange) => void>()

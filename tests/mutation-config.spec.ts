@@ -112,6 +112,20 @@ describe('every mutation run reads the tree it claims to', () => {
 })
 
 describe('the repository', () => {
+  it('carries no instrumentation from a run that did not finish', async () => {
+    // The runs mutate in place, so an interrupted one leaves every file it
+    // touched rewritten: the instrumenter's switch wrapped around every
+    // expression, and the original restorable only from git. It happened here.
+    // A tree in that state still type-checks and still passes its suites, so
+    // nothing else would have said so.
+    const marker = joined('stry', 'MutAct_')
+    const files = repositoryFiles(['.ts', '.tsx', '.js'])
+    const carrying = (
+      await Promise.all(files.map(async (file) => ({ label: file.label, text: await readFile(file.path, 'utf8') })))
+    ).flatMap((file) => (file.text.includes(marker) ? [file.label] : []))
+    expect(carrying).toEqual([])
+  })
+
   it('exempts no mutant in place', async () => {
     // Spelt in parts so this file's own source carries none whole.
     const directive = joined('// Stry', 'ker ')

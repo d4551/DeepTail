@@ -34,6 +34,8 @@ export interface Comment {
   readonly value: string
   /** Byte offset the comment starts at. */
   readonly start: number
+  /** Byte offset just past the comment's closing delimiter. */
+  readonly end: number
 }
 
 /** A parsed file: its syntax tree, its comments, and its line lookup. */
