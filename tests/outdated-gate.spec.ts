@@ -7,7 +7,13 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { behindInstallable, heldByPolicy, OUTDATED_COMMAND, parseOutdated } from '../scripts/check-outdated.ts'
+import {
+  behindInstallable,
+  heldByPolicy,
+  OUTDATED_COMMAND,
+  parseOutdated,
+  tablePrinted,
+} from '../scripts/check-outdated.ts'
 
 /**
  * A table with one package behind, one held, and one at the newest.
@@ -137,5 +143,17 @@ describe('the outdated gate', () => {
 
   it('asks bun for every workspace, not only the root', () => {
     expect([...OUTDATED_COMMAND]).toEqual(['bun', 'outdated', '--filter', '*'])
+  })
+
+  it('names a table it cannot read rather than reporting zero packages checked', () => {
+    const extra = `bun outdated v1.4.2
+| Package | Current | Update | Latest | Workspace | Extra |
+|---------|---------|--------|--------|-----------|-------|
+| knip    | 6.33.0  | 6.33.0 | 6.34.0 | root      | x     |
+`
+    expect(tablePrinted(extra)).toBe(true)
+    expect(parseOutdated(extra)).toEqual([])
+    expect(tablePrinted('bun outdated v1.4.2\n')).toBe(false)
+    expect(tablePrinted(ALL_WORKSPACES)).toBe(true)
   })
 })

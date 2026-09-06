@@ -123,13 +123,37 @@ export function heldByPolicy(rows: readonly OutdatedRow[]): string[] {
   return rows.filter((row) => row.held).map((row) => `${row.name} ${row.current}`)
 }
 
+/**
+ * Whether bun printed a table this gate is supposed to read.
+ *
+ * An empty report (every pin current) has no table. A table whose header is
+ * present and whose rows this parser dropped — a sixth column, a renamed
+ * header — must not pass as "0 checked".
+ * @param output - what the command printed.
+ */
+export function tablePrinted(output: string): boolean {
+  return output.split('\n').some((line) => {
+    if (!line.startsWith('|') || line.startsWith('|--')) return false
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((cell) => cell.trim())
+    return cells[0] === 'Package' && cells.length >= 4
+  })
+}
+
 if (import.meta.main) {
   const run = Bun.spawnSync([...OUTDATED_COMMAND], { stderr: 'pipe' })
   if (run.exitCode !== 0) {
     process.stderr.write(`check-outdated: bun outdated exited ${String(run.exitCode)}\n${run.stderr?.toString() ?? ''}`)
     process.exit(1)
   }
-  const rows = parseOutdated(run.stdout?.toString() ?? '')
+  const output = run.stdout?.toString() ?? ''
+  const rows = parseOutdated(output)
+  if (tablePrinted(output) && rows.length === 0) {
+    process.stderr.write('check-outdated: bun printed a table this gate could not read\n')
+    process.exit(1)
+  }
   const behind = behindInstallable(rows)
   const held = heldByPolicy(rows)
   if (held.length > 0) {

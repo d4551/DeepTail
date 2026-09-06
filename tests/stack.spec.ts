@@ -58,6 +58,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   oxlint: '1.81',
   parse5: '8.0',
   playwright: '1.63',
+  'playwright-core': '1.63',
   react: '19.2',
   'react-dom': '19.2',
   semver: '7.8',
