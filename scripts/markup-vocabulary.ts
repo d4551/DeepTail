@@ -75,6 +75,17 @@ const RETIRED_EXACT = new Set([
   'mockup-phone-camera',
   'mockup-phone-display',
   'divider',
+  // The spellings daisyUI 5 renamed away from. A page still writing one is a
+  // page on the retired framework's previous major, which is as much a second
+  // vocabulary as its current one — and the rename means the current-name
+  // rules above never see it.
+  'artboard',
+  'btm-nav',
+  'btm-nav-label',
+  'input-group',
+  'tabs-bordered',
+  'tabs-lifted',
+  'tabs-boxed',
   'btn-group',
   'form-control',
   'form-group',
@@ -150,6 +161,10 @@ const RETIRED_PREFIXES = [
   'inset-shadow-',
   'ring-offset-',
   'offset-',
+  // Renamed away from in daisyUI 5, so the current-name prefixes miss them.
+  'btm-nav-',
+  'artboard-',
+  'phone-',
   'd-flex',
   'd-none',
   'd-block',
@@ -169,10 +184,15 @@ const TAILWIND_UTILITY =
   // list read `bg-gradient-to-r` and let `bg-linear-to-r` — the same utility
   // under its current name — through untouched.
   '|outline|ring|ring-offset|size|mask|bg-linear|bg-radial|bg-conic|text-shadow|inset-shadow|field-sizing|scrollbar|zoom' +
+  // The logical-property families, which are how a spacing decision is written
+  // for a document whose direction can reverse. Written against the physical
+  // families alone, the list read `ml-4` and let `ms-4` — the same decision,
+  // spelt the way the current major recommends — through untouched.
+  '|ms|me|ps|pe|start|end|tab' +
   ')-'
 
 const TAILWIND_NAMED =
-  /^(?:flex-col|flex-row|flex-wrap|flex-nowrap|items-center|items-start|items-end|items-stretch|justify-between|justify-center|justify-start|justify-end|justify-around|justify-evenly|place-items-center|grid-flow-col|grid-flow-row|sr-only|not-sr-only|container|prose|outline-hidden|outline-none|bg-radial|bg-conic)$/u
+  /^(?:flex-col|flex-row|flex-wrap|flex-nowrap|items-center|items-start|items-end|items-stretch|justify-between|justify-center|justify-start|justify-end|justify-around|justify-evenly|place-items-center|grid-flow-col|grid-flow-row|sr-only|not-sr-only|container|prose|outline-hidden|outline-none|bg-radial|bg-conic|border-s|border-e|scheme-light|scheme-dark|scheme-normal|scheme-only-light|scheme-only-dark)$/u
 
 const TAILWIND_SCALE =
   '(?:\\d+|px|auto|full|screen|fit|min|max|svh|lvh|dvh|svw|lvw|dvw|xs|sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl|none|tight|snug|normal|relaxed|loose)'
