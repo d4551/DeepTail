@@ -28,11 +28,26 @@ afterAll(async () => {
 })
 
 /**
- * Open one dialog at the WCAG reflow floor and report what a reader can reach.
+ * Open the shell at the WCAG reflow floor, with the roster showing.
  *
- * The floor is the point of the case: every taller viewport seats a dialog
- * whole whatever it does, so none of them can tell a dialog that manages its
- * own overflow from one that simply overhangs the screen.
+ * The floor is the point of every case in this file: every taller viewport
+ * seats a dialog whole whatever it does, so none of them can tell a dialog
+ * that manages its own overflow from one that simply overhangs the screen.
+ * @returns the page, showing the shell at the floor.
+ */
+async function openedAtFloor(): Promise<Page> {
+  const page = await harness.open(fleet(), {
+    mobile: true,
+    width: REFLOW_VIEWPORT.width,
+    height: REFLOW_VIEWPORT.height,
+  })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await openDrawerIfPresent(page)
+  return page
+}
+
+/**
+ * Open one dialog at the WCAG reflow floor and report what a reader can reach.
  * @param open - reaches the dialog from the shell, however that surface does it.
  * @returns the boxes, rounded, and whether the document can scroll at all.
  */
@@ -44,13 +59,7 @@ async function dialogReach(open: (page: Page) => Promise<void>): Promise<{
   actionsBottom: number
   documentScrolls: boolean
 }> {
-  const page = await harness.open(fleet(), {
-    mobile: true,
-    width: REFLOW_VIEWPORT.width,
-    height: REFLOW_VIEWPORT.height,
-  })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await openDrawerIfPresent(page)
+  const page = await openedAtFloor()
   await open(page)
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
   const measured = await page.evaluate(() => {
@@ -124,13 +133,7 @@ it('still reports a pane that scrolls inside the dialog body', async () => {
   // exclusion must not have blinded it to — a pane of layout inside the body's
   // scroller, which is what this sheet shipped once already before it was
   // fixed by making the dialog clip rather than scroll.
-  const page = await harness.open(fleet(), {
-    mobile: true,
-    width: REFLOW_VIEWPORT.width,
-    height: REFLOW_VIEWPORT.height,
-  })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await openDrawerIfPresent(page)
+  const page = await openedAtFloor()
   await page.locator('[data-deeptail-action="new-session"]').click()
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
   // The body scrolls and holds a `select`; neither is a nested pane, so the
@@ -157,13 +160,7 @@ it('still reports two controls that overlap inside the dialog’s own scroller',
   // where its rectangle happens to fall. That narrowing must not reach a pair
   // that really is drawn over each other *inside* the pane — both painted,
   // both reachable, one unusable where they meet.
-  const page = await harness.open(fleet(), {
-    mobile: true,
-    width: REFLOW_VIEWPORT.width,
-    height: REFLOW_VIEWPORT.height,
-  })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await openDrawerIfPresent(page)
+  const page = await openedAtFloor()
   await page.locator('[data-deeptail-action="new-session"]').click()
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
   expect(await defects(page)).toBe('')

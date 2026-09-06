@@ -13,8 +13,8 @@ import {
   describeViolations,
   expectNoViolations,
   expectNoViolationsAtEachWidth,
-  openDrawerIfPresent,
   openShell,
+  openShellWithDrawer,
 } from './surfaces.ts'
 
 let harness: Harness
@@ -61,8 +61,7 @@ it('has no WCAG violations on a host that needs re-pairing', async () => {
 
 it('has no WCAG violations on a host that needs re-pairing at mobile, tablet and desktop, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShell(harness, { remoteStatuses: { 'lab-2:session/list': 401 } }, view)
-    await openDrawerIfPresent(page)
+    const page = await openShellWithDrawer(harness, { remoteStatuses: { 'lab-2:session/list': 401 } }, view)
     await page.locator('[data-deeptail-connection="trigger"]').click()
     await page.locator('[data-deeptail-action="repair"]').waitFor({ state: 'visible' })
     return page
@@ -144,25 +143,13 @@ it('has no WCAG violations on the empty picker or its pairing form', async () =>
   await page.close()
 })
 
-it('has no WCAG violations on the picker listing already-paired hosts', async () => {
-  // The list view is reached from the shell: pairing another host hands the
-  // page back to the picker with the registry already populated.
-  const page = await openShell(harness)
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.getByRole('menuitem', { name: 'Pair a host' }).click()
-  await page.locator('[data-deeptail-state="ready"]').waitFor({ state: 'visible' })
-  await expectNoViolations(harness, page)
-  await page.close()
-})
-
 it('holds axe to the published WCAG 2.2 AA tags', () => {
   expect([...WCAG_TAGS]).toEqual(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
 })
 
 it('has no WCAG violations on the fleet roster at mobile, tablet and desktop, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShell(harness, {}, view)
-    await openDrawerIfPresent(page)
+    const page = await openShellWithDrawer(harness, {}, view)
     await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
     return page
   })
@@ -178,8 +165,7 @@ it('has no WCAG violations on the picker at mobile, tablet and desktop, in both 
 
 it('has no WCAG violations with the connection menu open at mobile, tablet and desktop, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShell(harness, {}, view)
-    await openDrawerIfPresent(page)
+    const page = await openShellWithDrawer(harness, {}, view)
     await page.locator('[data-deeptail-connection="trigger"]').click()
     await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
     return page
@@ -188,8 +174,7 @@ it('has no WCAG violations with the connection menu open at mobile, tablet and d
 
 it('has no WCAG violations in the new-session dialog at mobile, tablet and desktop, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShell(harness, {}, view)
-    await openDrawerIfPresent(page)
+    const page = await openShellWithDrawer(harness, {}, view)
     await page.locator('[data-deeptail-action="new-session"]').click()
     await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
     return page
@@ -198,8 +183,7 @@ it('has no WCAG violations in the new-session dialog at mobile, tablet and deskt
 
 it('has no WCAG violations while a roster read is in flight at mobile, tablet and desktop, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShell(harness, { remotePending: ['session/list'] }, view)
-    await openDrawerIfPresent(page)
+    const page = await openShellWithDrawer(harness, { remotePending: ['session/list'] }, view)
     await page.locator('[data-deeptail-state="loading"]').first().waitFor({ state: 'visible' })
     return page
   })
@@ -207,8 +191,11 @@ it('has no WCAG violations while a roster read is in flight at mobile, tablet an
 
 it('has no WCAG violations on a partial roster at mobile, tablet and desktop, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShell(harness, { remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }, view)
-    await openDrawerIfPresent(page)
+    const page = await openShellWithDrawer(
+      harness,
+      { remoteErrors: { 'lab-2:session/list': 'roster unavailable' } },
+      view,
+    )
     await page.waitForSelector('[data-deeptail-state="partial"]')
     return page
   })
@@ -216,8 +203,7 @@ it('has no WCAG violations on a partial roster at mobile, tablet and desktop, in
 
 it('has no WCAG violations in the compose sheet at mobile, tablet and desktop, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShell(harness, { remoteErrors: { 'session/prompt': 'agent busy' } }, view)
-    await openDrawerIfPresent(page)
+    const page = await openShellWithDrawer(harness, { remoteErrors: { 'session/prompt': 'agent busy' } }, view)
     const row = page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]')
     await row.waitFor({ state: 'visible' })
     if (view.mobile !== true && view.tablet !== true) await row.hover()
@@ -251,8 +237,7 @@ it('has no WCAG violations on the picker error at mobile, tablet and desktop, in
 
 it('has no WCAG violations on the picker listing already-paired hosts at mobile, tablet and desktop, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShell(harness, {}, view)
-    await openDrawerIfPresent(page)
+    const page = await openShellWithDrawer(harness, {}, view)
     await page.locator('[data-deeptail-connection="trigger"]').click()
     await page.getByRole('menuitem', { name: 'Pair a host' }).click()
     await page.locator('[data-deeptail-state="ready"]').waitFor({ state: 'visible' })

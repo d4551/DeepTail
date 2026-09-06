@@ -9,6 +9,7 @@ import { aliases } from '../scripts/aliases.ts'
 import { type Node, parseScript, walk } from '../scripts/ast.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { constants } from '../scripts/fold.ts'
+import { freeNames } from '../scripts/free-names.ts'
 import type { Names } from '../scripts/rule-helpers.ts'
 import * as styles from '../scripts/style-gate.ts'
 
@@ -29,6 +30,15 @@ export function source(...lines: readonly string[]): string {
  */
 export function joined(...parts: readonly string[]): string {
   return parts.join('')
+}
+
+/**
+ * The names one snippet reads without binding.
+ * @param lines - the lines of the snippet.
+ * @returns the free names, sorted.
+ */
+export function free(...lines: readonly string[]): string[] {
+  return freeNames('fixture.ts', lines.join('\n'))
 }
 
 /**

@@ -165,7 +165,7 @@ describe('the call readers', () => {
 })
 
 describe('the structural read', () => {
-  it('descends through every wrapper that changes nothing about a value', () => {
+  it('descends through parentheses and assertions to the value beneath them', () => {
     for (const wrapped of ['(document)', 'document as never', 'document satisfies never', 'document!']) {
       const inner = unwrap(nodeOfType(`const a = ${wrapped}`, 'VariableDeclarator').init)
       expect([wrapped, isNode(inner) && inner.type]).toEqual([wrapped, 'Identifier'])

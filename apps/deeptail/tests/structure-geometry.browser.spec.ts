@@ -10,7 +10,7 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { fleet, oneHost } from './fixtures.ts'
-import { type Harness, startHarness } from './harness.ts'
+import { type AnswerTable, type Harness, startHarness } from './harness.ts'
 import { defects } from './structure-page.ts'
 import { openDrawerIfPresent } from './surfaces.ts'
 import { pointerFlags, SMALL_PHONE_VIEWPORT, TABLET_VIEWPORT, VIEWPORTS } from './viewports.ts'
@@ -28,63 +28,78 @@ afterAll(async () => {
   await harness?.stop()
 })
 
-it('meets the platform minimum on the menu a finger opens', async () => {
-  const page = await harness.open(fleet(), { mobile: true })
+/**
+ * Open a page over `table` under `view` and wait for the shell to show.
+ * @param table - the registry the page boots against.
+ * @param view - the pointer, width and palette the case is measured under.
+ * @returns the page, showing the shell.
+ */
+async function opened(table: AnswerTable, view: Parameters<Harness['open']>[1] = {}): Promise<Page> {
+  const page = await harness.open(table, view)
   await page.waitForSelector('[data-deeptail-shell]')
+  return page
+}
+
+/**
+ * Hold every control on the page to the pointer's own touch floor.
+ * @param page - the page under test.
+ */
+async function expectTargetsMeetable(page: Page): Promise<void> {
+  expect(await defects(page, true)).toBe('')
+}
+
+it('meets the platform minimum on the menu a finger opens', async () => {
+  const page = await opened(fleet(), { mobile: true })
   await page.locator('[data-deeptail-action="drawer"]').click()
   await page.locator('[data-deeptail-connection="trigger"]').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
   // The menu's own items were never measured, because the one case that
   // measured targets never opened it.
-  expect(await defects(page, true)).toBe('')
+  await expectTargetsMeetable(page)
   await page.close()
 })
 
 it('meets the Apple HIG touch minimum on the menu a finger opens, on a tablet', async () => {
-  const page = await harness.open(fleet(), { tablet: true })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await opened(fleet(), { tablet: true })
   expect(page.viewportSize()?.width).toBe(TABLET_VIEWPORT.width)
   await page.locator('[data-deeptail-connection="trigger"]').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
-  expect(await defects(page, true)).toBe('')
+  await expectTargetsMeetable(page)
   await page.close()
 })
 
 it('meets the Apple HIG touch minimum on the pairing form, on a tablet', async () => {
-  const page = await harness.open({ hosts: [] }, { tablet: true })
+  const page = await opened({ hosts: [] }, { tablet: true })
   await page.waitForSelector('[data-deeptail-picker]')
   await page.getByRole('button', { name: 'Pair a host' }).click()
   await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
-  expect(await defects(page, true)).toBe('')
+  await expectTargetsMeetable(page)
   await page.close()
 })
 
 it('meets the platform touch minimum on every control a finger can reach', async () => {
-  const page = await harness.open(fleet(), { mobile: true })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await opened(fleet(), { mobile: true })
   await page.locator('[data-deeptail-action="drawer"]').click()
   await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
-  expect(await defects(page, true)).toBe('')
+  await expectTargetsMeetable(page)
   await page.close()
 })
 
 it('meets the Apple HIG touch minimum on a tablet', async () => {
-  const page = await harness.open(fleet(), { tablet: true })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await opened(fleet(), { tablet: true })
   expect(page.viewportSize()?.width).toBe(TABLET_VIEWPORT.width)
   await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
-  expect(await defects(page, true)).toBe('')
+  await expectTargetsMeetable(page)
   await page.close()
 })
 
 it('meets the Apple HIG touch minimum on a small phone', async () => {
-  const page = await harness.open(fleet(), { mobile: true })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await opened(fleet(), { mobile: true })
   await page.setViewportSize({ width: SMALL_PHONE_VIEWPORT.width, height: SMALL_PHONE_VIEWPORT.height })
   expect(page.viewportSize()?.width).toBe(SMALL_PHONE_VIEWPORT.width)
   await page.locator('[data-deeptail-action="drawer"]').click()
   await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
-  expect(await defects(page, true)).toBe('')
+  await expectTargetsMeetable(page)
   await page.close()
 })
 
@@ -133,8 +148,7 @@ function sidebarBox(page: Page): Promise<{ x: number; right: number }> {
 it('slides the drawer in from the inline start in either direction', async () => {
   const measured = await Promise.all(
     (['ltr', 'rtl'] as const).map(async (direction) => {
-      const page = await harness.open(fleet(), { mobile: true, direction })
-      await page.waitForSelector('[data-deeptail-shell]')
+      const page = await opened(fleet(), { mobile: true, direction })
       const width = page.viewportSize()?.width ?? 0
       // Closed, the drawer waits entirely outside the viewport past the inline
       // start: off the left edge under LTR, off the right under RTL. It slides
@@ -166,8 +180,7 @@ it('slides the drawer in from the inline start in either direction', async () =>
 })
 
 it('reports a pane that scrolls inside a pane that also scrolls', async () => {
-  const page = await harness.open(oneHost())
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await opened(oneHost())
   expect(await defects(page)).toBe('')
   // A stylesheet, not an inline style: the shell already clips on this axis, so
   // making it scroll is what puts one scroll container inside another.
@@ -183,8 +196,7 @@ it('reports a control drawn over another control', async () => {
   // roster's section header and the connection trigger beside it. On the
   // narrow layout the roster is the closed drawer — translated off the canvas
   // and inert — so the pair is seated on the layout that holds both in play.
-  const page = await harness.open(fleet())
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await opened(fleet())
   expect(await defects(page)).toBe('')
   // A stylesheet, not an inline style: seating the new-session action on the
   // connection trigger puts two targets in the same pixels, and the click lands
@@ -200,27 +212,21 @@ it('reports a control drawn over another control', async () => {
 })
 
 it('meets the touch minimum on a retry a finger has to hit', async () => {
-  const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }), {
-    mobile: true,
-  })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await opened(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }), { mobile: true })
   // The roster lives in the drawer on this layout, so the strip is only on
   // screen — and only measurable — once the drawer is open.
   await page.locator('[data-deeptail-action="drawer"]').click()
   await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
   // The retry inherits the strip's 12px type. Left unpadded it was an 18px
   // target, and no case had ever rendered it while the floor was being applied.
-  expect(await defects(page, true)).toBe('')
+  await expectTargetsMeetable(page)
   await page.close()
 })
 
 it('meets the Apple HIG touch minimum on a retry a finger has to hit, on a tablet', async () => {
-  const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }), {
-    tablet: true,
-  })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await opened(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }), { tablet: true })
   await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
-  expect(await defects(page, true)).toBe('')
+  await expectTargetsMeetable(page)
   await page.close()
 })
 
@@ -232,12 +238,11 @@ it('keeps the roster on screen at every designed view', async () => {
   // green, and no case had ever asked where the roster actually was.
   const seen = await Promise.all(
     VIEWPORTS.map(async (viewport) => {
-      const page = await harness.open(fleet(), {
+      const page = await opened(fleet(), {
         ...pointerFlags(viewport),
         width: viewport.width,
         height: viewport.height,
       })
-      await page.waitForSelector('[data-deeptail-shell]')
       await openDrawerIfPresent(page)
       const box = await page.evaluate(() => {
         const roster = document.querySelector('.roster')

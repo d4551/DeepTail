@@ -149,6 +149,28 @@ export async function openShell(
 }
 
 /**
+ * Open the shell and show the roster, which on phone and tablet widths means
+ * opening the drawer that seats it.
+ *
+ * One name for the two-step dance, so a suite cannot open a shell, skip the
+ * drawer on a width that seats the roster behind it, and audit a screen the
+ * operator never sees.
+ * @param harness - the suite's browser harness.
+ * @param fixture - the registry the page boots against.
+ * @param view - the viewport and palette the case is measured under.
+ * @returns the page, showing the shell with the roster visible.
+ */
+export async function openShellWithDrawer(
+  harness: Harness,
+  fixture: Parameters<typeof fleet>[0] = {},
+  view?: Parameters<Harness['open']>[1],
+): Promise<Page> {
+  const page = await openShell(harness, fixture, view)
+  await openDrawerIfPresent(page)
+  return page
+}
+
+/**
  * Open the shell at one designed width with that width's pointer.
  * @param harness - the suite's browser harness.
  * @param viewport - the designed width.

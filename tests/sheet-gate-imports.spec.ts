@@ -108,7 +108,7 @@ describe('the retired-pipeline rule', () => {
 })
 
 describe('the import reader reads a target and its line', () => {
-  it('names each target, quotes and wrapper stripped', () => {
+  it('names each target, with its quotes and its url() syntax removed', () => {
     expect(importsOf('@import "./a.css";').map((one) => one.target)).toEqual(['./a.css'])
     expect(importsOf("@import './a.css';").map((one) => one.target)).toEqual(['./a.css'])
     expect(importsOf('@import url("./a.css");').map((one) => one.target)).toEqual(['./a.css'])

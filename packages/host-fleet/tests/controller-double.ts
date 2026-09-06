@@ -185,11 +185,17 @@ function scriptedController(recording: Script): FleetController {
       Promise.resolve({
         items: (recording.listed ?? []).map((row) => ({ ...row, sessionId: SessionId(row.sessionId) })),
       }),
-    follow: (request: Parameters<FleetController['follow']>[0]) => {
-      const asked = request as { address: { sessionId: string }; maxMessages?: number }
+    follow: (request) => {
+      // The observe tools address one session directly, so the subagent shape
+      // of the address union is a drive no tool sends: refusing it here keeps
+      // a tool that starts sending one from being recorded as the string
+      // "undefined" and passing every suite beneath it.
+      if (request.address.kind !== 'session') {
+        throw new Error('controller double: sessions_follow was handed a subagent address')
+      }
       recording.followed.push({
-        sessionId: String(asked.address.sessionId),
-        maxMessages: 'maxMessages' in asked ? (asked.maxMessages ?? Number.NaN) : 'absent',
+        sessionId: String(request.address.sessionId),
+        maxMessages: 'maxMessages' in request ? (request.maxMessages ?? Number.NaN) : 'absent',
       })
       return followStream(recording)
     },

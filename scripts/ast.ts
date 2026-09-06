@@ -45,7 +45,7 @@ export interface Parsed {
   readonly body: readonly Node[]
   /** Every comment in the file. */
   readonly comments: readonly Comment[]
-  /** Errors that stopped the parse, if any. */
+  /** Errors that stopped the parse; the list is empty when the parse is whole. */
   readonly errors: readonly { readonly message: string }[]
   /** The line a byte offset falls on, one-based. */
   readonly lineAt: (offset: Field | undefined) => number

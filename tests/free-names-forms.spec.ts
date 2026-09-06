@@ -13,15 +13,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { freeNames } from '../scripts/free-names.ts'
-
-/**
- * The names one snippet reads without binding.
- * @param lines - the lines of the snippet.
- * @returns the free names, sorted.
- */
-function free(...lines: readonly string[]): string[] {
-  return freeNames('fixture.ts', lines.join('\n'))
-}
+import { free } from './fixtures.ts'
 
 describe('the reader reads a name out of every reference position', () => {
   it('reads a computed member, a computed key and a computed method name', () => {
@@ -160,7 +152,7 @@ describe('the reader binds what a scope hoists', () => {
 
 describe('the reader answers about a source it cannot read', () => {
   it('says so, naming the parser’s reason', () => {
-    const said = freeNames('fixture.ts', 'function (').join(' ')
+    const said = free('function (').join(' ')
     expect(said).toContain('this source does not parse')
     expect(said.length).toBeGreaterThan('this source does not parse: '.length)
   })
