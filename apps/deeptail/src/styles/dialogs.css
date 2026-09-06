@@ -37,8 +37,6 @@
   width: min(var(--dsh-card-width), 100%);
   min-width: 0;
   max-width: 100%;
-  max-height: 100%;
-  overflow: hidden;
   padding: var(--dsh-space-inset-2xl) var(--dsh-space-7) var(--dsh-space-7);
   box-sizing: border-box;
   border: 1px solid var(--dsw-alias-border-inverted);
@@ -58,16 +56,9 @@
 .modal-body {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
   gap: var(--dsh-space-4);
   min-width: 0;
-  min-height: 0;
-  overflow: auto;
   background: var(--dsw-alias-bg-layer-2);
-}
-
-.modal-dialog > .actions {
-  flex: none;
 }
 
 /* Shares `.input`'s chrome; only the shape a multi-line field needs differs. */
