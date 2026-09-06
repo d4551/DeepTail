@@ -12,6 +12,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { ACTIONS } from './actions/registry.ts'
 import { type BootedHost, bootHost, teardownHost } from './boot.ts'
 import { createGrantLedger } from './capabilities/grants.ts'
 import { readNativeGrants } from './capabilities/native.ts'
@@ -222,7 +223,9 @@ function runToBootNotice<T>(work: Promise<T>): void {
  */
 function showBootNotice(message: string): void {
   const strip = el('div', { className: 'error', role: 'alert', text: message, data: { deeptailState: 'boot-error' } })
-  strip.append(button('retry', t('action.retry'), () => runToBootNotice(start())))
+  const retry = button('retry', t('action.retry'), () => runToBootNotice(start()))
+  retry.dataset.deeptailAction = ACTIONS['boot.retry'].marker
+  strip.append(retry)
   container.replaceChildren(strip)
 }
 
@@ -234,9 +237,11 @@ function showBootNotice(message: string): void {
  */
 function showReturnBar(): void {
   const bar = el('div', { className: 'return-bar' })
-  bar.append(
-    button('button button-outline return-button', t('shell.backToFleet'), () => runToBootNotice(returnToFleet())),
+  const back = button('button button-outline return-button', t('shell.backToFleet'), () =>
+    runToBootNotice(returnToFleet()),
   )
+  back.dataset.deeptailAction = ACTIONS['client.return'].marker
+  bar.append(back)
   bar.dataset.deeptailReturn = ''
   document.body.append(bar)
   returnBar = bar

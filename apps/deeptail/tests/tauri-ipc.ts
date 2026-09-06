@@ -9,8 +9,8 @@
  * @module
  */
 
-import { CAPABILITIES, type CapabilityDescriptor } from '../src/actions/capabilities.ts'
 import { CARRIER_SOURCES, deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux } from './tauri-ipc-carrier.ts'
+import { deeptailListHosts, issuedGrants } from './tauri-ipc-registry.ts'
 
 export type MuxEventValue =
   | { readonly type: 'ready'; readonly clientId: string; readonly host: string }
@@ -84,12 +84,31 @@ export interface IpcState {
   readonly commands: string[]
   /** Every pairing link the page asked the native side to spend, in order. */
   readonly pairedLinks: string[]
+  /** How many times the page has read the host registry. */
+  listReads: number
 }
 
 /** One scripted answer table for `window.__TAURI_INTERNALS__.invoke`. */
 export type AnswerTable = {
   readonly hosts?: readonly HostFixture[]
   readonly listError?: string
+  /**
+   * Which reads of `list_hosts` fail, counting from one; the rest answer
+   * normally.
+   *
+   * A registry unreadable from the first call never gets past the picker, so
+   * the boot notice — the surface the whole application falls back to, and the
+   * only home of its retry — could not be reached by any fixture at all, and
+   * nothing exercised it. Reaching it needs the reads the application makes to
+   * fail while the reads the picker makes for itself succeed, and those
+   * interleave, so which read fails is the thing a case has to say.
+   */
+  readonly listErrorOn?: readonly number[]
+  /**
+   * What the native authority answers issuance with. Filled in by
+   * `initScriptSource` from the registry, so a case never states it.
+   */
+  readonly grants?: object
   readonly selectError?: string
   readonly pairError?: string
   readonly paired?: HostFixture
@@ -140,31 +159,6 @@ function deeptailTailscale(script: AnswerTable, cmd: string): Promise<object | b
 }
 
 /**
- * Issue the grants the native authority would, for the hosts this page knows.
- *
- * The real authority mints one grant per declared capability, scoped to the
- * device or to each paired host as the registry declares, and the page's ledger
- * refuses a snapshot that is not shaped like one. Building it from the same
- * registry the product reads means a case exercises the page's real hydration
- * rather than a stub the ledger would have taken whatever it looked like.
- * @param script - the answers this page should give.
- * @returns the snapshot, in the shape the ledger reads.
- */
-function deeptailGrants(script: AnswerTable): object {
-  const hosts = (script.hosts ?? []).map((host) => host.id)
-  const declared: CapabilityDescriptor[] = Object.values(CAPABILITIES)
-  const grants = declared.flatMap((capability) =>
-    (capability.subject === 'host' ? hosts : ['device']).map((subject) => ({
-      capability: capability.id,
-      subject,
-      revision: 1,
-      expiresAt: Date.now() + capability.ttlSeconds * 1000,
-    })),
-  )
-  return { issuer: 'native', context: 'scripted-pairing', grants }
-}
-
-/**
  * Dispatch one Tauri command to its scripted answer.
  * @param script - the answers this page should give.
  * @param cmd - the command name.
@@ -186,15 +180,15 @@ function deeptailInvoke(
   state.commands.push(cmd)
   switch (cmd) {
     case 'list_hosts':
-      return script.listError === undefined
-        ? Promise.resolve(script.hosts ?? [])
-        : Promise.reject(new Error(script.listError))
+      return deeptailListHosts(script, state)
     case 'select_host':
       return script.selectError === undefined ? Promise.resolve({}) : Promise.reject(new Error(script.selectError))
     case 'forget_host':
       return Promise.resolve(null)
     case 'capability_grants':
-      return Promise.resolve(deeptailGrants(script))
+      // Answered from the table rather than computed here: this function is
+      // serialised into the page, so anything it reads has to travel with it.
+      return Promise.resolve(script.grants ?? { issuer: 'none', context: '', grants: [] })
     case 'boot_injections':
       return script.bootError === undefined ? Promise.resolve([]) : Promise.reject(new Error(script.bootError))
     case 'carrier_close_mux':
@@ -230,6 +224,7 @@ function installTauriInternals(script: AnswerTable): void {
     recorded: [],
     commands: [],
     pairedLinks: [],
+    listReads: 0,
   }
   Object.assign(window, {
     deeptailRecordedCalls: state.recorded,
@@ -255,8 +250,12 @@ function installTauriInternals(script: AnswerTable): void {
  * @returns the source to evaluate.
  */
 export function initScriptSource(table: AnswerTable): string {
-  const sources = [...CARRIER_SOURCES, deeptailTailscale, deeptailInvoke, installTauriInternals]
-  return `${sources.map(String).join('\n\n')}\ninstallTauriInternals(${JSON.stringify(table)})`
+  const sources = [...CARRIER_SOURCES, deeptailListHosts, deeptailTailscale, deeptailInvoke, installTauriInternals]
+  // The issuance travels as data. Everything else here is source the page
+  // evaluates, and a function that reached for a module would arrive naming
+  // something the page has not got.
+  const carried: AnswerTable = { ...table, grants: issuedGrants((table.hosts ?? []).map((host) => host.id)) }
+  return `${sources.map(String).join('\n\n')}\ninstallTauriInternals(${JSON.stringify(carried)})`
 }
 
 declare global {

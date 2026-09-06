@@ -9,6 +9,7 @@
  * @module
  */
 
+import type { ActionMarker } from '../actions/registry.ts'
 import { ACTIONS } from '../actions/registry.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
@@ -78,7 +79,7 @@ function appendHostRow(items: HTMLElement, host: HostRecord, options: MenuPanelO
     className: 'menu-item menu-choice',
     role: 'menuitemradio',
     aria: { checked: host.id === activeHostId ? 'true' : 'false' },
-    data: { deeptailHost: host.id },
+    data: { deeptailHost: host.id, deeptailAction: ACTIONS['connection.select'].marker },
   })
   item.type = 'button'
   item.append(
@@ -125,7 +126,7 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
   const { hosts, activeHostId, ports, t, dismiss } = options
   const footer = el('div', { className: 'menu-footer', role: 'none' })
   footer.append(
-    menuItem('menu-item', t('action.pair'), () => {
+    menuItem('menu-item', t('action.pair'), ACTIONS['connection.pair'].marker, () => {
       dismiss()
       ports.pair()
     }),
@@ -133,7 +134,7 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
   const active = hosts.find((host) => host.id === activeHostId)
   if (active !== undefined) {
     footer.append(
-      menuItem('menu-item menu-danger', t('shell.unpair'), () => {
+      menuItem('menu-item menu-danger', t('shell.unpair'), ACTIONS['connection.unpair'].marker, () => {
         dismiss()
         ports.unpair(active.id)
       }),
@@ -149,6 +150,8 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
  * @param onClick - its activation handler.
  * @returns the item.
  */
-function menuItem(className: string, text: string, onClick: () => void): HTMLButtonElement {
-  return button(className, text, onClick, { role: 'menuitem' })
+function menuItem(className: string, text: string, marker: ActionMarker, onClick: () => void): HTMLButtonElement {
+  const item = button(className, text, onClick, { role: 'menuitem' })
+  item.dataset.deeptailAction = marker
+  return item
 }

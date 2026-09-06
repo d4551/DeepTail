@@ -349,33 +349,18 @@ pub fn capability_grants(state: State<'_, AppState>) -> CommandResult<capability
         .issue(&hosts, capability::authority::now_ms()))
 }
 
-/// Refuse a priced route the page holds no live grant for.
-///
-/// A route the registry prices is one a DeepTail action reaches, and the page
-/// may reach it only while the native authority says so. A route it does not
-/// price is the harness client's own call, made for itself once it has booted,
-/// and is carried unpriced -- this gate is the control plane's, not the
-/// client's.
-fn admit_route(state: &State<'_, AppState>, host_id: &str, path: &str) -> Result<(), String> {
-    let Some(route) = capability::authority::route_of(path) else {
-        return Ok(());
-    };
-    let Some(needed) = capability::catalog::capability_for_route(route) else {
-        return Ok(());
-    };
-    state
-        .capabilities
-        .spend(needed, host_id, capability::authority::now_ms())
-        .map_err(|denial| format!("{route}: {}", denial.message()))
-}
-
 /// Resolve a host and its token, then make the call.
 async fn authenticated(
     state: &State<'_, AppState>,
     host_id: &str,
     request: FetchRequest,
 ) -> CommandResult<FetchResponse> {
-    admit_route(state, host_id, &request.path)?;
+    capability::authority::admit(
+        &state.capabilities,
+        host_id,
+        &request.path,
+        capability::authority::now_ms(),
+    )?;
     let record = state.hosts.get(host_id).map_err(|e| e.to_string())?;
     let token = state.secrets.token(host_id).map_err(|e| e.to_string())?;
     carrier::call(&state.http, &record, &token, request)

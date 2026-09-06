@@ -1,6 +1,6 @@
 //! What the authority issues, refuses, and forgets.
 
-use super::authority::{route_of, Denial, GrantAuthority};
+use super::authority::{admit, route_of, Denial, GrantAuthority};
 use super::catalog;
 
 /// A fixed instant, so expiry is decided by the test rather than by the clock.
@@ -163,5 +163,87 @@ fn prices_each_route_exactly_once() {
             entry.route
         );
         seen.push(entry.route);
+    }
+}
+
+#[test]
+fn refuses_a_priced_route_the_page_holds_no_grant_for() {
+    // The refusal this module exists for. It was reachable only through a Tauri
+    // command, so nothing had ever driven it: the enforcement could have been
+    // deleted with every test still green.
+    let authority = GrantAuthority::default();
+    let refused = admit(&authority, "dev-1", "/api/session/list", NOW);
+    assert_eq!(
+        refused,
+        Err("session/list: no live grant for this route".to_owned())
+    );
+}
+
+#[test]
+fn carries_a_priced_route_once_the_authority_has_issued() {
+    let authority = GrantAuthority::default();
+    let _issued = authority.issue(&["dev-1".to_owned()], NOW);
+    assert_eq!(admit(&authority, "dev-1", "/api/session/list", NOW), Ok(()));
+    assert_eq!(
+        admit(&authority, "dev-1", "/api/session/list?after=3", NOW),
+        Ok(())
+    );
+}
+
+#[test]
+fn refuses_a_priced_route_once_its_grant_has_aged_out() {
+    let authority = GrantAuthority::default();
+    let _issued = authority.issue(&["dev-1".to_owned()], NOW);
+    let ttl_ms = catalog::descriptor("session.open")
+        .expect("session.open is declared")
+        .ttl_seconds
+        * 1000;
+    assert_eq!(admit(&authority, "dev-1", "/api/session/list", NOW), Ok(()));
+    assert_eq!(
+        admit(&authority, "dev-1", "/api/session/list", NOW + ttl_ms),
+        Err("session/list: the grant for this route has expired".to_owned())
+    );
+}
+
+#[test]
+fn will_not_carry_one_hosts_priced_route_on_anothers_grant() {
+    let authority = GrantAuthority::default();
+    let _issued = authority.issue(&["dev-1".to_owned()], NOW);
+    assert_eq!(admit(&authority, "dev-1", "/api/session/list", NOW), Ok(()));
+    assert_eq!(
+        admit(&authority, "lab-2", "/api/session/list", NOW),
+        Err("session/list: no live grant for this route".to_owned())
+    );
+}
+
+#[test]
+fn carries_an_unpriced_route_with_no_grant_at_all() {
+    // The harness client's own calls, which it makes for itself once it has
+    // booted. This gate prices the control plane; refusing these would break
+    // the client the control plane exists to hand the page to.
+    let authority = GrantAuthority::default();
+    assert_eq!(admit(&authority, "dev-1", "/api/chat/history", NOW), Ok(()));
+    assert_eq!(admit(&authority, "dev-1", "/api/file/read", NOW), Ok(()));
+}
+
+#[test]
+fn carries_a_path_that_is_not_an_api_route() {
+    // Plugin bundles are fetched through the same seam and are not `/api`.
+    let authority = GrantAuthority::default();
+    assert_eq!(admit(&authority, "dev-1", "/plugin/bundle.js", NOW), Ok(()));
+    assert_eq!(admit(&authority, "dev-1", "/", NOW), Ok(()));
+}
+
+#[test]
+fn stops_carrying_every_priced_route_when_the_pairing_context_changes() {
+    let authority = GrantAuthority::default();
+    let _issued = authority.issue(&["dev-1".to_owned()], NOW);
+    assert_eq!(admit(&authority, "dev-1", "/api/session/create", NOW), Ok(()));
+    authority.invalidate();
+    for route in ["session/list", "session/create", "session/cancel", "session/prompt"] {
+        assert!(
+            admit(&authority, "dev-1", &format!("/api/{route}"), NOW).is_err(),
+            "{route} was carried after the context changed"
+        );
     }
 }

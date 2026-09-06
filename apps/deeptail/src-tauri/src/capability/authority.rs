@@ -188,3 +188,29 @@ pub fn route_of(path: &str) -> Option<&str> {
     }
     Some(route.trim_end_matches('/'))
 }
+
+/// Whether one request may be carried to one host.
+///
+/// A route the registry prices is one a DeepTail action reaches, and the page
+/// may reach it only while this authority says so. A route it does not price is
+/// the harness client's own call, made for itself once it has booted, and is
+/// carried unpriced: this gate is the control plane's, not the client's.
+///
+/// Written as a decision over the authority rather than over the command's
+/// state so it can be driven directly. It was reachable only through a Tauri
+/// command before, which meant the refusal this whole module exists for was
+/// never once exercised.
+///
+/// # Errors
+/// Returns the reason, naming the route, when a priced route has no live grant.
+pub fn admit(authority: &GrantAuthority, host: &str, path: &str, now: u64) -> Result<(), String> {
+    let Some(route) = route_of(path) else {
+        return Ok(());
+    };
+    let Some(needed) = catalog::capability_for_route(route) else {
+        return Ok(());
+    };
+    authority
+        .spend(needed, host, now)
+        .map_err(|denial| format!("{route}: {}", denial.message()))
+}
