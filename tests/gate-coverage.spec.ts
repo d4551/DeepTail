@@ -84,26 +84,6 @@ describe('the file list both gates read', () => {
   })
 })
 
-describe('the repository under both gates', () => {
-  it('is clean when every file it ships is actually read', async () => {
-    const files = repositoryFiles([...styles.SCRIPT_EXTENSIONS, ...styles.MARKUP_EXTENSIONS, ...bans.PLAIN_EXTENSIONS])
-    const offences = await Promise.all(
-      files.map(async (file) => {
-        const text = await readFile(file.path, 'utf8')
-        const found = [...styles.SCRIPT_EXTENSIONS, ...styles.MARKUP_EXTENSIONS].some((extension) =>
-          file.label.endsWith(extension),
-        )
-          ? styles.scanSource(file.label, text)
-          : []
-        return [...found, ...bans.scanSource(file.label, text)].map(
-          (offence) => `${offence.label}:${String(offence.line)}: ${offence.why}`,
-        )
-      }),
-    )
-    expect(offences.flat()).toEqual([])
-  })
-})
-
 describe('the structure checks the browser suite evaluates', () => {
   it('carries every floor it measures against into the page', () => {
     // The checks are shipped to the page as their own source text and close

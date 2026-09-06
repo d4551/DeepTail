@@ -37,8 +37,7 @@ export { deepSelectors, duplicateRulesets }
  */
 export const TOKEN_SHEET = 'apps/deeptail/src/styles/tokens.css'
 
-/** Extensions this gate reads. */
-export const STYLE_EXTENSIONS = ['.css'] as const
+export { STYLE_EXTENSIONS } from './extensions.ts'
 
 /** A viewport size a media query switches layout on, in either syntax. */
 // Layout switches at a size in either query family the sheets use: media for

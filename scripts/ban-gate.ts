@@ -17,17 +17,15 @@
 import { aliases } from './aliases.ts'
 import { type Comment, type Parsed, parseScript, walk } from './ast.ts'
 import { BANNED } from './ban-rules.ts'
+import { SCRIPT_EXTENSIONS } from './extensions.ts'
 import { constants } from './fold.ts'
 import { lineReader } from './lines.ts'
 import type { Offence } from './offence.ts'
 import type { Names } from './rule-helpers.ts'
 import { LINT_LEVEL, rustAttributes } from './rust-attributes.ts'
 
-/** Extensions whose bans are read off a syntax tree. */
-export const SCRIPT_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const
-
-/** Extensions whose bans are read line by line, having no parser here. */
-export const PLAIN_EXTENSIONS = ['.rs', '.toml', '.yml', '.yaml', '.json'] as const
+export { PLAIN_EXTENSIONS } from './extensions.ts'
+export { SCRIPT_EXTENSIONS }
 
 /**
  * Directives that switch a checker off, in every language the repository uses.

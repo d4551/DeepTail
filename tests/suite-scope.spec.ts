@@ -110,3 +110,34 @@ describe('the suites the gate chain runs', () => {
     expect(args.every((word) => word.endsWith('.spec.ts'))).toBe(true)
   })
 })
+
+describe('the gates the chain runs', () => {
+  it('runs every gate script the manifest declares', () => {
+    // A gate script that exists and is not in `validate` is a gate nobody
+    // runs. Two of these were suites until the mutation runs made that
+    // impossible — a suite that reads the whole tree cannot judge a mutation
+    // of the modules it reads — so the chain is where they live now, and this
+    // is what says so when one falls out of it.
+    const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
+    const scripts = manifest.scripts ?? {}
+    const gates = Object.keys(scripts).filter((name) => name.startsWith('check:'))
+    expect(gates.length).toBeGreaterThan(0)
+    const chain = scripts.validate ?? ''
+    expect(gates.filter((gate) => !chain.includes(`bun run ${gate}`))).toEqual([])
+  })
+
+  it('runs each gate script against the tree rather than against a fixture', () => {
+    // Each names a reader in `scripts/`, so the rule it enforces is the rule
+    // its own fixtures prove: one gate, read twice, never two.
+    const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
+    const scripts = manifest.scripts ?? {}
+    const shipped = new Set(repositoryFiles(['.ts']).map((file) => file.label))
+    const missing = Object.entries(scripts)
+      .filter(([name]) => name.startsWith('check:'))
+      .flatMap(([name, command]) => {
+        const path = /bun\s+(scripts\/[\w-]+\.ts)/u.exec(command)?.[1]
+        return path !== undefined && shipped.has(path) ? [] : [`${name}: ${command}`]
+      })
+    expect(missing).toEqual([])
+  })
+})

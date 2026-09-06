@@ -18,7 +18,8 @@
     "scripts/compiler-face.ts",
     "scripts/cargo-freshness.ts",
     "scripts/mutate-restore.ts",
-    "scripts/mutation-survivors.ts"
+    "scripts/mutation-survivors.ts",
+    "scripts/check-bans.ts"
   ],
   "coverageAnalysis": "off",
   "disableTypeChecks": false,

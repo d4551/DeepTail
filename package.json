@@ -16,6 +16,7 @@
   "scripts": {
     "a11y": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests/a11y.browser.spec.ts apps/deeptail/tests/a11y-errors.browser.spec.ts apps/deeptail/tests/tailnet.browser.spec.ts --timeout 180000 && echo 'axe: no accessibility violations'",
     "build": "tsc --build tsconfig.json && bun run --filter @deeptail/app build",
+    "check:bans": "bun scripts/check-bans.ts",
     "check:cargo": "bun scripts/cargo-freshness.ts",
     "check:outdated": "bun scripts/check-outdated.ts",
     "check:registry": "bun scripts/gen-action-registry.ts --check",
@@ -37,7 +38,7 @@
     "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests --timeout 60000",
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
     "typecheck": "tsc --build tsconfig.json && tsc -p tsconfig.tools.json && tsc -p packages/host-fleet/tsconfig.tests.json && tsc -p apps/deeptail/tsconfig.tests.json",
-    "validate": "bun run lint && bun run check:tree && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser"
+    "validate": "bun run lint && bun run check:tree && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:bans && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
