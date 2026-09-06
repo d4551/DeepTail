@@ -19,11 +19,12 @@
 
 import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
+import { deepSelectors, MAX_COMPOUNDS } from './sheet-depth.ts'
 import { duplicateRulesets } from './sheet-duplicates.ts'
 import { importOffences } from './sheet-imports.ts'
-import { declarationsOf, rulesetsOf, withoutComments } from './sheet-reader.ts'
+import { declarationsOf, withoutComments } from './sheet-reader.ts'
 
-export { duplicateRulesets }
+export { deepSelectors, duplicateRulesets }
 
 /** The sheet that is allowed to hold raw values, because it is where they live. */
 export const TOKEN_SHEET = 'tokens.css'
@@ -123,41 +124,6 @@ function retiredAtRules(text: string): { readonly rule: string; readonly line: n
     if (match !== null) found.push({ rule: match[0], line: index + 1 })
   }
   return found
-}
-
-/** How a selector may reach from one compound to the next. */
-const COMBINATORS = /\s*[>+~]\s*|\s+/gu
-
-/**
- * The most compounds a selector may chain.
- *
- * Every chain past three is layout reaching through the DOM rather than
- * through a class: it couples a rule to a structure the markup can change
- * without the sheet ever being told, and it is how a sheet grows a branch per
- * page instead of a class per role.
- */
-const MAX_COMPOUNDS = 3
-
-/**
- * How many compounds one comma-separated selector chains.
- * @param one - a single selector, no commas.
- * @returns the count of compounds the selector reaches through.
- */
-function compoundsOf(one: string): number {
-  return one.split(COMBINATORS).filter((compound) => compound !== '').length
-}
-
-/**
- * Every selector that chains more compounds than the design allows.
- *
- * @param text - the sheet's contents.
- * @returns one entry per over-deep selector, with the line its rule opens on.
- */
-export function deepSelectors(text: string): { readonly selector: string; readonly line: number }[] {
-  return rulesetsOf(text)
-    .flatMap((rule) => rule.selector.split(',').map((one) => ({ selector: one.trim(), line: rule.line }) as const))
-    .filter((one) => compoundsOf(one.selector) > MAX_COMPOUNDS)
-    .map((one) => ({ selector: one.selector, line: one.line }))
 }
 
 /**

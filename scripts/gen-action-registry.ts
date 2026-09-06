@@ -11,13 +11,16 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { readRegistry } from './action-registry.ts'
-import { emitRust, emitTypeScript } from './action-registry-emit.ts'
+import { emitActionTable, emitCapabilities, emitTypeScript } from './action-registry-emit.ts'
+import { emitRust } from './action-registry-rust.ts'
 import { ROOT } from './source-tree.ts'
 
 /** Where the registry lives, and where each face is written. */
 const SOURCES = {
   registry: 'apps/deeptail/src/actions/actions.bao',
   typescript: 'apps/deeptail/src/actions/registry.ts',
+  capabilities: 'apps/deeptail/src/actions/capabilities.ts',
+  actionTable: 'apps/deeptail/src/actions/action-table.ts',
   rust: 'apps/deeptail/src-tauri/src/capability/catalog.rs',
 } as const
 
@@ -60,23 +63,25 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   const faces: readonly (readonly [string, string])[] = [
     [SOURCES.typescript, emitTypeScript(registry)],
+    [SOURCES.capabilities, emitCapabilities(registry)],
+    [SOURCES.actionTable, emitActionTable(registry)],
     [SOURCES.rust, emitRust(registry)],
   ]
   if (check) {
-    const drifted: string[] = []
-    for (const [path, written] of faces) {
-      if (!(await matches(path, written))) drifted.push(path)
-    }
+    const read = await Promise.all(faces.map(async ([path, written]) => ((await matches(path, written)) ? '' : path)))
+    const drifted = read.filter((path) => path !== '')
     if (drifted.length > 0) {
       process.stderr.write(`action registry is stale: ${drifted.join(', ')}\n`)
       return 1
     }
     return 0
   }
-  for (const [path, written] of faces) {
-    await mkdir(`${ROOT}${path.slice(0, path.lastIndexOf('/') + 1)}`, { recursive: true })
-    await writeFile(`${ROOT}${path}`, written, 'utf8')
-  }
+  await Promise.all(
+    faces.map(async ([path, written]) => {
+      await mkdir(`${ROOT}${path.slice(0, path.lastIndexOf('/') + 1)}`, { recursive: true })
+      await writeFile(`${ROOT}${path}`, written, 'utf8')
+    }),
+  )
   return 0
 }
 

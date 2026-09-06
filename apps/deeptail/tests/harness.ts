@@ -7,11 +7,13 @@
  * installs a scripted one. Everything above it is the shipped code.
  */
 
-import AxeBuilder from '@axe-core/playwright'
 import { type Browser, chromium, type Page } from 'playwright'
+import { auditPage, type Violation } from './audit.ts'
 import { type AnswerTable, type ForwardedEvent, initScriptSource, type RecordedCall } from './tauri-ipc.ts'
 import { PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
 
+export type { Violation } from './audit.ts'
+export { WCAG_TAGS } from './audit.ts'
 export type { AnswerTable } from './tauri-ipc.ts'
 
 /** Shape of the optional `tests/chromium.json` override. */
@@ -70,23 +72,6 @@ interface OpenOptions {
   readonly width?: number
   readonly height?: number
   readonly locale?: string
-}
-
-/**
- * The published WCAG 2.2 AA tag set axe-core documents for `@axe-core/playwright`.
- * `best-practice` is extra strictness on top of that set, not a substitute for it.
- */
-export const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const
-
-/** The conformance tags every surface is held to. */
-const AUDIT_TAGS = [...WCAG_TAGS, 'best-practice'] as const
-
-/** One accessibility violation, reduced to what a failure message needs. */
-export interface Violation {
-  readonly id: string
-  readonly impact: string
-  readonly help: string
-  readonly nodes: readonly string[]
 }
 
 /** A running harness. */
@@ -201,88 +186,6 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
   const page = await context.newPage()
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
   return page
-}
-
-/**
- * Every WCAG finding on a page: what axe decided against, and what it could not
- * decide at all.
- *
- * Both are returned. An undecided finding is not a pass — it is a question the
- * markup left open, and the answer is to write markup axe can decide about.
- * @param page - the page to audit.
- * @returns the findings.
- */
-async function auditOnce(page: Page): Promise<{ decided: Violation[]; undecided: Violation[] }> {
-  const shape = (finding: {
-    id: string
-    impact?: string | null
-    help: string
-    nodes: { html: string }[]
-  }): Violation => ({
-    id: finding.id,
-    impact: finding.impact ?? 'unknown',
-    help: finding.help,
-    nodes: finding.nodes.map((node) => node.html),
-  })
-  const result = await new AxeBuilder({ page }).withTags([...AUDIT_TAGS]).analyze()
-  return { decided: result.violations.map(shape), undecided: result.incomplete.map(shape) }
-}
-
-/**
- * Move every pane that overflows to one end of its scroll, or the middle.
- * @param page - the page to scroll.
- * @param at - 0 for the top, 1 for the bottom, 0.5 for halfway.
- * @returns whether anything on the page scrolls at all.
- */
-function scrollPanes(page: Page, at: number): Promise<boolean> {
-  return page.evaluate((position: number) => {
-    let moved = false
-    for (const node of document.querySelectorAll('*')) {
-      if (!(node instanceof HTMLElement)) continue
-      const room = node.scrollHeight - node.clientHeight
-      if (room <= 1) continue
-      const overflow = getComputedStyle(node).overflowY
-      if (overflow !== 'auto' && overflow !== 'scroll') continue
-      node.scrollTop = room * position
-      moved = true
-    }
-    return moved
-  }, at)
-}
-
-/**
- * Every WCAG finding on a page: what axe decided against, and what it could not
- * decide at all.
- *
- * Both are returned. An undecided finding is not a pass — it is a question the
- * markup left open, and the answer is to write markup axe can decide about.
- *
- * A pane that scrolls asks that question about its own content: axe samples an
- * element at its centre, and an element scrolled out of its pane has no centre
- * on screen to sample, so `color-contrast` comes back undecided for markup that
- * is perfectly legible once it is scrolled to. The page is therefore audited at
- * each end of its scroll and at the middle. Anything axe decides against at any
- * position is reported — the union, so this can only ever find more. Only a
- * finding it could not decide at *every* position is carried as undecided,
- * because that is a node no scroll position ever brings into view.
- * @param page - the page to audit.
- * @returns the findings.
- */
-async function auditPage(page: Page): Promise<readonly Violation[]> {
-  const first = await auditOnce(page)
-  if (!(await scrollPanes(page, 0))) return [...first.decided, ...first.undecided]
-  const decided = new Map<string, Violation>()
-  const key = (finding: Violation): string => `${finding.id}\n${finding.nodes.join('\n')}`
-  for (const finding of first.decided) decided.set(key(finding), finding)
-  let undecided = new Map(first.undecided.map((finding) => [key(finding), finding]))
-  for (const position of [0, 0.5, 1]) {
-    await scrollPanes(page, position)
-    const pass = await auditOnce(page)
-    for (const finding of pass.decided) decided.set(key(finding), finding)
-    const seen = new Set(pass.undecided.map(key))
-    undecided = new Map([...undecided].filter(([id]) => seen.has(id)))
-  }
-  return [...decided.values(), ...undecided.values()]
 }
 
 export async function startHarness(): Promise<Harness> {

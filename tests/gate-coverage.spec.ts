@@ -105,7 +105,9 @@ describe('the structure checks the browser suite evaluates', () => {
       expect(source).toContain('"target-size"')
     }
   })
+})
 
+describe('what the parser can hand a structural rule', () => {
   it('cannot be handed an activation target nested in its own kind, and the parser is why', () => {
     // The `nested-interactive` rule walks a parsed tree, and the HTML parsing
     // algorithm closes an open activation target the moment a second start tag

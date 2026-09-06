@@ -10,7 +10,7 @@
 import { expect } from 'bun:test'
 import type { Page } from 'playwright'
 import { fleet } from './fixtures.ts'
-import type { AnswerTable, Harness, Violation } from './harness.ts'
+import type { Harness, Violation } from './harness.ts'
 import { pointerFlags, VIEWPORTS, type Viewport } from './viewports.ts'
 
 /** One designed width × palette the a11y suite must actually open, not merely list. */
@@ -148,18 +148,6 @@ export async function openShellAt(
 ): Promise<Page> {
   const page = await harness.open(fleet(fixture), { ...extra, ...pointerFlags(viewport) })
   await page.waitForSelector('[data-deeptail-shell]')
-  await realizeView(page, viewport)
-  return page
-}
-
-/**
- * Open a scripted page at one designed width with that width's pointer.
- * @param harness - the suite's browser harness.
- * @param table - the answers this page should give.
- * @param viewport - the designed width.
- */
-export async function openAt(harness: Harness, table: AnswerTable, viewport: Viewport): Promise<Page> {
-  const page = await harness.open(table, pointerFlags(viewport))
   await realizeView(page, viewport)
   return page
 }

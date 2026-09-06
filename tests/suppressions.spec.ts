@@ -4,6 +4,10 @@
  * A suppression list that can grow by accident is a defect hiding behind
  * configuration, so each is pinned to its empty shape here: the only way one
  * reappears is a deliberate edit to this test.
+ *
+ * Every linter the gate chain runs is pinned, not merely the first one: a
+ * category quietly dropped to a warning silences as much as an ignore list
+ * does, and reads as nothing at all in a diff.
  */
 
 import { expect, it } from 'bun:test'
@@ -37,6 +41,26 @@ async function expectNoSuppressionLists(): Promise<void> {
   )
   expect(levels.filter((level) => level === 'off')).toEqual([])
   expect(biome.linter?.enabled).not.toBe(false)
+
+  // The second linter had no such pin at all, so a category could have been
+  // dropped to a warning or a rule turned off and every gate stayed green. Its
+  // categories, its named rules and the paths it declines to read are all held
+  // to what they were, and the ignore list carries only what the build writes.
+  const oxlint = JSON.parse(await readFile('.oxlintrc.json', 'utf8')) as {
+    plugins?: string[]
+    categories?: Record<string, string>
+    rules?: Record<string, string>
+    ignorePatterns?: string[]
+  }
+  expect(oxlint.plugins ?? []).toEqual(['typescript', 'unicorn', 'promise'])
+  expect(oxlint.categories ?? {}).toEqual({
+    correctness: 'error',
+    suspicious: 'error',
+    perf: 'error',
+    pedantic: 'error',
+  })
+  expect(Object.values(oxlint.rules ?? {}).filter((level) => level !== 'error')).toEqual([])
+  expect(oxlint.ignorePatterns ?? []).toEqual(['**/lib/**', '**/dist/**', '**/gen/**', '**/target/**'])
 }
 
 it('keeps every suppression list empty', async () => {
