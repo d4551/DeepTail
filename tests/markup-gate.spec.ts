@@ -127,6 +127,34 @@ describe('the markup gate rejects retired class vocabulary', () => {
     expect(styleOffences('<div class="shell card">x</div>', 'index.html')).toEqual([])
     expect(styleOffences('<a class="link" href="/x">go</a>', 'index.html')).toEqual([])
     expect(styleOffences('<div data-deeptail-shell="true">x</div>', 'index.html')).toEqual([])
+    expect(styleOffences('<button class="button-primary drawer-toggle menu-item">x</button>', 'index.html')).toEqual([])
+  })
+})
+
+describe('the markup gate rejects a retired framework class or directive', () => {
+  it('a daisyUI class, including the v4 leftover and the v5 compound', () => {
+    expect(styleOffences(`<div class="${joined('btn-', 'primary')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('btn-', 'group')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('theme-', 'controller')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('dock-', 'active')}">x</div>`, 'index.html')).not.toEqual([])
+  })
+
+  it('a Tailwind numeric utility, with or without a variant', () => {
+    expect(styleOffences(`<div class="${joined('p-', '4')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('md:p-', '4')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div class="${joined('flex-', 'col')}">x</div>`, 'index.html')).not.toEqual([])
+  })
+
+  it('an HTMX 4 attribute, including the data- prefix and the inherited modifier', () => {
+    expect(styleOffences(`<div ${joined('data-h', 'x-get')}="/x">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div ${joined('hx-confirm', ':inherited')}="sure?">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<form ${joined('hx-sta', 'tus')}:422="target:#e"></form>`, 'index.html')).not.toEqual([])
+  })
+
+  it('a Bootstrap grid class and a Vue or Bootstrap directive', () => {
+    expect(styleOffences(`<div class="${joined('col-md-', '6')}">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div ${joined('v-', 'if')}="open">x</div>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div ${joined('data-bs-', 'toggle')}="modal">x</div>`, 'index.html')).not.toEqual([])
   })
 })
 

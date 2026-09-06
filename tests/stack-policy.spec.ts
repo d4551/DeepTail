@@ -28,6 +28,7 @@ const RETIRED_FRAMEWORKS = new Set([
   'daisyui',
   'tailwindcss',
   'htmx.org',
+  'htmx',
   'alpinejs',
   'jquery',
   'bootstrap',
@@ -46,7 +47,13 @@ const RETIRED_FRAMEWORKS = new Set([
  * @returns true when the name is one of the retired frameworks or their scopes.
  */
 function isRetiredFramework(name: string): boolean {
-  return RETIRED_FRAMEWORKS.has(name) || name.startsWith('@tailwindcss/') || name.startsWith('@daisyui/')
+  return (
+    RETIRED_FRAMEWORKS.has(name) ||
+    name.startsWith('@tailwindcss/') ||
+    name.startsWith('@daisyui/') ||
+    name.startsWith('@alpinejs/') ||
+    name.startsWith('@htmx.org/')
+  )
 }
 
 describe('the stack policy bans', () => {

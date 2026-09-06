@@ -14,6 +14,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import { compilerFaceOffences } from '../scripts/compiler-face.ts'
 import { EMPTY_SECTION, isJsonObject, type Json, readJsonc } from '../scripts/jsonc.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 
@@ -113,5 +114,26 @@ describe('the canonical TypeScript 7 compiler face', () => {
     const faces = await Promise.all(labels.map(async (label) => await compilerOptionsOf(label)))
     const switchedOff = labels.filter((_, index) => optionValue(faces[index] ?? EMPTY_SECTION, 'strict') === false)
     expect(switchedOff).toEqual([])
+  })
+})
+
+describe('the TypeScript 6 compiler face', () => {
+  it('is refused, option by option', () => {
+    const commonjs = compilerFaceOffences({ module: 'commonjs', target: 'ES5', moduleResolution: 'node' })
+    expect(commonjs.some((line) => line.includes('commonjs'))).toBe(true)
+    expect(commonjs.some((line) => line.includes('es5'))).toBe(true)
+    expect(commonjs.some((line) => line.includes('node'))).toBe(true)
+    expect(compilerFaceOffences({ module: 'AMD', target: 'ES6' })).not.toEqual([])
+    expect(compilerFaceOffences({ importsNotUsedAsValues: 'remove' })).not.toEqual([])
+    expect(compilerFaceOffences({ preserveValueImports: true })).not.toEqual([])
+    expect(compilerFaceOffences({ downlevelIteration: true })).not.toEqual([])
+    expect(compilerFaceOffences({ skipLibCheck: true })).not.toEqual([])
+    expect(compilerFaceOffences({ strict: false })).not.toEqual([])
+  })
+
+  it('is absent from every tsconfig this repository ships', async () => {
+    const labels = shippedConfigs()
+    const faces = await Promise.all(labels.map(async (label) => compilerFaceOffences(await compilerOptionsOf(label))))
+    expect(labels.flatMap((label, index) => (faces[index] ?? []).map((line) => `${label}: ${line}`))).toEqual([])
   })
 })

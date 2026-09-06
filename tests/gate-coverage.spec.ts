@@ -86,6 +86,14 @@ describe('the structure checks the browser suite evaluates', () => {
       // receives would refuse every class — or, refused by nothing, check none.
       expect(source).toContain('"vocabulary":["shell"]')
       expect(source).toContain('"scope":"[data-deeptail-shell], [data-deeptail-picker]')
+      expect(source).toContain('checkAlignment')
+      expect(source).toContain('checkGrid')
+      expect(source).toContain('checkShell')
+      expect(source).toContain('checkInlineScripts')
+      expect(source).toContain('"alignment"')
+      expect(source).toContain('"nested-grid"')
+      expect(source).toContain('"split-shell"')
+      expect(source).toContain('"inline-script"')
     }
   })
 

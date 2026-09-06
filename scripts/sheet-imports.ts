@@ -15,7 +15,7 @@ import type { Offence } from './offence.ts'
 
 /** An `@import` target that pulls a retired framework's pipeline in. */
 const RETIRED_IMPORT =
-  /^["']?@?(?:tailwindcss|daisyui|bootstrap|bulma|foundation-sites|htmx\.org|materialize-css|semantic-ui|uikit|animate\.css|normalize\.css)(?:\/|\.|["';]|$)/iu
+  /^["']?@?(?:tailwindcss|daisyui|bootstrap|bulma|foundation-sites|htmx(?:\.org)?|alpinejs|materialize-css|semantic-ui|uikit|animate\.css|normalize\.css)(?:\/|\.|["';]|$)/iu
 
 /** A URL that loads from outside the shipped bundle, absolute or protocol-relative. */
 const REMOTE_URL = /^(?:https?:)?\/\//iu

@@ -11,6 +11,17 @@ import { expect } from 'bun:test'
 import type { Page } from 'playwright'
 import { fleet } from './fixtures.ts'
 import type { Harness, Violation } from './harness.ts'
+import { PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
+
+/** One width × palette the a11y suite must actually open, not merely list. */
+const AUDIT_VIEWS = [
+  { label: 'mobile light', mobile: true, dark: false, width: PHONE_VIEWPORT.width },
+  { label: 'mobile dark', mobile: true, dark: true, width: PHONE_VIEWPORT.width },
+  { label: 'tablet light', tablet: true, dark: false, width: TABLET_VIEWPORT.width },
+  { label: 'tablet dark', tablet: true, dark: true, width: TABLET_VIEWPORT.width },
+  { label: 'desktop light', dark: false, width: undefined },
+  { label: 'desktop dark', dark: true, width: undefined },
+] as const
 
 /**
  * Render a violation set as a failure message a reader can act on.
@@ -35,6 +46,44 @@ export function describeViolations(violations: readonly Violation[]): string {
  */
 export async function expectNoViolations(harness: Harness, page: Page): Promise<void> {
   expect(describeViolations(await harness.audit(page))).toBe('')
+}
+
+/**
+ * Audit one arranged surface at mobile, tablet and desktop, in both palettes.
+ *
+ * Tablet is opened through the harness (`tablet: true`), not by resizing a
+ * desktop page: a resize would keep the fine pointer and the audit would
+ * claim a width it never actually emulated.
+ * @param harness - the suite's browser harness.
+ * @param open - opens the surface under one view and leaves it ready to audit.
+ */
+/**
+ * Open the drawer when this width seats the roster behind it.
+ * @param page - the page showing the shell.
+ */
+export async function openDrawerIfPresent(page: Page): Promise<void> {
+  const drawer = page.locator('[data-deeptail-action="drawer"]')
+  if (await drawer.isVisible()) await drawer.click()
+}
+
+export async function expectNoViolationsAtEachWidth(
+  harness: Harness,
+  open: (view: { mobile?: boolean; tablet?: boolean; dark?: boolean }) => Promise<Page>,
+): Promise<void> {
+  const found: string[] = []
+  const widths: number[] = []
+  for (const view of AUDIT_VIEWS) {
+    const page = await open(view)
+    const size = page.viewportSize()?.width
+    if (view.width !== undefined) expect(size).toBe(view.width)
+    if (size !== undefined) widths.push(size)
+    const violations = describeViolations(await harness.audit(page))
+    if (violations !== '') found.push(`${view.label} (${String(size)}): ${violations}`)
+    await page.close()
+  }
+  expect(widths).toContain(PHONE_VIEWPORT.width)
+  expect(widths).toContain(TABLET_VIEWPORT.width)
+  expect(found).toEqual([])
 }
 
 /**

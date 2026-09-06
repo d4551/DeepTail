@@ -15,7 +15,9 @@
  */
 
 import {
+  checkAlignment,
   checkClipping,
+  checkGrid,
   checkHorizontalOverflow,
   checkNestedScroll,
   checkOverlappingTargets,
@@ -23,6 +25,7 @@ import {
   scrolls,
 } from './structure-layout.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
+import { checkInlineScripts, checkShell } from './structure-shell.ts'
 import { checkClassVocabulary } from './structure-vocabulary.ts'
 
 export type { StructureFinding }
@@ -59,47 +62,13 @@ const MINIMUM_TOUCH_TARGET = 44
 /** The smallest target WCAG 2.2 admits for any pointer, in CSS pixels. */
 const MINIMUM_POINTER_TARGET = 24
 
-/**
- * The surfaces this product draws, however the page is laid out.
- *
- * The vocabulary check reads these and nothing else: the harness client shares
- * the document and styles its own UI with classes no sheet here names, so the
- * check follows the product's own roots instead of the whole body.
- */
-const PRODUCT_SURFACES = [
-  '[data-deeptail-shell]',
-  '[data-deeptail-picker]',
-  '[data-deeptail-state="boot-error"]',
-  '[data-deeptail-return]',
-].join(', ')
+/** The surfaces this product draws, however the page is laid out. */
+const PRODUCT_SURFACES =
+  '[data-deeptail-shell], [data-deeptail-picker], [data-deeptail-state="boot-error"], [data-deeptail-return]'
 
-/**
- * Elements that take focus or activation.
- *
- * The role-named forms are here too. The list held only real elements, which
- * was enough while every control in the product was a `<button>` — and would
- * have gone quiet the moment one was not.
- */
-const INTERACTIVE = [
-  'a[href]',
-  'button',
-  'input',
-  'select',
-  'textarea',
-  'summary',
-  '[contenteditable="true"]',
-  '[tabindex]:not([tabindex="-1"])',
-  '[role="button"]',
-  '[role="link"]',
-  '[role="checkbox"]',
-  '[role="radio"]',
-  '[role="switch"]',
-  '[role="tab"]',
-  '[role="menuitem"]',
-  '[role="menuitemradio"]',
-  '[role="menuitemcheckbox"]',
-  '[role="option"]',
-].join(', ')
+/** Elements that take focus or activation, including role-named forms. */
+const INTERACTIVE =
+  'a[href], button, input, select, textarea, summary, [contenteditable="true"], [tabindex]:not([tabindex="-1"]), [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"]'
 
 /**
  * Every id must be unique for an ARIA reference or a label to mean anything.
@@ -254,6 +223,10 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   checkNestedScroll(add)
   checkOverlappingTargets(add, limits)
   checkTouchTargets(add, limits)
+  checkAlignment(add, limits)
+  checkGrid(add, limits)
+  checkShell(add, limits)
+  checkInlineScripts(add, limits)
   return findings
 }
 
@@ -290,6 +263,10 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     checkNestedScroll,
     checkOverlappingTargets,
     checkTouchTargets,
+    checkAlignment,
+    checkGrid,
+    checkShell,
+    checkInlineScripts,
     findStructureDefects,
   ].map(String)
   return `(() => {\n${functions.join('\n\n')}\nreturn findStructureDefects(${JSON.stringify(limits)})\n})()`

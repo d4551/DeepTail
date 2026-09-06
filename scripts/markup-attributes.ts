@@ -10,6 +10,8 @@
  * @module
  */
 
+import { retiredClassTokens } from './markup-vocabulary.ts'
+
 /**
  * The attributes an element fetches a resource from.
  *
@@ -40,13 +42,14 @@ const RESOURCE_URLS = new Map<string, readonly string[]>([
 export const REMOTE_URL = /^(?:https?:)?\/\//iu
 
 /**
- * An htmx wiring attribute.
+ * An htmx wiring attribute, including HTMX 4's `:inherited` / `hx-status`
+ * spellings and the `data-hx-` equivalent the docs still accept.
  *
  * An `hx-` attribute moves an element's behaviour into the tag: a listener, a
  * fetch and a swap all decided where the markup is written. This product wires
  * interactivity in modules, so no wiring attribute may ship.
  */
-const HTMX_ATTRIBUTE = /^hx-/iu
+const HTMX_ATTRIBUTE = /^(?:data-)?hx-/iu
 
 /**
  * A Tailwind arbitrary-value utility in a class list.
@@ -108,6 +111,14 @@ const DIRECTIVE_ATTRIBUTES: readonly { readonly pattern: RegExp; readonly why: s
     pattern: /^(?:x-|@|:)/u,
     why: 'a directive attribute wires behaviour into the tag; attach the listener in a module',
   },
+  {
+    pattern: /^v-/u,
+    why: 'a Vue directive wires behaviour into the tag; attach the listener in a module',
+  },
+  {
+    pattern: /^data-bs-/iu,
+    why: 'a Bootstrap data-bs attribute is a retired framework hook; attach the listener in a module',
+  },
 ]
 
 /** One refusal, with its line. */
@@ -149,11 +160,20 @@ export function recordAttributeOffences(
     for (const { pattern, why } of DIRECTIVE_ATTRIBUTES) {
       if (pattern.test(attribute.name)) found.push({ line, why })
     }
-    if (name === 'class' && ARBITRARY_UTILITY.test(attribute.value ?? '')) {
-      found.push({
-        line,
-        why: 'a bracketed utility class carries a raw value; read the size or colour from tokens.css',
-      })
+    if (name === 'class') {
+      const value = attribute.value ?? ''
+      if (ARBITRARY_UTILITY.test(value)) {
+        found.push({
+          line,
+          why: 'a bracketed utility class carries a raw value; read the size or colour from tokens.css',
+        })
+      }
+      for (const token of retiredClassTokens(value)) {
+        found.push({
+          line,
+          why: `retired-class: "${token}" belongs to a UI framework this product retired`,
+        })
+      }
     }
     if (ALIGNMENT_ATTRIBUTES.has(name)) {
       found.push({

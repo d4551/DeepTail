@@ -32,6 +32,16 @@ interface OutdatedRow {
   readonly held: boolean
 }
 
+/**
+ * The command that asks bun for every workspace's outdated table.
+ *
+ * `bun outdated` without a filter reports only the cwd workspace, so a pin
+ * behind in `apps/deeptail` (playwright sat at 1.62.1 while 1.63.0 was
+ * installable) never appeared. The filter is what makes the gate see the
+ * same table a human gets from `bun outdated --filter "*"`.
+ */
+export const OUTDATED_COMMAND = ['bun', 'outdated', '--filter', '*'] as const
+
 /** The cells of one table row, or undefined when the line is a rule or header. */
 function cellsOf(line: string): string[] | undefined {
   if (!line.startsWith('|') || line.startsWith('|--')) return undefined
@@ -39,7 +49,9 @@ function cellsOf(line: string): string[] | undefined {
     .split('|')
     .slice(1, -1)
     .map((cell) => cell.trim())
-  return cells.length === 4 ? cells : undefined
+  // Four columns is one workspace; five is the all-workspace table, which
+  // appends a Workspace column the gate does not judge.
+  return cells.length === 4 || cells.length === 5 ? cells : undefined
 }
 
 /**
@@ -112,7 +124,7 @@ export function heldByPolicy(rows: readonly OutdatedRow[]): string[] {
 }
 
 if (import.meta.main) {
-  const run = Bun.spawnSync(['bun', 'outdated'], { stderr: 'pipe' })
+  const run = Bun.spawnSync([...OUTDATED_COMMAND], { stderr: 'pipe' })
   if (run.exitCode !== 0) {
     process.stderr.write(`check-outdated: bun outdated exited ${String(run.exitCode)}\n${run.stderr?.toString() ?? ''}`)
     process.exit(1)

@@ -146,6 +146,8 @@ describe('the stylesheet gate rejects a remote or retired dependency', () => {
     expect(sheetOffences(`@import "${tail}";`)).not.toEqual([])
     expect(sheetOffences(`@import '${daisy}';`)).not.toEqual([])
     expect(sheetOffences(`@import url(${daisy}.css);`)).not.toEqual([])
+    expect(sheetOffences(`@import "${joined('alpine', 'js')}";`)).not.toEqual([])
+    expect(sheetOffences(`@import "${joined('htmx', '.org')}";`)).not.toEqual([])
   })
 
   it('but allows an asset the bundle ships, and a data payload', () => {
@@ -217,5 +219,25 @@ describe('the stylesheet gate reads selectors by reach', () => {
     expect(sheetOffences('.a .b { color: currentcolor; }')).toEqual([])
     expect(sheetOffences('.host-group > * + * { color: currentcolor; }')).toEqual([])
     expect(sheetOffences('.shell[data-state="open"] .sidebar { color: currentcolor; }')).toEqual([])
+  })
+})
+
+describe('the stylesheet gate rejects a DRY or grid hole', () => {
+  it('a ruleset declared twice, including on the token sheet', () => {
+    const twice = '.a { color: currentcolor; }\n.b { color: red; }\n.a { color: currentcolor; }'
+    expect(sheetOffences(twice).some((why) => why.startsWith('duplicate-ruleset:'))).toBe(true)
+    expect(
+      scanSheet('apps/deeptail/src/styles/tokens.css', ':root { --x: 1; }\n:root { --x: 1; }').map(
+        (offence) => offence.why,
+      ),
+    ).toEqual(['duplicate-ruleset: :root is declared more than once (first at line 1)'])
+  })
+
+  it('a hardcoded grid track written in pixels', () => {
+    expect(sheetOffences('.a { grid-template-columns: 100px 1fr; }')).toEqual([
+      'hardcoded-grid: 100px in grid-template-columns belongs to the scale in tokens.css',
+    ])
+    expect(sheetOffences('.a { grid-template-rows: 48px; }')).not.toEqual([])
+    expect(sheetOffences('.a { grid-template-columns: var(--dsh-grid-frame); }')).toEqual([])
   })
 })

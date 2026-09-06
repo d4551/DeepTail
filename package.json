@@ -5,7 +5,7 @@
   "type": "module",
   "license": "MIT",
   "description": "DeepTail: a Tauri desktop and mobile client that monitors and drives DeepSeek Harness sessions on a remote host.",
-  "packageManager": "bun@1.4.0",
+  "packageManager": "bun@1.4.2",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
@@ -35,7 +35,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
     "@tauri-apps/cli": "2.11.4",
-    "@types/bun": "^1.4.0",
+    "@types/bun": "^1.4.1",
     "@types/node": "^26.4.1",
     "@types/semver": "7.8.0",
     "jsonc-parser": "3.3.1",
@@ -92,6 +92,8 @@
     "@deepseek-ai/dsh-util-time": "0.1.2-rc.1",
     "@deepseek-ai/dsh-util-values": "0.1.2-rc.1",
     "@deepseek-ai/dsh-util-workspace-path": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-workspace": "0.1.2-rc.1"
+    "@deepseek-ai/dsh-workspace": "0.1.2-rc.1",
+    "playwright": "1.63.0",
+    "playwright-core": "1.63.0"
   }
 }

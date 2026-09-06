@@ -10,6 +10,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Browser, chromium, type Page } from 'playwright'
 import { type AnswerTable, type ForwardedEvent, initScriptSource, type RecordedCall } from './tauri-ipc.ts'
+import { PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
 
 export type { AnswerTable } from './tauri-ipc.ts'
 
@@ -56,11 +57,23 @@ interface OpenOptions {
   readonly reducedMotion?: boolean
   readonly dark?: boolean
   readonly mobile?: boolean
+  /**
+   * iPad-class viewport with a coarse pointer. Distinct from `mobile`: the
+   * shell's drawer breakpoint sits below this width, so tablet is the
+   * two-column layout a finger still has to hit.
+   */
+  readonly tablet?: boolean
   readonly locale?: string
 }
 
+/**
+ * The published WCAG 2.2 AA tag set axe-core documents for `@axe-core/playwright`.
+ * `best-practice` is extra strictness on top of that set, not a substitute for it.
+ */
+export const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const
+
 /** The conformance tags every surface is held to. */
-const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] as const
+const AUDIT_TAGS = [...WCAG_TAGS, 'best-practice'] as const
 
 /** One accessibility violation, reduced to what a failure message needs. */
 export interface Violation {
@@ -149,7 +162,12 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
     // A phone viewport is not a phone: the row actions are revealed by
     // `not (hover: hover)`, which only holds once the context emulates a touch
     // device rather than merely a narrow window.
-    ...(options.mobile === true ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } : {}),
+    ...(options.mobile === true
+      ? { viewport: { width: PHONE_VIEWPORT.width, height: PHONE_VIEWPORT.height }, hasTouch: true, isMobile: true }
+      : {}),
+    ...(options.tablet === true
+      ? { viewport: { width: TABLET_VIEWPORT.width, height: TABLET_VIEWPORT.height }, hasTouch: true, isMobile: true }
+      : {}),
     locale: options.locale ?? 'en-GB',
     ...(options.forcedColors === true ? { forcedColors: 'active' as const } : {}),
     ...(options.reducedMotion === true ? { reducedMotion: 'reduce' as const } : {}),
@@ -181,7 +199,7 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
  * @returns the findings.
  */
 async function auditPage(page: Page): Promise<readonly Violation[]> {
-  const result = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze()
+  const result = await new AxeBuilder({ page }).withTags([...AUDIT_TAGS]).analyze()
   return [...result.violations, ...result.incomplete].map((finding) => ({
     id: finding.id,
     impact: finding.impact ?? 'unknown',

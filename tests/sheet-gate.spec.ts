@@ -16,8 +16,7 @@
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { unringedSelectors } from '../scripts/focus-ring-gate.ts'
-import { breakpointsOf, STYLE_EXTENSIONS, scanSheet } from '../scripts/sheet-gate.ts'
-import { rulesetsOf } from '../scripts/sheet-reader.ts'
+import { breakpointsOf, duplicateRulesets, STYLE_EXTENSIONS, scanSheet } from '../scripts/sheet-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { joined } from './fixtures.ts'
 
@@ -96,16 +95,9 @@ describe('the layout widths the product ships', () => {
   })
 
   it('declare no rule twice', async () => {
-    const seen = new Map<string, string>()
-    const repeated: string[] = []
-    for (const sheet of await sheets()) {
-      for (const rule of rulesetsOf(sheet.text)) {
-        const key = `${rule.selector} { ${rule.body} }`
-        const first = seen.get(key)
-        if (first === undefined) seen.set(key, `${sheet.label}:${String(rule.line)}`)
-        else repeated.push(`${key} — ${first} and ${sheet.label}:${String(rule.line)}`)
-      }
-    }
+    const repeated = (await sheets()).flatMap((sheet) =>
+      duplicateRulesets(sheet.label, sheet.text).map((found) => `${found.label}:${String(found.line)}: ${found.why}`),
+    )
     expect(repeated).toEqual([])
   })
 })

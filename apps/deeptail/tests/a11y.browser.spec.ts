@@ -8,8 +8,14 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { type Harness, startHarness } from './harness.ts'
-import { expectNoViolations, openShell } from './surfaces.ts'
+import { type Harness, startHarness, WCAG_TAGS } from './harness.ts'
+import {
+  describeViolations,
+  expectNoViolations,
+  expectNoViolationsAtEachWidth,
+  openDrawerIfPresent,
+  openShell,
+} from './surfaces.ts'
 
 let harness: Harness
 
@@ -135,6 +141,114 @@ it('has no WCAG violations on the picker listing already-paired hosts', async ()
   await page.locator('[data-deeptail-connection="trigger"]').click()
   await page.getByRole('menuitem', { name: 'Pair a host' }).click()
   await page.locator('[data-deeptail-state="ready"]').waitFor({ state: 'visible' })
+  await expectNoViolations(harness, page)
+  await page.close()
+})
+
+it('holds axe to the published WCAG 2.2 AA tags', () => {
+  expect([...WCAG_TAGS]).toEqual(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+})
+
+it(
+  'has no WCAG violations on the fleet roster at mobile, tablet and desktop, in both palettes',
+  async () => {
+    await expectNoViolationsAtEachWidth(harness, async (view) => {
+      const page = await openShell(harness, {}, view)
+      await openDrawerIfPresent(page)
+      await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
+      return page
+    })
+  },
+  180_000,
+)
+
+it(
+  'has no WCAG violations on the picker at mobile, tablet and desktop, in both palettes',
+  async () => {
+    await expectNoViolationsAtEachWidth(harness, async (view) => {
+      const page = await harness.open({ hosts: [] }, view)
+      await page.waitForSelector('[data-deeptail-picker]')
+      return page
+    })
+  },
+  180_000,
+)
+
+it(
+  'has no WCAG violations with the connection menu open at mobile, tablet and desktop, in both palettes',
+  async () => {
+    await expectNoViolationsAtEachWidth(harness, async (view) => {
+      const page = await openShell(harness, {}, view)
+      await openDrawerIfPresent(page)
+      await page.locator('[data-deeptail-connection="trigger"]').click()
+      await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+      return page
+    })
+  },
+  180_000,
+)
+
+it(
+  'has no WCAG violations in the new-session dialog at mobile, tablet and desktop, in both palettes',
+  async () => {
+    await expectNoViolationsAtEachWidth(harness, async (view) => {
+      const page = await openShell(harness, {}, view)
+      await openDrawerIfPresent(page)
+      await page.locator('[data-deeptail-action="new-session"]').click()
+      await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+      return page
+    })
+  },
+  180_000,
+)
+
+it(
+  'has no WCAG violations while a roster read is in flight at mobile, tablet and desktop, in both palettes',
+  async () => {
+    await expectNoViolationsAtEachWidth(harness, async (view) => {
+      const page = await openShell(harness, { remotePending: ['session/list'] }, view)
+      await openDrawerIfPresent(page)
+      await page.locator('[data-deeptail-state="loading"]').first().waitFor({ state: 'visible' })
+      return page
+    })
+  },
+  180_000,
+)
+
+it(
+  'has no WCAG violations on a partial roster at mobile, tablet and desktop, in both palettes',
+  async () => {
+    await expectNoViolationsAtEachWidth(harness, async (view) => {
+      const page = await openShell(harness, { remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }, view)
+      await openDrawerIfPresent(page)
+      await page.waitForSelector('[data-deeptail-state="partial"]')
+      return page
+    })
+  },
+  180_000,
+)
+
+it('has no WCAG violations with the drawer open in both palettes on a phone', async () => {
+  for (const dark of [false, true]) {
+    const page = await openShell(harness, {}, { mobile: true, dark })
+    await page.locator('[data-deeptail-action="drawer"]').click()
+    await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
+    await expectNoViolations(harness, page)
+    await page.close()
+  }
+})
+
+it('reports an unlabeled control as a WCAG violation', async () => {
+  const page = await openShell(harness)
+  await page.evaluate(() => {
+    const button = document.createElement('button')
+    button.dataset.deeptailProbe = 'unlabeled'
+    document.querySelector('[data-deeptail-shell]')?.append(button)
+  })
+  const found = await harness.audit(page)
+  expect(describeViolations(found)).not.toBe('')
+  expect(found.some((violation) => violation.id === 'button-name')).toBe(true)
+  await page.evaluate(() => document.querySelector('[data-deeptail-probe="unlabeled"]')?.remove())
   await expectNoViolations(harness, page)
   await page.close()
 })

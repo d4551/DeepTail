@@ -12,15 +12,9 @@ import type { Page } from 'playwright'
 import { classTokensOf } from '../../../scripts/sheet-reader.ts'
 import { repositoryFiles } from '../../../scripts/source-tree.ts'
 import { type StructureFinding, structureCheckSource } from './structure.ts'
+import { VIEWPORTS } from './viewports.ts'
 
-/** The widths the shell is designed against, narrowest first. */
-export const VIEWPORTS = [
-  { label: 'small phone', width: 320, height: 720 },
-  { label: 'phone', width: 390, height: 844 },
-  { label: 'tablet', width: 768, height: 1024 },
-  { label: 'laptop', width: 1280, height: 800 },
-  { label: 'desktop', width: 1920, height: 1080 },
-]
+export { VIEWPORTS }
 
 /** The sheets whose class selectors are the shipped vocabulary. */
 const STYLE_DIRECTORY = 'apps/deeptail/src/styles/'

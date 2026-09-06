@@ -154,8 +154,70 @@ function checkTouchTargets(add: Report, limits: PointerLimits): void {
   }
 }
 
+/**
+ * Physical or justified text alignment is an alignment defect at runtime too.
+ *
+ * The sheet gate refuses `text-align: left|right|justify` in source. A page
+ * can still compute that alignment from an injected sheet or a framework
+ * class, and no rule engine reports it: the text is readable and the contrast
+ * holds. `start`/`end` follow the writing mode; `left`/`right`/`justify` do
+ * not.
+ * @param add - collects a finding.
+ * @param limits - the product surfaces to read.
+ */
+function checkAlignment(add: Report, limits: { readonly scope: string }): void {
+  for (const node of document.querySelectorAll(limits.scope)) {
+    for (const element of [node, ...node.querySelectorAll('*')]) {
+      const align = getComputedStyle(element).textAlign
+      if (align === 'left' || align === 'right' || align === 'justify') {
+        add('alignment', `${describe(element)} uses physical or justified text-align ${align}`)
+      }
+    }
+  }
+}
+
+/**
+ * A grid nested in a grid, or a table used as a grid, is layout the sheets
+ * do not own.
+ *
+ * Token-based `grid-template-*` computes to pixels, so this does not judge
+ * track sizes — the sheet gate does that in source. What the live tree can
+ * still show is a second grid inside the shell's grid, or a `<table>` with no
+ * header standing in for a layout grid.
+ * @param add - collects a finding.
+ * @param limits - the product surfaces to read.
+ */
+function checkGrid(add: Report, limits: { readonly scope: string }): void {
+  for (const node of document.querySelectorAll(limits.scope)) {
+    for (const element of [node, ...node.querySelectorAll('*')]) {
+      const display = getComputedStyle(element).display
+      if (display === 'grid' || display === 'inline-grid') {
+        let ancestor = element.parentElement
+        while (ancestor !== null) {
+          const parentDisplay = getComputedStyle(ancestor).display
+          if (parentDisplay === 'grid' || parentDisplay === 'inline-grid') {
+            add('nested-grid', `${describe(element)} is a grid inside ${describe(ancestor)}, which is also a grid`)
+            break
+          }
+          ancestor = ancestor.parentElement
+        }
+      }
+      if (display === 'table' && element.tagName !== 'TABLE') {
+        add('hardcoded-grid', `${describe(element)} uses display:table as a layout grid`)
+      }
+    }
+    for (const table of node.querySelectorAll('table')) {
+      if (table.querySelector('th, [scope]') === null) {
+        add('layout-table', `${describe(table)} is a table with no header, used as a layout grid`)
+      }
+    }
+  }
+}
+
 export {
+  checkAlignment,
   checkClipping,
+  checkGrid,
   checkHorizontalOverflow,
   checkNestedScroll,
   checkOverlappingTargets,

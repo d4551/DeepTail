@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { behindInstallable, heldByPolicy, parseOutdated } from '../scripts/check-outdated.ts'
+import { behindInstallable, heldByPolicy, OUTDATED_COMMAND, parseOutdated } from '../scripts/check-outdated.ts'
 
 /**
  * A table with one package behind, one held, and one at the newest.
@@ -64,6 +64,23 @@ const ALL_CURRENT = `|----------|
 | knip     | 6.34.0  | 6.34.0  | 6.34.0   |
 |----------|`
 
+/**
+ * The all-workspace table `bun outdated --filter "*"` prints. A parser that
+ * only accepted four cells would drop every row and the gate would go green
+ * while playwright sat a release behind in the app workspace.
+ */
+const ALL_WORKSPACES = `bun outdated v1.4.2
+|---------------------------------------------------------------|
+| Package          | Current | Update | Latest | Workspace      |
+|------------------|---------|--------|--------|----------------|
+| @types/bun (dev) | 1.4.0   | 1.4.1  | 1.4.1  | @deeptail/root |
+|------------------|---------|--------|--------|----------------|
+| playwright (dev) | 1.62.1  | 1.62.1 | 1.63.0 | @deeptail/app  |
+|------------------|---------|--------|--------|----------------|
+| oxlint (dev)     | 1.80.0  | 1.80.0 | 1.81.0 * | @deeptail/root |
+|---------------------------------------------------------------|
+`
+
 describe('the outdated gate', () => {
   it('reads every row of the table and no rule or header', () => {
     const rows = parseOutdated(TABLE)
@@ -106,5 +123,19 @@ describe('the outdated gate', () => {
   it('reads an empty report as nothing outdated', () => {
     expect(parseOutdated('bun outdated v1.4.0\n')).toEqual([])
     expect(behindInstallable([])).toEqual([])
+  })
+
+  it('reads the all-workspace table, including a pin behind in a nested workspace', () => {
+    const rows = parseOutdated(ALL_WORKSPACES)
+    expect(rows.map((row) => row.name)).toEqual(['@types/bun', 'playwright', 'oxlint'])
+    expect(behindInstallable(rows)).toEqual([
+      '@types/bun is at 1.4.0 and 1.4.1 is installable now',
+      'playwright is at 1.62.1 and 1.63.0 is installable now',
+    ])
+    expect(heldByPolicy(rows)).toEqual(['oxlint 1.80.0'])
+  })
+
+  it('asks bun for every workspace, not only the root', () => {
+    expect([...OUTDATED_COMMAND]).toEqual(['bun', 'outdated', '--filter', '*'])
   })
 })

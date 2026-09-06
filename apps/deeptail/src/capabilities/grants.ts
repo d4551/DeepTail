@@ -43,9 +43,7 @@ export type DenialReason =
   | 'not-issued-natively'
 
 /** The outcome of asking to spend a capability. */
-type SpendResult =
-  | { readonly ok: true; readonly grant: Grant }
-  | { readonly ok: false; readonly reason: DenialReason }
+type SpendResult = { readonly ok: true; readonly grant: Grant } | { readonly ok: false; readonly reason: DenialReason }
 
 /** What the ledger reports when its contents change. */
 interface LedgerChange {

@@ -12,6 +12,7 @@ import type { Page } from 'playwright'
 import { fleet, oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
 import { defects } from './structure-page.ts'
+import { TABLET_VIEWPORT } from './viewports.ts'
 
 let harness: Harness
 
@@ -39,6 +40,15 @@ it('meets the platform touch minimum on every control a finger can reach', async
   const page = await harness.open(fleet(), { mobile: true })
   await page.waitForSelector('[data-deeptail-shell]')
   await page.locator('[data-deeptail-action="drawer"]').click()
+  await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
+  expect(await defects(page, true)).toBe('')
+  await page.close()
+})
+
+it('meets the Apple HIG touch minimum on a tablet', async () => {
+  const page = await harness.open(fleet(), { tablet: true })
+  await page.waitForSelector('[data-deeptail-shell]')
+  expect(page.viewportSize()?.width).toBe(TABLET_VIEWPORT.width)
   await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
   expect(await defects(page, true)).toBe('')
   await page.close()

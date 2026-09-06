@@ -19,8 +19,11 @@
 
 import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
+import { duplicateRulesets } from './sheet-duplicates.ts'
 import { importOffences } from './sheet-imports.ts'
 import { declarationsOf, rulesetsOf, withoutComments } from './sheet-reader.ts'
+
+export { duplicateRulesets }
 
 /** The sheet that is allowed to hold raw values, because it is where they live. */
 export const TOKEN_SHEET = 'tokens.css'
@@ -226,6 +229,14 @@ function declarationOffences(label: string, text: string): Offence[] {
     if (!SCALED.test(property)) continue
     const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
     if (lengths.length === 0) continue
+    if (property === 'grid-template-columns' || property === 'grid-template-rows') {
+      offences.push({
+        label,
+        line,
+        why: `hardcoded-grid: ${lengths.join(', ')} in ${property} belongs to the scale in tokens.css`,
+      })
+      continue
+    }
     offences.push({
       label,
       line,
@@ -242,9 +253,9 @@ function declarationOffences(label: string, text: string): Offence[] {
  * @returns one offence per rejected construct.
  */
 export function scanSheet(label: string, text: string): Offence[] {
-  if (label.endsWith(TOKEN_SHEET)) return []
   const blanked = withoutComments(text)
-  const offences: Offence[] = []
+  const offences: Offence[] = [...duplicateRulesets(label, text)]
+  if (label.endsWith(TOKEN_SHEET)) return offences
   for (const deep of deepSelectors(text)) {
     offences.push({
       label,
