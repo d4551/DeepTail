@@ -37,7 +37,7 @@ describe('the cargo freshness reader', () => {
     ])
   })
 
-  it('counts the crates a declared range holds back, which is the range working', () => {
+  it('counts the crates a range in the tree holds back, without claiming whose range it is', () => {
     expect(heldByRange('note: pass `--verbose` to see 26 unchanged dependencies behind latest')).toBe(26)
     expect(heldByRange('every crate is current')).toBe(0)
   })

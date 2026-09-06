@@ -196,13 +196,18 @@ function subjectOf(action: ActionDescriptor, input: object | undefined): GrantSu
 }
 
 /**
- * Land a handler's rejection as the host's own account.
- * @param work - the handler, already running.
+ * Land a handler's failure as the host's own account, however it fails.
+ * @param work - the handler, not yet called.
  * @param t - copy source.
  * @returns the effect, landed or refused with the host's message.
  */
-function settleHandler<T>(work: ActionEffect | Promise<ActionEffect>, t: Translate): Promise<ActionEffect> {
-  return Promise.resolve(work).then(
+function settleHandler<T>(work: () => ActionEffect | Promise<ActionEffect>, t: Translate): Promise<ActionEffect> {
+  // The handler is *called* in here, not before: a handler that answers
+  // without waiting may throw where it stands, and a call made outside this
+  // would send that throw straight past the account the operator is owed.
+  return new Promise<ActionEffect>((settle) => {
+    settle(work())
+  }).then(
     (effect) => effect,
     (reason: T): ActionEffect => ({ kind: 'invalid', reason: 'host-refused', message: describeFailure(reason, t) }),
   )
@@ -238,7 +243,7 @@ export function createDispatcher(deps: ActionDeps, ledger: GrantLedger, audit: D
         })
         return { kind: 'denied', traceId, reason: spent.reason }
       }
-      const effect = await settleHandler(handlers[action.id](deps, input, t), t)
+      const effect = await settleHandler(() => handlers[action.id](deps, input, t), t)
       if (effect.kind === 'unwired') return { kind: 'unwired', traceId, reason: effect.reason }
       if (effect.kind === 'invalid') {
         return effect.reason === 'host-refused'

@@ -231,3 +231,22 @@ describe('what the dispatcher hands back', () => {
     expect(late.kind === 'denied' && late.reason).toBe('expired')
   })
 })
+
+describe('a handler that fails where it stands', () => {
+  it('reports a synchronous throw with the host’s own sentence', async () => {
+    // A handler that answers without waiting may throw rather than reject.
+    // Called outside the settle, that throw travelled past the account the
+    // operator is owed and surfaced as an unhandled rejection instead.
+    const calls: Calls = { names: [] }
+    const failing: ActionDeps = {
+      ...stubDeps(calls),
+      openSpawn: () => {
+        throw new Error('the dialog would not open')
+      },
+    }
+    const dispatcher = createDispatcher(failing, fullLedger(), createDenialAudit(), t)
+    const outcome = await dispatcher.dispatch(ACTIONS['session.spawn'], ACTIVATION['session.spawn'], facts)
+    expect(outcome.kind === 'invalid' && outcome.reason).toBe('host-refused')
+    expect(outcomeCopy(outcome, t)).toBe('the dialog would not open')
+  })
+})

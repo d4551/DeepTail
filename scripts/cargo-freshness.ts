@@ -8,10 +8,12 @@
  * the lockfile were refreshed — so this reads that rather than asking the
  * registry itself and reimplementing semver resolution.
  *
- * A crate cargo calls "behind latest" but does not offer to update is held
- * back by a range this repository declares, which is a decision rather than a
- * lapse. Those are reported, not failed, exactly as the supply-chain hold is
- * on the other side.
+ * A crate cargo calls "behind latest" but does not offer to update is behind a
+ * major this some range in the tree does not admit — this repository's own
+ * `Cargo.toml` for a direct dependency, another crate's manifest for a
+ * transitive one. Which of the two it is, cargo does not say here, so neither
+ * does this: they are reported as a count and never failed on, because a major
+ * nothing in the tree admits is not a lockfile left behind.
  *
  * @module
  */
@@ -69,7 +71,7 @@ if (import.meta.main) {
   const stale = staleCrates(output)
   const held = heldByRange(output)
   if (held > 0) {
-    process.stdout.write(`${String(held)} crates are behind latest under a range Cargo.toml declares\n`)
+    process.stdout.write(`${String(held)} crates are behind a major some range in the tree does not admit\n`)
   }
   if (stale.length > 0) {
     const lines = stale.map((crate) => `  ${crate.name} ${crate.from} -> ${crate.to}`)

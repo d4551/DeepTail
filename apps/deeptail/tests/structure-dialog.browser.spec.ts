@@ -150,3 +150,30 @@ it('still reports a pane that scrolls inside the dialog body', async () => {
   expect(found).toContain('which also scrolls')
   await page.close()
 })
+
+it('still reports two controls that overlap inside the dialog’s own scroller', async () => {
+  // The overlap rule now measures painted boxes rather than laid-out ones, so
+  // a control scrolled out of a pane no longer reads as covering what is drawn
+  // where its rectangle happens to fall. That narrowing must not reach a pair
+  // that really is drawn over each other *inside* the pane — both painted,
+  // both reachable, one unusable where they meet.
+  const page = await harness.open(fleet(), {
+    mobile: true,
+    width: REFLOW_VIEWPORT.width,
+    height: REFLOW_VIEWPORT.height,
+  })
+  await page.waitForSelector('[data-deeptail-shell]')
+  await openDrawerIfPresent(page)
+  await page.locator('[data-deeptail-action="new-session"]').click()
+  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+  expect(await defects(page)).toBe('')
+  // Pinned to the top of the body's visible box, where the pane paints them
+  // both: this is an overlap a reader meets, not one only the layout has.
+  await page.addStyleTag({
+    content:
+      '[data-deeptail-dialog] .modal-body { position: relative; } [data-deeptail-dialog] .modal-body .input, [data-deeptail-dialog] .modal-body .select { position: absolute; inset-block-start: 0; inset-inline-start: 0; inline-size: 80px; block-size: 30px; margin: 0; }',
+  })
+  const found = await defects(page)
+  expect(found).toContain('overlapping-targets')
+  await page.close()
+})
