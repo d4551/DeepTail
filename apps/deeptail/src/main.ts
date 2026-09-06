@@ -76,7 +76,12 @@ async function knownHosts(attemptsLeft = REGISTRY_ATTEMPTS): Promise<readonly Ho
     // pairing set is exactly what the authority scopes grants to. A refusal to
     // issue empties the mirror rather than leaving a stale one: the ledger
     // refuses anything that is not this device's own snapshot.
-    ledger.hydrate(await readNativeGrants().catch(() => null))
+    ledger.hydrate(
+      await readNativeGrants().then(
+        (grants) => grants,
+        () => null,
+      ),
+    )
     return read
   }
   await renderHostPicker(container)

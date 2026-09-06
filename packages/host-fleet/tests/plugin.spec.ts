@@ -3,8 +3,8 @@
  * needs, and what it does to the context it is applied to.
  *
  * None of it was covered. The loader reads `name` and `inject` before anything
- * else runs, and the adapter `apply` builds — the one that forwards each
- * registration into `ctx.effect` so a scope teardown takes the tools with it —
+ * else runs, and the registration path `apply` builds — the one that hands each
+ * registration to `ctx.effect` so a scope teardown takes the tools with it —
  * could have been emptied with every other suite still green, because every
  * other suite registers through the double rather than through the plugin.
  */
@@ -41,6 +41,11 @@ function applyPlugin(config: Parameters<typeof apply>[1] = {}): Applied {
   const read = new Set<string>()
   const host = new Context()
   const effect = host.effect.bind(host)
+  // The recording parameters are read off the host's own `effect` face, so the
+  // call below is checked against the signature the plugin really calls rather
+  // than against a widened copy of it.
+  type EffectInstall = Parameters<Context['effect']>[0]
+  type EffectLabel = Parameters<Context['effect']>[1]
   Object.assign(host, {
     tools: {
       register: (definition: ToolDefinition) => {
@@ -49,15 +54,15 @@ function applyPlugin(config: Parameters<typeof apply>[1] = {}): Applied {
       },
     },
     sessionController: refusingController(),
-    effect: (install: () => unknown, label?: string) => {
+    effect: (install: EffectInstall, label: EffectLabel) => {
       labels.push(label)
-      return effect(install as never, label as never)
+      return effect(install, label)
     },
   })
   const watched = new Proxy(host, {
     get: (target, key, receiver) => {
       if (typeof key === 'string') read.add(key)
-      return Reflect.get(target, key, receiver) as unknown
+      return Reflect.get(target, key, receiver)
     },
   })
   apply(watched, config)

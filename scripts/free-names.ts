@@ -53,7 +53,8 @@ const BLOCK_LIKE = new Set([
  * identifiers and name nothing in scope; everything else an identifier is
  * written as reads a binding, including the declaration ids, which read the
  * binding they themselves make.
- * @param parent - the node the identifier hangs off, if any.
+ * @param parent - the node the identifier hangs off, or undefined when the
+ * identifier is the whole expression.
  * @param key - the property of the parent the identifier sits under.
  * @returns true when the identifier reads a binding.
  */

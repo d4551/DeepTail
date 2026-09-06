@@ -2,12 +2,12 @@
  * What each test command actually runs.
  *
  * `bun test` reads a positional argument as a path *filter*, not as a path: the
- * shell expands `tests/*.spec.ts` to a list, and every entry then matches any
- * file whose path merely contains it. `tests/zz-probe.spec.ts` therefore also
- * selected `apps/deeptail/tests/zz-probe.spec.ts`, so the unit command silently
- * ran a browser spec — one that needs a built bundle, which nothing before it
- * in the gate chain produced. It passed only on a machine that had already
- * built, and `bun run validate` could not pass from a clean checkout at all.
+ * shell expands `tests/*.spec.ts` to a list, and every entry then matches each
+ * file whose path contains it. `tests/zz-probe.spec.ts` therefore also
+ * selected `apps/deeptail/tests/zz-probe.spec.ts`, so the unit command swept a
+ * browser spec that needs a built bundle — a precondition nothing before it in
+ * the gate chain established. The suffix below is what keeps the unit command
+ * to the suites it can drive from a clean checkout.
  *
  * The browser suites are told apart by name rather than by directory, because
  * a name is what the filter matches. Nothing else holds that apart, so it is
@@ -56,8 +56,8 @@ function unitTestArguments(): string[] {
  * The paths one shell glob expands to, against the files the repository ships.
  *
  * Only `*` is honoured, which is the whole of what the script uses; a pattern
- * carrying anything else would expand to nothing here and is refused rather
- * than passing silently.
+ * carrying anything else expands to nothing here and is refused by name rather
+ * than reading as an empty answer.
  * @param pattern - one positional argument from the script.
  * @param files - every spec the repository ships.
  * @returns the paths the shell would hand bun.

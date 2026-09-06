@@ -28,6 +28,9 @@ type ToolArguments = Parameters<ToolDefinition['execute']>[0]
 /** What one tool execution settles with, as the host declares it. */
 type ToolOutcome = Awaited<ReturnType<ToolDefinition['execute']>>
 
+/** What one prompt admission carries, as the controller face declares it. */
+type PromptRequest = Parameters<FleetController['prompt']>[0]
+
 /**
  * The execution fixture: everything the run context carries, with the members
  * whose concrete types the double cannot mint declared at their widest honest
@@ -78,9 +81,15 @@ export interface Script {
    * and the mode: what a session actually receives is the content, and the
    * caller-minted request id is the only handle either side has on the
    * delivery, so a suite that reads neither cannot tell a delivered prompt
-   * from an empty one.
+   * from an empty one. The recorded fields carry the controller face's own
+   * types, so a change to what a prompt is is a compile error here.
    */
-  readonly prompted: { sessionId: string; mode: string; content: unknown; requestId: string }[]
+  readonly prompted: {
+    sessionId: string
+    mode: PromptRequest['mode']
+    content: PromptRequest['content']
+    requestId: string
+  }[]
   readonly cancelled: string[]
   /**
    * Every follow request the controller received, whole.

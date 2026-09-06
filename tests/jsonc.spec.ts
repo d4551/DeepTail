@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { isJsonObject, type Json, readJsonc } from '../scripts/jsonc.ts'
+import { isJsonObject, readJsonc } from '../scripts/jsonc.ts'
 
 describe('the jsonc reader', () => {
   it('reads comments and trailing commas, which tsconfig files carry', () => {
@@ -25,9 +25,11 @@ describe('the jsonc reader', () => {
   })
 
   it('narrows an object and rejects a missing member as not one', () => {
-    const missing: Json | undefined = undefined
+    // The bare `undefined` is accepted only because the reader's parameter
+    // carries the `Json | undefined` face, so the case fails to compile if
+    // that face narrows.
     expect(isJsonObject({ strict: true })).toBe(true)
-    expect(isJsonObject(missing)).toBe(false)
+    expect(isJsonObject(undefined)).toBe(false)
     expect(isJsonObject([])).toBe(false)
   })
 })

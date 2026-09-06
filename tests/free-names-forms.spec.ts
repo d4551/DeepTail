@@ -52,7 +52,10 @@ describe('the reader reads a name out of every reference position', () => {
   })
 
   it('reads a tagged template and its substitutions', () => {
-    expect(free('function a() { return TAG`x${VALUE}y` }')).toEqual(['TAG', 'VALUE'])
+    // The fixture is template-literal source text; the dollar is spelt escaped
+    // because the sequence it opens is the syntax under test, not a
+    // placeholder, and the escaped spelling carries the identical value.
+    expect(free('function a() { return TAG`x\u0024{VALUE}y` }')).toEqual(['TAG', 'VALUE'])
   })
 
   it('reads a class heritage, which is an expression like any other', () => {

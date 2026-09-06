@@ -49,10 +49,7 @@ afterAll(async () => {
 async function unresolved(label: string, source: string): Promise<string[]> {
   const names = freeNames('injected.js', source)
   expect([label, names.length > 0]).toEqual([label, true])
-  const missing = await page.evaluate(
-    (candidates) => candidates.filter((name) => !(name in (globalThis as unknown as Record<string, unknown>))),
-    names,
-  )
+  const missing = await page.evaluate((candidates) => candidates.filter((name) => !(name in globalThis)), names)
   return missing.map((name) => `${label}: ${name}`)
 }
 

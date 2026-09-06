@@ -18,7 +18,7 @@ import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { ACTION_LIST } from '../src/actions/registry.ts'
 
-import { type Harness, startHarness } from './harness.ts'
+import { type AnswerTable, type Harness, startHarness } from './harness.ts'
 import { openShell } from './surfaces.ts'
 
 let harness: Harness
@@ -41,7 +41,7 @@ function drawn(page: Page): Promise<string[]> {
 }
 
 /** Open the picker with nothing paired, which is where the tailnet is offered. */
-async function openPicker(extra: Record<string, unknown> = {}): Promise<Page> {
+async function openPicker(extra: Partial<AnswerTable> = {}): Promise<Page> {
   const page = await harness.open({ hosts: [], ...extra })
   await page.waitForSelector('[data-deeptail-picker]')
   return page

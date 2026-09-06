@@ -66,11 +66,15 @@ describe('the folder reads a name however it is assembled', () => {
   })
 
   it('reads a template, with and without interpolation', () => {
+    // The fixtures are template-literal source text, so the dollar is spelt
+    // escaped: the sequence a linter reads as an accidental placeholder is
+    // here the very syntax under test, and the escaped spelling carries the
+    // identical string value.
     expect(folded('const subject = `style`')).toBe('style')
-    expect(folded('const subject = `sty${"le"}`')).toBe('style')
-    expect(read('const part = "le"\nconst subject = `sty${part}`')).toBe('style')
-    expect(folded('const subject = `sty${unknown}`')).toBeUndefined()
-    expect(folded('const subject = `a${"b"}c${"d"}e`')).toBe('abcde')
+    expect(folded('const subject = `sty\u0024{"le"}`')).toBe('style')
+    expect(read('const part = "le"\nconst subject = `sty\u0024{part}`')).toBe('style')
+    expect(folded('const subject = `sty\u0024{unknown}`')).toBeUndefined()
+    expect(folded('const subject = `a\u0024{"b"}c\u0024{"d"}e`')).toBe('abcde')
   })
 
   it('reads concatenation, however deeply it nests, and only of the operator that joins', () => {
@@ -167,8 +171,8 @@ describe('the constant table', () => {
 
 describe('the approximate reader', () => {
   it('reads what it can of a template and stands in for the rest', () => {
-    expect(approximated('const subject = `a${unknown}b`')).toBe(`a${UNREADABLE}b`)
-    expect(approximated('const subject = `${unknown}`')).toBe(UNREADABLE)
+    expect(approximated('const subject = `a\u0024{unknown}b`')).toBe(`a${UNREADABLE}b`)
+    expect(approximated('const subject = `\u0024{unknown}`')).toBe(UNREADABLE)
     expect(approximated('const subject = `plain`')).toBe('plain')
   })
 
@@ -179,7 +183,7 @@ describe('the approximate reader', () => {
   })
 
   it('reads a nested approximation, so a gap deep inside is still only a gap', () => {
-    expect(approximated('const subject = `a${`b${unknown}c`}d`')).toBe(`ab${UNREADABLE}cd`)
+    expect(approximated('const subject = `a\u0024{`b\u0024{unknown}c`}d`')).toBe(`ab${UNREADABLE}cd`)
   })
 
   it('answers exactly where the whole expression folds', () => {
@@ -194,6 +198,6 @@ describe('the approximate reader', () => {
 
   it('stands in with one character, so what surrounds a gap keeps its shape', () => {
     expect(UNREADABLE.length).toBe(1)
-    expect(approximated('const subject = `<b x="${unknown}">`')).toBe(`<b x="${UNREADABLE}">`)
+    expect(approximated('const subject = `<b x="\u0024{unknown}">`')).toBe(`<b x="${UNREADABLE}">`)
   })
 })
