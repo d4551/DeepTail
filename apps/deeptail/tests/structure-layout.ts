@@ -66,6 +66,29 @@ function checkClipping(add: Report): void {
 }
 
 /**
+ * Whether an element's vertical scrolling is a pane of layout.
+ *
+ * A `textarea` long enough to need scrolling scrolls the text being edited,
+ * and a `select` its own option list. Neither is a pane the layout put inside
+ * another pane: they are leaves, and they cannot be made not to scroll without
+ * losing the content they hold. Reading them as nested panes made the rule
+ * forbid a shape every dialog needs — a dialog that scrolls and holds a text
+ * field — so the rule stayed silent until the dialog's scroll containment was
+ * deleted, and then stayed silent about that too.
+ *
+ * `contenteditable` joins the form controls: it is an editor whatever tag
+ * carries it. The tag list is written inside the function because this source
+ * is shipped to the page on its own, so a constant beside it would arrive as a
+ * `ReferenceError`.
+ * @param node - the element to judge.
+ * @returns true when the box is a layout pane rather than an editable control.
+ */
+export function isLayoutPane(node: Element): boolean {
+  const valueScrollers = ['TEXTAREA', 'SELECT']
+  return !valueScrollers.includes(node.tagName) && !(node instanceof HTMLElement && node.isContentEditable)
+}
+
+/**
  * Two scrollbars on one axis leave the reader guessing which one moves.
  *
  * A pane that scrolls inside a pane that also scrolls traps the wheel at
@@ -74,11 +97,15 @@ function checkClipping(add: Report): void {
  * every element is reachable and correctly labelled, and the page is still
  * unusable. A shell scrolls in exactly one place per axis; the pane that owns
  * the overflow keeps `auto`, and everything above it clips.
+ *
+ * Only panes are counted, on both sides of the nesting: an editable control
+ * scrolling its own value is not a second pane, and nothing may nest inside
+ * one either.
  * @param add - collects a finding.
  */
 function checkNestedScroll(add: Report): void {
   for (const node of document.querySelectorAll('body *')) {
-    if (!scrolls(node)) continue
+    if (!scrolls(node) || !isLayoutPane(node)) continue
     let ancestor = node.parentElement
     while (ancestor !== null) {
       if (scrolls(ancestor)) {
@@ -88,6 +115,54 @@ function checkNestedScroll(add: Report): void {
       ancestor = ancestor.parentElement
     }
   }
+}
+
+/**
+ * The part of an element that is actually painted, in viewport coordinates.
+ *
+ * `getBoundingClientRect` reports where a box would be laid out, not where it
+ * is drawn: an element inside a pane that scrolls or clips keeps reporting the
+ * full rectangle even when the pane shows none of it. Every ancestor that
+ * clips is therefore intersected in, per axis, because `overflow-x` and
+ * `overflow-y` clip independently.
+ *
+ * The walk stops at a `position: fixed` element, itself included: fixed boxes
+ * are laid out against the viewport, so an ancestor's overflow does not reach
+ * them. That is not a corner case here — the dialog root is fixed.
+ * @param node - the element to measure.
+ * @returns its drawn edges, which may be empty when nothing is painted.
+ */
+export function drawnBox(node: Element): {
+  readonly top: number
+  readonly left: number
+  readonly right: number
+  readonly bottom: number
+} {
+  const clipping = ['auto', 'scroll', 'hidden', 'clip']
+  const box = node.getBoundingClientRect()
+  let top = box.top
+  let left = box.left
+  let right = box.right
+  let bottom = box.bottom
+  let current: Element | null = node
+  while (current !== null) {
+    const style = getComputedStyle(current)
+    if (style.position === 'fixed') break
+    const ancestor: Element | null = current.parentElement
+    if (ancestor === null) break
+    const above = getComputedStyle(ancestor)
+    const edges = ancestor.getBoundingClientRect()
+    if (clipping.includes(above.overflowX)) {
+      left = Math.max(left, edges.left)
+      right = Math.min(right, edges.right)
+    }
+    if (clipping.includes(above.overflowY)) {
+      top = Math.max(top, edges.top)
+      bottom = Math.min(bottom, edges.bottom)
+    }
+    current = ancestor
+  }
+  return { top, left, right, bottom }
 }
 
 /**
@@ -102,18 +177,25 @@ function checkNestedScroll(add: Report): void {
  * @param limits - which elements take focus or activation, handed in by the caller.
  */
 function checkOverlappingTargets(add: Report, limits: { readonly interactive: string }): void {
-  const nodes = [...document.querySelectorAll(limits.interactive)].filter(
-    (node) => node.closest('[inert]') === null && (node as HTMLElement).checkVisibility(),
-  )
-  for (const [index, node] of nodes.entries()) {
-    const box = node.getBoundingClientRect()
-    for (const other of nodes.slice(index + 1)) {
-      if (other.contains(node) || node.contains(other)) continue
-      const over = other.getBoundingClientRect()
-      const width = Math.min(box.right, over.right) - Math.max(box.left, over.left)
-      const height = Math.min(box.bottom, over.bottom) - Math.max(box.top, over.top)
+  const drawn = [...document.querySelectorAll(limits.interactive)]
+    .filter((node) => node.closest('[inert]') === null && (node as HTMLElement).checkVisibility())
+    .map((node) => ({ node, box: drawnBox(node) }))
+    // Nothing painted, nothing to overlap. A control scrolled out of its own
+    // pane still reports a layout box where it would sit if the pane were
+    // scrolled to it, and comparing that box against a control outside the
+    // pane reported a collision the reader can never meet: at the reflow
+    // floor the new-session field read as covering the dialog's own buttons,
+    // while a hit test at those pixels returned the button. A control that
+    // paints no pixels at all is `target-collapsed`, which is a different
+    // rule's finding.
+    .filter((entry) => entry.box.right - entry.box.left > 0 && entry.box.bottom - entry.box.top > 0)
+  for (const [index, entry] of drawn.entries()) {
+    for (const other of drawn.slice(index + 1)) {
+      if (other.node.contains(entry.node) || entry.node.contains(other.node)) continue
+      const width = Math.min(entry.box.right, other.box.right) - Math.max(entry.box.left, other.box.left)
+      const height = Math.min(entry.box.bottom, other.box.bottom) - Math.max(entry.box.top, other.box.top)
       if (width > 1 && height > 1) {
-        add('overlapping-targets', `${describe(node)} overlaps ${describe(other)}`)
+        add('overlapping-targets', `${describe(entry.node)} overlaps ${describe(other.node)}`)
       }
     }
   }

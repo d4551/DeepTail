@@ -8,6 +8,18 @@
 
 /* ── sidebar head ─────────────────────────────────────────────────────────── */
 
+/* At the reflow floor the drawer's fixed chrome alone fills the screen: the
+ * roster seat is squeezed to nothing and the roster — the pane the drawer
+ * exists to show — is laid out past the bottom edge and clipped away by
+ * `.sidebar`'s own `overflow: hidden`, which is content lost rather than
+ * content scrolled. The brand row is the one thing here that names nothing the
+ * reader can act on, so it is what yields the height back. */
+@media (height <= 360px) {
+  .brand-row {
+    display: none;
+  }
+}
+
 .brand-row {
   flex: none;
   display: flex;

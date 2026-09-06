@@ -87,6 +87,12 @@ describe('the structure checks the browser suite evaluates', () => {
       expect(source).toContain('"vocabulary":["shell"]')
       expect(source).toContain('"scope":"[data-deeptail-shell], [data-deeptail-picker]')
       expect(source).toContain('checkAlignment')
+      // The nested-scroll rule reads this to tell a pane from an editable
+      // control; left behind, it is a `ReferenceError` in the page and every
+      // structural check on that page reports nothing at all.
+      expect(source).toContain('isLayoutPane')
+      // The overlap rule reads this to tell a painted box from a laid-out one.
+      expect(source).toContain('drawnBox')
       expect(source).toContain('gridAncestor')
       expect(source).toContain('checkGrid')
       expect(source).toContain('checkShell')

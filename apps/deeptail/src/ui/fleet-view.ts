@@ -86,6 +86,24 @@ export function mountFleetView(container: HTMLElement, store: FleetStore, ports:
 }
 
 /**
+ * Keep the roster reachable by keyboard whenever it is the only thing holding
+ * its own scroll.
+ *
+ * A pane that scrolls and draws no control of its own cannot be scrolled from
+ * a keyboard at all: there is nothing to tab to, and a wheel is a pointer.
+ * That is the roster's loading and empty states — exactly the states a short
+ * viewport makes scrollable. Once rows are drawn, tabbing through them scrolls
+ * the pane, so the pane must not take a stop of its own: a focusable ancestor
+ * of every row is a widget wrapped around widgets, which is its own defect.
+ * @param root - the roster element.
+ */
+function keepScrollReachable(root: HTMLElement): void {
+  const control = root.querySelector('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
+  if (control === null) root.tabIndex = 0
+  else root.removeAttribute('tabindex')
+}
+
+/**
  * Draw every host group into the roster.
  * @param root - the roster element.
  * @param view - the fleet, its copy and its mutation state.
@@ -100,6 +118,7 @@ function renderRoster(root: HTMLElement, view: RosterView): void {
 
   if (entries.length === 0) {
     root.append(emptyRow(view.t('status.empty')))
+    keepScrollReachable(root)
     return
   }
 
@@ -109,6 +128,7 @@ function renderRoster(root: HTMLElement, view: RosterView): void {
   }
   bindRovingFocus(stops)
   restoreFocus(root, focused)
+  keepScrollReachable(root)
 }
 
 /**

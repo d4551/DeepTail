@@ -22,7 +22,9 @@ import {
   checkNestedScroll,
   checkOverlappingTargets,
   checkTouchTargets,
+  drawnBox,
   gridAncestor,
+  isLayoutPane,
   scrolls,
 } from './structure-layout.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
@@ -261,8 +263,10 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     checkClassVocabulary,
     checkHorizontalOverflow,
     scrolls,
+    isLayoutPane,
     checkClipping,
     checkNestedScroll,
+    drawnBox,
     checkOverlappingTargets,
     checkTouchTargets,
     checkAlignment,

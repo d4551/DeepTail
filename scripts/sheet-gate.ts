@@ -64,10 +64,13 @@ const SCALED = new RegExp(
   'u',
 )
 
-/** A viewport width a media query switches on, in either syntax. */
-// Layout switches at a width in either query family the sheets use: media for
-// the document-level facts, container for a box the component fills.
-const BREAKPOINT = /@(?:media|container)[^{]*?\b(?:width\s*<=|max-width\s*:)\s*(\d+px)/gu
+/** A viewport size a media query switches layout on, in either syntax. */
+// Layout switches at a size in either query family the sheets use: media for
+// the document-level facts, container for a box the component fills. Both axes
+// are read: a height breakpoint decides a layout exactly as a width one does,
+// and while only widths were read a height could be restated in as many sheets
+// as anyone liked with nothing to say so.
+const BREAKPOINT = /@(?:media|container)[^{]*?\b(?:(?:width|height)\s*<=|max-(?:width|height)\s*:)\s*(\d+px)/gu
 
 /**
  * The at-rules the utility pipeline this product retired shipped in its sheets.
@@ -282,14 +285,16 @@ export function scanSheet(label: string, text: string): Offence[] {
 }
 
 /**
- * Every viewport width a sheet switches its layout at.
+ * Every viewport size a sheet switches its layout at, on either axis.
  *
  * Both syntaxes are read. A gate that knew only the range form reported one
  * breakpoint while a second sat in the other form, in another sheet, deciding
  * another layout — and the invariant it claimed to hold, that the number is
- * written in exactly one place, was false as shipped.
+ * written in exactly one place, was false as shipped. Heights are read for the
+ * same reason: the drawer's chrome yields at a height, and a number that
+ * decides a layout is one decision wherever it is written.
  * @param text - the sheet's contents.
- * @returns the widths, in the order they are written.
+ * @returns the sizes, in the order they are written.
  */
 export function breakpointsOf(text: string): string[] {
   return [...text.matchAll(BREAKPOINT)].map((found) => found[1] ?? '')
