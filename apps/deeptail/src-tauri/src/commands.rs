@@ -8,6 +8,7 @@ use tauri::State;
 use tauri::ipc::Channel;
 
 use crate::AppState;
+use crate::capability;
 use crate::carrier::{self, FetchRequest, FetchResponse, MuxFrame};
 use crate::hosts::HostRecord;
 use crate::pairing::{self, PairingGrant};
@@ -39,7 +40,11 @@ pub fn select_host(state: State<'_, AppState>, host: String) -> CommandResult<Ho
 #[tauri::command]
 pub fn forget_host(state: State<'_, AppState>, host: String) -> CommandResult<()> {
     state.secrets.forget(&host).map_err(|e| e.to_string())?;
-    state.hosts.remove(&host).map_err(|e| e.to_string())
+    state.hosts.remove(&host).map_err(|e| e.to_string())?;
+    // A grant outliving the host it was issued for would let the page keep
+    // reaching a host it has just been told to forget, until the TTL ran out.
+    state.capabilities.invalidate();
+    Ok(())
 }
 
 /// Spend a printed launch token on a long-lived device grant, then file the
@@ -81,6 +86,10 @@ pub async fn pair_host(
         .hosts
         .upsert(record.clone())
         .map_err(|e| e.to_string())?;
+    // The pairing set decides what may be issued, so an issuance taken before
+    // this host existed no longer describes it. The page reissues on its next
+    // read; until then nothing priced is spendable.
+    state.capabilities.invalidate();
     Ok(record)
 }
 
@@ -321,12 +330,37 @@ pub fn carrier_close_mux(state: State<'_, AppState>, host: String) -> CommandRes
     state.sockets.close(&host)
 }
 
+/// Mint the capabilities the page may spend, and hand it the mirror.
+///
+/// Every previous grant is dropped by the issuance, so this is also how a page
+/// that has just paired or forgotten a host stops holding authority over one it
+/// no longer has.
+#[tauri::command]
+pub fn capability_grants(state: State<'_, AppState>) -> CommandResult<capability::authority::Snapshot> {
+    let hosts: Vec<String> = state
+        .hosts
+        .list()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|record| record.id)
+        .collect();
+    Ok(state
+        .capabilities
+        .issue(&hosts, capability::authority::now_ms()))
+}
+
 /// Resolve a host and its token, then make the call.
 async fn authenticated(
     state: &State<'_, AppState>,
     host_id: &str,
     request: FetchRequest,
 ) -> CommandResult<FetchResponse> {
+    capability::authority::admit(
+        &state.capabilities,
+        host_id,
+        &request.path,
+        capability::authority::now_ms(),
+    )?;
     let record = state.hosts.get(host_id).map_err(|e| e.to_string())?;
     let token = state.secrets.token(host_id).map_err(|e| e.to_string())?;
     carrier::call(&state.http, &record, &token, request)

@@ -101,6 +101,83 @@ describe('the markup gate allows', () => {
   })
 })
 
+describe('the markup gate rejects the current spelling of a retired framework', () => {
+  it('a Tailwind 4 utility, whose important moved from prefix to suffix', () => {
+    // v3 wrote `!p-4` and v4 writes `p-4!`. A reader that peeled only the
+    // prefix did not recognise the current spelling of a token it already
+    // refused in its old one.
+    for (const token of ['p-4!', 'w-full!', 'text-sm!', 'rounded-lg!']) {
+      expect(styleOffences(`<div class="${token}">x</div>`, 'index.html')).not.toEqual([])
+    }
+  })
+
+  it('a Tailwind 4 arbitrary value, which moved from brackets to parentheses', () => {
+    // `bg-[--brand]` became `bg-(--brand)`.
+    for (const token of ['bg-[--brand]', 'bg-(--brand)', 'w-(--size)', 'text-(--ink)']) {
+      expect(styleOffences(`<div class="${token}">x</div>`, 'index.html')).not.toEqual([])
+    }
+  })
+
+  it('a Tailwind 4 family that did not exist in 3', () => {
+    for (const token of [
+      'outline-hidden',
+      'ring-3',
+      'size-4',
+      'mask-radial',
+      'bg-linear-to-r',
+      'text-shadow-sm',
+      'inset-shadow-sm',
+      'field-sizing-content',
+      'scrollbar-thin',
+    ]) {
+      expect([token, styleOffences(`<div class="${token}">x</div>`, 'index.html')]).not.toEqual([token, []])
+    }
+  })
+})
+
+describe('the markup gate rejects a class a retired framework renamed', () => {
+  it('a daisyUI 5 class, including the ones renamed out of 4', () => {
+    for (const token of [
+      'card-border',
+      'menu-active',
+      'menu-disabled',
+      'menu-focus',
+      'tabs-border',
+      'tabs-lift',
+      'tabs-box',
+      'card-sm',
+      'dock-active',
+      'fieldset-legend',
+      'list-col-wrap',
+      'validator-hint',
+      'filter-reset',
+    ]) {
+      expect([token, styleOffences(`<div class="${token}">x</div>`, 'index.html')]).not.toEqual([token, []])
+    }
+  })
+
+  it('an htmx element, which an attribute-only reader cannot see', () => {
+    // htmx 4 ships tags of its own; the partial tag is the documented
+    // replacement for the out-of-band swap attribute. Assembled rather than
+    // written out, so this fixture does not read as htmx markup to the scan
+    // that reads every file the repository ships — the same reason the remote
+    // host above is assembled.
+    const tag = joined('hx', '-partial')
+    const attribute = joined('data-hx', '-get')
+    expect(styleOffences(`<${tag}><span>x</span></${tag}>`, 'index.html')).not.toEqual([])
+    expect(styleOffences(`<div ${attribute}="/a">x</div>`, 'index.html')).not.toEqual([])
+  })
+
+  it('but allows the product’s own vocabulary, which shares stems with all of it', () => {
+    // `.status` is this product's class and daisyUI 5's alike; the sheets are
+    // the vocabulary, so the bare word cannot be refused on the framework's
+    // account. The modifier form `status-` still is.
+    for (const token of ['status', 'label', 'menu-item', 'card', 'modal-dialog', 'drawer-toggle']) {
+      expect([token, styleOffences(`<div class="${token}">x</div>`, 'index.html')]).toEqual([token, []])
+    }
+  })
+})
+
 describe('the markup gate rejects retired class vocabulary', () => {
   it('a wiring attribute and a bracketed utility class', () => {
     // Spelt in parts so this file's own source carries neither whole.

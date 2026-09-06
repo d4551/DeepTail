@@ -23,6 +23,11 @@
     "sourceMap": true,
     "composite": true,
     "isolatedModules": true,
+    // The compiler refuses what the AST gate would otherwise have to chase by
+    // hand: `enum`, `const enum`, an instantiated `namespace`, a parameter
+    // property, and `import x = require()`. A rule written here cannot be
+    // outrun by a spelling nobody thought of, which a regex or a walk can be.
+    "erasableSyntaxOnly": true,
     // Local relative imports carry `.ts`, matching the harness convention;
     // the compiler rewrites them on emit.
     "allowImportingTsExtensions": true,

@@ -17,57 +17,35 @@
  * @module
  */
 
-import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
+import { declarationOffences } from './sheet-declarations.ts'
+import { deepSelectors, MAX_COMPOUNDS } from './sheet-depth.ts'
 import { duplicateRulesets } from './sheet-duplicates.ts'
 import { importOffences } from './sheet-imports.ts'
-import { declarationsOf, rulesetsOf, withoutComments } from './sheet-reader.ts'
+import { rulesetsOf, withoutComments } from './sheet-reader.ts'
 
-export { duplicateRulesets }
-
-/** The sheet that is allowed to hold raw values, because it is where they live. */
-export const TOKEN_SHEET = 'tokens.css'
-
-/** Extensions this gate reads. */
-export const STYLE_EXTENSIONS = ['.css'] as const
+export { deepSelectors, duplicateRulesets }
 
 /**
- * Lengths any sheet may write.
+ * The sheet that is allowed to hold raw values, because it is where they live.
  *
- * A hairline and a focus ring are drawn, not spaced: they are one device pixel
- * and two, at every density and every scale, and naming them would be naming
- * the same number twice. Everything else is a spacing, radius or type decision
- * and belongs to the scale.
+ * Named by its whole path, not by its ending. A gate that exempted any file
+ * whose name ended `tokens.css` exempted a file anyone could add: a sheet
+ * called `probe-tokens.css` carrying a float, a physical margin, a raw hex
+ * colour, a static viewport height and a remote asset passed every rule here
+ * whole, because of what it was called.
  */
-const DRAWN_LENGTHS = new Set(['0px', '1px', '2px', '3px'])
+export const TOKEN_SHEET = 'apps/deeptail/src/styles/tokens.css'
 
-/** A stacking order written as a bare number. */
-const STACKING = /^-?\d+$/u
+export { STYLE_EXTENSIONS } from './extensions.ts'
 
-/** A `url()` that loads from outside the shipped bundle. */
-// No `g` flag: this is tested with RegExp.test across declarations, and a
-// global regex keeps lastIndex between calls, so one match would hide the next.
-const REMOTE_URL_VALUE = /url\(\s*["']?(?:https?:)?\/\//iu
-
-/** A length written as a number of pixels. */
-const PIXELS = /\b\d+px\b/gu
-
-/** Properties whose lengths are spacing, radius or type decisions. */
-const SCALED = new RegExp(
-  '^(margin|padding|gap|row-gap|column-gap|inset|top|right|bottom|left' +
-    '|margin-(top|right|bottom|left|block|inline)(-start|-end)?' +
-    '|padding-(top|right|bottom|left|block|inline)(-start|-end)?' +
-    '|inset-(block|inline)(-start|-end)?' +
-    '|(min-|max-)?(width|height)|(min-|max-)?(block|inline)-size' +
-    '|border-radius|font-size|line-height|grid-template-columns|grid-template-rows' +
-    '|scroll-margin|scroll-padding)$',
-  'u',
-)
-
-/** A viewport width a media query switches on, in either syntax. */
-// Layout switches at a width in either query family the sheets use: media for
-// the document-level facts, container for a box the component fills.
-const BREAKPOINT = /@(?:media|container)[^{]*?\b(?:width\s*<=|max-width\s*:)\s*(\d+px)/gu
+/** A viewport size a media query switches layout on, in either syntax. */
+// Layout switches at a size in either query family the sheets use: media for
+// the document-level facts, container for a box the component fills. Both axes
+// are read: a height breakpoint decides a layout exactly as a width one does,
+// and while only widths were read a height could be restated in as many sheets
+// as anyone liked with nothing to say so.
+const BREAKPOINT = /@(?:media|container)[^{]*?\b(?:(?:width|height)\s*<=|max-(?:width|height)\s*:)\s*(\d+px)/gu
 
 /**
  * The at-rules the utility pipeline this product retired shipped in its sheets.
@@ -82,29 +60,25 @@ const RETIRED_AT_RULES =
   /@(?:apply|tailwind|config|plugin|utility|variant|source|theme|screen|responsive|layer\s+utilities)\b/u
 
 /**
- * A selector written relative to the rule it sits inside, the nesting
- * operator.
+ * Every rule a sheet writes inside another rule.
  *
- * This gate reads a rule as one selector list and one flat brace of
- * declarations, so a nested rule is not a structure it can see: the nest is
- * flattened into a rule whose selector carries the operator, and the scoping
- * the nest was doing — which page, which state — is exactly what stops being
- * reviewed. A selector at the top level states its own scope, so none may
- * ride on another rule's.
+ * A nested rule rides its parent's scope, and the scoping it is doing — which
+ * page, which state — is exactly what stops being reviewed when the rule is
+ * read on its own. A selector at the top level states its own scope, so none
+ * may ride on another's.
+ *
+ * Read from the brace structure, not from the `&` operator. CSS nesting needs
+ * no `&` at all: `.a { .b { ... } }` is a nest, and while this rule looked for
+ * the operator it was one keystroke to write a nest the gate said nothing
+ * about — and, worse, a nest hid every declaration of its enclosing rule from
+ * the reader that found rules by pattern.
+ * @param text - the sheet's contents.
+ * @returns one entry per nested rule, with its selector and line.
  */
-const NESTED = /(^|[\s,+>~])&/gu
-
-/**
- * Every line a sheet nests a selector on.
- * @param text - the sheet's contents, comments already blanked.
- * @returns one entry per nested selector, with its line.
- */
-function nestedSelectors(text: string): { readonly line: number }[] {
-  const found: { line: number }[] = []
-  for (const match of text.matchAll(NESTED)) {
-    found.push({ line: text.slice(0, match.index).split('\n').length })
-  }
-  return found
+function nestedSelectors(text: string): { readonly selector: string; readonly line: number }[] {
+  return rulesetsOf(text)
+    .filter((rule) => rule.nested)
+    .map((rule) => ({ selector: rule.selector, line: rule.line }))
 }
 
 /**
@@ -122,130 +96,6 @@ function retiredAtRules(text: string): { readonly rule: string; readonly line: n
   return found
 }
 
-/** How a selector may reach from one compound to the next. */
-const COMBINATORS = /\s*[>+~]\s*|\s+/gu
-
-/**
- * The most compounds a selector may chain.
- *
- * Every chain past three is layout reaching through the DOM rather than
- * through a class: it couples a rule to a structure the markup can change
- * without the sheet ever being told, and it is how a sheet grows a branch per
- * page instead of a class per role.
- */
-const MAX_COMPOUNDS = 3
-
-/**
- * How many compounds one comma-separated selector chains.
- * @param one - a single selector, no commas.
- * @returns the count of compounds the selector reaches through.
- */
-function compoundsOf(one: string): number {
-  return one.split(COMBINATORS).filter((compound) => compound !== '').length
-}
-
-/**
- * Every selector that chains more compounds than the design allows.
- *
- * @param text - the sheet's contents.
- * @returns one entry per over-deep selector, with the line its rule opens on.
- */
-export function deepSelectors(text: string): { readonly selector: string; readonly line: number }[] {
-  return rulesetsOf(text)
-    .flatMap((rule) => rule.selector.split(',').map((one) => ({ selector: one.trim(), line: rule.line }) as const))
-    .filter((one) => compoundsOf(one.selector) > MAX_COMPOUNDS)
-    .map((one) => ({ selector: one.selector, line: one.line }))
-}
-
-/**
- * The physical side properties, which break when the document direction
- * reverses.
- *
- * A sheet written with left and right sides is a sheet that only reads
- * correctly in one writing mode: the logical start/end spellings follow the
- * direction, so they are the only side spellings a sheet may use.
- */
-const PHYSICAL_SIDES = new Set([
-  'margin-left',
-  'margin-right',
-  'padding-left',
-  'padding-right',
-  'border-left',
-  'border-right',
-  'border-left-width',
-  'border-right-width',
-  'border-left-color',
-  'border-right-color',
-  'border-left-style',
-  'border-right-style',
-  'left',
-  'right',
-])
-
-/**
- * Every declaration a sheet writes that it may not write.
- * @param label - the path to report offences under.
- * @param text - the sheet's contents, comments already blanked.
- * @returns one offence per rejected declaration.
- */
-function declarationOffences(label: string, text: string): Offence[] {
-  const offences: Offence[] = []
-  for (const { property, value, line } of declarationsOf(text)) {
-    if (property.startsWith('--')) continue
-    if (property === 'z-index') {
-      if (STACKING.test(value)) {
-        offences.push({ label, line, why: 'a stacking order belongs to the z-index scale in tokens.css' })
-      }
-      continue
-    }
-    if (property === 'float') {
-      offences.push({ label, line, why: 'float is legacy layout; use flex or grid' })
-      continue
-    }
-    if (PHYSICAL_SIDES.has(property)) {
-      offences.push({
-        label,
-        line,
-        why: `${property} is a physical side; use the logical start or end spelling so the direction follows the writing mode`,
-      })
-      continue
-    }
-    if (property === 'text-align' && (value.includes('justify') || value === 'left' || value === 'right')) {
-      offences.push({
-        label,
-        line,
-        why: 'justified or physical text alignment is an alignment defect; use text-align start or end',
-      })
-      continue
-    }
-    if (REMOTE_URL_VALUE.test(value)) {
-      offences.push({
-        label,
-        line,
-        why: 'a remote URL loads an asset no local install ships; ship the asset in the bundle',
-      })
-    }
-    offences.push(...scanColour(label, value, line), ...scaledLengthOffences(label, property, value, line))
-  }
-  return offences
-}
-
-function scaledLengthOffences(label: string, property: string, value: string, line: number): Offence[] {
-  if (!SCALED.test(property)) return []
-  const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
-  if (lengths.length === 0) return []
-  if (property === 'grid-template-columns' || property === 'grid-template-rows') {
-    return [
-      {
-        label,
-        line,
-        why: `hardcoded-grid: ${lengths.join(', ')} in ${property} belongs to the scale in tokens.css`,
-      },
-    ]
-  }
-  return [{ label, line, why: `${lengths.join(', ')} is written out rather than read from the scale in tokens.css` }]
-}
-
 /**
  * Every rule a stylesheet breaks.
  * @param label - the path to report offences under.
@@ -255,7 +105,7 @@ function scaledLengthOffences(label: string, property: string, value: string, li
 export function scanSheet(label: string, text: string): Offence[] {
   const blanked = withoutComments(text)
   const offences: Offence[] = [...duplicateRulesets(label, text)]
-  if (label.endsWith(TOKEN_SHEET)) return offences
+  if (label === TOKEN_SHEET) return offences
   for (const deep of deepSelectors(text)) {
     offences.push({
       label,
@@ -263,11 +113,11 @@ export function scanSheet(label: string, text: string): Offence[] {
       why: `${deep.selector} chains past ${String(MAX_COMPOUNDS)} compounds; scope the rule by class instead of structure`,
     })
   }
-  for (const nested of nestedSelectors(blanked)) {
+  for (const nested of nestedSelectors(text)) {
     offences.push({
       label,
       line: nested.line,
-      why: "a nested selector rides another rule's scope; state the selector at the top level",
+      why: `${nested.selector} rides another rule's scope; state the selector at the top level`,
     })
   }
   for (const retired of retiredAtRules(blanked)) {
@@ -282,15 +132,19 @@ export function scanSheet(label: string, text: string): Offence[] {
 }
 
 /**
- * Every viewport width a sheet switches its layout at.
+ * Every viewport size a sheet switches its layout at, on either axis.
  *
  * Both syntaxes are read. A gate that knew only the range form reported one
  * breakpoint while a second sat in the other form, in another sheet, deciding
  * another layout — and the invariant it claimed to hold, that the number is
- * written in exactly one place, was false as shipped.
+ * written in exactly one place, was false as shipped. Heights are read for the
+ * same reason: the drawer's chrome yields at a height, and a number that
+ * decides a layout is one decision wherever it is written.
  * @param text - the sheet's contents.
- * @returns the widths, in the order they are written.
+ * @returns the sizes, in the order they are written.
  */
 export function breakpointsOf(text: string): string[] {
-  return [...text.matchAll(BREAKPOINT)].map((found) => found[1] ?? '')
+  // Every captured group of every match, which is one group: reading it by
+  // index needs a guard for a case the pattern cannot produce.
+  return [...text.matchAll(BREAKPOINT)].flatMap((found) => [...found].slice(1))
 }

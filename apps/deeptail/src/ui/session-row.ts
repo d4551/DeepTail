@@ -106,6 +106,7 @@ function openControl(session: SessionSummary, t: Translate, onOpen: () => void):
   const running = session.running
   const open = el('button', { className: 'session-open' })
   open.type = 'button'
+  open.dataset.deeptailAction = ACTIONS['session.open'].marker
   open.append(
     el('span', {
       className: 'dot',

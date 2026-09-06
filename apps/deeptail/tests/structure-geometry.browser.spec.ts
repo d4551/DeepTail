@@ -12,7 +12,11 @@ import type { Page } from 'playwright'
 import { fleet, oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
 import { defects } from './structure-page.ts'
-import { SMALL_PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
+import { openDrawerIfPresent } from './surfaces.ts'
+import { pointerFlags, SMALL_PHONE_VIEWPORT, TABLET_VIEWPORT, VIEWPORTS } from './viewports.ts'
+
+/** The smallest target any pointer admits, and so the least a row can occupy. */
+const MINIMUM_ROW = 24
 
 let harness: Harness
 
@@ -218,4 +222,42 @@ it('meets the Apple HIG touch minimum on a retry a finger has to hit, on a table
   await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
   expect(await defects(page, true)).toBe('')
   await page.close()
+})
+
+it('keeps the roster on screen at every designed view', async () => {
+  // The pane the shell exists to show. At the reflow floor the drawer's fixed
+  // chrome filled the screen and the roster was laid out past the bottom edge,
+  // then clipped away by the sidebar's own `overflow: hidden` — content lost,
+  // not content scrolled. Nothing caught it: axe had its own reason to be
+  // green, and no case had ever asked where the roster actually was.
+  const seen = await Promise.all(
+    VIEWPORTS.map(async (viewport) => {
+      const page = await harness.open(fleet(), {
+        ...pointerFlags(viewport),
+        width: viewport.width,
+        height: viewport.height,
+      })
+      await page.waitForSelector('[data-deeptail-shell]')
+      await openDrawerIfPresent(page)
+      const box = await page.evaluate(() => {
+        const roster = document.querySelector('.roster')
+        // A missing roster reports as off screen with no height, which is what
+        // it is: the pane the shell exists to show is not there.
+        if (roster === null) return { within: false, height: 0 }
+        const edges = roster.getBoundingClientRect()
+        // Wholly inside the window on the block axis, not merely intersecting
+        // it: one pixel of the roster on screen satisfied "on screen" while the
+        // rest of it sat past the edge, which is the defect this case is about.
+        return {
+          within: edges.top >= 0 && edges.bottom <= window.innerHeight,
+          height: Math.round(edges.height),
+        }
+      })
+      await page.close()
+      // Tall enough for one row of the platform's minimum target, because a
+      // roster too short to show a row is a roster the reader cannot use.
+      return [viewport.label, box.within, box.height >= MINIMUM_ROW]
+    }),
+  )
+  expect(seen).toEqual(VIEWPORTS.map((viewport) => [viewport.label, true, true]))
 })

@@ -73,45 +73,70 @@ describe('the suppression ban allows', () => {
   })
 })
 
+/**
+ * Every idiom the project has moved past, with the reason each must produce.
+ *
+ * Each case carries the reason it must produce, not merely that something
+ * was produced. `.not.toEqual([])` was satisfied by any non-empty list —
+ * including the parse error a JSX fixture labelled `.ts` reports instead of
+ * its rule, which is how the React 19 removal ban sat uncovered while its
+ * case read green.
+ */
+const LEGACY_CASES: readonly [string, string, string, string?][] = [
+  ['var', 'var legacy = 1', 'use const or let'],
+  ['require', "const x = require('node:fs')", 'use ES module imports'],
+  ['innerHTML', 'el.innerHTML = markup', 'use textContent'],
+  ['document.write', "document.write('x')", 'removed from modern engines'],
+  ['substr', 'name.substr(0, 3)', 'deprecated; use slice'],
+  ['new Array', 'const xs = new Array(3)', 'use an array literal'],
+  ['escape', "escape('x')", 'are deprecated; use encodeURIComponent'],
+  ['unescape', "unescape('x')", 'are deprecated; use encodeURIComponent'],
+  ['__proto__', 'const p = value.__proto__', 'use Object.getPrototypeOf'],
+  ['any', 'let value: any = 1', 'any defeats the type system'],
+  ['any in a generic', 'const xs: Array<any> = []', 'any defeats the type system'],
+  ['any in an assertion', 'const x = value as any', 'any defeats the type system'],
+  ['non-null assertion', 'const x = value!.length', 'overrides the checker'],
+  ['eval', "eval('1 + 1')", 'executes text as code'],
+  ['setTimeout with text', "setTimeout('run()', 10)", 'a timer called with text'],
+  [
+    'setInterval with folded text',
+    source("const body = 'go()'", "setInterval('run(' + body, 10)"),
+    'a timer called with text',
+  ],
+  [
+    'ReactDOM render',
+    "ReactDOM.render(<App />, document.getElementById('root'))",
+    'removed in React 19; use createRoot',
+    'fixture.tsx',
+  ],
+  ['ReactDOM hydrate', 'ReactDOM.hydrate(<App />, node)', 'removed in React 19; use createRoot', 'fixture.tsx'],
+  ['ReactDOM unmount', 'ReactDOM.unmountComponentAtNode(node)', 'removed in React 19; use createRoot'],
+  ['ReactDOM findDOMNode', 'ReactDOM.findDOMNode(instance)', 'removed in React 19; use createRoot'],
+  ['findDOMNode import', 'findDOMNode(instance)', 'findDOMNode was removed'],
+  ['defaultProps', 'const defaults = Badge.defaultProps', 'defaultProps on a component'],
+  ['legacy context types', 'const types = Badge.childContextTypes', 'legacy context was removed'],
+  ['legacy context getter', 'const getter = Badge.getChildContext', 'legacy context was removed'],
+  ['string ref', '<input ref="name" />', 'a string ref was removed', 'fixture.tsx'],
+  ['Tauri v1 invoke import', "import { invoke } from '@tauri-apps/api/tauri'", 'this is a Tauri v1 API path'],
+  ['Tauri v1 fs import', "import { readTextFile } from '@tauri-apps/api/fs'", 'this is a Tauri v1 API path'],
+  ['Tauri v1 global', 'window.__TAURI__.invoke("x")', 'the __TAURI__ global'],
+  ['Tauri v1 global via brackets', "window['__TAURI__'].invoke('x')", 'the __TAURI__ global'],
+  ['import equals', "import value = require('node:fs')", 'import-equals is TypeScript 6 syntax'],
+  ['namespace', 'namespace Geometry {}', 'a namespace is a TypeScript 6 module system'],
+  ['expando prototype', 'Chart.prototype.draw = function draw() {}', 'removed in TypeScript 7'],
+  ['expando prototype via brackets', "Chart['prototype'].draw = draw", 'removed in TypeScript 7'],
+]
+
 describe('the legacy ban rejects', () => {
   it('every idiom the project has moved past', () => {
-    const cases: readonly [string, string, string?][] = [
-      ['var', 'var legacy = 1'],
-      ['require', "const x = require('node:fs')"],
-      ['innerHTML', 'el.innerHTML = markup'],
-      ['document.write', "document.write('x')"],
-      ['substr', 'name.substr(0, 3)'],
-      ['new Array', 'const xs = new Array(3)'],
-      ['escape', "escape('x')"],
-      ['unescape', "unescape('x')"],
-      ['__proto__', 'const p = value.__proto__'],
-      ['any', 'let value: any = 1'],
-      ['any in a generic', 'const xs: Array<any> = []'],
-      ['any in an assertion', 'const x = value as any'],
-      ['non-null assertion', 'const x = value!.length'],
-      ['eval', "eval('1 + 1')"],
-      ['setTimeout with text', "setTimeout('run()', 10)"],
-      ['setInterval with folded text', source("const body = 'go()'", "setInterval('run(' + body, 10)")],
-      ['ReactDOM render', "ReactDOM.render(<App />, document.getElementById('root'))"],
-      ['ReactDOM unmount', 'ReactDOM.unmountComponentAtNode(node)'],
-      ['ReactDOM findDOMNode', 'ReactDOM.findDOMNode(instance)'],
-      ['findDOMNode import', 'findDOMNode(instance)'],
-      ['defaultProps', 'const defaults = Badge.defaultProps'],
-      ['legacy context types', 'const types = Badge.childContextTypes'],
-      ['legacy context getter', 'const getter = Badge.getChildContext'],
-      ['string ref', '<input ref="name" />', 'fixture.tsx'],
-      ['Tauri v1 invoke import', "import { invoke } from '@tauri-apps/api/tauri'"],
-      ['Tauri v1 fs import', "import { readTextFile } from '@tauri-apps/api/fs'"],
-      ['Tauri v1 global', 'window.__TAURI__.invoke("x")'],
-      ['Tauri v1 global via brackets', "window['__TAURI__'].invoke('x')"],
-      ['import equals', "import value = require('node:fs')"],
-      ['namespace', 'namespace Geometry {}'],
-      ['expando prototype', 'Chart.prototype.draw = function draw() {}'],
-      ['expando prototype via brackets', "Chart['prototype'].draw = draw"],
-    ]
-    for (const [name, text, label = 'fixture.ts'] of cases) {
-      expect([name, banOffences(text, label)]).not.toEqual([name, []])
-    }
+    const misreported = LEGACY_CASES.flatMap(([name, text, reason, label = 'fixture.ts']) => {
+      const found = banOffences(text, label)
+      // A fixture that fails to parse reports the parse error and nothing else,
+      // so naming the reason is also what keeps a fixture honest about the
+      // reader it was written for.
+      return found.some((why) => why.includes(reason)) ? [] : [`${name}: ${found.join(' | ') || 'nothing reported'}`]
+    })
+    expect(misreported).toEqual([])
   })
 })
 

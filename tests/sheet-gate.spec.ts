@@ -40,6 +40,15 @@ describe('the breakpoint reader', () => {
     expect(breakpointsOf(joined('@cont', 'ainer (wid', 'th <= 720px) { .a { color: red } }'))).toEqual(['720px'])
   })
 
+  it('reads a height the same way, so one axis cannot be restated freely', () => {
+    // The drawer's chrome yields at a height. While only widths were read, a
+    // height decided a layout with nothing holding it to one place.
+    expect(breakpointsOf(joined('@med', 'ia (heig', 'ht <= 900px) { .a { color: red } }'))).toEqual(['900px'])
+    expect(breakpointsOf(joined('@med', 'ia (max-heig', 'ht: 640px) { .a { color: red } }'))).toEqual(['640px'])
+    expect(breakpointsOf(joined('@cont', 'ainer (heig', 'ht <= 1024px) { .a { color: red } }'))).toEqual(['1024px'])
+    expect(breakpointsOf(joined('@med', 'ia (min-heig', 'ht: 40rem) { .a { color: red } }'))).toEqual([])
+  })
+
   it('reads no width out of a query that switches on something else', () => {
     expect(breakpointsOf('@media (prefers-reduced-motion: reduce) { .a { color: red } }')).toEqual([])
     expect(breakpointsOf('@media (forced-colors: active) { .a { color: red } }')).toEqual([])
@@ -61,7 +70,7 @@ describe('the sheets the product ships', () => {
     // one syntax and one file, while a second breakpoint sat in the other
     // syntax in the other sheet. Every sheet is read now, in both syntaxes.
     const widths = (await sheets()).flatMap((sheet) => breakpointsOf(sheet.text))
-    expect(widths.toSorted()).toEqual(['480px', '720px'])
+    expect(widths.toSorted()).toEqual(['360px', '480px', '720px'])
     expect(new Set(widths).size).toBe(widths.length)
   })
 })

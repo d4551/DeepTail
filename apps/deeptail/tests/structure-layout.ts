@@ -66,6 +66,29 @@ function checkClipping(add: Report): void {
 }
 
 /**
+ * Whether an element's vertical scrolling is a pane of layout.
+ *
+ * A `textarea` long enough to need scrolling scrolls the text being edited,
+ * and a `select` its own option list. Neither is a pane the layout put inside
+ * another pane: they are leaves, and they cannot be made not to scroll without
+ * losing the content they hold. Reading them as nested panes made the rule
+ * forbid a shape every dialog needs — a dialog that scrolls and holds a text
+ * field — so the rule stayed silent until the dialog's scroll containment was
+ * deleted, and then stayed silent about that too.
+ *
+ * `contenteditable` joins the form controls: it is an editor whatever tag
+ * carries it. The tag list is written inside the function because this source
+ * is shipped to the page on its own, so a constant beside it would arrive as a
+ * `ReferenceError`.
+ * @param node - the element to judge.
+ * @returns true when the box is a layout pane rather than an editable control.
+ */
+export function isLayoutPane(node: Element): boolean {
+  const valueScrollers = new Set(['TEXTAREA', 'SELECT'])
+  return !valueScrollers.has(node.tagName) && !(node instanceof HTMLElement && node.isContentEditable)
+}
+
+/**
  * Two scrollbars on one axis leave the reader guessing which one moves.
  *
  * A pane that scrolls inside a pane that also scrolls traps the wheel at
@@ -74,11 +97,15 @@ function checkClipping(add: Report): void {
  * every element is reachable and correctly labelled, and the page is still
  * unusable. A shell scrolls in exactly one place per axis; the pane that owns
  * the overflow keeps `auto`, and everything above it clips.
+ *
+ * Only panes are counted, on both sides of the nesting: an editable control
+ * scrolling its own value is not a second pane, and nothing may nest inside
+ * one either.
  * @param add - collects a finding.
  */
 function checkNestedScroll(add: Report): void {
   for (const node of document.querySelectorAll('body *')) {
-    if (!scrolls(node)) continue
+    if (!scrolls(node) || !isLayoutPane(node)) continue
     let ancestor = node.parentElement
     while (ancestor !== null) {
       if (scrolls(ancestor)) {
@@ -86,70 +113,6 @@ function checkNestedScroll(add: Report): void {
         break
       }
       ancestor = ancestor.parentElement
-    }
-  }
-}
-
-/**
- * Two targets that share pixels leave the click on whichever is on top.
- *
- * A control drawn over another control is unreachable where they overlap, and
- * no rule engine reports it: both are labelled, both are in the tab order, and
- * half of one of them cannot be activated at all. Ancestor and descendant are
- * excluded — a link inside a card that is itself a target is the layout, not a
- * defect — and one device pixel of overlap is allowed as rounding.
- * @param add - collects a finding.
- * @param limits - which elements take focus or activation, handed in by the caller.
- */
-function checkOverlappingTargets(add: Report, limits: { readonly interactive: string }): void {
-  const nodes = [...document.querySelectorAll(limits.interactive)].filter(
-    (node) => node.closest('[inert]') === null && (node as HTMLElement).checkVisibility(),
-  )
-  for (const [index, node] of nodes.entries()) {
-    const box = node.getBoundingClientRect()
-    for (const other of nodes.slice(index + 1)) {
-      if (other.contains(node) || node.contains(other)) continue
-      const over = other.getBoundingClientRect()
-      const width = Math.min(box.right, over.right) - Math.max(box.left, over.left)
-      const height = Math.min(box.bottom, over.bottom) - Math.max(box.top, over.top)
-      if (width > 1 && height > 1) {
-        add('overlapping-targets', `${describe(node)} overlaps ${describe(other)}`)
-      }
-    }
-  }
-}
-
-/** What the pointer checks measure against, as the caller hands it to the page. */
-interface PointerLimits {
-  /** The smallest target this pointer admits, in CSS pixels. */
-  readonly target: number
-  /** Elements that take focus or activation without a `tabindex`. */
-  readonly interactive: string
-}
-
-/**
- * Every control a finger reaches clears the platform minimum.
- * @param add - collects a finding.
- * @param limits - what the checks measure against.
- */
-function checkTouchTargets(add: Report, limits: PointerLimits): void {
-  const floor = limits.target
-  for (const node of document.querySelectorAll(limits.interactive)) {
-    // An inert subtree is not reachable, so its geometry is not a target.
-    if (node.closest('[inert]') !== null) continue
-    if (!(node as HTMLElement).checkVisibility()) continue
-    const box = node.getBoundingClientRect()
-    // A control that is shown and takes focus but paints nothing is unreachable
-    // in fact: the operator cannot aim at what occupies no pixels.
-    if (box.width === 0 && box.height === 0) {
-      add('target-collapsed', `${describe(node)} takes focus but paints no box`)
-      continue
-    }
-    if (box.height < floor || box.width < floor) {
-      add(
-        'target-size',
-        `${describe(node)} is ${String(Math.round(box.width))}x${String(Math.round(box.height))}, under ${String(floor)}`,
-      )
     }
   }
 }
@@ -219,14 +182,4 @@ function checkGrid(add: Report, limits: { readonly scope: string }): void {
   }
 }
 
-export {
-  checkAlignment,
-  checkClipping,
-  checkGrid,
-  checkHorizontalOverflow,
-  checkNestedScroll,
-  checkOverlappingTargets,
-  checkTouchTargets,
-  gridAncestor,
-  scrolls,
-}
+export { checkAlignment, checkClipping, checkGrid, checkHorizontalOverflow, checkNestedScroll, gridAncestor, scrolls }

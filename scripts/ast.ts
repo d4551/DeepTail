@@ -11,6 +11,7 @@
  */
 
 import { parseSync } from 'oxc-parser'
+import { lineReader } from './lines.ts'
 
 /**
  * A value found anywhere on a parsed node.
@@ -34,6 +35,8 @@ export interface Comment {
   readonly value: string
   /** Byte offset the comment starts at. */
   readonly start: number
+  /** Byte offset just past the comment's closing delimiter. */
+  readonly end: number
 }
 
 /** A parsed file: its syntax tree, its comments, and its line lookup. */
@@ -155,29 +158,6 @@ export function memberName(node: Node): string | undefined {
 }
 
 /**
- * A reader that turns a byte offset into a line number.
- * @param text - the whole file.
- * @returns the reader.
- */
-export function lineReader(text: string): (offset: Field | undefined) => number {
-  const starts = [0]
-  for (const [index, character] of [...text].entries()) {
-    if (character === '\n') starts.push(index + 1)
-  }
-  return (offset) => {
-    if (typeof offset !== 'number') return 1
-    let low = 0
-    let high = starts.length - 1
-    while (low < high) {
-      const middle = Math.ceil((low + high) / 2)
-      if ((starts[middle] ?? 0) <= offset) low = middle
-      else high = middle - 1
-    }
-    return low + 1
-  }
-}
-
-/**
  * Read one of the parser's interface-typed statements as the structural node
  * the gates walk.
  *
@@ -199,10 +179,14 @@ function asNode(value: object): Node {
  */
 export function parseScript(label: string, text: string): Parsed {
   const parsed = parseSync(label, text)
+  const at = lineReader(text)
   return {
     body: parsed.program.body.map(asNode),
     comments: parsed.comments,
     errors: parsed.errors,
-    lineAt: lineReader(text),
+    // The parse hands offsets around as tree fields, which are not always
+    // numbers; the shared reader takes an offset, so the field is judged here
+    // rather than inside a search that can do nothing about it.
+    lineAt: (offset: Field | undefined) => (typeof offset === 'number' ? at(offset) : 1),
   }
 }

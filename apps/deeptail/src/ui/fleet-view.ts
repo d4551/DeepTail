@@ -13,7 +13,7 @@ import type { Translate } from '../locales.ts'
 import { settle } from '../reason.ts'
 import type { FleetStore, HostEntry } from '../store.ts'
 import { bindRovingFocus, type Disposer, el, screenReaderText } from './dom.ts'
-import { focusedControl, restoreFocus } from './roster-focus.ts'
+import { focusedControl, keepScrollReachable, restoreFocus } from './roster-focus.ts'
 import { type RowHandlers, sessionRow } from './session-row.ts'
 import { emptyRow, hostStateLabel, loadingRow, retryStrip } from './states.ts'
 
@@ -100,6 +100,7 @@ function renderRoster(root: HTMLElement, view: RosterView): void {
 
   if (entries.length === 0) {
     root.append(emptyRow(view.t('status.empty')))
+    keepScrollReachable(root)
     return
   }
 
@@ -109,6 +110,7 @@ function renderRoster(root: HTMLElement, view: RosterView): void {
   }
   bindRovingFocus(stops)
   restoreFocus(root, focused)
+  keepScrollReachable(root)
 }
 
 /**

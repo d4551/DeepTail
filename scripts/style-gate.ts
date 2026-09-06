@@ -19,16 +19,13 @@
  */
 
 import { isNode, type Node, parseScript, walk } from './ast.ts'
+import { MARKUP_EXTENSIONS, SCRIPT_EXTENSIONS } from './extensions.ts'
 import { approximateString, type Constants, constants } from './fold.ts'
 import { markupOffences, scanMarkup } from './markup-gate.ts'
 import type { Offence } from './offence.ts'
 import { inspectCall, keyOf, STYLE_PROPERTIES } from './style-writes.ts'
 
-/** Extensions the script scanner reads. */
-export const SCRIPT_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const
-
-/** Extensions the markup scanner reads. */
-export const MARKUP_EXTENSIONS = ['.html', '.htm'] as const
+export { MARKUP_EXTENSIONS, SCRIPT_EXTENSIONS }
 
 /**
  * Every inline style a script reaches for.

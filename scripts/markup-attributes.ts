@@ -60,7 +60,11 @@ const HTMX_ATTRIBUTE = /^(?:data-)?hx-/iu
  * decision the design system never sees: the scale and the palette live in
  * tokens.css.
  */
-const ARBITRARY_UTILITY = /-[^\s"']*\[[^\]]+\]/u
+// Tailwind 3 wrote an arbitrary value in square brackets and Tailwind 4 writes
+// a custom property in parentheses — `bg-[--brand]` became `bg-(--brand)`. A
+// pattern that knew only the bracket form read the current spelling as an
+// ordinary class name.
+const ARBITRARY_UTILITY = /-[^\s"']*(?:\[[^\]]+\]|\((?:--)[^)]+\))/u
 
 /**
  * Attributes that move a box or its content from the tag.

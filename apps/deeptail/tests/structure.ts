@@ -20,11 +20,11 @@ import {
   checkGrid,
   checkHorizontalOverflow,
   checkNestedScroll,
-  checkOverlappingTargets,
-  checkTouchTargets,
   gridAncestor,
+  isLayoutPane,
   scrolls,
 } from './structure-layout.ts'
+import { checkOverlappingTargets, checkTouchTargets, drawnBox } from './structure-pointer.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
 import { checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import { checkClassVocabulary } from './structure-vocabulary.ts'
@@ -261,8 +261,10 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     checkClassVocabulary,
     checkHorizontalOverflow,
     scrolls,
+    isLayoutPane,
     checkClipping,
     checkNestedScroll,
+    drawnBox,
     checkOverlappingTargets,
     checkTouchTargets,
     checkAlignment,

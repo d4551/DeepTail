@@ -16,6 +16,39 @@ import * as bans from '../scripts/ban-gate.ts'
 import { onlyPresent, ROOT, repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
 
+/**
+ * Every function the structure checks ship to the page, by definition.
+ *
+ * Held as a whole set rather than a chosen few: a helper dropped from what is
+ * shipped is a `ReferenceError` the moment the page evaluates this, and every
+ * structural check on that page then reports nothing at all.
+ */
+const SHIPPED_CHECKS: readonly string[] = [
+  'checkAlignment',
+  'checkAriaReferences',
+  'checkClassVocabulary',
+  'checkClipping',
+  'checkDuplicateIds',
+  'checkGrid',
+  'checkGroupNames',
+  'checkHeadingOrder',
+  'checkHorizontalOverflow',
+  'checkInlineScripts',
+  'checkListOwnership',
+  'checkNestedInteractive',
+  'checkNestedScroll',
+  'checkOneOffScripts',
+  'checkOverlappingTargets',
+  'checkShell',
+  'checkTouchTargets',
+  'describe',
+  'drawnBox',
+  'findStructureDefects',
+  'gridAncestor',
+  'isLayoutPane',
+  'scrolls',
+]
+
 describe('the file list both gates read', () => {
   it('is every source file the repository ships, and nothing it builds', () => {
     const labels = repositoryFiles([...styles.SCRIPT_EXTENSIONS, ...styles.MARKUP_EXTENSIONS]).map((file) => file.label)
@@ -85,21 +118,50 @@ describe('the structure checks the browser suite evaluates', () => {
       // The vocabulary travels with the floors: a vocabulary the page never
       // receives would refuse every class — or, refused by nothing, check none.
       expect(source).toContain('"vocabulary":["shell"]')
-      expect(source).toContain('"scope":"[data-deeptail-shell], [data-deeptail-picker]')
-      expect(source).toContain('checkAlignment')
-      expect(source).toContain('gridAncestor')
-      expect(source).toContain('checkGrid')
-      expect(source).toContain('checkShell')
-      expect(source).toContain('checkInlineScripts')
-      expect(source).toContain('checkOneOffScripts')
-      expect(source).toContain('"alignment"')
-      expect(source).toContain('"nested-grid"')
-      expect(source).toContain('"split-shell"')
-      expect(source).toContain('"inline-script"')
-      expect(source).toContain('"target-size"')
+      // The whole selector list, not a prefix of it: asserting the opening two
+      // surfaces left the boot-error and return surfaces free to be dropped
+      // with this still green, and nothing else reads them.
+      expect(source).toContain(
+        '"scope":"[data-deeptail-shell], [data-deeptail-picker], [data-deeptail-state=\\"boot-error\\"], [data-deeptail-return]"',
+      )
+      for (const rule of ['"alignment"', '"nested-grid"', '"split-shell"', '"inline-script"', '"target-size"']) {
+        expect(source).toContain(rule)
+      }
     }
   })
+})
 
+describe('the checks the browser suite actually ships', () => {
+  it('defines every check it ships, not merely mentions one', () => {
+    // `findStructureDefects` calls each helper by name, so every name occurs in
+    // the emitted text twice: once where it is defined and once where it is
+    // called. A check for the name alone therefore stayed green when a helper
+    // was dropped from what is shipped — and a helper left behind is a
+    // `ReferenceError` the moment the page evaluates this, which makes every
+    // structural check on that page report nothing at all. Definitions are what
+    // is counted, and the whole set is pinned rather than a chosen few.
+    const defined = [...structureCheckSource(true, ['shell']).matchAll(/function\s+([A-Za-z0-9_$]+)\s*\(/gu)]
+      .map((found) => found[1] ?? '')
+      .toSorted()
+    expect(defined).toEqual([...SHIPPED_CHECKS])
+  })
+
+  it('calls every check it defines, so none is shipped and then never run', () => {
+    // The other direction. A helper that is defined but never reached is dead
+    // weight the page parses for nothing, and a rule that stopped being called
+    // would report nothing while still being present to any check that only
+    // looks for its definition.
+    const source = structureCheckSource(true, ['shell'])
+    const body = source.slice(source.indexOf('function findStructureDefects'))
+    // What the entry point actually calls, read out of its body rather than
+    // searched for one name at a time.
+    const called = new Set([...body.matchAll(/\b(check[A-Za-z0-9_$]+)\(add/gu)].map((found) => found[1] ?? ''))
+    const defined = [...source.matchAll(/function\s+(check[A-Za-z0-9_$]+)\s*\(/gu)].map((found) => found[1] ?? '')
+    expect(defined.filter((rule) => !called.has(rule))).toEqual([])
+  })
+})
+
+describe('what the checks the browser suite evaluates are made of', () => {
   it('cannot be handed an activation target nested in its own kind, and the parser is why', () => {
     // The `nested-interactive` rule walks a parsed tree, and the HTML parsing
     // algorithm closes an open activation target the moment a second start tag

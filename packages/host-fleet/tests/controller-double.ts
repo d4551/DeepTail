@@ -39,7 +39,7 @@ type ToolOutcome = Awaited<ReturnType<ToolDefinition['execute']>>
 type ExecFixture = Omit<ToolRunContext, 'agent' | 'token' | 'callId' | 'rootCallId'> & {
   readonly callId: string
   readonly rootCallId: string
-  readonly agent: { readonly session: { readonly id: string } }
+  readonly agent?: { readonly session: { readonly id: string } }
   readonly token: symbol
 }
 
@@ -71,9 +71,29 @@ function refuse(): never {
 /** What a scripted controller recorded, and how it should answer. */
 export interface Script {
   readonly created: { agentPreset?: string; cwd?: string }[]
-  readonly prompted: { sessionId: string; mode: string }[]
+  /**
+   * Every prompt the controller admitted, whole.
+   *
+   * The content blocks and the correlation are recorded, not just the target
+   * and the mode: what a session actually receives is the content, and the
+   * caller-minted request id is the only handle either side has on the
+   * delivery, so a suite that reads neither cannot tell a delivered prompt
+   * from an empty one.
+   */
+  readonly prompted: { sessionId: string; mode: string; content: unknown; requestId: string }[]
   readonly cancelled: string[]
+  /**
+   * Every follow request the controller received, whole.
+   *
+   * The budget is recorded as the key the request carried rather than as its
+   * value: a request that names the key with nothing under it is a different
+   * request from one that omits it, and a host that reads `in` rather than the
+   * value sees the difference.
+   */
+  readonly followed: { sessionId: string; maxMessages: number | 'absent' }[]
   createFails?: Error | undefined
+  /** The preset the controller reports back on a creation, when it reports one. */
+  createdPreset?: string
   /** Rows `session.list` answers with, keyed by plain id and branded at the boundary. */
   listed?: { sessionId: string; running: boolean; blank: boolean; updatedAt: number }[]
   /**
@@ -146,25 +166,39 @@ export function refusingController(): FleetController {
 }
 
 /**
- * Register the fleet tools against a scripted controller.
+ * The controller a scripted suite drives, recording what it was given.
  * @param recording - what the controller records and how it answers.
- * @returns every registered tool, by name.
+ * @returns the narrowed controller face the fleet tools drive.
  */
-export function registerTools(recording: Script): Map<string, ToolDefinition> {
-  const tools = new Map<string, ToolDefinition>()
-  const controller: FleetController = {
+function scriptedController(recording: Script): FleetController {
+  return {
     list: () =>
       Promise.resolve({
         items: (recording.listed ?? []).map((row) => ({ ...row, sessionId: SessionId(row.sessionId) })),
       }),
-    follow: () => followStream(recording),
+    follow: (request: Parameters<FleetController['follow']>[0]) => {
+      const asked = request as { address: { sessionId: string }; maxMessages?: number }
+      recording.followed.push({
+        sessionId: String(asked.address.sessionId),
+        maxMessages: 'maxMessages' in asked ? (asked.maxMessages ?? Number.NaN) : 'absent',
+      })
+      return followStream(recording)
+    },
     create: (request: Parameters<FleetController['create']>[0]) => {
       if (recording.createFails !== undefined) return Promise.reject(recording.createFails)
       recording.created.push(request)
-      return Promise.resolve({ sessionId: SessionId(`s-${String(recording.created.length)}`) })
+      return Promise.resolve({
+        sessionId: SessionId(`s-${String(recording.created.length)}`),
+        ...(recording.createdPreset === undefined ? {} : { agentPreset: recording.createdPreset }),
+      })
     },
     prompt: (request: Parameters<FleetController['prompt']>[0]) => {
-      recording.prompted.push({ sessionId: String(request.sessionId), mode: request.mode })
+      recording.prompted.push({
+        sessionId: String(request.sessionId),
+        mode: request.mode,
+        content: request.content,
+        requestId: String(request.requestId),
+      })
       return Promise.resolve({ accepted: true as const })
     },
     cancel: (request: Parameters<FleetController['cancel']>[0]) => {
@@ -172,6 +206,16 @@ export function registerTools(recording: Script): Map<string, ToolDefinition> {
       return { accepted: true as const }
     },
   }
+}
+
+/**
+ * Register the fleet tools against a scripted controller.
+ * @param recording - what the controller records and how it answers.
+ * @returns every registered tool, by name.
+ */
+export function registerTools(recording: Script): Map<string, ToolDefinition> {
+  const tools = new Map<string, ToolDefinition>()
+  const controller = scriptedController(recording)
   const ctx: FleetContext = {
     sessionController: controller,
     tools: {
@@ -191,7 +235,7 @@ export function registerTools(recording: Script): Map<string, ToolDefinition> {
 
 /** A fresh recording script. */
 export function script(): Script {
-  return { created: [], prompted: [], cancelled: [] }
+  return { created: [], prompted: [], cancelled: [], followed: [] }
 }
 
 /**
@@ -210,7 +254,9 @@ export function run(
   tools: Map<string, ToolDefinition>,
   name: string,
   args: ToolArguments,
-  agent = 'caller',
+  // `null` is how a suite says the call has no owning agent, which is the state
+  // a tool must refuse rather than address a session for nobody.
+  agent: string | null = 'caller',
 ): Promise<ToolOutcome> {
   const tool = tools.get(name)
   if (tool === undefined) throw new Error(`${name} was never registered`)
@@ -220,7 +266,7 @@ export function run(
     name,
     arguments: args,
     signal: new AbortController().signal,
-    agent: { session: { id: SessionId(agent) } },
+    ...(agent === null ? {} : { agent: { session: { id: SessionId(agent) } } }),
     token: Symbol('tool-execution'),
     deferContext: () => null,
     concludeTurn: () => null,

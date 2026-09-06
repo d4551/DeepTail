@@ -12,10 +12,15 @@
 
 import type { Offence } from './offence.ts'
 
-/** The CSS colour keywords a rule may still read, because they are not colours. */
-const KEYWORDS = new Set(['transparent', 'currentcolor'])
-
-/** The CSS named colours, which only the token sheet may write. */
+/**
+ * The CSS named colours, which only the token sheet may write.
+ *
+ * `currentcolor` and `transparent` are deliberately absent rather than listed
+ * and filtered back out: neither states a colour — one reads whatever colour is
+ * inherited and the other states the absence of one — so neither is a palette
+ * decision to route through the tokens. A filter that removed them from this
+ * list removed nothing, because they were never in it.
+ */
 const NAMED = [
   'aliceblue',
   'antiquewhite',
@@ -165,7 +170,7 @@ const NAMED = [
   'whitesmoke',
   'yellow',
   'yellowgreen',
-].filter((name) => !KEYWORDS.has(name))
+]
 
 /** A colour written as a literal rather than read from the palette. */
 const RAW = new RegExp(
@@ -175,6 +180,17 @@ const RAW = new RegExp(
 
 /** The override flag, assembled so the gate's own source does not carry it. */
 const OVERRIDE = ['!', 'important'].join('')
+
+/**
+ * The override flag as CSS accepts it.
+ *
+ * The grammar puts an optional run of whitespace and comments between the
+ * bang and the keyword, and matches the keyword without regard to case, so
+ * `! important` and `!IMPORTANT` win the cascade exactly as the plain spelling
+ * does. A gate that looked for the plain spelling was two keystrokes from
+ * being no gate at all.
+ */
+const OVERRIDE_FLAG = new RegExp(`!\\s*${OVERRIDE.slice(1)}\\b`, 'iu')
 
 /**
  * The palette and cascade rules one declaration breaks.
@@ -193,7 +209,7 @@ export function scanColour(label: string, value: string, line: number): Offence[
       why: `${colour[0]} is written out rather than read from the palette in tokens.css`,
     })
   }
-  if (value.includes(OVERRIDE)) {
+  if (OVERRIDE_FLAG.test(value)) {
     offences.push({ label, line, why: `an ${OVERRIDE} override wins every cascade; restate the selector instead` })
   }
   return offences

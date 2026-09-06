@@ -130,6 +130,119 @@ function readGrant<T>(value: T | WireValue): Grant | undefined {
 }
 
 /**
+ * What a hydration snapshot said, or the reason it could not be read.
+ *
+ * A refusal is returned rather than thrown so the ledger has exactly one place
+ * that clears itself and announces, whatever the snapshot was wrong about.
+ * @param raw - whatever arrived over the wire.
+ * @returns the context and grants, or the change to announce instead.
+ */
+function readSnapshot<T>(
+  raw: T | WireValue,
+): { readonly context: string; readonly grants: readonly Grant[] } | 'malformed-hydration' | 'not-issued-natively' {
+  if (!isWireObject(raw)) return 'malformed-hydration'
+  const snapshot: WireObject = raw
+  if (typeof snapshot.issuer !== 'string' || typeof snapshot.context !== 'string' || snapshot.context === '') {
+    return 'malformed-hydration'
+  }
+  if (!Array.isArray(snapshot.grants)) return 'malformed-hydration'
+  if (snapshot.issuer !== 'native') return 'not-issued-natively'
+  const read = snapshot.grants.map((grant) => readGrant(grant))
+  const grants: Grant[] = []
+  for (const grant of read) {
+    if (grant === undefined) return 'malformed-hydration'
+    grants.push(grant)
+  }
+  return { context: snapshot.context, grants }
+}
+
+/**
+ * Whether one capability may be spent under one subject, right now.
+ * @param grants - what the ledger holds.
+ * @param capability - the capability the action costs.
+ * @param subject - the identity the grant must be bound to.
+ * @param at - the instant to judge expiry against.
+ * @returns the grant, or why it may not be spent.
+ */
+function spendFrom(
+  grants: ReadonlyMap<string, Grant>,
+  capability: CapabilityId,
+  subject: GrantSubject,
+  at: number,
+): SpendResult {
+  const grant = grants.get(keyOf(capability, subject))
+  if (grant !== undefined) {
+    return grant.expiresAt <= at ? { ok: false, reason: 'expired' } : { ok: true, grant }
+  }
+  // Nothing under this exact subject. The two reasons the operator can be told
+  // differ, and so does what they do next: a capability held under another host
+  // is a wrong target, and a capability never issued is a missing grant. Saying
+  // "different host" for both sends them to re-pair a host that was never the
+  // problem.
+  const declared = CAPABILITIES[capability].subject
+  if (declared === 'host' ? subject.kind !== 'host' : subject.kind !== 'device') {
+    return { ok: false, reason: 'subject-mismatch' }
+  }
+  const heldUnderAnotherSubject = [...grants.values()].some((held) => held.capability === capability)
+  return { ok: false, reason: heldUnderAnotherSubject ? 'subject-mismatch' : 'no-grant' }
+}
+
+/**
+ * Write a snapshot's grants over what the ledger holds.
+ *
+ * A revision behind the one held is a replay of an older snapshot. The newer
+ * grant stays, because the newer grant is what the authority said last, and
+ * the page says so rather than pretending it applied the older one.
+ * @param grants - what the ledger holds, written in place.
+ * @param arriving - what the snapshot carried.
+ */
+function applyGrants(grants: Map<string, Grant>, arriving: readonly Grant[]): void {
+  for (const grant of arriving) {
+    const key = keyOf(grant.capability, grant.subject)
+    const held = grants.get(key)
+    if (held !== undefined && held.revision > grant.revision) continue
+    grants.set(key, grant)
+  }
+}
+
+/**
+ * How many of a ledger's grants are live at one instant.
+ * @param grants - what the ledger holds.
+ * @param at - the instant to judge expiry against.
+ * @returns the count.
+ */
+function liveCount(grants: ReadonlyMap<string, Grant>, at: number): number {
+  let live = 0
+  for (const grant of grants.values()) if (grant.expiresAt > at) live += 1
+  return live
+}
+
+/**
+ * Take a snapshot into a ledger's state.
+ *
+ * A context the ledger has not seen is a different authority — a new pairing, a
+ * re-pair, a forgotten host — and nothing issued under the old one survives it.
+ * @param grants - what the ledger holds, written in place.
+ * @param issuedUnder - the context the held grants were issued under.
+ * @param raw - whatever arrived over the wire.
+ * @returns the reason to announce, and the context now in force.
+ */
+function hydrateInto<T>(
+  grants: Map<string, Grant>,
+  issuedUnder: string,
+  raw: T | WireValue,
+): { readonly reason: LedgerChange['reason']; readonly context: string } {
+  const snapshot = readSnapshot(raw)
+  if (typeof snapshot === 'string') {
+    grants.clear()
+    return { reason: snapshot, context: issuedUnder }
+  }
+  if (snapshot.context !== issuedUnder) grants.clear()
+  applyGrants(grants, snapshot.grants)
+  return { reason: 'hydrated', context: snapshot.context }
+}
+
+/**
  * Build a ledger.
  * @param now - the clock, so a suite can move time without waiting for it.
  * @returns the ledger.
@@ -145,78 +258,22 @@ export function createGrantLedger(now: () => number = () => Date.now()): GrantLe
    * @returns the change, for the caller to hand back as its own result.
    */
   function announce(reason: LedgerChange['reason']): LedgerChange {
-    const change: LedgerChange = { reason, live: count() }
-    for (const listener of [...listeners]) listener(change)
+    const change: LedgerChange = { reason, live: liveCount(grants, now()) }
+    // A snapshot, not the set: a listener that unsubscribes as it is called
+    // would otherwise mutate the collection being walked.
+    const called = [...listeners]
+    for (const listener of called) listener(change)
     return change
-  }
-
-  /** How many grants are live at this instant. */
-  function count(): number {
-    let live = 0
-    for (const grant of grants.values()) if (grant.expiresAt > now()) live += 1
-    return live
   }
 
   return {
     hydrate<T>(raw: T | WireValue): LedgerChange {
-      if (!isWireObject(raw)) {
-        grants.clear()
-        return announce('malformed-hydration')
-      }
-      const snapshot: WireObject = raw
-      if (typeof snapshot.issuer !== 'string' || typeof snapshot.context !== 'string' || snapshot.context === '') {
-        grants.clear()
-        return announce('malformed-hydration')
-      }
-      if (!Array.isArray(snapshot.grants)) {
-        grants.clear()
-        return announce('malformed-hydration')
-      }
-      if (snapshot.issuer !== 'native') {
-        grants.clear()
-        return announce('not-issued-natively')
-      }
-      const read = snapshot.grants.map(readGrant)
-      if (read.some((grant) => grant === undefined)) {
-        grants.clear()
-        return announce('malformed-hydration')
-      }
-      if (snapshot.context !== issuedUnder) {
-        // A different context is a different authority: a new pairing, a
-        // re-pair, a forgotten host. Nothing issued under the old one survives.
-        grants.clear()
-        issuedUnder = snapshot.context
-      }
-      for (const grant of read) {
-        if (grant === undefined) continue
-        const key = keyOf(grant.capability, grant.subject)
-        const held = grants.get(key)
-        // A revision behind the one held is a replay of an older snapshot. The
-        // newer grant stays, because the newer grant is what the authority said
-        // last, and the page says so rather than pretending it applied it.
-        if (held !== undefined && held.revision > grant.revision) continue
-        grants.set(key, grant)
-      }
-      return announce('hydrated')
+      const taken = hydrateInto(grants, issuedUnder, raw)
+      issuedUnder = taken.context
+      return announce(taken.reason)
     },
     context: () => issuedUnder,
-    spend(capability, subject) {
-      const grant = grants.get(keyOf(capability, subject))
-      if (grant !== undefined) {
-        return grant.expiresAt <= now() ? { ok: false, reason: 'expired' } : { ok: true, grant }
-      }
-      // Nothing under this exact subject. The two reasons the operator can be
-      // told differ, and so does what they do next: a capability held under
-      // another host is a wrong target, and a capability never issued is a
-      // missing grant. Saying "different host" for both sends them to re-pair
-      // a host that was never the problem.
-      const declared = CAPABILITIES[capability].subject
-      if (declared === 'host' ? subject.kind !== 'host' : subject.kind !== 'device') {
-        return { ok: false, reason: 'subject-mismatch' }
-      }
-      const heldUnderAnotherSubject = [...grants.values()].some((held) => held.capability === capability)
-      return { ok: false, reason: heldUnderAnotherSubject ? 'subject-mismatch' : 'no-grant' }
-    },
+    spend: (capability, subject) => spendFrom(grants, capability, subject, now()),
     invalidate(reason) {
       grants.clear()
       issuedUnder = 'unissued'
@@ -228,6 +285,6 @@ export function createGrantLedger(now: () => number = () => Date.now()): GrantLe
         listeners.delete(listener)
       }
     },
-    live: count,
+    live: () => liveCount(grants, now()),
   }
 }

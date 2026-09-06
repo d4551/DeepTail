@@ -17,8 +17,18 @@ export interface Viewport {
   readonly coarse: boolean
 }
 
-/** The widths the shell is designed against, narrowest first. */
+/**
+ * The widths the shell is designed against, narrowest first.
+ *
+ * The first row is not a device: it is the box WCAG 2.2 SC 1.4.10 names, 320
+ * CSS pixels wide by 256 tall, the shape a 1280px window takes at 400% zoom.
+ * Every other row is tall enough that a dialog fits it whatever the dialog
+ * does, so a dialog that had lost its scroll containment measured clean at all
+ * of them while its heading sat above the top of the screen and its action row
+ * below the bottom, with nothing on the page able to scroll to either.
+ */
 export const VIEWPORTS: readonly Viewport[] = [
+  { label: 'reflow floor', width: 320, height: 256, coarse: true },
   { label: 'small phone', width: 320, height: 720, coarse: true },
   { label: 'phone', width: 390, height: 844, coarse: true },
   { label: 'tablet', width: 768, height: 1024, coarse: true },
@@ -45,6 +55,13 @@ export const TABLET_VIEWPORT = namedViewport('tablet')
 
 /** The 320 CSS-pixel coarse width, opened as a touch context then sized. */
 export const SMALL_PHONE_VIEWPORT = namedViewport('small phone')
+
+/**
+ * The box WCAG 2.2 SC 1.4.10 requires content to reflow into, 320×256 CSS
+ * pixels — a 1280px window at 400% zoom. Short enough that a dialog has to
+ * decide what scrolls, which is what no taller viewport ever asks it.
+ */
+export const REFLOW_VIEWPORT = namedViewport('reflow floor')
 
 /**
  * Harness pointer flags for one designed width.

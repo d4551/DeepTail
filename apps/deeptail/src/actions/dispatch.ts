@@ -20,6 +20,7 @@ import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
 import { describeFailure } from '../reason.ts'
 import type { HostState } from '../ui/states.ts'
+import { buildHandlers } from './handlers.ts'
 import type { ActionEffect, ActionOutcome, UnavailableReason } from './outcomes.ts'
 import type { ActionDescriptor, ActionId } from './registry.ts'
 import { CAPABILITIES } from './registry.ts'
@@ -60,7 +61,7 @@ export interface ActionDeps {
   /** Hand a session to the harness client on its own host. */
   openClient(host: HostRecord, sessionId: string): Promise<void>
   /** Open the pairing form, for a new host or to clear a revoked token. */
-  pair(repairing: string | undefined): void
+  pair(repairing?: string): void
   /** Forget a host and its token. */
   forget(hostId: string): Promise<void>
   /** Make one host the selected one. */
@@ -109,11 +110,22 @@ export interface Preconditions {
   readonly tailnetStored: boolean
 }
 
-/** One action's handler. */
-type Handler<A extends ActionId> = (deps: ActionDeps, input: ActionInputs[A], t: Translate) => Promise<ActionEffect>
+/**
+ * One action's handler.
+ *
+ * A handler may answer without waiting for anything. Requiring a promise made
+ * every such handler `async` for the shape alone, which reads as work that is
+ * pending when none is, and buys a microtask for a table lookup. The dispatcher
+ * settles whichever it is given.
+ */
+type Handler<A extends ActionId> = (
+  deps: ActionDeps,
+  input: ActionInputs[A],
+  t: Translate,
+) => ActionEffect | Promise<ActionEffect>
 
 /** Every handler, keyed by the action it answers for. */
-type ActionHandlers = { readonly [A in ActionId]: Handler<A> }
+export type ActionHandlers = { readonly [A in ActionId]: Handler<A> }
 
 /** A dispatcher, ready to run one action. */
 export interface Dispatcher {
@@ -135,123 +147,6 @@ export interface Dispatcher {
     input: ActionInputs[A],
     preconditions: Preconditions,
   ): Promise<ActionOutcome>
-}
-
-/**
- * The host an action names, or nothing when the registry no longer holds it.
- * @param deps - the application.
- * @param hostId - the host the control named.
- * @returns the record, or undefined.
- */
-function hostOf(deps: ActionDeps, hostId: string): HostRecord | undefined {
-  return deps.hosts().find((host) => host.id === hostId)
-}
-
-/**
- * The name a host is announced by.
- * @param deps - the application.
- * @param hostId - the host to name.
- * @returns the label, or the id when the registry no longer holds it.
- */
-function labelOf(deps: ActionDeps, hostId: string): string {
-  return hostOf(deps, hostId)?.label ?? hostId
-}
-
-/**
- * The handlers, one per declared action.
- *
- * A handler does its work and lets a rejection travel to the dispatcher, which
- * renders the host's own account in the operator's language.
- * @param t - copy source, for what a successful action announces.
- * @returns the exhaustive table.
- */
-function buildHandlers(t: Translate): ActionHandlers {
-  return {
-    'boot.retry': async (deps) => {
-      await deps.remount()
-      return { kind: 'executed' }
-    },
-    'client.return': async (deps) => {
-      if (!deps.clientBooted()) return { kind: 'unwired', reason: 'no-booted-client' }
-      await deps.returnToFleet()
-      return { kind: 'executed' }
-    },
-    'drawer.toggle': async (deps, input) => {
-      deps.setDrawer(input.open)
-      return { kind: 'executed' }
-    },
-    'drawer.dismiss': async (deps) => {
-      deps.setDrawer(false)
-      return { kind: 'executed' }
-    },
-    'session.spawn': async (deps) => {
-      if (deps.hosts().length === 0) return { kind: 'unwired', reason: 'no-host' }
-      deps.openSpawn()
-      return { kind: 'executed' }
-    },
-    'connection.pair': async (deps) => {
-      deps.pair(undefined)
-      return { kind: 'executed' }
-    },
-    'connection.repair': async (deps, input) => {
-      deps.pair(labelOf(deps, input.hostId))
-      return { kind: 'executed' }
-    },
-    'connection.unpair': async (deps, input) => {
-      await deps.forget(input.hostId)
-      return { kind: 'executed' }
-    },
-    'connection.select': async (deps, input) => {
-      deps.select(input.hostId)
-      return { kind: 'executed' }
-    },
-    'session.open': async (deps, input) => {
-      const host = hostOf(deps, input.hostId)
-      if (host === undefined) return { kind: 'invalid', reason: 'no-host' }
-      await deps.openClient(host, input.sessionId)
-      return { kind: 'executed' }
-    },
-    'session.message': async (deps, input) => {
-      deps.openCompose(input.hostId, input.sessionId, input.title)
-      return { kind: 'executed' }
-    },
-    'session.cancel': async (deps, input) => {
-      await deps.cancel(input.hostId, input.sessionId)
-      return { kind: 'executed' }
-    },
-    'compose.send': async (deps, input) => {
-      if (input.text.trim() === '') return { kind: 'invalid', reason: 'empty-message' }
-      await deps.message(input.hostId, input.sessionId, input.text, 'queue')
-      return { kind: 'executed' }
-    },
-    'compose.steer': async (deps, input) => {
-      if (input.text.trim() === '') return { kind: 'invalid', reason: 'empty-message' }
-      await deps.message(input.hostId, input.sessionId, input.text, 'steer')
-      return { kind: 'executed' }
-    },
-    'spawn.create': async (deps, input) => {
-      await deps.spawn(input.hostId, input.preset, input.cwd)
-      return { kind: 'executed', announce: t('spawn.created', { label: labelOf(deps, input.hostId) }) }
-    },
-    'picker.pair': async (deps, input) => {
-      if (input.link.trim() === '') return { kind: 'invalid', reason: 'incomplete-credential' }
-      await deps.pairFromLink(input.link, input.label)
-      return { kind: 'executed' }
-    },
-    'picker.tailnet': async (deps) => {
-      deps.openTailnet()
-      return { kind: 'executed' }
-    },
-    'tailnet.connect': async (deps, input) => {
-      await deps.connectTailnet(input.kind, input.secret, input.tailnet)
-      return { kind: 'executed' }
-    },
-    'tailnet.forget': async (deps) => {
-      if (!deps.tailnetStored()) return { kind: 'unwired', reason: 'no-tailnet-credential' }
-      await deps.forgetTailnet()
-      return { kind: 'executed' }
-    },
-  }
 }
 
 /**
@@ -301,13 +196,18 @@ function subjectOf(action: ActionDescriptor, input: object | undefined): GrantSu
 }
 
 /**
- * Land a handler's rejection as the host's own account.
- * @param work - the handler, already running.
+ * Land a handler's failure as the host's own account, however it fails.
+ * @param work - the handler, not yet called.
  * @param t - copy source.
  * @returns the effect, landed or refused with the host's message.
  */
-function settleHandler<T>(work: Promise<ActionEffect>, t: Translate): Promise<ActionEffect> {
-  return work.then(
+function settleHandler<T>(work: () => ActionEffect | Promise<ActionEffect>, t: Translate): Promise<ActionEffect> {
+  // The handler is *called* in here, not before: a handler that answers
+  // without waiting may throw where it stands, and a call made outside this
+  // would send that throw straight past the account the operator is owed.
+  return new Promise<ActionEffect>((settle) => {
+    settle(work())
+  }).then(
     (effect) => effect,
     (reason: T): ActionEffect => ({ kind: 'invalid', reason: 'host-refused', message: describeFailure(reason, t) }),
   )
@@ -343,7 +243,7 @@ export function createDispatcher(deps: ActionDeps, ledger: GrantLedger, audit: D
         })
         return { kind: 'denied', traceId, reason: spent.reason }
       }
-      const effect = await settleHandler(handlers[action.id](deps, input, t), t)
+      const effect = await settleHandler(() => handlers[action.id](deps, input, t), t)
       if (effect.kind === 'unwired') return { kind: 'unwired', traceId, reason: effect.reason }
       if (effect.kind === 'invalid') {
         return effect.reason === 'host-refused'

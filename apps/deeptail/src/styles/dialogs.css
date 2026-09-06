@@ -37,6 +37,14 @@
   width: min(var(--dsh-card-width), 100%);
   min-width: 0;
   max-width: 100%;
+  /* The root is the viewport minus its safe-area padding, so this is the
+   * height a dialog may reach before its own body has to scroll. Without it a
+   * dialog taller than a short window is centred past both edges: the heading
+   * leaves the top of the screen, the action row leaves the bottom, and
+   * because the root is `position: fixed` the document has nothing to scroll —
+   * the actions become unreachable rather than merely out of sight. */
+  max-height: 100%;
+  overflow: hidden;
   padding: var(--dsh-space-inset-2xl) var(--dsh-space-7) var(--dsh-space-7);
   box-sizing: border-box;
   border: 1px solid var(--dsw-alias-border-inverted);
@@ -53,12 +61,27 @@
   color: var(--dsw-alias-label-primary);
 }
 
+/* The body is the dialog's one scroller: it takes the space the heading and
+ * the action row leave, and `min-height: 0` is what lets it shrink below its
+ * content instead of pushing the flex column past the dialog's own height. */
 .modal-body {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: var(--dsh-space-4);
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  /* A modal's scroller must not hand its overscroll to the roster behind the
+   * mask; that reads as the page moving under a dialog that cannot be moved. */
+  overscroll-behavior: contain;
   background: var(--dsw-alias-bg-layer-2);
+}
+
+/* The actions stay their own height while the body absorbs the shortfall, so
+ * the row a reader has to reach is the one thing that never scrolls away. */
+.modal-dialog > .actions {
+  flex: none;
 }
 
 /* Shares `.input`'s chrome; only the shape a multi-line field needs differs. */

@@ -47,6 +47,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@deepseek-ai/dsh-util-values': '0.1',
   '@deepseek-ai/schemastery': '3.18',
   '@deeptail/host-fleet': '0.1',
+  '@stryker-mutator/core': '10.0',
   '@tauri-apps/api': '2.11',
   '@tauri-apps/cli': '2.11',
   '@types/bun': '1.4',

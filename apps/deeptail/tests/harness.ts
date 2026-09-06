@@ -7,11 +7,13 @@
  * installs a scripted one. Everything above it is the shipped code.
  */
 
-import AxeBuilder from '@axe-core/playwright'
 import { type Browser, chromium, type Page } from 'playwright'
+import { auditPage, type Violation } from './audit.ts'
 import { type AnswerTable, type ForwardedEvent, initScriptSource, type RecordedCall } from './tauri-ipc.ts'
 import { PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
 
+export type { Violation } from './audit.ts'
+export { WCAG_TAGS } from './audit.ts'
 export type { AnswerTable } from './tauri-ipc.ts'
 
 /** Shape of the optional `tests/chromium.json` override. */
@@ -70,23 +72,6 @@ interface OpenOptions {
   readonly width?: number
   readonly height?: number
   readonly locale?: string
-}
-
-/**
- * The published WCAG 2.2 AA tag set axe-core documents for `@axe-core/playwright`.
- * `best-practice` is extra strictness on top of that set, not a substitute for it.
- */
-export const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const
-
-/** The conformance tags every surface is held to. */
-const AUDIT_TAGS = [...WCAG_TAGS, 'best-practice'] as const
-
-/** One accessibility violation, reduced to what a failure message needs. */
-export interface Violation {
-  readonly id: string
-  readonly impact: string
-  readonly help: string
-  readonly nodes: readonly string[]
 }
 
 /** A running harness. */
@@ -201,25 +186,6 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
   const page = await context.newPage()
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
   return page
-}
-
-/**
- * Every WCAG finding on a page: what axe decided against, and what it could not
- * decide at all.
- *
- * Both are returned. An undecided finding is not a pass — it is a question the
- * markup left open, and the answer is to write markup axe can decide about.
- * @param page - the page to audit.
- * @returns the findings.
- */
-async function auditPage(page: Page): Promise<readonly Violation[]> {
-  const result = await new AxeBuilder({ page }).withTags([...AUDIT_TAGS]).analyze()
-  return [...result.violations, ...result.incomplete].map((finding) => ({
-    id: finding.id,
-    impact: finding.impact ?? 'unknown',
-    help: finding.help,
-    nodes: finding.nodes.map((node) => node.html),
-  }))
 }
 
 export async function startHarness(): Promise<Harness> {

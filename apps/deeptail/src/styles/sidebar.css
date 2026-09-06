@@ -19,6 +19,21 @@
   box-sizing: border-box;
 }
 
+/* At the reflow floor the drawer's fixed chrome alone fills the screen and the
+ * roster — the pane the drawer exists to show — is laid out past the bottom
+ * edge and clipped away by `.sidebar`'s own `overflow: hidden`, which is
+ * content lost rather than content scrolled. The brand row is the one thing
+ * here that names nothing the reader can act on, so it is what yields.
+ *
+ * After the rule it overrides, not before: a media query carries no
+ * specificity of its own, so above it the base `display: flex` simply won and
+ * this did nothing at all. */
+@media (height <= 360px) {
+  .brand-row {
+    display: none;
+  }
+}
+
 .brand-name {
   font-size: var(--dsh-text-title);
   font-weight: 600;
@@ -103,7 +118,7 @@
    * without that subtraction the tail of a long menu, the pinned footer
    * included, fell outside the sidebar's `overflow: hidden` with nothing to
    * scroll it back into view. */
-  max-height: min(var(--dsh-menu-height), calc(100vh - var(--dsh-space-7) - 100%));
+  max-height: min(var(--dsh-menu-height), calc(100dvh - var(--dsh-space-7) - 100%));
   position: absolute;
   top: calc(100% + var(--dsh-space-1));
   inset-inline: 0;

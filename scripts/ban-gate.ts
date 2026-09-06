@@ -15,18 +15,17 @@
  */
 
 import { aliases } from './aliases.ts'
-import { lineReader, parseScript, walk } from './ast.ts'
+import { type Comment, type Parsed, parseScript, walk } from './ast.ts'
 import { BANNED } from './ban-rules.ts'
+import { SCRIPT_EXTENSIONS } from './extensions.ts'
 import { constants } from './fold.ts'
+import { lineReader } from './lines.ts'
 import type { Offence } from './offence.ts'
 import type { Names } from './rule-helpers.ts'
 import { LINT_LEVEL, rustAttributes } from './rust-attributes.ts'
 
-/** Extensions whose bans are read off a syntax tree. */
-export const SCRIPT_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const
-
-/** Extensions whose bans are read line by line, having no parser here. */
-export const PLAIN_EXTENSIONS = ['.rs', '.toml', '.yml', '.yaml', '.json'] as const
+export { PLAIN_EXTENSIONS } from './extensions.ts'
+export { SCRIPT_EXTENSIONS }
 
 /**
  * Directives that switch a checker off, in every language the repository uses.
@@ -46,6 +45,54 @@ const SUPPRESSIONS: readonly { readonly pattern: RegExp; readonly why: string }[
 ]
 
 /**
+ * Every doc comment that documents nothing.
+ *
+ * A doc comment attaches to whatever follows it, so one immediately followed by
+ * another attaches to nothing: the reader reads the second, and the first is
+ * prose about something that is no longer there. It is what a split leaves
+ * behind — the function moved and its documentation stayed — so the stranded
+ * block goes on describing a contract at a place that does not hold it, and the
+ * function that does hold it is left with none.
+ *
+ * A file's opening block is exempt, being about the module rather than about
+ * the declaration under it: the exemption is positional, so nothing is exempted
+ * by carrying a marker.
+ * @param parsed - the file's parse.
+ * @param text - the file's contents, read for what stands between two blocks.
+ * @returns one entry per stranded block, with its line.
+ */
+function orphanedDocs(parsed: Parsed, text: string): { readonly line: number }[] {
+  const firstStatement = parsed.body[0]?.start
+  const opensFile = (at: number): boolean => typeof firstStatement !== 'number' || at < firstStatement
+  const docs = parsed.comments.filter((comment) => comment.value.startsWith('*'))
+  return docs.flatMap((comment, index) => {
+    const next = docs[index + 1]
+    if (next === undefined || opensFile(comment.start)) return []
+    // A note written between two doc blocks consumes neither of them, so the
+    // first is stranded just the same; a declaration between them is what the
+    // first documents.
+    return onlyComments(text, comment.end, next.start, parsed.comments) ? [{ line: parsed.lineAt(comment.start) }] : []
+  })
+}
+
+/**
+ * Whether a span of a file holds nothing but whitespace and comments.
+ * @param text - the file's contents.
+ * @param from - where the span starts.
+ * @param to - where it ends.
+ * @param comments - every comment in the file.
+ * @returns true when nothing in the span is code.
+ */
+function onlyComments(text: string, from: number, to: number, comments: readonly Comment[]): boolean {
+  for (let at = from; at < to; at += 1) {
+    const character = text[at] ?? ''
+    if (character.trim() === '') continue
+    if (!comments.some((comment) => comment.start <= at && at < comment.end)) return false
+  }
+  return true
+}
+
+/**
  * Every ban a script breaks.
  * @param label - the path to report offences under.
  * @param text - the file's contents.
@@ -62,6 +109,13 @@ export function scanScript(label: string, text: string): Offence[] {
     for (const { pattern, why } of SUPPRESSIONS) {
       if (pattern.test(comment.value)) offences.push({ label, line: parsed.lineAt(comment.start), why })
     }
+  }
+  for (const orphan of orphanedDocs(parsed, text)) {
+    offences.push({
+      label,
+      line: orphan.line,
+      why: 'this doc comment is followed by another, so it documents nothing; move it to what it describes',
+    })
   }
   const names: Names = { aliases: aliases(parsed.body), constants: constants(parsed.body) }
   walk(parsed.body, (node) => {

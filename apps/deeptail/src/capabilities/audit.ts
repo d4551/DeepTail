@@ -67,7 +67,10 @@ export function createDenialAudit(): DenialAudit {
     record(event) {
       events.push(event)
       if (events.length > CAPACITY) events.shift()
-      for (const listener of [...listeners]) listener(event)
+      // A snapshot, not the set: a listener that unsubscribes as it is called
+      // would otherwise mutate the collection being walked.
+      const called = [...listeners]
+      for (const listener of called) listener(event)
     },
     recent: () => [...events],
     subscribe(listener) {

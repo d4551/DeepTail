@@ -6,6 +6,15 @@
  * written where a class belongs, is a regression no other gate reports: the
  * build still succeeds and every other suite stays green. The compiler face the
  * same kind of drift lands on is held by `compiler-face.spec.ts`.
+ *
+ * `check:bans` and `check:styles` run the same readers over the same tree from
+ * the gate chain, which is where a mutation run can drive them: this suite
+ * cannot judge a mutation of the modules it reads, because the instrumenter
+ * writes `var` and the bans refuse it, so the case would fail for every mutant
+ * alike. That is a reason for the mutation commands to leave this file out —
+ * `mutation-config.spec.ts` names it and holds it to still running under
+ * `bun run test` — and not a reason for the suite to stop existing. A
+ * contributor runs `bun test`; a reader of that run should see this.
  */
 
 import { describe, expect, it } from 'bun:test'

@@ -109,6 +109,40 @@ type Parsed = DefaultTreeAdapterTypes.Node & {
 }
 
 /**
+ * An htmx custom element. htmx 4 introduced tags of its own alongside its
+ * attributes, and they carry the same behaviour-in-the-markup this refuses.
+ */
+const HTMX_ELEMENT = /^hx-/u
+
+/**
+ * What one element carries in its own tag: an inline style, an inline handler,
+ * or a tag name a retired framework defines.
+ * @param attrs - the element's attributes.
+ * @param tag - the lowercased tag name, when the node has one.
+ * @param line - the line the element opens on.
+ * @param found - collects the offences.
+ */
+function recordElementOffences(
+  attrs: readonly { readonly name: string; readonly value?: string }[],
+  tag: string | undefined,
+  line: number,
+  found: { line: number; why: string }[],
+): void {
+  if (attrs.some((attribute) => attribute.name.toLowerCase() === STYLE_ATTRIBUTE)) {
+    found.push({ line, why: 'a style attribute is an inline style; put the rule in a stylesheet and add a class' })
+  }
+  if (attrs.some((attribute) => HANDLER.test(attribute.name))) {
+    found.push({ line, why: 'an inline event handler is a per-page script; attach the listener in a module' })
+  }
+  // htmx 4 ships custom elements, not only attributes: its partial tag is the
+  // documented replacement for the out-of-band swap attribute. A gate that
+  // reads attributes alone sees an ordinary unknown element and says nothing.
+  if (tag !== undefined && HTMX_ELEMENT.test(tag)) {
+    found.push({ line, why: `<${tag}> is an htmx element; render the markup and attach the listener in a module` })
+  }
+}
+
+/**
  * Every construct a fragment carries that no page may ship inline.
  *
  * Parsed in document mode, not fragment mode: the fragment algorithm ignores
@@ -126,12 +160,7 @@ export function markupOffences(text: string): MarkupOffence[] {
     const line = node.sourceCodeLocation?.startLine ?? 1
     const attrs = node.attrs ?? []
     const tag = typeof node.tagName === 'string' ? node.tagName.toLowerCase() : undefined
-    if (attrs.some((attribute) => attribute.name.toLowerCase() === STYLE_ATTRIBUTE)) {
-      found.push({ line, why: 'a style attribute is an inline style; put the rule in a stylesheet and add a class' })
-    }
-    if (attrs.some((attribute) => HANDLER.test(attribute.name))) {
-      found.push({ line, why: 'an inline event handler is a per-page script; attach the listener in a module' })
-    }
+    recordElementOffences(attrs, tag, line, found)
     recordAttributeOffences(attrs, tag, line, found)
     for (const attribute of attrs) {
       if (!URL_ATTRIBUTES.has(attribute.name.toLowerCase())) continue

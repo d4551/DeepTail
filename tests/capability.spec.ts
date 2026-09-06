@@ -48,7 +48,9 @@ describe('the capability ledger', () => {
     })
     expect([change.reason, ledger.live()]).toEqual(['not-issued-natively', 0])
   })
+})
 
+describe('a snapshot the ledger will not take', () => {
   it('drops what an earlier context issued', () => {
     const time = clock()
     const ledger = createGrantLedger(time.now)
@@ -66,7 +68,9 @@ describe('the capability ledger', () => {
     const spent = ledger.spend('host.read', { kind: 'device' })
     expect(spent.ok && spent.grant.revision).toBe(7)
   })
+})
 
+describe('spending a grant', () => {
   it('refuses a grant once it has expired', () => {
     const time = clock()
     const ledger = createGrantLedger(time.now)

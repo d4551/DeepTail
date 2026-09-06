@@ -8,6 +8,8 @@
  * @module
  */
 
+import { ACTIONS } from '../actions/registry.ts'
+
 /** Where focus sits inside the roster, in terms that survive a rebuild. */
 interface FocusedControl {
   readonly session: string
@@ -25,7 +27,10 @@ export function focusedControl(root: HTMLElement): FocusedControl | undefined {
   const row = active.closest<HTMLElement>('[data-deeptail-session]')
   const session = row?.dataset.deeptailSession
   if (session === undefined) return undefined
-  return { session, action: active.dataset.deeptailAction ?? 'open' }
+  // Every control in a row carries its registry marker, the open control
+  // included, so the sentinel this used to invent for it is gone: a marker off
+  // the union is what the restore below looks up, not a word chosen here.
+  return { session, action: active.dataset.deeptailAction ?? ACTIONS['session.open'].marker }
 }
 
 /**
@@ -50,8 +55,26 @@ export function restoreFocus(root: HTMLElement, focused: FocusedControl | undefi
   // one is a no-op that drops the operator to the document body. Focusing the
   // open control is what reveals them.
   stop.focus()
-  if (focused.action === 'open') return
+  if (focused.action === ACTIONS['session.open'].marker) return
   const target = row.querySelector<HTMLButtonElement>(`[data-deeptail-action="${CSS.escape(focused.action)}"]`)
   if (target === null) return
   target.focus()
+}
+
+/**
+ * Keep the roster reachable by keyboard whenever it is the only thing holding
+ * its own scroll.
+ *
+ * A pane that scrolls and draws no control of its own cannot be scrolled from
+ * a keyboard at all: there is nothing to tab to, and a wheel is a pointer.
+ * That is the roster's loading and empty states — exactly the states a short
+ * viewport makes scrollable. Once rows are drawn, tabbing through them scrolls
+ * the pane, so the pane must not take a stop of its own: a focusable ancestor
+ * of every row is a widget wrapped around widgets, which is its own defect.
+ * @param root - the roster element.
+ */
+export function keepScrollReachable(root: HTMLElement): void {
+  const control = root.querySelector('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
+  if (control === null) root.tabIndex = 0
+  else root.removeAttribute('tabindex')
 }
