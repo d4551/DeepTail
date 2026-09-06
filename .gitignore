@@ -23,3 +23,7 @@ apps/deeptail/tests/chromium.json
 
 # Local probes; their proofs live in the suite (tests/gate-coverage.spec.ts).
 /scratch
+
+# Mutation testing: the sandbox backup and the run reports.
+.stryker-tmp/
+reports/

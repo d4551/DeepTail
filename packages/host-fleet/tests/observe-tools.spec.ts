@@ -111,8 +111,75 @@ it('refuses a session id the host would not admit, on every tool that takes one'
       (outcome) => outcome.status !== 'rejected' || !String(outcome.reason).includes('is not a session id'),
     ),
   ).toEqual([])
+  // And it names the tool that refused, so an agent reading the failure knows
+  // which of three calls it came from. The guard is told which tool it is
+  // guarding, and a guard told nothing reports a message that starts with a
+  // bare colon.
+  const named = ['sessions_follow', 'sessions_send', 'sessions_cancel'].map(async (tool) => {
+    const args = tool === 'sessions_send' ? { sessionId: ' ', message: 'hi' } : { sessionId: ' ' }
+    return await run(tools, tool, args).then(() => '', String)
+  })
+  expect((await Promise.all(named)).map((message) => message.includes('Error: sessions_'))).toEqual([true, true, true])
   // Surrounding space is trimmed rather than refused, so a pasted id still works.
   const recorded = script()
   await run(registerTools(recorded), 'sessions_cancel', { sessionId: '  other  ' })
   expect(recorded.cancelled).toEqual(['other'])
+})
+
+it('forwards a message budget only when the caller set one', async () => {
+  // The budget decides how much of the window the host builds, so a tool that
+  // dropped it would answer with a different snapshot than the one asked for.
+  const recorded = script()
+  recorded.frames = [{ type: 'snapshot', cursor: 1, records: [] }]
+  await run(registerTools(recorded), 'sessions_follow', { sessionId: 'other', maxMessages: 3 })
+  expect(recorded.followed).toEqual([{ sessionId: 'other', maxMessages: 3 }])
+
+  // And the key is left off entirely when the caller set none, rather than
+  // named with nothing under it: a host that reads whether the budget was
+  // asked for, not what it was, answers differently to the two.
+  const bare = script()
+  bare.frames = [{ type: 'snapshot', cursor: 1, records: [] }]
+  await run(registerTools(bare), 'sessions_follow', { sessionId: 'other' })
+  expect(bare.followed).toEqual([{ sessionId: 'other', maxMessages: 'absent' }])
+})
+
+it('answers with the cut a snapshot with nothing before it reports', async () => {
+  const recorded = script()
+  recorded.frames = [{ type: 'snapshot', cursor: 0, hasMore: false, records: [] }]
+  expect(await run(registerTools(recorded), 'sessions_follow', { sessionId: 'other' })).toEqual({
+    sessionId: 'other',
+    cursor: 0,
+    hasMore: false,
+    records: 0,
+    recent: [],
+  })
+})
+
+it('reads the whole list when the caller sets no budget of their own', async () => {
+  // The double's configured budget is five, so a sixth row is what says the
+  // default was read from the limits rather than left unbounded.
+  const recorded = script()
+  recorded.listed = Array.from({ length: 6 }, (_unused, index) => ({
+    sessionId: `s-${String(index)}`,
+    running: false,
+    blank: false,
+    updatedAt: index,
+  }))
+  const listed = (await run(registerTools(recorded), 'sessions_list', {})) as {
+    sessions: { sessionId: string }[]
+    total: number
+  }
+  expect([listed.sessions.length, listed.total]).toEqual([5, 6])
+})
+
+it('refuses a negative row budget as it refuses zero', async () => {
+  await expect(run(registerTools(script()), 'sessions_list', { limit: -1 })).rejects.toThrow(
+    'sessions_list: limit must be a positive number',
+  )
+})
+
+it('reports a host with no sessions as an empty list rather than a failure', async () => {
+  const recorded = script()
+  recorded.listed = []
+  expect(await run(registerTools(recorded), 'sessions_list', {})).toEqual({ sessions: [], total: 0 })
 })

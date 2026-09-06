@@ -5,7 +5,7 @@
 
 import { expect, it } from 'bun:test'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
-import { apply, check, name, TOOLS } from '../src/invariant.ts'
+import { apply, check, inject, name, TOOLS } from '../src/invariant.ts'
 import type { InvariantContext } from '../src/types.ts'
 import { registerTools, script } from './controller-double.ts'
 
@@ -73,4 +73,35 @@ it('reports exactly the tools that did not register', async () => {
 it('reports every tool when the registration never ran', async () => {
   const failure = await run([], true)
   for (const tool of TOOLS) expect(failure).toContain(tool)
+})
+
+it('promises exactly the tools the package registers', () => {
+  // Read off the real registration rather than restated: a name dropped from
+  // this list is a tool the companion stops checking for, and a name added is
+  // one it demands of a host that was never promised it.
+  const promised: string[] = [...TOOLS]
+  const registered: string[] = [...registerTools(script()).keys()]
+  expect(promised.toSorted()).toEqual(registered.toSorted())
+})
+
+it('declares the service it reaches for, and nothing it does not', async () => {
+  // The loader reads this before the companion runs, so a service missing from
+  // it is a companion started before the registry it registers on exists. It is
+  // checked against what applying actually reads off the context rather than
+  // against a copy of the declaration.
+  const read = new Set<string>()
+  const definitions = registerTools(script())
+  const host: InvariantContext = {
+    invariants: { register: () => () => null },
+    tools: { get: (tool: string) => definitions.get(tool) },
+  }
+  const watched = new Proxy(host, {
+    get: (target, key, receiver) => {
+      if (typeof key === 'string') read.add(key)
+      return Reflect.get(target, key, receiver) as unknown
+    },
+  })
+  await apply(watched)
+  expect([...inject]).toEqual(['invariants'])
+  expect([...inject].filter((service) => !read.has(service))).toEqual([])
 })

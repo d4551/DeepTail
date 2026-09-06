@@ -76,24 +76,41 @@ function previewOf(data: JsonValue): string {
 
 /**
  * The content array of a logged message payload, from either shape.
+ *
+ * `user/message` carries its content directly and `assistant/message` nests it
+ * under `message`; the direct shape is read first, so a payload carrying both
+ * is read as the direct one. Anything else — a payload that is not an object, a
+ * `content` that is not an array, a `message` that is not an object — carries
+ * no content, and that is one answer written once rather than three.
+ *
+ * Exported because it is a contract of its own: the absent answer is an empty
+ * list, and nothing observes the difference between that and a list of
+ * something unreadable once the block filter has run.
  * @param data - the event payload.
  * @returns the content blocks, or an empty list when the payload carries none.
  */
-function messageContent(data: JsonValue): readonly JsonValue[] {
-  if (!isObject(data)) return []
-  const direct = data.content
+export function messageContent(data: JsonValue): readonly JsonValue[] {
+  const direct = isObject(data) ? data.content : undefined
   if (Array.isArray(direct)) return direct
-  const nested = data.message
-  if (nested === undefined || !isObject(nested)) return []
-  const inner = nested.content
-  return Array.isArray(inner) ? inner : []
+  const nested = isObject(data) && isObject(data.message) ? data.message.content : undefined
+  return Array.isArray(nested) ? nested : []
 }
 
 /**
  * Whether a JSON value is an object with string keys rather than an array.
- * @param value - the value to test.
+ *
+ * All three clauses carry weight and none is observable through the projections
+ * alone: a string passes the other two, and reading a key off it answers
+ * `undefined` rather than failing, so a payload or a block that is a string
+ * would be admitted here and rejected one step later — silently, and for the
+ * wrong reason. Exported so the predicate is checked where it is decided.
+ *
+ * An absent key answers here rather than at each call: a reader that had to
+ * check for `undefined` before asking would be stating the same thing twice,
+ * in as many places as it reads a key.
+ * @param value - the value to test, or nothing where a key was absent.
  * @returns true when the value can be indexed by key.
  */
-function isObject(value: JsonValue): value is JsonObject {
+export function isObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

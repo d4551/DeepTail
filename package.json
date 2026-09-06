@@ -31,10 +31,13 @@
     "check:cargo": "bun scripts/cargo-freshness.ts",
     "gen:registry": "bun scripts/gen-action-registry.ts",
     "check:registry": "bun scripts/gen-action-registry.ts --check",
-    "a11y": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests/a11y.browser.spec.ts apps/deeptail/tests/a11y-errors.browser.spec.ts apps/deeptail/tests/tailnet.browser.spec.ts --timeout 180000 && echo 'axe: no accessibility violations'"
+    "a11y": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests/a11y.browser.spec.ts apps/deeptail/tests/a11y-errors.browser.spec.ts apps/deeptail/tests/tailnet.browser.spec.ts --timeout 180000 && echo 'axe: no accessibility violations'",
+    "mutate:host-fleet": "stryker run stryker.host-fleet.json",
+    "mutate": "bun run mutate:host-fleet"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
+    "@stryker-mutator/core": "10.0.0",
     "@tauri-apps/cli": "2.11.4",
     "@types/bun": "^1.4.1",
     "@types/node": "^26.4.1",
