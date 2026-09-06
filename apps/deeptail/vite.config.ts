@@ -14,8 +14,10 @@ export default defineConfig({
   },
   build: {
     // Both mobile webviews and every supported desktop webview handle modern
-    // output; the harness client bundles are fetched from the host at runtime
-    // and are not part of this build.
+    // output. The client's *plugin* bundles are fetched from the host at
+    // runtime; the client itself is a dependency of this build and is split
+    // into its own chunk, loaded when a session is opened rather than when the
+    // shell paints (see `boot.ts`, and `tests/boot-weight.spec.ts`).
     target: 'esnext',
     sourcemap: true,
   },

@@ -118,7 +118,7 @@
    * without that subtraction the tail of a long menu, the pinned footer
    * included, fell outside the sidebar's `overflow: hidden` with nothing to
    * scroll it back into view. */
-  max-height: min(var(--dsh-menu-height), calc(100vh - var(--dsh-space-7) - 100%));
+  max-height: min(var(--dsh-menu-height), calc(100dvh - var(--dsh-space-7) - 100%));
   position: absolute;
   top: calc(100% + var(--dsh-space-1));
   inset-inline: 0;

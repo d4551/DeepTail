@@ -134,7 +134,7 @@
     inset-block: 0;
     inset-inline-start: 0;
     z-index: var(--dsh-z-drawer);
-    width: min(var(--dsh-drawer-width), 86vw);
+    width: min(var(--dsh-drawer-width), 86dvw);
     padding-top: max(var(--dsh-space-2), env(safe-area-inset-top));
     padding-bottom: max(var(--dsh-space-2), env(safe-area-inset-bottom));
     /* The notch is a device fact, not a writing-mode one, and it can sit on

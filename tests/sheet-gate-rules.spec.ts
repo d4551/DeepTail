@@ -35,7 +35,7 @@ describe('the stylesheet gate rejects', () => {
 
   it('a length hidden inside a function, which still decides the layout', () => {
     expect(sheetOffences('.a { width: min(420px, 100%); }')).toHaveLength(1)
-    expect(sheetOffences('.a { max-height: calc(100vh - 24px); }')).toHaveLength(1)
+    expect(sheetOffences('.a { max-height: calc(100dvh - 24px); }')).toHaveLength(1)
     expect(sheetOffences('.a { padding: max(16px, env(safe-area-inset-top)); }')).toHaveLength(1)
   })
 
@@ -157,6 +157,26 @@ describe('the stylesheet gate rejects a remote or retired dependency', () => {
   })
 })
 
+describe('the stylesheet gate rejects a viewport unit that lies', () => {
+  it('a height or width measured against a viewport the reader may not have', () => {
+    // `100vh` is the large viewport: on a mobile browser it is measured as
+    // though the retractable chrome were retracted, so a box sized by it runs
+    // past the bottom of the screen while the chrome is showing. The
+    // connection menu was capped that way and its pinned footer sat exactly
+    // there, out of reach with nothing to scroll it back.
+    expect(sheetOffences('.a { max-height: calc(100vh - 8px); }')).not.toEqual([])
+    expect(sheetOffences('.a { block-size: 50vh; }')).not.toEqual([])
+    expect(sheetOffences('.a { width: min(var(--dsh-drawer-width), 86vw); }')).not.toEqual([])
+  })
+
+  it('but allows the dynamic units, and the two that name an end on purpose', () => {
+    expect(sheetOffences('.a { max-height: calc(100dvh - var(--dsh-space-7)); }')).toEqual([])
+    expect(sheetOffences('.a { width: min(var(--dsh-drawer-width), 86dvw); }')).toEqual([])
+    expect(sheetOffences('.a { max-height: 100svh; }')).toEqual([])
+    expect(sheetOffences('.a { max-height: 100lvh; }')).toEqual([])
+  })
+})
+
 describe('the stylesheet gate allows', () => {
   it('a length read from the scale', () => {
     expect(sheetOffences('.a { padding: var(--dsh-space-5); }')).toEqual([])
@@ -185,7 +205,7 @@ describe('the stylesheet gate allows', () => {
 
   it('a relative or intrinsic length, which no scale can name', () => {
     expect(sheetOffences('.a { width: 100%; }')).toEqual([])
-    expect(sheetOffences('.a { max-height: 100vh; }')).toEqual([])
+    expect(sheetOffences('.a { max-height: 100dvh; }')).toEqual([])
     expect(sheetOffences('.a { inset: 20%; }')).toEqual([])
     expect(sheetOffences('.a { letter-spacing: 0.08em; }')).toEqual([])
   })

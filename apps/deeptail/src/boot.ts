@@ -13,7 +13,7 @@
  * @module
  */
 
-import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
+import type { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 import { invoke } from '@tauri-apps/api/core'
 import type { HostRecord } from './host.ts'
 import { applyIndexInjections, type IndexInjection } from './injections.ts'
@@ -73,6 +73,12 @@ export async function bootHost(host: HostRecord, container: HTMLElement): Promis
     )
   if (!installed.settled) throw installed.reason
   ready.resolve()
+  // Imported here rather than at the top of the module: the client is the
+  // heaviest thing this app can load, the shell exists precisely to be usable
+  // without it, and a static import made every shell boot parse and evaluate
+  // it to paint a roster it is not part of. It is fetched the moment a session
+  // is actually opened, which is the only moment it is needed.
+  const { AppWebEntry } = await import('@deepseek-ai/dsh-client-web')
   const entry = new AppWebEntry(container)
   await entry.run()
   return { entry, carrier }

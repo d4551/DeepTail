@@ -50,6 +50,20 @@ const STACKING = /^-?\d+$/u
 // global regex keeps lastIndex between calls, so one match would hide the next.
 const REMOTE_URL_VALUE = /url\(\s*["']?(?:https?:)?\/\//iu
 
+/**
+ * The viewport units that report a box the reader cannot see.
+ *
+ * `vh` is the *large* viewport: on a mobile browser it is measured as though
+ * the retractable chrome were retracted, so a box sized by it is taller than
+ * what is on screen whenever the chrome is showing, and its tail is unreachable
+ * — the menu's pinned footer sat exactly there. `vw` has the same shape of
+ * problem with a classic scrollbar. The dynamic units (`dvh`, `dvw`) track what
+ * is actually visible, and `svh`/`lvh` name a specific end of that range on
+ * purpose, so all of those are allowed and only the two that quietly lie are
+ * refused.
+ */
+const STATIC_VIEWPORT_UNIT = /\b\d+(?:\.\d+)?(vh|vw)\b/u
+
 /** A length written as a number of pixels. */
 const PIXELS = /\b\d+px\b/gu
 
@@ -186,6 +200,14 @@ function declarationOffences(label: string, text: string): Offence[] {
         why: 'justified or physical text alignment is an alignment defect; use text-align start or end',
       })
       continue
+    }
+    const viewportUnit = STATIC_VIEWPORT_UNIT.exec(value)
+    if (viewportUnit !== null) {
+      offences.push({
+        label,
+        line,
+        why: `${viewportUnit[0]} is measured against a viewport the reader may not have; use the dynamic unit d${viewportUnit[1] ?? ''}`,
+      })
     }
     if (REMOTE_URL_VALUE.test(value)) {
       offences.push({
