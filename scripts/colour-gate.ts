@@ -177,6 +177,17 @@ const RAW = new RegExp(
 const OVERRIDE = ['!', 'important'].join('')
 
 /**
+ * The override flag as CSS accepts it.
+ *
+ * The grammar puts an optional run of whitespace and comments between the
+ * bang and the keyword, and matches the keyword without regard to case, so
+ * `! important` and `!IMPORTANT` win the cascade exactly as the plain spelling
+ * does. A gate that looked for the plain spelling was two keystrokes from
+ * being no gate at all.
+ */
+const OVERRIDE_FLAG = new RegExp(`!\\s*${OVERRIDE.slice(1)}\\b`, 'iu')
+
+/**
  * The palette and cascade rules one declaration breaks.
  * @param label - the path to report offences under.
  * @param value - the declaration's value, trimmed.
@@ -193,7 +204,7 @@ export function scanColour(label: string, value: string, line: number): Offence[
       why: `${colour[0]} is written out rather than read from the palette in tokens.css`,
     })
   }
-  if (value.includes(OVERRIDE)) {
+  if (OVERRIDE_FLAG.test(value)) {
     offences.push({ label, line, why: `an ${OVERRIDE} override wins every cascade; restate the selector instead` })
   }
   return offences

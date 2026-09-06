@@ -125,7 +125,7 @@ describe('the stylesheet gate rejects a raw palette and cascade', () => {
     // Spelt in parts: the operator is the fixture's subject, not this file's.
     const ampersand = joined('&', '')
     expect(sheetOffences(joined('.a { ', `${ampersand}:hover { color: currentcolor; } }`))).toEqual([
-      `a nested selector rides another rule's scope; state the selector at the top level`,
+      `${ampersand}:hover rides another rule's scope; state the selector at the top level`,
     ])
     expect(sheetOffences(joined('.a { .b ', `${ampersand}::before { color: currentcolor; } }`))).not.toEqual([])
   })

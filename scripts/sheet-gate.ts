@@ -17,67 +17,28 @@
  * @module
  */
 
-import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
+import { declarationOffences } from './sheet-declarations.ts'
 import { deepSelectors, MAX_COMPOUNDS } from './sheet-depth.ts'
 import { duplicateRulesets } from './sheet-duplicates.ts'
 import { importOffences } from './sheet-imports.ts'
-import { declarationsOf, withoutComments } from './sheet-reader.ts'
+import { rulesetsOf, withoutComments } from './sheet-reader.ts'
 
 export { deepSelectors, duplicateRulesets }
 
-/** The sheet that is allowed to hold raw values, because it is where they live. */
-export const TOKEN_SHEET = 'tokens.css'
+/**
+ * The sheet that is allowed to hold raw values, because it is where they live.
+ *
+ * Named by its whole path, not by its ending. A gate that exempted any file
+ * whose name ended `tokens.css` exempted a file anyone could add: a sheet
+ * called `probe-tokens.css` carrying a float, a physical margin, a raw hex
+ * colour, a static viewport height and a remote asset passed every rule here
+ * whole, because of what it was called.
+ */
+export const TOKEN_SHEET = 'apps/deeptail/src/styles/tokens.css'
 
 /** Extensions this gate reads. */
 export const STYLE_EXTENSIONS = ['.css'] as const
-
-/**
- * Lengths any sheet may write.
- *
- * A hairline and a focus ring are drawn, not spaced: they are one device pixel
- * and two, at every density and every scale, and naming them would be naming
- * the same number twice. Everything else is a spacing, radius or type decision
- * and belongs to the scale.
- */
-const DRAWN_LENGTHS = new Set(['0px', '1px', '2px', '3px'])
-
-/** A stacking order written as a bare number. */
-const STACKING = /^-?\d+$/u
-
-/** A `url()` that loads from outside the shipped bundle. */
-// No `g` flag: this is tested with RegExp.test across declarations, and a
-// global regex keeps lastIndex between calls, so one match would hide the next.
-const REMOTE_URL_VALUE = /url\(\s*["']?(?:https?:)?\/\//iu
-
-/**
- * The viewport units that report a box the reader cannot see.
- *
- * `vh` is the *large* viewport: on a mobile browser it is measured as though
- * the retractable chrome were retracted, so a box sized by it is taller than
- * what is on screen whenever the chrome is showing, and its tail is unreachable
- * — the menu's pinned footer sat exactly there. `vw` has the same shape of
- * problem with a classic scrollbar. The dynamic units (`dvh`, `dvw`) track what
- * is actually visible, and `svh`/`lvh` name a specific end of that range on
- * purpose, so all of those are allowed and only the two that quietly lie are
- * refused.
- */
-const STATIC_VIEWPORT_UNIT = /\b\d+(?:\.\d+)?(vh|vw)\b/u
-
-/** A length written as a number of pixels. */
-const PIXELS = /\b\d+px\b/gu
-
-/** Properties whose lengths are spacing, radius or type decisions. */
-const SCALED = new RegExp(
-  '^(margin|padding|gap|row-gap|column-gap|inset|top|right|bottom|left' +
-    '|margin-(top|right|bottom|left|block|inline)(-start|-end)?' +
-    '|padding-(top|right|bottom|left|block|inline)(-start|-end)?' +
-    '|inset-(block|inline)(-start|-end)?' +
-    '|(min-|max-)?(width|height)|(min-|max-)?(block|inline)-size' +
-    '|border-radius|font-size|line-height|grid-template-columns|grid-template-rows' +
-    '|scroll-margin|scroll-padding)$',
-  'u',
-)
 
 /** A viewport size a media query switches layout on, in either syntax. */
 // Layout switches at a size in either query family the sheets use: media for
@@ -100,29 +61,25 @@ const RETIRED_AT_RULES =
   /@(?:apply|tailwind|config|plugin|utility|variant|source|theme|screen|responsive|layer\s+utilities)\b/u
 
 /**
- * A selector written relative to the rule it sits inside, the nesting
- * operator.
+ * Every rule a sheet writes inside another rule.
  *
- * This gate reads a rule as one selector list and one flat brace of
- * declarations, so a nested rule is not a structure it can see: the nest is
- * flattened into a rule whose selector carries the operator, and the scoping
- * the nest was doing — which page, which state — is exactly what stops being
- * reviewed. A selector at the top level states its own scope, so none may
- * ride on another rule's.
+ * A nested rule rides its parent's scope, and the scoping it is doing — which
+ * page, which state — is exactly what stops being reviewed when the rule is
+ * read on its own. A selector at the top level states its own scope, so none
+ * may ride on another's.
+ *
+ * Read from the brace structure, not from the `&` operator. CSS nesting needs
+ * no `&` at all: `.a { .b { ... } }` is a nest, and while this rule looked for
+ * the operator it was one keystroke to write a nest the gate said nothing
+ * about — and, worse, a nest hid every declaration of its enclosing rule from
+ * the reader that found rules by pattern.
+ * @param text - the sheet's contents.
+ * @returns one entry per nested rule, with its selector and line.
  */
-const NESTED = /(^|[\s,+>~])&/gu
-
-/**
- * Every line a sheet nests a selector on.
- * @param text - the sheet's contents, comments already blanked.
- * @returns one entry per nested selector, with its line.
- */
-function nestedSelectors(text: string): { readonly line: number }[] {
-  const found: { line: number }[] = []
-  for (const match of text.matchAll(NESTED)) {
-    found.push({ line: text.slice(0, match.index).split('\n').length })
-  }
-  return found
+function nestedSelectors(text: string): { readonly selector: string; readonly line: number }[] {
+  return rulesetsOf(text)
+    .filter((rule) => rule.nested)
+    .map((rule) => ({ selector: rule.selector, line: rule.line }))
 }
 
 /**
@@ -141,103 +98,6 @@ function retiredAtRules(text: string): { readonly rule: string; readonly line: n
 }
 
 /**
- * The physical side properties, which break when the document direction
- * reverses.
- *
- * A sheet written with left and right sides is a sheet that only reads
- * correctly in one writing mode: the logical start/end spellings follow the
- * direction, so they are the only side spellings a sheet may use.
- */
-const PHYSICAL_SIDES = new Set([
-  'margin-left',
-  'margin-right',
-  'padding-left',
-  'padding-right',
-  'border-left',
-  'border-right',
-  'border-left-width',
-  'border-right-width',
-  'border-left-color',
-  'border-right-color',
-  'border-left-style',
-  'border-right-style',
-  'left',
-  'right',
-])
-
-/**
- * Every declaration a sheet writes that it may not write.
- * @param label - the path to report offences under.
- * @param text - the sheet's contents, comments already blanked.
- * @returns one offence per rejected declaration.
- */
-function declarationOffences(label: string, text: string): Offence[] {
-  const offences: Offence[] = []
-  for (const { property, value, line } of declarationsOf(text)) {
-    if (property.startsWith('--')) continue
-    if (property === 'z-index') {
-      if (STACKING.test(value)) {
-        offences.push({ label, line, why: 'a stacking order belongs to the z-index scale in tokens.css' })
-      }
-      continue
-    }
-    if (property === 'float') {
-      offences.push({ label, line, why: 'float is legacy layout; use flex or grid' })
-      continue
-    }
-    if (PHYSICAL_SIDES.has(property)) {
-      offences.push({
-        label,
-        line,
-        why: `${property} is a physical side; use the logical start or end spelling so the direction follows the writing mode`,
-      })
-      continue
-    }
-    if (property === 'text-align' && (value.includes('justify') || value === 'left' || value === 'right')) {
-      offences.push({
-        label,
-        line,
-        why: 'justified or physical text alignment is an alignment defect; use text-align start or end',
-      })
-      continue
-    }
-    const viewportUnit = STATIC_VIEWPORT_UNIT.exec(value)
-    if (viewportUnit !== null) {
-      offences.push({
-        label,
-        line,
-        why: `${viewportUnit[0]} is measured against a viewport the reader may not have; use the dynamic unit d${viewportUnit[1] ?? ''}`,
-      })
-    }
-    if (REMOTE_URL_VALUE.test(value)) {
-      offences.push({
-        label,
-        line,
-        why: 'a remote URL loads an asset no local install ships; ship the asset in the bundle',
-      })
-    }
-    offences.push(...scanColour(label, value, line), ...scaledLengthOffences(label, property, value, line))
-  }
-  return offences
-}
-
-function scaledLengthOffences(label: string, property: string, value: string, line: number): Offence[] {
-  if (!SCALED.test(property)) return []
-  const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
-  if (lengths.length === 0) return []
-  if (property === 'grid-template-columns' || property === 'grid-template-rows') {
-    return [
-      {
-        label,
-        line,
-        why: `hardcoded-grid: ${lengths.join(', ')} in ${property} belongs to the scale in tokens.css`,
-      },
-    ]
-  }
-  return [{ label, line, why: `${lengths.join(', ')} is written out rather than read from the scale in tokens.css` }]
-}
-
-/**
  * Every rule a stylesheet breaks.
  * @param label - the path to report offences under.
  * @param text - the sheet's contents.
@@ -246,7 +106,7 @@ function scaledLengthOffences(label: string, property: string, value: string, li
 export function scanSheet(label: string, text: string): Offence[] {
   const blanked = withoutComments(text)
   const offences: Offence[] = [...duplicateRulesets(label, text)]
-  if (label.endsWith(TOKEN_SHEET)) return offences
+  if (label === TOKEN_SHEET) return offences
   for (const deep of deepSelectors(text)) {
     offences.push({
       label,
@@ -254,11 +114,11 @@ export function scanSheet(label: string, text: string): Offence[] {
       why: `${deep.selector} chains past ${String(MAX_COMPOUNDS)} compounds; scope the rule by class instead of structure`,
     })
   }
-  for (const nested of nestedSelectors(blanked)) {
+  for (const nested of nestedSelectors(text)) {
     offences.push({
       label,
       line: nested.line,
-      why: "a nested selector rides another rule's scope; state the selector at the top level",
+      why: `${nested.selector} rides another rule's scope; state the selector at the top level`,
     })
   }
   for (const retired of retiredAtRules(blanked)) {

@@ -10,7 +10,7 @@
  * @module
  */
 
-import { rulesetsOf } from './sheet-reader.ts'
+import { type Block, blocksOf, type Declaration } from './sheet-reader.ts'
 
 /** The properties that can paint a focus ring. */
 const RING_PROPERTIES = new Set(['outline', 'outline-width', 'outline-style', 'box-shadow'])
@@ -27,27 +27,25 @@ interface RingEffect {
 }
 
 /**
- * What one rule body does to the focus ring.
+ * What one rule's declarations do to the focus ring.
  *
- * The declarations are walked rather than matched with a lookahead: a pattern
+ * The declarations are read rather than matched with a lookahead: a pattern
  * that reads `outline:` and then asserts the value is not `none` can satisfy
  * the assertion by matching fewer spaces, and reads `outline: none` as a ring.
- * @param body - the rule's declarations, whitespace already collapsed.
+ * They come from the shared sheet reader rather than a second split of the
+ * rule's text — this module had its own, which is one more notion of where a
+ * declaration ends, and it read a semicolon inside a quoted value as the end
+ * of one.
+ * @param declarations - the rule's declarations, as the sheet reader read them.
  * @returns whether it hides a ring and whether it paints one.
  */
-function ringEffect(body: string): RingEffect {
+function ringEffect(declarations: readonly Declaration[]): RingEffect {
   let hides = false
   let paints = false
-  for (const declaration of body.split(';')) {
-    const colon = declaration.indexOf(':')
-    if (colon === -1) continue
-    const property = declaration.slice(0, colon).trim().toLowerCase()
-    const value = declaration
-      .slice(colon + 1)
-      .trim()
-      .toLowerCase()
-    if (!RING_PROPERTIES.has(property) || value === '') continue
-    if (BLANK_VALUES.has(value)) {
+  for (const { property, value } of declarations) {
+    const painted = value.toLowerCase()
+    if (!RING_PROPERTIES.has(property) || painted === '') continue
+    if (BLANK_VALUES.has(painted)) {
       if (property === 'outline' || property === 'outline-style') hides = true
       continue
     }
@@ -67,19 +65,19 @@ function ringEffect(body: string): RingEffect {
  * @returns each selector that hides the ring and restores nothing.
  */
 export function unringedSelectors(text: string): string[] {
-  const rules = rulesetsOf(text)
+  const rules: readonly Block[] = blocksOf(text).filter((block) => !block.atRule && block.prelude !== '')
   const restored = new Set<string>()
   for (const rule of rules) {
-    if (!ringEffect(rule.body).paints) continue
-    for (const one of rule.selector.split(',')) {
+    if (!ringEffect(rule.declarations).paints) continue
+    for (const one of rule.prelude.split(',')) {
       const base = one.trim()
       if (base.endsWith(':focus-visible')) restored.add(base.slice(0, -':focus-visible'.length))
     }
   }
   const hidden: string[] = []
   for (const rule of rules) {
-    if (!ringEffect(rule.body).hides) continue
-    for (const one of rule.selector.split(',')) {
+    if (!ringEffect(rule.declarations).hides) continue
+    for (const one of rule.prelude.split(',')) {
       const base = one.trim()
       if (base !== '' && !restored.has(base)) hidden.push(base)
     }

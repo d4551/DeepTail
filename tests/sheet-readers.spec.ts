@@ -48,4 +48,19 @@ describe('the focus-ring reader', () => {
     expect(unringedSelectors('.a { color: red; }')).toEqual([])
     expect(unringedSelectors('.a { outline: 2px solid red; }')).toEqual([])
   })
+
+  it('reads a declaration the way the shared reader does, quotes and all', () => {
+    // This module split rule text on its own, which is a second notion of
+    // where a declaration ends: a semicolon inside a quoted value ended one,
+    // so a rule could be read as hiding a ring it never touches, and a rule
+    // that paints one could be read as painting nothing.
+    expect(unringedSelectors('.a { content: "x; outline: none"; }')).toEqual([])
+    expect(
+      unringedSelectors('.a { outline: none; }\n.a:focus-visible { content: "y; z"; outline: 2px solid red; }'),
+    ).toEqual([])
+  })
+
+  it('reads a nested rule, which hides a ring exactly as any other does', () => {
+    expect(unringedSelectors('.a { color: red; .b { outline: none } }')).toEqual(['.b'])
+  })
 })
