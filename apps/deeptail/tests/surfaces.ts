@@ -48,7 +48,11 @@ export async function realizeView(page: Page, view: { width: number; height: num
   if (size?.width !== view.width || size.height !== view.height) {
     await page.setViewportSize({ width: view.width, height: view.height })
   }
-  expect(page.viewportSize()?.width).toBe(view.width)
+  // Both axes. Widths alone identified a row only while every row had its own;
+  // the reflow floor is 320 wide like the small phone and differs only in being
+  // 256 tall, so a check on width would pass a page that never left the phone's
+  // height — which is the one thing that row exists to measure.
+  expect([page.viewportSize()?.width, page.viewportSize()?.height]).toEqual([view.width, view.height])
 }
 
 /**
@@ -102,17 +106,28 @@ export async function expectNoViolationsAtEachWidth(
     AUDIT_VIEWS.map(async (view) => {
       const page = await open(view)
       await realizeView(page, view)
-      const size = page.viewportSize()?.width
+      const size = page.viewportSize()
       const violations = describeViolations(await harness.audit(page))
       await page.close()
       return { label: view.label, size, violations }
     }),
   )
-  const widths = results.flatMap((result) => (result.size === undefined ? [] : [result.size]))
+  // Each designed box, by both axes, in both palettes. A list of widths could
+  // not tell the reflow floor from the small phone: they share a width and
+  // differ only in height, so a sweep that opened the phone twice and never
+  // realized 256 read as having measured both — and the row whose whole point
+  // is its height was the one nothing checked.
+  const realized = results.flatMap((result) =>
+    result.size === null || result.size === undefined
+      ? []
+      : [`${result.label} ${String(result.size.width)}x${String(result.size.height)}`],
+  )
   const found = results
     .filter((result) => result.violations !== '')
-    .map((result) => `${result.label} (${String(result.size)}): ${result.violations}`)
-  for (const viewport of VIEWPORTS) expect(widths).toContain(viewport.width)
+    .map((result) => `${result.label} (${String(result.size?.width)}): ${result.violations}`)
+  expect(realized.toSorted()).toEqual(
+    AUDIT_VIEWS.map((view) => `${view.label} ${String(view.width)}x${String(view.height)}`).toSorted(),
+  )
   expect(found).toEqual([])
 }
 
