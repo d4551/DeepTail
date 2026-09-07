@@ -17,8 +17,8 @@
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { coerce, gte, major, maxSatisfying, minor, satisfies } from 'semver'
-import { EMPTY_SECTION, isJsonObject, readJsonc } from '../scripts/jsonc.ts'
-import { readJsoncSync } from './jsonc-io.ts'
+import { readLock } from '../scripts/manifest.ts'
+import { readOxlintConfig } from './checkers.ts'
 import { everyDependency } from './manifests.ts'
 
 /**
@@ -158,19 +158,19 @@ function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
 }
 
 describe('stack floors', () => {
-  it('pins every tool at or above its floor', async () => {
-    expect(belowFloor(await everyDependency())).toEqual([])
+  it('pins every tool at or above its floor', () => {
+    expect(belowFloor(everyDependency())).toEqual([])
   })
 
-  it('states a floor for everything it declares, at exactly the version declared', async () => {
-    expect(floorDrift(await everyDependency())).toEqual([])
+  it('states a floor for everything it declares, at exactly the version declared', () => {
+    expect(floorDrift(everyDependency())).toEqual([])
   })
 
-  it('binds the lockfile to the declarations and the floors', async () => {
+  it('binds the lockfile to the declarations and the floors', () => {
     // A manifest can claim a version the lockfile never resolved: the floors
     // would pass while `bun install --frozen-lockfile` fails or, worse, an
     // older resolved copy ships. The lock is the truth of what is installed.
-    expect(lockfileOffences(await everyDependency())).toEqual([])
+    expect(lockfileOffences(everyDependency())).toEqual([])
   })
 
   it('keeps the installer hermetic and ships no release hold', async () => {
@@ -185,19 +185,19 @@ describe('stack floors', () => {
     expect(cache?.[1]).toBe('.tmp-bun/cache')
   })
 
-  it('keeps every linter category enabled', async () => {
-    const config = readJsonc(await readFile('.oxlintrc.json', 'utf8'))
-    const categories = isJsonObject(config['categories']) ? config['categories'] : EMPTY_SECTION
-    const rules = isJsonObject(config['rules']) ? config['rules'] : EMPTY_SECTION
+  it('keeps every linter category enabled', () => {
+    const config = readOxlintConfig('.oxlintrc.json')
     for (const category of ['correctness', 'suspicious', 'perf', 'pedantic']) {
-      expect(categories[category]).toBe('error')
+      expect([category, config.categories.get(category)]).toEqual([category, 'error'])
     }
-    // A rule switched off is a defect hidden rather than fixed.
-    expect(Object.values(rules).filter((level) => level === 'off')).toEqual([])
+    // A rule held below `error` is a defect reported at a level nothing fails
+    // on, which is a defect hidden rather than fixed. `off` alone was the same
+    // oversight: `warn` and `info` silence a build exactly as completely.
+    expect([...config.rules].filter(([, level]) => level !== 'error')).toEqual([])
     // The linter carries no ignore list: what it reads is decided by the
     // repository's own ship list, not by a second list here. The keys are
     // asserted absent rather than undefined-valued, because a key present and
     // spelled `null` reads as neither, and silences exactly as much.
-    expect(Object.keys(config).filter((key) => key === 'ignorePatterns' || key === 'overrides')).toEqual([])
+    expect(config.keys.filter((key) => key === 'ignorePatterns' || key === 'overrides')).toEqual([])
   })
 })

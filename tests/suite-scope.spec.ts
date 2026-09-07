@@ -17,12 +17,15 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { readManifest } from '../scripts/manifest.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 
 /** Where the browser suites live, and the suffix that keeps them out of the unit run. */
 const BROWSER_DIRECTORY = 'apps/deeptail/tests/'
 const BROWSER_SUFFIX = '.browser.spec.ts'
+
+/** The manifest whose scripts this suite is written about. */
+const MANIFEST = 'package.json'
 
 /** Every spec the repository ships, by directory. */
 function specs(): { readonly browser: string[]; readonly unit: string[] } {
@@ -44,8 +47,7 @@ function specs(): { readonly browser: string[]; readonly unit: string[] } {
  * @returns the shell words after `bun test`, flags dropped.
  */
 function unitTestArguments(): string[] {
-  const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
-  const script = manifest.scripts?.['test'] ?? ''
+  const script = readManifest(MANIFEST).scripts.get('test') ?? ''
   const words = script.trim().split(/\s+/u)
   const start = words.indexOf('test')
   if (words[0] !== 'bun' || start === -1) throw new Error(`the test script is not a bun test run: ${script}`)
@@ -118,11 +120,10 @@ describe('the gates the chain runs', () => {
     // impossible — a suite that reads the whole tree cannot judge a mutation
     // of the modules it reads — so the chain is where they live now, and this
     // is what says so when one falls out of it.
-    const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
-    const scripts = manifest.scripts ?? {}
-    const gates = Object.keys(scripts).filter((name) => name.startsWith('check:'))
+    const scripts = readManifest(MANIFEST).scripts
+    const gates = [...scripts.keys()].filter((name) => name.startsWith('check:'))
     expect(gates.length).toBeGreaterThan(0)
-    const chain = scripts['validate'] ?? ''
+    const chain = scripts.get('validate') ?? ''
     expect(gates.filter((gate) => !chain.includes(`bun run ${gate}`))).toEqual([])
   })
 
@@ -131,14 +132,16 @@ describe('the gates the chain runs', () => {
     // that module's own fixtures prove: one gate, read twice, never two. That
     // the named module exists is what is checked; what it does is checked
     // where it is driven.
-    const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
-    const scripts = manifest.scripts ?? {}
     const shipped = new Set(repositoryFiles(['.ts']).map((file) => file.label))
-    const missing = Object.entries(scripts)
+    const missing = [...readManifest(MANIFEST).scripts]
       .filter(([name]) => name.startsWith('check:'))
       .flatMap(([name, command]) => {
-        const path = /bun\s+(scripts\/[\w-]+\.ts)/u.exec(command)?.[1]
-        return path !== undefined && shipped.has(path) ? [] : [`${name}: ${command}`]
+        // Every module the command names, not the first one: `check:styles`
+        // runs two, and reading one of them left the other free to be renamed
+        // out of existence with this still green.
+        const named = [...command.matchAll(/bun\s+(scripts\/[\w-]+\.ts)/gu)].map((found) => found[1] ?? '')
+        const unshipped = named.filter((path) => !shipped.has(path))
+        return named.length > 0 && unshipped.length === 0 ? [] : [`${name}: ${command}`]
       })
     expect(missing).toEqual([])
   })

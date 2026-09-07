@@ -19,8 +19,8 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { readManifest } from '../scripts/manifest.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { joined } from './fixtures.ts'
 
@@ -81,9 +81,12 @@ async function configs(): Promise<{ readonly label: string; readonly config: Str
   )
 }
 
-/** The manifest's scripts. */
-function scripts(): Readonly<Record<string, string>> {
-  return (JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }).scripts ?? {}
+/**
+ * The manifest's scripts.
+ * @returns script name to command line.
+ */
+function scripts(): ReadonlyMap<string, string> {
+  return readManifest('package.json').scripts
 }
 
 describe('every mutation run', () => {
@@ -164,7 +167,7 @@ describe('every mutation run reads the tree it claims to', () => {
   it('has a script for every scope, and a scope for every script', async () => {
     const declared = new Set((await configs()).map(({ label }) => label))
     const named = new Set(
-      Object.entries(scripts())
+      [...scripts()]
         .filter(([name]) => name.startsWith('mutate:'))
         .flatMap(([, command]) => command.split(/\s+/u).filter((word) => word.endsWith('.json'))),
     )
@@ -196,7 +199,7 @@ describe('the unit suites a mutation run drives', () => {
   it('still runs every undriveable spec under the unit command', () => {
     // Left out of a mutation command, not out of the suite: a contributor runs
     // `bun test`, and a reader of that run has to see these.
-    const command = scripts()['test'] ?? ''
+    const command = scripts().get('test') ?? ''
     const patterns = command.split(/\s+/u).filter((word) => word.endsWith('.spec.ts'))
     const unrun = Object.keys(UNDRIVEABLE).filter((label) => !patterns.some((pattern) => matches(pattern, label)))
     expect(unrun).toEqual([])
