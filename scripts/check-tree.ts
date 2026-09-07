@@ -13,31 +13,53 @@
  * where the tree is instrumented on purpose, and a run whose every mutant is
  * killed by the same always-failing case scores a hundred while proving
  * nothing.
+ *
+ * What the gate says about itself is the `GATE` declaration below, which
+ * `tests/gate-declarations.spec.ts` drives directly; the walk and the exit
+ * status are `gate-runner.ts`.
+ *
+ * @module
  */
 
-import { readFile } from 'node:fs/promises'
+import { CONSOLE, type Gate, readGate, reportGate } from './gate-runner.ts'
+import type { Offence } from './offence.ts'
 import { repositoryFiles } from './source-tree.ts'
 
-/** The switch the instrumenter wraps around every mutated expression. */
+/**
+ * The switch the instrumenter wraps around every mutated expression.
+ *
+ * Assembled from parts so this file's own source does not carry the marker it
+ * is written to find, which would make the gate refuse itself.
+ */
 const MARKER = ['stry', 'MutAct_'].join('')
+
+/**
+ * Where a file first carries the instrumenter's switch, if it carries it.
+ *
+ * The first line rather than every line: the finding is about the file, and one
+ * interrupted run rewrites every expression in it, so a line apiece would bury
+ * the file list this gate exists to print.
+ * @param label - the file's repository-relative path.
+ * @param text - the file's contents.
+ * @returns one offence when the file is instrumented, none when it is not.
+ */
+export function scanInstrumentation(label: string, text: string): readonly Offence[] {
+  if (!text.includes(MARKER)) return []
+  const line = text.split('\n').findIndex((one) => one.includes(MARKER)) + 1
+  return [{ label, line, why: "this file carries the instrumenter's switch" }]
+}
+
+/** What this gate opens, what it says when it refuses, and what it says when it does not. */
+export const GATE: Gate = {
+  extensions: ['.ts', '.tsx', '.js'],
+  refusal: 'a mutation run left these files instrumented; run `bun scripts/mutate-restore.ts`',
+  clean: (files) => `no instrumentation left behind (${String(files)} files)`,
+  scan: scanInstrumentation,
+}
 
 // Guarded, as every runnable script here is: importing a module must run
 // nothing. A suite that imports one for the readers it exports would
 // otherwise run the whole gate as a side effect of the import.
 if (import.meta.main) {
-  const files = repositoryFiles(['.ts', '.tsx', '.js'])
-  const read = await Promise.all(
-    files.map(async (file) => ({ label: file.label, text: await readFile(file.path, 'utf8') })),
-  )
-  const carrying = read.flatMap((file) => (file.text.includes(MARKER) ? [file.label] : []))
-
-  if (carrying.length > 0) {
-    process.stderr.write(
-      `a mutation run left these files instrumented; run \`bun scripts/mutate-restore.ts\`:\n${carrying
-        .map((label) => `  ${label}`)
-        .join('\n')}\n`,
-    )
-    process.exit(1)
-  }
-  process.stdout.write(`no instrumentation left behind (${String(files.length)} files)\n`)
+  process.exit(reportGate(await readGate(GATE, repositoryFiles(GATE.extensions)), CONSOLE))
 }

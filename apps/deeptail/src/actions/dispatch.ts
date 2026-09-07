@@ -15,7 +15,8 @@
 
 import type { DenialAudit } from '../capabilities/audit.ts'
 import { newTraceId } from '../capabilities/audit.ts'
-import type { GrantLedger, GrantSubject } from '../capabilities/grants.ts'
+import type { GrantSubject } from '../capabilities/grant-wire.ts'
+import type { GrantLedger } from '../capabilities/grants.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
 import { describeFailure } from '../reason.ts'

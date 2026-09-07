@@ -194,8 +194,9 @@ function runToBootNotice<T>(work: Promise<T>): void {
  */
 function showBootNotice(message: string): void {
   const strip = el('div', { className: 'error', role: 'alert', text: message, data: { deeptailState: 'boot-error' } })
-  const retry = button('retry', t('action.retry'), () => runToBootNotice(start()))
-  retry.dataset['deeptailAction'] = ACTIONS['boot.retry'].marker
+  const retry = button('retry', t('action.retry'), () => runToBootNotice(start()), {
+    data: { deeptailAction: ACTIONS['boot.retry'].marker },
+  })
   strip.append(retry)
   container.replaceChildren(strip)
 }
@@ -207,13 +208,14 @@ function showBootNotice(message: string): void {
  * owns everything inside the container once it boots.
  */
 function showReturnBar(): void {
-  const bar = el('div', { className: 'return-bar' })
-  const back = button('button button-outline return-button', t('shell.backToFleet'), () =>
-    runToBootNotice(returnToFleet()),
+  const bar = el('div', { className: 'return-bar', data: { deeptailReturn: '' } })
+  const back = button(
+    'button button-outline return-button',
+    t('shell.backToFleet'),
+    () => runToBootNotice(returnToFleet()),
+    { data: { deeptailAction: ACTIONS['client.return'].marker } },
   )
-  back.dataset['deeptailAction'] = ACTIONS['client.return'].marker
   bar.append(back)
-  bar.dataset['deeptailReturn'] = ''
   document.body.append(bar)
   returnBar = bar
 }

@@ -51,12 +51,12 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@tauri-apps/api': '2.11',
   '@tauri-apps/cli': '2.11',
   '@types/bun': '1.4',
-  '@types/node': '26.4',
+  '@types/node': '26.5',
   '@types/semver': '7.8',
   'jsonc-parser': '3.3',
   knip: '6.34',
-  'oxc-parser': '0.148',
-  oxlint: '1.81',
+  'oxc-parser': '0.149',
+  oxlint: '1.82',
   parse5: '8.0',
   playwright: '1.63',
   'playwright-core': '1.63',
@@ -202,8 +202,9 @@ describe('stack floors', () => {
     // A rule switched off is a defect hidden rather than fixed.
     expect(Object.values(rules).filter((level) => level === 'off')).toEqual([])
     // The linter carries no ignore list: what it reads is decided by the
-    // repository's own ship list, not by a second list here.
-    expect(config['ignorePatterns']).toBeUndefined()
-    expect(config['overrides']).toBeUndefined()
+    // repository's own ship list, not by a second list here. The keys are
+    // asserted absent rather than undefined-valued, because a key present and
+    // spelled `null` reads as neither, and silences exactly as much.
+    expect(Object.keys(config).filter((key) => key === 'ignorePatterns' || key === 'overrides')).toEqual([])
   })
 })

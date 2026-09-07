@@ -54,21 +54,39 @@ function optionString(value: Json | undefined): string {
 }
 
 /**
+ * The compilerOptions keys the TypeScript 6 and 7 faces are read through.
+ *
+ * The reader takes a parsed compilerOptions section, which is arbitrary JSON;
+ * declaring the keys the face reads lets each be addressed plainly while the
+ * checker keeps refusing an undeclared one.
+ */
+export interface CompilerOptions {
+  readonly module?: Json
+  readonly moduleResolution?: Json
+  readonly target?: Json
+  readonly skipLibCheck?: Json
+  readonly strict?: Json
+  readonly importsNotUsedAsValues?: Json
+  readonly preserveValueImports?: Json
+  readonly downlevelIteration?: Json
+}
+
+/**
  * Every TypeScript 6 (or earlier) option a compilerOptions section states.
  * @param options - one tsconfig's compilerOptions.
  * @returns one line per refused option, empty when the face is TypeScript 7.
  */
-export function compilerFaceOffences(options: { readonly [key: string]: Json }): string[] {
+export function compilerFaceOffences(options: CompilerOptions): string[] {
   const offences: string[] = []
-  const moduleValue = optionString(options['module'])
+  const moduleValue = optionString(options.module)
   if (TS6_MODULES.has(moduleValue)) {
     offences.push(`module ${moduleValue} is a TypeScript 6 module system; use esnext with bundler resolution`)
   }
-  const resolution = optionString(options['moduleResolution'])
+  const resolution = optionString(options.moduleResolution)
   if (TS6_RESOLUTIONS.has(resolution)) {
     offences.push(`moduleResolution ${resolution} is a TypeScript 6 resolver; use bundler`)
   }
-  const target = optionString(options['target'])
+  const target = optionString(options.target)
   if (LEGACY_TARGETS.has(target)) {
     offences.push(`target ${target} is a TypeScript ≤6 emit face; use esnext`)
   }
@@ -77,10 +95,10 @@ export function compilerFaceOffences(options: { readonly [key: string]: Json }):
       offences.push(`${flag} is a TypeScript 6 module-interop flag; TypeScript 7 verbatimModuleSyntax replaced it`)
     }
   }
-  if (options['skipLibCheck'] === true) {
+  if (options.skipLibCheck === true) {
     offences.push("skipLibCheck silences a dependency's diagnostics instead of fixing them")
   }
-  if (options['strict'] === false) {
+  if (options.strict === false) {
     offences.push('strict is off; the TypeScript 7 face keeps it on')
   }
   return offences

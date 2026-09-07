@@ -81,18 +81,16 @@ interface EditableDraft {
  */
 function pairFields(t: Translate, current: PairingState, draft: EditableDraft): HTMLElement[] {
   if (current.origin !== undefined) return tokenFields(t, current, draft)
-  const link = el('input', { className: 'input' })
+  const link = el('input', { className: 'input', data: { deeptailField: 'link' } })
   // Typed `url`, so a phone offers the right keyboard — but validated by the
   // product, not by the browser: a native bubble is untranslated, unstyled, and
   // stops the submit before the form's own `role="alert"` strip ever fills.
   link.type = 'url'
   link.placeholder = t('pair.linkPlaceholder')
-  link.dataset['deeptailField'] = 'link'
 
-  const name = el('input', { className: 'input' })
+  const name = el('input', { className: 'input', data: { deeptailField: 'name' } })
   name.type = 'text'
   name.placeholder = t('pair.namePlaceholder')
-  name.dataset['deeptailField'] = 'name'
 
   return [
     draftField(t('pair.linkLabel'), link, current.draft.link, (value) => {
@@ -116,17 +114,15 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
  * @returns the fields, token first.
  */
 function tokenFields(t: Translate, current: PairingState, draft: EditableDraft): HTMLElement[] {
-  const token = el('input', { className: 'input' })
+  const token = el('input', { className: 'input', data: { deeptailField: 'link' } })
   token.type = 'text'
   token.autocomplete = 'off'
   token.spellcheck = false
   token.placeholder = t('tailnet.tokenPlaceholder')
-  token.dataset['deeptailField'] = 'link'
 
-  const name = el('input', { className: 'input' })
+  const name = el('input', { className: 'input', data: { deeptailField: 'name' } })
   name.type = 'text'
   name.placeholder = t('pair.namePlaceholder')
-  name.dataset['deeptailField'] = 'name'
 
   return [
     draftField(t('tailnet.tokenLabel', { label: current.draft.label }), token, current.draft.link, (value) => {

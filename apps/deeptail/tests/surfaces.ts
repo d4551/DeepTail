@@ -81,6 +81,27 @@ export async function openDrawerIfPresent(page: Page): Promise<void> {
 }
 
 /**
+ * Wait until the page is in the state an audit is meant to observe.
+ *
+ * The palette the case names is the one the document carries, and every font
+ * and stylesheet the page loads has landed. An audit that sampled while the
+ * palette attribute was still resolving read one palette's text colour over
+ * the other's background and reported a contrast defect the product does not
+ * have — the spawn refusal failed exactly that way, on one width of one
+ * palette, once. Both waits are state waits: they resolve on the document's
+ * own facts, never on a clock.
+ * @param page - the page about to be audited.
+ * @param dark - the palette the case is measured under.
+ */
+async function waitForAuditState(page: Page, dark: boolean): Promise<void> {
+  await page.waitForFunction(
+    (expected) => document.body.matches(expected ? '[data-ds-dark-theme]' : 'body:not([data-ds-dark-theme])'),
+    dark,
+  )
+  await page.evaluate(() => document.fonts.ready)
+}
+
+/**
  * Audit one arranged surface at mobile, tablet and desktop, in both palettes.
  * @param harness - the suite's browser harness.
  * @param open - opens the surface under one view and leaves it ready to audit.
@@ -93,6 +114,7 @@ export async function expectNoViolationsAtEachWidth(
     AUDIT_VIEWS.map(async (view) => {
       const page = await open(view)
       await realizeView(page, view)
+      await waitForAuditState(page, view.dark)
       const size = page.viewportSize()
       const violations = describeViolations(await harness.audit(page))
       await page.close()

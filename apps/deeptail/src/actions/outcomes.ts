@@ -18,7 +18,7 @@
  * @module
  */
 
-import type { DenialReason } from '../capabilities/grants.ts'
+import type { DenialReason } from '../capabilities/grant-wire.ts'
 import type { PickerKey, Translate } from '../locales.ts'
 
 /** Why a control is not offered at all. */

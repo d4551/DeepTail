@@ -105,12 +105,11 @@ function secretInput(
   placeholderKey: 'tailnet.keyPlaceholder' | 'tailnet.secretPlaceholder',
   field: string,
 ): HTMLInputElement {
-  const input = el('input', { className: 'input' })
+  const input = el('input', { className: 'input', data: { deeptailField: field } })
   input.type = 'password'
   input.autocomplete = 'off'
   input.spellcheck = false
   input.placeholder = t(placeholderKey)
-  input.dataset['deeptailField'] = field
   return input
 }
 
@@ -134,13 +133,12 @@ function kindChoice(ctx: ConnectContext, draft: EditableTailnetDraft): HTMLEleme
   ]
   for (const option of kinds) {
     const row = el('label', { className: 'choice' })
-    const radio = el('input', { className: 'radio' })
+    const radio = el('input', { className: 'radio', data: { deeptailField: `kind-${option.kind}` } })
     radio.type = 'radio'
     radio.name = 'deeptail-tailnet-kind'
     radio.value = option.kind
     radio.checked = draft.kind === option.kind
     radio.disabled = current.busy
-    radio.dataset['deeptailField'] = `kind-${option.kind}`
     radio.addEventListener('change', () => {
       if (!radio.checked) return
       ctx.switchKind(current.hosts, { ...draft, kind: option.kind })
@@ -171,12 +169,11 @@ function credentialFields(ctx: ConnectContext, draft: EditableTailnetDraft): HTM
       ),
     ]
   }
-  const id = el('input', { className: 'input' })
+  const id = el('input', { className: 'input', data: { deeptailField: 'client-id' } })
   id.type = 'text'
   id.autocomplete = 'off'
   id.spellcheck = false
   id.placeholder = t('tailnet.clientIdPlaceholder')
-  id.dataset['deeptailField'] = 'client-id'
   return [
     draftField(t('tailnet.clientIdLabel'), id, current.draft.clientId, (value) => {
       draft.clientId = value
@@ -199,12 +196,11 @@ function credentialFields(ctx: ConnectContext, draft: EditableTailnetDraft): HTM
  * @returns the field.
  */
 function tailnetNameField(ctx: ConnectContext, draft: EditableTailnetDraft): HTMLElement {
-  const tailnet = el('input', { className: 'input' })
+  const tailnet = el('input', { className: 'input', data: { deeptailField: 'tailnet' } })
   tailnet.type = 'text'
   tailnet.autocomplete = 'off'
   tailnet.spellcheck = false
   tailnet.placeholder = ctx.t('tailnet.tailnetPlaceholder')
-  tailnet.dataset['deeptailField'] = 'tailnet'
   return draftField(ctx.t('tailnet.tailnetLabel'), tailnet, ctx.current.draft.tailnet, (value) => {
     draft.tailnet = value
   })
@@ -242,12 +238,11 @@ function reportRefusal(form: HTMLElement, message: string): void {
 export function tailnetConnectView(ctx: ConnectContext): HTMLElement[] {
   const { t, current } = ctx
   const draft: EditableTailnetDraft = { ...current.draft }
-  const form = el('form', { className: 'form' })
+  const form = el('form', { className: 'form', data: { deeptailView: 'tailnet-connect' } })
   // The browser's own constraint validation is turned off for the reason the
   // pairing form turns it off: a native bubble is untranslated and stops the
   // submit before this form's own strip is ever filled.
   form.noValidate = true
-  form.dataset['deeptailView'] = 'tailnet-connect'
   form.append(
     el('h2', { className: 'lede', text: t('tailnet.connectTitle') }),
     el('p', { className: 'lede', text: t('tailnet.connectLede') }),

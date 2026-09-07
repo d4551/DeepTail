@@ -7,6 +7,7 @@
 
 import { ACTIONS } from '../actions/registry.ts'
 import type { Translate } from '../locales.ts'
+import { datasetValue, setDataset } from './dataset.ts'
 import { button, el, liveRegion, setAria } from './dom.ts'
 import { errorStrip, showFailure } from './states.ts'
 
@@ -97,8 +98,9 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
  * @returns the control, hidden until the drawer is open.
  */
 function buildDrawerDismissal(sidebar: HTMLElement, t: Translate, onDismiss: () => void): HTMLButtonElement {
-  const dismiss = button('drawer-dismiss', t('shell.closeSessions'), onDismiss)
-  dismiss.dataset['deeptailAction'] = ACTIONS['drawer.dismiss'].marker
+  const dismiss = button('drawer-dismiss', t('shell.closeSessions'), onDismiss, {
+    data: { deeptailAction: ACTIONS['drawer.dismiss'].marker },
+  })
   dismiss.hidden = true
   sidebar.prepend(dismiss)
   return dismiss
@@ -180,7 +182,7 @@ function isDrawerLayout(): boolean {
  */
 function applyDrawerState(regions: DrawerRegions, toggle: HTMLButtonElement, t: Translate, open: boolean): void {
   const { shell, sidebar, main, dismiss } = regions
-  shell.dataset['drawer'] = open ? 'open' : 'closed'
+  setDataset(shell, 'drawer', open ? 'open' : 'closed')
   setAria(toggle, { expanded: open ? 'true' : 'false' })
   toggle.textContent = open ? t('shell.closeSessions') : t('shell.openSessions')
   const drawer = isDrawerLayout()
@@ -207,10 +209,14 @@ function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
     applyDrawerState(regions, toggle, t, open)
     if (moveFocus && isDrawerLayout()) followDrawer(regions.sidebar, toggle, open)
   }
-  const toggle = button('drawer-toggle', t('shell.openSessions'), () => {
-    setDrawer(shell.dataset['drawer'] !== 'open', true)
-  })
-  toggle.dataset['deeptailAction'] = ACTIONS['drawer.toggle'].marker
+  const toggle = button(
+    'drawer-toggle',
+    t('shell.openSessions'),
+    () => {
+      setDrawer(datasetValue(shell, 'drawer') !== 'open', true)
+    },
+    { data: { deeptailAction: ACTIONS['drawer.toggle'].marker } },
+  )
   setAria(toggle, { controls: SIDEBAR_ID, expanded: 'false' })
 
   scrim.addEventListener('click', () => {
@@ -219,11 +225,11 @@ function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
   const onShellKeyDown = (event: KeyboardEvent): void => {
     // The connection menu owns Escape while it is open and stops the event
     // there, so one press never closes both it and the drawer.
-    if (event.key === 'Escape' && shell.dataset['drawer'] === 'open') setDrawer(false, true)
+    if (event.key === 'Escape' && datasetValue(shell, 'drawer') === 'open') setDrawer(false, true)
   }
   document.addEventListener('keydown', onShellKeyDown)
   const onLayoutChange = (): void => {
-    setDrawer(shell.dataset['drawer'] === 'open')
+    setDrawer(datasetValue(shell, 'drawer') === 'open')
   }
   // The flag changes when the viewport crosses the width the stylesheet named,
   // which is exactly when the document's own box changes.

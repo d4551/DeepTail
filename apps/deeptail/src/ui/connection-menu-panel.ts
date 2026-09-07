@@ -14,7 +14,8 @@ import { ACTIONS } from '../actions/registry.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
 import type { ConnectionPorts } from './connection-menu.ts'
-import { bindRovingFocus, button, el, screenReaderText } from './dom.ts'
+import { button, el, screenReaderText } from './dom.ts'
+import { bindRovingFocus } from './roving-focus.ts'
 import { hostStateLabel } from './states.ts'
 
 /** Everything one open menu is drawn from. */
@@ -111,9 +112,8 @@ function repairItem(hostId: string, options: MenuPanelOptions): HTMLButtonElemen
       dismiss()
       ports.repair(hostId)
     },
-    { role: 'menuitem' },
+    { role: 'menuitem', data: { deeptailAction: ACTIONS['connection.repair'].marker } },
   )
-  repair.dataset['deeptailAction'] = ACTIONS['connection.repair'].marker
   return repair
 }
 
@@ -151,7 +151,5 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
  * @returns the item.
  */
 function menuItem(className: string, text: string, marker: ActionMarker, onClick: () => void): HTMLButtonElement {
-  const item = button(className, text, onClick, { role: 'menuitem' })
-  item.dataset['deeptailAction'] = marker
-  return item
+  return button(className, text, onClick, { role: 'menuitem', data: { deeptailAction: marker } })
 }

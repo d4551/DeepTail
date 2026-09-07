@@ -104,9 +104,11 @@ function wireRowKeys(row: HTMLElement): void {
  */
 function openControl(session: SessionSummary, t: Translate, onOpen: () => void): HTMLButtonElement {
   const running = session.running
-  const open = el('button', { className: 'session-open' })
+  const open = el('button', {
+    className: 'session-open',
+    data: { deeptailAction: ACTIONS['session.open'].marker },
+  })
   open.type = 'button'
-  open.dataset['deeptailAction'] = ACTIONS['session.open'].marker
   open.append(
     el('span', {
       className: 'dot',
@@ -138,18 +140,18 @@ function rowActions(session: SessionSummary, t: Translate, handlers: RowHandlers
   const title = sessionTitle(session, t)
   const message = button('row-action', t('sessions.messageAction'), handlers.message, {
     aria: { label: t('sessions.messageAria', { title }) },
+    data: { deeptailAction: ACTIONS['session.message'].marker },
   })
   message.tabIndex = -1
-  message.dataset['deeptailAction'] = ACTIONS['session.message'].marker
   message.disabled = handlers.busy
   actions.append(message)
 
   if (session.running) {
     const stop = button('row-action', t('sessions.stop'), handlers.stop, {
       aria: { label: t('sessions.stopAria', { title }) },
+      data: { deeptailAction: ACTIONS['session.cancel'].marker },
     })
     stop.tabIndex = -1
-    stop.dataset['deeptailAction'] = ACTIONS['session.cancel'].marker
     stop.disabled = handlers.busy
     actions.append(stop)
   }

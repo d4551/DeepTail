@@ -233,8 +233,10 @@ export function gateCoverageViolations(name: string, text: string): string[] {
  * @param scripts - the manifest's scripts, by name.
  * @returns one entry per gate the chain stopped running.
  */
-export function validateChainViolations(scripts: Readonly<Record<string, string>>): string[] {
-  const chain = scripts['validate']
+export function validateChainViolations(
+  scripts: Readonly<Record<string, string> & { readonly validate?: string }>,
+): string[] {
+  const chain = scripts.validate
   if (chain === undefined) return ['package.json: the validate chain is gone; nothing decides ship-worthiness']
   return MERGE_GATES.filter((gate) => !runsGate(chain, gate)).map(
     (gate) => `package.json: the validate chain no longer runs ${gate}`,

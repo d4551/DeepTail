@@ -23,8 +23,47 @@ export type Field = null | boolean | number | string | Node | readonly Field[] |
 /** A parser record that is not a node, such as a template element's text. */
 export type Record = { readonly [key: string]: Field }
 
-/** A parsed node, walked structurally rather than by declared shape. */
-export type Node = { readonly [key: string]: Field } & { readonly type: string }
+/**
+ * A parsed node, walked structurally rather than by declared shape.
+ *
+ * The properties the gates read are declared here as well, so a reader can
+ * address them plainly; the index signature stays, because a gate must also
+ * read whatever the parser emits beyond those it names.
+ */
+export type Node = { readonly [key: string]: Field } & {
+  readonly type: string
+  readonly arguments?: Field
+  readonly body?: Field
+  readonly callee?: Field
+  readonly cases?: Field
+  readonly computed?: Field
+  readonly consequent?: Field
+  readonly declarations?: Field
+  readonly elements?: Field
+  readonly expression?: Field
+  readonly expressions?: Field
+  readonly id?: Field
+  readonly imported?: Field
+  readonly init?: Field
+  readonly key?: Field
+  readonly kind?: Field
+  readonly left?: Field
+  readonly local?: Field
+  readonly name?: Field
+  readonly object?: Field
+  readonly operator?: Field
+  readonly param?: Field
+  readonly params?: Field
+  readonly properties?: Field
+  readonly property?: Field
+  readonly quasis?: Field
+  readonly right?: Field
+  readonly source?: Field
+  readonly specifiers?: Field
+  readonly start?: Field
+  readonly test?: Field
+  readonly value?: Field
+}
 
 /** One comment, which is the only form a checker directive ever takes. */
 export interface Comment {
@@ -131,7 +170,7 @@ export function unwrap(value: Field | undefined): Field | undefined {
   // Bounded so a tree that somehow refers to itself cannot spin here.
   for (let depth = 0; depth < 32; depth += 1) {
     if (!isNode(inner) || !TRANSPARENT.has(inner.type)) return inner
-    inner = inner['expression']
+    inner = inner.expression
   }
   return inner
 }
@@ -142,10 +181,10 @@ export function unwrap(value: Field | undefined): Field | undefined {
  * @returns the name, or undefined when it is computed or not an identifier.
  */
 export function memberName(node: Node): string | undefined {
-  if (node['computed'] === true) return undefined
-  const property = unwrap(node['property'])
-  return isNode(property) && property.type === 'Identifier' && typeof property['name'] === 'string'
-    ? property['name']
+  if (node.computed === true) return undefined
+  const property = unwrap(node.property)
+  return isNode(property) && property.type === 'Identifier' && typeof property.name === 'string'
+    ? property.name
     : undefined
 }
 

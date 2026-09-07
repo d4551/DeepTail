@@ -8,6 +8,7 @@
  * @module
  */
 
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { CarrierHooks } from './transport.ts'
 import { isSessionSummary, isWireObject, type WireObject, type WireValue } from './wire.ts'
 
@@ -76,6 +77,35 @@ type CreateSessionInput = {
   readonly agentPreset?: string
 }
 
+/** The `server-response` envelope a unary reply arrives in. */
+interface ResponseEnvelope extends WireObject {
+  readonly result?: JsonValue
+}
+
+/** The `{ ok, value | error }` result the envelope carries. */
+interface RpcResult extends WireObject {
+  readonly ok?: JsonValue
+  readonly value?: JsonValue
+  readonly error?: JsonValue
+}
+
+/** A host-reported failure body. */
+interface RpcError extends WireObject {
+  readonly code?: JsonValue
+  readonly message?: JsonValue
+  readonly details?: JsonValue
+}
+
+/** The `session/list` reply. */
+interface SessionListReply extends WireObject {
+  readonly items?: JsonValue
+}
+
+/** The `session/create` reply. */
+interface SessionCreateReply extends WireObject {
+  readonly sessionId?: JsonValue
+}
+
 /**
  * The subset of a host's Remote surface DeepTail drives.
  *
@@ -120,10 +150,10 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
   return {
     async listSessions() {
       const value = await call('session', 'list', {})
-      if (!isWireObject(value) || !Array.isArray(value['items'])) {
-        throw malformed('session/list', 'no items')
-      }
-      return value['items'].filter(isSessionSummary)
+      if (!isWireObject(value)) throw malformed('session/list', 'no items')
+      const reply: SessionListReply = value
+      if (!Array.isArray(reply.items)) throw malformed('session/list', 'no items')
+      return reply.items.filter(isSessionSummary)
     },
     async prompt(sessionId, text, mode) {
       await call('session', 'prompt', {
@@ -138,10 +168,10 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
     },
     async createSession(input) {
       const value = await call('session', 'create', { ...input })
-      if (!isWireObject(value) || typeof value['sessionId'] !== 'string') {
-        throw malformed('session/create', 'no id')
-      }
-      return value['sessionId']
+      if (!isWireObject(value)) throw malformed('session/create', 'no id')
+      const reply: SessionCreateReply = value
+      if (typeof reply.sessionId !== 'string') throw malformed('session/create', 'no id')
+      return reply.sessionId
     },
   }
 }
@@ -181,9 +211,11 @@ async function post(
     }),
   })
   if (!response.ok) throw transportFailure(endpoint, response.status)
-  const envelope: WireValue = await response.json()
-  if (!isWireObject(envelope) || !isWireObject(envelope['result'])) throw malformed(endpoint, 'no result')
-  return envelope['result']
+  const parsed: WireValue = await response.json()
+  if (!isWireObject(parsed)) throw malformed(endpoint, 'no result')
+  const envelope: ResponseEnvelope = parsed
+  if (!isWireObject(envelope.result)) throw malformed(endpoint, 'no result')
+  return envelope.result
 }
 
 /**
@@ -211,11 +243,12 @@ function transportFailure(endpoint: string, status: number): RemoteError {
  * @returns whatever the method returned.
  */
 function unwrap(result: WireObject, endpoint: string): WireValue | undefined {
-  if (result['ok'] !== true) {
-    const error = isWireObject(result['error']) ? result['error'] : {}
-    const code = typeof error['code'] === 'string' ? error['code'] : 'internal'
-    const message = typeof error['message'] === 'string' ? error['message'] : `${endpoint} failed`
-    throw new RemoteError(code, message, isWireObject(error['details']) ? error['details'] : { endpoint })
+  const reply: RpcResult = result
+  if (reply.ok !== true) {
+    const error: RpcError = isWireObject(reply.error) ? reply.error : {}
+    const code = typeof error.code === 'string' ? error.code : 'internal'
+    const message = typeof error.message === 'string' ? error.message : `${endpoint} failed`
+    throw new RemoteError(code, message, isWireObject(error.details) ? error.details : { endpoint })
   }
-  return result['value']
+  return reply.value
 }

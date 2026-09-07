@@ -88,14 +88,22 @@ function buildComposeFields(t: Translate): ComposeFields {
  */
 function buildComposeActions(t: Translate, dismiss: () => void, submit: (mode: PromptMode) => void): ComposeActions {
   const cancel = button('button button-outline', t('action.cancel'), dismiss)
-  const steer = button('button button-outline', t('chat.steer'), () => {
-    submit('steer')
-  })
-  const send = button('button button-primary', t('chat.send'), () => {
-    submit('queue')
-  })
-  send.dataset['deeptailAction'] = ACTIONS['compose.send'].marker
-  steer.dataset['deeptailAction'] = ACTIONS['compose.steer'].marker
+  const steer = button(
+    'button button-outline',
+    t('chat.steer'),
+    () => {
+      submit('steer')
+    },
+    { data: { deeptailAction: ACTIONS['compose.steer'].marker } },
+  )
+  const send = button(
+    'button button-primary',
+    t('chat.send'),
+    () => {
+      submit('queue')
+    },
+    { data: { deeptailAction: ACTIONS['compose.send'].marker } },
+  )
   return { cancel, steer, send }
 }
 

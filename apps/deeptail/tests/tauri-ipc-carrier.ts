@@ -84,7 +84,7 @@ function deeptailOpenMux(script: AnswerTable, args: Record<string, object>, stat
  * @returns null.
  */
 function deeptailSendMux(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<null> {
-  const host = typeof args['host'] === 'string' ? args['host'] : ''
+  const host = typeof args.host === 'string' ? args.host : ''
   const channel = state.channels.get(host)
   const frame = JSON.parse(typeof args['data'] === 'string' ? args['data'] : '{}') as {
     type?: string

@@ -8,8 +8,17 @@
  * @module
  */
 
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { FORBIDDEN, PROTOCOL, RemoteError, TRANSPORT, UNAUTHORIZED } from './api.ts'
 import type { PickerKey, Translate } from './locales.ts'
+import type { WireObject } from './wire.ts'
+
+/** The failure details a transport-level rejection carries, read by field. */
+interface TransportDetails extends WireObject {
+  readonly endpoint?: JsonValue
+  readonly status?: JsonValue
+  readonly detail?: JsonValue
+}
 
 /**
  * The message a failure should be reported with.
@@ -52,10 +61,11 @@ export function describeFailure<T>(reason: T, t: Translate): string {
   if (!(reason instanceof RemoteError)) return messageOf(reason)
   const key = TRANSPORT_KEYS[reason.code]
   if (key === undefined) return reason.message
+  const details: TransportDetails = reason.details
   return t(key, {
-    endpoint: typeof reason.details['endpoint'] === 'string' ? reason.details['endpoint'] : '',
-    status: typeof reason.details['status'] === 'number' ? reason.details['status'] : '',
-    detail: typeof reason.details['detail'] === 'string' ? reason.details['detail'] : reason.message,
+    endpoint: typeof details.endpoint === 'string' ? details.endpoint : '',
+    status: typeof details.status === 'number' ? details.status : '',
+    detail: typeof details.detail === 'string' ? details.detail : reason.message,
   })
 }
 

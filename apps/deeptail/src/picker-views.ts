@@ -17,7 +17,8 @@
 import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
-import { bindRovingFocus, el, screenReaderText } from './ui/dom.ts'
+import { el, screenReaderText } from './ui/dom.ts'
+import { bindRovingFocus } from './ui/roving-focus.ts'
 import { type HostState, hostStateLabel } from './ui/states.ts'
 
 /** What every picker view needs from its surroundings. */
@@ -64,9 +65,12 @@ export function emptyView(t: Translate, onPair: () => void, onTailnet: () => voi
   const add = el('button', { className: 'button button-primary', text: t('action.pair') })
   add.type = 'button'
   add.addEventListener('click', onPair)
-  const tailnet = el('button', { className: 'button button-outline', text: t('tailnet.action') })
+  const tailnet = el('button', {
+    className: 'button button-outline',
+    text: t('tailnet.action'),
+    data: { deeptailAction: ACTIONS['picker.tailnet'].marker },
+  })
   tailnet.type = 'button'
-  tailnet.dataset['deeptailAction'] = ACTIONS['picker.tailnet'].marker
   tailnet.addEventListener('click', onTailnet)
   const actions = el('div', { className: 'actions' })
   actions.append(add, tailnet)
@@ -86,9 +90,8 @@ function hostRow(
   onPick: (host: HostRecord) => void,
 ): { readonly row: HTMLButtonElement; readonly seat: HTMLElement } {
   const seat = el('div', { className: 'list-seat', role: 'listitem' })
-  const row = el('button', { className: 'row' })
+  const row = el('button', { className: 'row', data: { deeptailHost: host.id } })
   row.type = 'button'
-  row.dataset['deeptailHost'] = host.id
 
   const reachability = ctx.states.get(host.id) ?? 'unknown'
   const dot = el('span', { className: 'dot', aria: { hidden: 'true' }, data: { state: reachability } })
@@ -136,9 +139,12 @@ export function listView(ctx: ListContext): HTMLElement[] {
   add.addEventListener('click', () => {
     ctx.startPairing(ctx.hosts)
   })
-  const tailnet = el('button', { className: 'button button-outline', text: ctx.t('tailnet.action') })
+  const tailnet = el('button', {
+    className: 'button button-outline',
+    text: ctx.t('tailnet.action'),
+    data: { deeptailAction: ACTIONS['picker.tailnet'].marker },
+  })
   tailnet.type = 'button'
-  tailnet.dataset['deeptailAction'] = ACTIONS['picker.tailnet'].marker
   tailnet.addEventListener('click', () => {
     ctx.startTailnet(ctx.hosts)
   })

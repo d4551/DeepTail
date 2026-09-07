@@ -112,6 +112,46 @@ const KEYS = {
   ],
 } as const
 
+/** The keys one capability row declares, as the parsed document carries them. */
+interface CapabilityKeys {
+  readonly [key: string]: Json
+  readonly id?: Json
+  readonly subject?: Json
+  readonly ttlSeconds?: Json
+}
+
+/** The keys one placement row declares, as the parsed document carries them. */
+interface PlacementKeys {
+  readonly [key: string]: Json
+  readonly id?: Json
+  readonly surface?: Json
+}
+
+/** The keys one action row declares, as the parsed document carries them. */
+interface ActionKeys {
+  readonly [key: string]: Json
+  readonly id?: Json
+  readonly capability?: Json
+  readonly placement?: Json
+  readonly kind?: Json
+  readonly pane?: Json
+  readonly marker?: Json
+  readonly labelKey?: Json
+  readonly labelKeyOn?: Json
+  readonly availability?: Json
+  readonly remote?: Json
+  readonly lane?: Json
+}
+
+/** The keys the document declares, as the parsed document carries them. */
+interface DocumentKeys {
+  readonly [key: string]: Json
+  readonly version?: Json
+  readonly capabilities?: Json
+  readonly placements?: Json
+  readonly actions?: Json
+}
+
 /**
  * Read one capability row.
  * @param value - the parsed row.
@@ -119,12 +159,12 @@ const KEYS = {
  * @returns the validated row.
  */
 function readCapability(value: Json, where: string): CapabilityRow {
-  const row = asObject(value, where)
+  const row: CapabilityKeys = asObject(value, where)
   refuseUnknownKeys(row, where, KEYS.capability)
   return {
-    id: asString(row['id'], `${where}.id`),
-    subject: asOneOf(row['subject'], `${where}.subject`, SUBJECTS),
-    ttlSeconds: asPositiveInt(row['ttlSeconds'], `${where}.ttlSeconds`),
+    id: asString(row.id, `${where}.id`),
+    subject: asOneOf(row.subject, `${where}.subject`, SUBJECTS),
+    ttlSeconds: asPositiveInt(row.ttlSeconds, `${where}.ttlSeconds`),
   }
 }
 
@@ -135,9 +175,9 @@ function readCapability(value: Json, where: string): CapabilityRow {
  * @returns the validated row.
  */
 function readPlacement(value: Json, where: string): PlacementRow {
-  const row = asObject(value, where)
+  const row: PlacementKeys = asObject(value, where)
   refuseUnknownKeys(row, where, KEYS.placement)
-  return { id: asString(row['id'], `${where}.id`), surface: asString(row['surface'], `${where}.surface`) }
+  return { id: asString(row.id, `${where}.id`), surface: asString(row.surface, `${where}.surface`) }
 }
 
 /**
@@ -147,20 +187,20 @@ function readPlacement(value: Json, where: string): PlacementRow {
  * @returns the validated row.
  */
 function readAction(value: Json, where: string): ActionRow {
-  const row = asObject(value, where)
+  const row: ActionKeys = asObject(value, where)
   refuseUnknownKeys(row, where, KEYS.action)
   return {
-    id: asString(row['id'], `${where}.id`),
-    capability: asString(row['capability'], `${where}.capability`),
-    placement: asString(row['placement'], `${where}.placement`),
-    kind: asOneOf(row['kind'], `${where}.kind`, KINDS),
-    pane: asOneOf(row['pane'], `${where}.pane`, PANES),
-    marker: asString(row['marker'], `${where}.marker`),
-    labelKey: asOptionalString(row['labelKey'], `${where}.labelKey`),
-    labelKeyOn: asOptionalString(row['labelKeyOn'], `${where}.labelKeyOn`),
-    availability: asOneOf(row['availability'], `${where}.availability`, AVAILABILITY),
-    remote: asOptionalString(row['remote'], `${where}.remote`),
-    lane: asString(row['lane'], `${where}.lane`),
+    id: asString(row.id, `${where}.id`),
+    capability: asString(row.capability, `${where}.capability`),
+    placement: asString(row.placement, `${where}.placement`),
+    kind: asOneOf(row.kind, `${where}.kind`, KINDS),
+    pane: asOneOf(row.pane, `${where}.pane`, PANES),
+    marker: asString(row.marker, `${where}.marker`),
+    labelKey: asOptionalString(row.labelKey, `${where}.labelKey`),
+    labelKeyOn: asOptionalString(row.labelKeyOn, `${where}.labelKeyOn`),
+    availability: asOneOf(row.availability, `${where}.availability`, AVAILABILITY),
+    remote: asOptionalString(row.remote, `${where}.remote`),
+    lane: asString(row.lane, `${where}.lane`),
   }
 }
 
@@ -229,17 +269,17 @@ function crossCheck(registry: Registry): void {
  * @returns the validated registry.
  */
 export function readRegistry(text: string): Registry {
-  const document = readJsonc(text)
+  const document: DocumentKeys = readJsonc(text)
   refuseUnknownKeys(document, 'document', KEYS.document)
   const registry: Registry = {
-    version: asPositiveInt(document['version'], 'version'),
-    capabilities: asArray(document['capabilities'], 'capabilities').map((row, index) =>
+    version: asPositiveInt(document.version, 'version'),
+    capabilities: asArray(document.capabilities, 'capabilities').map((row, index) =>
       readCapability(row, `capabilities[${String(index)}]`),
     ),
-    placements: asArray(document['placements'], 'placements').map((row, index) =>
+    placements: asArray(document.placements, 'placements').map((row, index) =>
       readPlacement(row, `placements[${String(index)}]`),
     ),
-    actions: asArray(document['actions'], 'actions').map((row, index) => readAction(row, `actions[${String(index)}]`)),
+    actions: asArray(document.actions, 'actions').map((row, index) => readAction(row, `actions[${String(index)}]`)),
   }
   crossCheck(registry)
   return registry

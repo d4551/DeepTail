@@ -38,8 +38,17 @@ export type FrameOutcome =
 /** A frame carrying nothing the connection can act on. */
 const IGNORE: FrameOutcome = { kind: 'ignore' }
 
-/** A parsed JSON object with string keys. */
-type JsonObject = { readonly [key: string]: JsonValue }
+/** A parsed JSON object with string keys, plus the frame fields this wire reads. */
+interface JsonObject {
+  readonly [key: string]: JsonValue
+  readonly streamId?: JsonValue
+  readonly type?: JsonValue
+  readonly value?: JsonValue
+  readonly error?: JsonValue
+  readonly event?: JsonValue
+  readonly args?: JsonValue
+  readonly message?: JsonValue
+}
 
 /**
  * The frame that opens the event stream.
@@ -138,20 +147,20 @@ function parseServerMessage(text: string): Promise<ServerMessage | null> {
  * @returns the frame, or null when it is not one.
  */
 function projectServerMessage(value: JsonValue): ServerMessage | null {
-  if (!isRecord(value) || typeof value['streamId'] !== 'string') return null
-  const type = value['type']
+  if (!isRecord(value) || typeof value.streamId !== 'string') return null
+  const type = value.type
   if (type === 'item') {
-    return value['value'] === undefined
-      ? { type, streamId: value['streamId'] }
-      : { type, streamId: value['streamId'], value: value['value'] }
+    return value.value === undefined
+      ? { type, streamId: value.streamId }
+      : { type, streamId: value.streamId, value: value.value }
   }
-  if (type === 'end') return { type, streamId: value['streamId'] }
+  if (type === 'end') return { type, streamId: value.streamId }
   if (type === 'error') {
-    const error = value['error']
+    const error = value.error
     return {
       type,
-      streamId: value['streamId'],
-      error: isRecord(error) && typeof error['message'] === 'string' ? { message: error['message'] } : {},
+      streamId: value.streamId,
+      error: isRecord(error) && typeof error.message === 'string' ? { message: error.message } : {},
     }
   }
   return null
@@ -159,14 +168,14 @@ function projectServerMessage(value: JsonValue): ServerMessage | null {
 
 /** Whether an opening item is the host's ready frame. */
 function isReadyFrame(value: JsonValue | undefined): boolean {
-  return isRecord(value) && value['type'] === 'ready'
+  return isRecord(value) && value.type === 'ready'
 }
 
 /** Project one downlink frame onto a forwarded host event. */
 function toHostEvent(value: JsonValue | undefined): HostEvent | undefined {
-  if (!isRecord(value) || value['type'] !== 'emit') return undefined
-  const event = value['event']
-  const args = value['args']
+  if (!isRecord(value) || value.type !== 'emit') return undefined
+  const event = value.event
+  const args = value.args
   if (typeof event !== 'string' || !Array.isArray(args)) return undefined
   return { event, args }
 }

@@ -116,7 +116,7 @@ it('moves focus into the drawer it opens and back to the toggle on Escape', asyn
   await page.waitForFunction(() => document.activeElement?.closest('#deeptail-sidebar') !== null)
   expect(await page.evaluate(() => document.activeElement?.closest('#deeptail-sidebar') !== null)).toBe(true)
   await page.keyboard.press('Escape')
-  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset['deeptailAction'])).toBe(
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.deeptailAction)).toBe(
     'drawer',
   )
   await page.close()

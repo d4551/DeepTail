@@ -16,7 +16,7 @@
  * @module
  */
 
-import type { DenialReason } from './grants.ts'
+import type { DenialReason } from './grant-wire.ts'
 
 /** One refusal, as it was recorded. */
 interface DenialEvent {

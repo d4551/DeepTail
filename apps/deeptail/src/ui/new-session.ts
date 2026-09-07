@@ -13,14 +13,21 @@
  * @module
  */
 
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { ACTIONS } from '../actions/registry.ts'
 import { type HostApi, RemoteError } from '../api.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
 import { describeFailure } from '../reason.ts'
+import type { WireObject } from '../wire.ts'
 import { button, el, labelledField, setAria } from './dom.ts'
 import { type Dialog, openDialog } from './modal.ts'
 import { clearFailure, errorStrip, showFailure } from './states.ts'
+
+/** The failure details an unknown-preset refusal carries, read by field. */
+interface PresetErrorDetails extends WireObject {
+  readonly available?: JsonValue
+}
 
 /** What the dialog needs to spawn. */
 export interface SpawnPorts {
@@ -176,7 +183,8 @@ function spawnSession(ports: SpawnPorts, host: HostRecord, request: SpawnRequest
  */
 function describeSpawnFailure<T>(reason: T, message: string, t: Translate): string {
   if (reason instanceof RemoteError && reason.code === 'agent-preset-not-found') {
-    const available = reason.details['available']
+    const details: PresetErrorDetails = reason.details
+    const available = details.available
     if (Array.isArray(available) && available.length > 0) {
       return t('spawn.presetUnknown', { presets: available.map(String).join(', ') })
     }
@@ -212,20 +220,24 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
   const cancel = button('button button-outline', t('action.cancel'), () => {
     dialog.close()
   })
-  const create = button('button button-primary', t('shell.newSession'), () => {
-    if (busy) return
-    const host = hostById.get(hostSelect.value)
-    if (host === undefined) return
-    clearFailure(failure)
-    setBusy(true)
-    const release = (): void => {
-      setBusy(false)
-    }
-    const request = draftRequest(preset.value.trim(), cwd.value.trim())
-    spawnSession(ports, host, request, { dialog, failure, t, announce, release })
-  })
+  const create = button(
+    'button button-primary',
+    t('shell.newSession'),
+    () => {
+      if (busy) return
+      const host = hostById.get(hostSelect.value)
+      if (host === undefined) return
+      clearFailure(failure)
+      setBusy(true)
+      const release = (): void => {
+        setBusy(false)
+      }
+      const request = draftRequest(preset.value.trim(), cwd.value.trim())
+      spawnSession(ports, host, request, { dialog, failure, t, announce, release })
+    },
+    { data: { deeptailAction: ACTIONS['spawn.create'].marker } },
+  )
 
-  create.dataset['deeptailAction'] = ACTIONS['spawn.create'].marker
   dialog.actions.append(cancel, create)
   // The host chooser is the first decision the dialog asks for, so it is where
   // the operator lands rather than on the dialog's own frame.

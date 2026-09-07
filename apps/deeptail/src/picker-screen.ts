@@ -74,8 +74,7 @@ export interface PickerFrame {
  * @returns the card to paint into and the region to announce through.
  */
 export function mountPickerFrame(container: HTMLElement): PickerFrame {
-  const root = el('main', { className: 'picker' })
-  root.dataset['deeptailPicker'] = ''
+  const root = el('main', { className: 'picker', data: { deeptailPicker: '' } })
   const card = el('div', { className: 'card' })
   root.append(card)
   container.replaceChildren(root)

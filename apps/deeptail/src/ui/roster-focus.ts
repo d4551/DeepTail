@@ -9,6 +9,7 @@
  */
 
 import { ACTIONS } from '../actions/registry.ts'
+import { datasetValue } from './dataset.ts'
 
 /** Where focus sits inside the roster, in terms that survive a rebuild. */
 interface FocusedControl {
@@ -25,12 +26,12 @@ export function focusedControl(root: HTMLElement): FocusedControl | undefined {
   const active = document.activeElement
   if (!(active instanceof HTMLElement) || !root.contains(active)) return undefined
   const row = active.closest<HTMLElement>('[data-deeptail-session]')
-  const session = row?.dataset['deeptailSession']
+  const session = row === null ? undefined : datasetValue(row, 'deeptailSession')
   if (session === undefined) return undefined
   // Every control in a row carries its registry marker, the open control
   // included, so the sentinel this used to invent for it is gone: a marker off
   // the union is what the restore below looks up, not a word chosen here.
-  return { session, action: active.dataset['deeptailAction'] ?? ACTIONS['session.open'].marker }
+  return { session, action: datasetValue(active, 'deeptailAction') ?? ACTIONS['session.open'].marker }
 }
 
 /**

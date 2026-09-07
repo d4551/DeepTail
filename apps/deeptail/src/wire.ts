@@ -32,6 +32,14 @@ export interface WireObject {
   readonly [field: string]: JsonValue
 }
 
+/** The fields a roster row must carry, as the wire object they are read from. */
+interface SessionSummaryWire extends WireObject {
+  readonly sessionId?: JsonValue
+  readonly updatedAt?: JsonValue
+  readonly running?: JsonValue
+  readonly blank?: JsonValue
+}
+
 /** Whether a value names a serialised object.
  * @param value - any value the host may have sent.
  * @returns whether the value can be read by field.
@@ -53,11 +61,12 @@ export function isWireObject<T>(value: T | WireValue): value is WireObject {
  * @returns whether the value is a row the roster can hold.
  */
 export function isSessionSummary<T>(value: T | WireValue): value is SessionSummary {
+  if (!isWireObject(value)) return false
+  const row: SessionSummaryWire = value
   return (
-    isWireObject(value) &&
-    typeof value['sessionId'] === 'string' &&
-    typeof value['updatedAt'] === 'number' &&
-    typeof value['running'] === 'boolean' &&
-    typeof value['blank'] === 'boolean'
+    typeof row.sessionId === 'string' &&
+    typeof row.updatedAt === 'number' &&
+    typeof row.running === 'boolean' &&
+    typeof row.blank === 'boolean'
   )
 }

@@ -14,7 +14,8 @@ import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import type { PickerContext } from './picker-views.ts'
 import type { TailnetHost } from './tailscale.ts'
-import { bindRovingFocus, el } from './ui/dom.ts'
+import { el } from './ui/dom.ts'
+import { bindRovingFocus } from './ui/roving-focus.ts'
 
 /** The machine-list state. */
 export interface TailnetListState {
@@ -61,9 +62,8 @@ function deviceSubtitle(t: Translate, device: TailnetHost): string {
 function deviceRow(ctx: ListContext, device: TailnetHost): HTMLElement {
   const { t, current } = ctx
   const paired = current.hosts.find((host) => host.origin === device.origin)
-  const row = el('button', { className: 'row' })
+  const row = el('button', { className: 'row', data: { deeptailTailnetDevice: device.id } })
   row.type = 'button'
-  row.dataset['deeptailTailnetDevice'] = device.id
   // An unapproved machine is listed because its absence would read as a
   // missing machine, and disabled because pairing it cannot succeed until an
   // admin approves it.
@@ -123,9 +123,12 @@ export function tailnetListView(ctx: ListContext): HTMLElement[] {
   back.addEventListener('click', () => {
     ctx.cancel(current.hosts)
   })
-  const disconnect = el('button', { className: 'button button-outline', text: t('tailnet.disconnect') })
+  const disconnect = el('button', {
+    className: 'button button-outline',
+    text: t('tailnet.disconnect'),
+    data: { deeptailAction: ACTIONS['tailnet.forget'].marker },
+  })
   disconnect.type = 'button'
-  disconnect.dataset['deeptailAction'] = ACTIONS['tailnet.forget'].marker
   disconnect.addEventListener('click', () => {
     ctx.forget(current.hosts)
   })

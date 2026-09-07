@@ -9,6 +9,7 @@
  */
 
 import type { ActionMarker } from '../actions/registry.ts'
+import type { DatasetKey } from './dataset.ts'
 
 /** Releases what its caller mounted: closes a subscription or drops a listener. */
 export type Disposer = () => void
@@ -66,7 +67,8 @@ export interface ElementOptions {
   readonly role?: string
   /** The element's accessible state. */
   readonly aria?: AriaOptions
-  readonly data?: Readonly<Record<string, string>>
+  /** The dataset entries to write, from the one key contract in `dataset.ts`. */
+  readonly data?: Partial<Record<DatasetKey, string>>
 }
 
 /**
@@ -167,10 +169,13 @@ export interface FormActionOptions {
 export function formActions(options: FormActionOptions): HTMLElement {
   const cancel = button('button button-outline', options.cancelText, options.cancel)
   cancel.disabled = options.busy
-  const submit = el('button', { className: 'button button-primary', text: options.submitText })
+  const submit = el('button', {
+    className: 'button button-primary',
+    text: options.submitText,
+    data: { deeptailAction: options.submitAction },
+  })
   submit.type = 'submit'
   submit.disabled = options.busy
-  submit.dataset['deeptailAction'] = options.submitAction
   const actions = el('div', { className: 'actions' })
   actions.append(cancel, submit)
   return actions
@@ -238,62 +243,4 @@ export function draftField(
  */
 export function screenReaderText(text: string): HTMLSpanElement {
   return el('span', { className: 'visually-hidden', text })
-}
-
-/**
- * The row a navigation key moves to.
- * @param key - the pressed key.
- * @param index - the current row.
- * @param length - how many rows there are.
- * @returns the target row, or undefined when the key is not a navigation key.
- */
-function nextIndex(key: string, index: number, length: number): number | undefined {
-  if (length === 0) return undefined
-  switch (key) {
-    case 'ArrowDown':
-      return (index + 1) % length
-    case 'ArrowUp':
-      return (index - 1 + length) % length
-    case 'Home':
-      return 0
-    case 'End':
-      return length - 1
-    default:
-      return undefined
-  }
-}
-
-/**
- * Give a set of controls one roving tab stop.
- *
- * The first control carries the page's tab stop and the rest are reached with
- * the arrow keys, so a list of a hundred rows is one stop rather than a
- * hundred. Every list that does this does it the same way, from here.
- * @param stops - every control in display order.
- */
-export function bindRovingFocus(stops: readonly HTMLElement[]): void {
-  for (const [index, stop] of stops.entries()) {
-    stop.tabIndex = index === 0 ? 0 : -1
-    stop.addEventListener('keydown', (event) => {
-      moveRovingFocus(event, stops, index)
-    })
-  }
-}
-
-/**
- * Move a roving tab stop between rows.
- * @param event - the keydown.
- * @param rows - every row in display order.
- * @param index - the row the event came from.
- */
-function moveRovingFocus(event: KeyboardEvent, rows: readonly HTMLElement[], index: number): void {
-  if (event.target !== event.currentTarget) return
-  const target = nextIndex(event.key, index, rows.length)
-  if (target === undefined) return
-  event.preventDefault()
-  for (const row of rows) row.tabIndex = -1
-  const next = rows[target]
-  if (next === undefined) return
-  next.tabIndex = 0
-  next.focus()
 }
