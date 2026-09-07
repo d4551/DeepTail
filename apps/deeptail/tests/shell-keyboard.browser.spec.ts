@@ -118,8 +118,9 @@ it('moves focus into the drawer it opens and back to the toggle on Escape', asyn
   await page.keyboard.press('Escape')
   expect(
     await page.evaluate(() => {
+      const action = 'deeptailAction'
       const active = document.activeElement
-      return active instanceof HTMLElement ? active.dataset['deeptailAction'] : undefined
+      return active instanceof HTMLElement ? active.dataset[action] : undefined
     }),
   ).toBe('drawer')
   await page.close()

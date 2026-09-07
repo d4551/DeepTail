@@ -1,12 +1,17 @@
 /**
- * Refuse a file the repository ships whose kind no gate reads.
+ * Refuse a file the repository ships of a kind it has never declared shipping.
  *
  * Every other gate narrows the listing to the extensions it understands, so a
- * file of any other kind is read by nothing at all: it passes the bans, the
- * style rules, the instrumentation check and the entry check by never reaching
- * them. That is how `scripts/source-tree.tszz-source-tree-probe.probe-ext` —
+ * file of an undeclared kind reaches none of them: it passes the bans, the
+ * style rules, the instrumentation check and the entry check by never being
+ * opened. That is how `scripts/source-tree.tszz-source-tree-probe.probe-ext` —
  * a probe a suite wrote and, through an unawaited write, failed to remove —
  * came to sit in the tree while `check:tree` printed a clean line over it.
+ *
+ * What is enforced is the declaration, not readership: this repository ships
+ * kinds no gate opens — screenshots, icons, the licence — and they are declared
+ * below for exactly that reason. Saying "a gate reads this" of a `.png` would
+ * be a claim the code does not make.
  *
  * The rule is the whole list rather than a vocabulary of scratch names: a name
  * list only refuses the artefacts somebody thought of, and the next probe will
@@ -59,7 +64,7 @@ export function strayFiles(labels: readonly string[], kinds: readonly string[]):
     .map((label) => ({
       label,
       line: 1,
-      why: 'no gate reads this kind of file; remove it, or add its kind to SHIPPED_KINDS',
+      why: 'this repository declares no such kind; remove the file, or declare its kind in SHIPPED_KINDS',
     }))
 }
 
@@ -75,11 +80,13 @@ if (import.meta.main) {
     strays.length > 0
       ? {
           ok: false,
-          text: `the repository ships a file no gate reads:\n${strays.map((stray) => renderOffence(stray)).join('\n')}\n`,
+          text: `the repository ships a file of a kind it never declared:\n${strays
+            .map((stray) => renderOffence(stray))
+            .join('\n')}\n`,
         }
       : {
           ok: true,
-          text: `every file the repository ships is of a kind a gate reads (${String(labels.length)} files)\n`,
+          text: `every file the repository ships is of a declared kind (${String(labels.length)} files)\n`,
         }
   process.exit(reportGate(outcome, CONSOLE))
 }

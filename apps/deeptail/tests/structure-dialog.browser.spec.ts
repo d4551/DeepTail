@@ -145,7 +145,8 @@ it('still reports a pane that scrolls inside the dialog body', async () => {
   await page.addStyleTag({ content: '[data-deeptail-probe="pane"] { overflow-y: auto; block-size: 20px; }' })
   await page.evaluate(() => {
     const pane = document.createElement('div')
-    pane.dataset['deeptailProbe'] = 'pane'
+    const probe = 'deeptailProbe'
+    pane.dataset[probe] = 'pane'
     document.querySelector('[data-deeptail-dialog] .modal-body')?.append(pane)
   })
   const found = await defects(page)

@@ -18,7 +18,7 @@ describe('the stray reader', () => {
       {
         label: 'scripts/source-tree.tszz-probe.probe-ext',
         line: 1,
-        why: 'no gate reads this kind of file; remove it, or add its kind to SHIPPED_KINDS',
+        why: 'this repository declares no such kind; remove the file, or declare its kind in SHIPPED_KINDS',
       },
     ])
   })

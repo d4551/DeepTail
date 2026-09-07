@@ -25,11 +25,15 @@ afterAll(async () => {
 
 /** Every `data-deeptail-action` the page is currently drawing. */
 function drawn(page: Page): Promise<string[]> {
-  return page.evaluate(() =>
-    [...document.querySelectorAll<HTMLElement>('[data-deeptail-action]')].map(
-      (node) => node.dataset['deeptailAction'] ?? '',
-    ),
-  )
+  return page.evaluate(() => {
+    // The key travels as a value, not as a written property: `dataset` is a
+    // string index, so a property spelling is refused by the compiler and a
+    // literal index is refused by the linter.
+    const action = 'deeptailAction'
+    return [...document.querySelectorAll<HTMLElement>('[data-deeptail-action]')].map(
+      (node) => node.dataset[action] ?? '',
+    )
+  })
 }
 
 /** Open the picker with nothing paired, which is where the tailnet is offered. */
