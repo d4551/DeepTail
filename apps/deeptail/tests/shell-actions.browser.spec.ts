@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { oneHost, sessions } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
+import { callArgument } from './tauri-ipc.ts'
 
 let harness: Harness
 
@@ -35,10 +36,10 @@ it('sends a message through the compose sheet', async () => {
   const sent = (await harness.calls(page)).filter((call) => call.endpoint === 'session/prompt')
   expect(sent.length).toBe(1)
   expect(sent[0]?.host).toBe('dev-1')
-  expect(sent[0]?.args.sessionId).toBe('s-running')
-  expect(sent[0]?.args.mode).toBe('queue')
-  expect(sent[0]?.args.content).toEqual([{ type: 'text', text: 'please rerun the tests' }])
-  expect(typeof sent[0]?.args.requestId).toBe('string')
+  expect(callArgument(sent[0], 'sessionId')).toBe('s-running')
+  expect(callArgument(sent[0], 'mode')).toBe('queue')
+  expect(callArgument(sent[0], 'content')).toEqual([{ type: 'text', text: 'please rerun the tests' }])
+  expect(typeof callArgument(sent[0], 'requestId')).toBe('string')
   await page.close()
 })
 
@@ -52,7 +53,7 @@ it('steers rather than queues when Steer is chosen', async () => {
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
   // The mode is the only behavioural difference between the two buttons.
   const sent = (await harness.calls(page)).filter((call) => call.endpoint === 'session/prompt')
-  expect(sent.map((call) => call.args.mode)).toEqual(['steer'])
+  expect(sent.map((call) => callArgument(call, 'mode'))).toEqual(['steer'])
   await page.close()
 })
 
@@ -63,7 +64,7 @@ it('stops a running session and clears the row once the host confirms', async ()
   await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-stop"]').click()
   const stopped = (await harness.calls(page)).filter((call) => call.endpoint === 'session/cancel')
   expect(stopped.length).toBe(1)
-  expect(stopped[0]?.args.sessionId).toBe('s-running')
+  expect(callArgument(stopped[0], 'sessionId')).toBe('s-running')
   await page.close()
 })
 

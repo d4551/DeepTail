@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { coerce, gte } from 'semver'
-import { readJsonc } from '../scripts/jsonc.ts'
+import { readManifest } from '../scripts/manifest.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { everyDependency, lockfileNames } from './manifests.ts'
 
@@ -62,7 +62,7 @@ describe('the stack policy bans', () => {
     // a second vocabulary the tokens and the sheets never read. The manifests
     // and the lockfile are both read, so a declaration that never resolves
     // cannot hide in either.
-    const declared = [...(await everyDependency()).keys()]
+    const declared = [...everyDependency().keys()]
     expect(declared.filter((name) => isRetiredFramework(name))).toEqual([])
     expect([...lockfileNames()].filter((name) => isRetiredFramework(name))).toEqual([])
   })

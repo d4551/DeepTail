@@ -263,7 +263,7 @@ it('reports an unlabeled control as a WCAG violation', async () => {
   const page = await openShell(harness)
   await page.evaluate(() => {
     const button = document.createElement('button')
-    button.dataset.deeptailProbe = 'unlabeled'
+    button.setAttribute('data-deeptail-probe', 'unlabeled')
     document.querySelector('[data-deeptail-shell]')?.append(button)
   })
   const found = await harness.audit(page)

@@ -14,7 +14,7 @@
  * @module
  */
 
-import { type Json, isJsonObject } from '../scripts/jsonc.ts'
+import { isJsonObject, type Json } from '../scripts/jsonc.ts'
 import { readJsoncSync } from './jsonc-io.ts'
 
 /**

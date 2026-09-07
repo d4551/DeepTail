@@ -152,7 +152,7 @@ it('translates into Chinese for a zh browser', async () => {
 it('renders the dark palette from the harness tokens', async () => {
   const page = await harness.open({ hosts: [] }, { dark: true })
   await page.waitForSelector('[data-deeptail-state="empty"]')
-  expect(await page.evaluate(() => document.body.dataset.dsDarkTheme !== undefined)).toBe(true)
+  expect(await page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(true)
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(21, 21, 23)')
   await harness.shoot(page, 'picker-dark')
   await page.close()

@@ -76,6 +76,21 @@ export interface RecordedCall {
   readonly args: Readonly<Record<string, JsonValue>>
 }
 
+/**
+ * One argument of a recorded call.
+ *
+ * A call's arguments are decided by its endpoint, so the section is a map and
+ * the name travels as a value: nothing here may spell an argument as though
+ * every endpoint carried it. A call that was never made answers undefined,
+ * which is what the assertions on an unmade call are written against.
+ * @param call - the recorded call, or nothing when none was made.
+ * @param name - the argument to read.
+ * @returns the argument, or undefined when the call does not carry it.
+ */
+export function callArgument(call: RecordedCall | undefined, name: string): JsonValue | undefined {
+  return call?.args[name]
+}
+
 /** What one page's scripted IPC accumulates while it runs. */
 export interface IpcState {
   readonly channels: Map<string, ScriptChannel>

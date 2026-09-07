@@ -53,10 +53,10 @@ async function plantTarget(page: Page, probe: string, px: number): Promise<void>
     (args: { probe: string; px: number }) => {
       const button = document.createElement('button')
       button.textContent = 'probe'
-      button.dataset.deeptailProbe = args.probe
+      button.setAttribute('data-deeptail-probe', args.probe)
       document.querySelector('[data-deeptail-shell] main')?.append(button)
       const sheet = document.createElement('style')
-      sheet.dataset.deeptailProbe = `${args.probe}-sheet`
+      sheet.setAttribute('data-deeptail-probe', `${args.probe}-sheet`)
       const size = String(args.px)
       sheet.textContent = `[data-deeptail-probe="${args.probe}"]{box-sizing:border-box;width:${size}px;height:${size}px;min-width:${size}px;min-height:${size}px;max-width:${size}px;max-height:${size}px;padding:0;border:0;margin:0;font-size:1px;line-height:1;overflow:hidden}`
       document.head.append(sheet)
@@ -88,7 +88,7 @@ const CASES: readonly PlantedCase[] = [
       await page.evaluate(() => {
         const link = document.createElement('a')
         link.href = '#probe'
-        link.dataset.deeptailProbe = 'nested'
+        link.setAttribute('data-deeptail-probe', 'nested')
         const inner = document.createElement('button')
         inner.textContent = 'inner'
         link.append(inner)
@@ -104,7 +104,7 @@ const CASES: readonly PlantedCase[] = [
       await page.evaluate(() => {
         const heading = document.createElement('h5')
         heading.textContent = 'skipped'
-        heading.dataset.deeptailProbe = 'heading'
+        heading.setAttribute('data-deeptail-probe', 'heading')
         document.querySelector('[data-deeptail-shell] main')?.append(heading)
       })
     },
@@ -116,7 +116,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const group = document.createElement('fieldset')
-        group.dataset.deeptailProbe = 'group'
+        group.setAttribute('data-deeptail-probe', 'group')
         const input = document.createElement('input')
         input.type = 'radio'
         input.name = 'probe'
@@ -140,7 +140,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const inner = document.createElement('div')
-        inner.dataset.deeptailProbe = 'grid'
+        inner.setAttribute('data-deeptail-probe', 'grid')
         inner.className = 'main-body'
         document.querySelector('[data-deeptail-shell]')?.append(inner)
       })
@@ -154,7 +154,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const table = document.createElement('table')
-        table.dataset.deeptailProbe = 'table'
+        table.setAttribute('data-deeptail-probe', 'table')
         const row = table.insertRow()
         row.insertCell().textContent = 'layout'
         document.querySelector('[data-deeptail-shell]')?.append(table)
@@ -168,8 +168,8 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const extra = document.createElement('div')
-        extra.dataset.deeptailShell = ''
-        extra.dataset.deeptailProbe = 'shell'
+        extra.setAttribute('data-deeptail-shell', '')
+        extra.setAttribute('data-deeptail-probe', 'shell')
         document.querySelector('[data-deeptail-shell]')?.append(extra)
       })
     },
@@ -181,7 +181,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const script = document.createElement('script')
-        script.dataset.deeptailProbe = 'script'
+        script.setAttribute('data-deeptail-probe', 'script')
         script.textContent = 'void 0'
         document.querySelector('[data-deeptail-shell]')?.append(script)
       })
@@ -194,7 +194,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const script = document.createElement('script')
-        script.dataset.deeptailProbe = 'src-script'
+        script.setAttribute('data-deeptail-probe', 'src-script')
         script.src = '/one-off-helper.js'
         document.querySelector('[data-deeptail-shell]')?.append(script)
       })
@@ -207,7 +207,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const script = document.createElement('script')
-        script.dataset.deeptailProbe = 'body-script'
+        script.setAttribute('data-deeptail-probe', 'body-script')
         script.src = '/body-helper.js'
         document.body.append(script)
       })

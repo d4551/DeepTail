@@ -61,6 +61,20 @@ function properties(node: SchemaNode): [string, string, boolean][] {
 }
 
 /**
+ * One declared member of an object schema.
+ *
+ * The member travels as a value rather than as a written property: the section
+ * is a map of whatever the tool declares, so nothing here may spell a member
+ * name as though the shape were known to carry it.
+ * @param node - the object schema, or nothing.
+ * @param name - the member to read.
+ * @returns the member's schema, or undefined when the node declares none.
+ */
+function child(node: SchemaNode | undefined, name: string): SchemaNode | undefined {
+  return node?.properties?.[name]
+}
+
+/**
  * The parameters a tool declares, as name, type and whether it is required.
  * @param name - the tool's name.
  * @returns one row per parameter, in declaration order.
@@ -161,7 +175,7 @@ describe('every tool declares its parameters', () => {
   })
 
   it('offers the two delivery modes as the only choices', () => {
-    const mode = (tool('sessions_send').parameters as SchemaNode).properties?.mode
+    const mode = child(tool('sessions_send').parameters as SchemaNode, 'mode')
     expect(mode?.enum).toEqual(['queue', 'steer'])
     expect(mode?.description).toContain('default "queue"')
   })
@@ -179,7 +193,7 @@ describe('every tool declares the value it answers with', () => {
       ['sessions', 'array', true],
       ['total', 'integer', true],
     ])
-    const row = schema('sessions_list').properties?.sessions?.items
+    const row = child(schema('sessions_list'), 'sessions')?.items
     expect([row?.type, row?.additionalProperties]).toEqual(['object', false])
     expect(properties(row ?? {})).toEqual([
       ['sessionId', 'string', true],
@@ -210,6 +224,6 @@ describe('every tool declares the value it answers with', () => {
       ['records', 'integer', true],
       ['recent', 'array', true],
     ])
-    expect(schema('sessions_follow').properties?.recent?.items?.type).toBe('string')
+    expect(child(schema('sessions_follow'), 'recent')?.items?.type).toBe('string')
   })
 })

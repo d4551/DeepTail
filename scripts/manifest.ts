@@ -21,7 +21,7 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { type Json, isJsonObject, readJsonc } from './jsonc.ts'
+import { isJsonObject, type Json, readJsonc } from './jsonc.ts'
 import { repositoryFiles } from './source-tree.ts'
 
 /** Every kind of dependency a manifest can declare. */
