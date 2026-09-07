@@ -15,10 +15,11 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { NATIVE_COMMANDS } from '../commands.ts'
 import type { WireValue } from '../wire.ts'
 
 /** The command the native authority answers issuance on. */
-const GRANTS_COMMAND = 'capability_grants'
+const GRANTS_COMMAND = NATIVE_COMMANDS.capabilityGrants
 
 /**
  * Ask the native authority to issue, and return the mirror it hands back.

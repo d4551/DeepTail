@@ -35,6 +35,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@deepseek-ai/cordis': '4.0',
   '@deepseek-ai/cordis-plugin-loader': '1.0',
   '@deepseek-ai/dsh-api-session-controller': '0.1',
+  '@deepseek-ai/dsh-brand': '0.1',
   '@deepseek-ai/dsh-client-modules': '0.1',
   '@deepseek-ai/dsh-client-store': '0.1',
   '@deepseek-ai/dsh-client-ui-primitives': '0.1',
@@ -119,15 +120,27 @@ function floorDrift(declared: ReadonlyMap<string, string>): string[] {
  * @returns one line per disagreement.
  */
 function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
-  const lock = readLock('bun.lock')
+  const resolved = resolvedVersions(readLock('bun.lock'))
+  return Object.entries(FLOORS).flatMap(([name, floor]) =>
+    resolutionOffences(name, floor, resolved.get(name), declared.get(name)),
+  )
+}
+
+/** A version the lock states as resolved, prerelease and build metadata included. */
+const RESOLVED_VERSION = /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/u
+
+/**
+ * Every version the lockfile actually resolved, by package name.
+ * @param lock - the parsed lockfile.
+ * @returns one entry per package, holding every version resolved for it.
+ */
+function resolvedVersions(lock: ReturnType<typeof readLock>): Map<string, string[]> {
   const resolved = new Map<string, string[]>()
   for (const [name, entry] of lock.packages) {
     // Each package is a tuple whose first element is "name@version".
     const resolvedId = typeof entry[0] === 'string' ? entry[0] : ''
     const version = resolvedId.startsWith(`${name}@`) ? resolvedId.slice(name.length + 1) : ''
-    if (/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/u.test(version)) {
-      resolved.set(name, [...(resolved.get(name) ?? []), version])
-    }
+    if (RESOLVED_VERSION.test(version)) resolved.set(name, [...(resolved.get(name) ?? []), version])
   }
   // Workspace members are versioned by their own manifest, mirrored in the
   // lock's workspaces section rather than resolved as registry packages.
@@ -135,24 +148,36 @@ function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
     if (workspace.version === undefined) continue
     resolved.set(workspace.name, [...(resolved.get(workspace.name) ?? []), workspace.version])
   }
+  return resolved
+}
+
+/**
+ * Every way one package's resolved versions disagree with what was asked of it.
+ * @param name - the package.
+ * @param floor - the major.minor it is held at.
+ * @param versions - every version the lock resolved for it.
+ * @param range - the range the repository declares, when it declares one.
+ * @returns one line per disagreement.
+ */
+function resolutionOffences(
+  name: string,
+  floor: string,
+  versions: readonly string[] | undefined,
+  range: string | undefined,
+): string[] {
+  if (versions === undefined || versions.length === 0) {
+    return [`${name} is declared but the lockfile never resolved it`]
+  }
   const offences: string[] = []
-  for (const [name, floor] of Object.entries(FLOORS)) {
-    const versions = resolved.get(name)
-    if (versions === undefined || versions.length === 0) {
-      offences.push(`${name} is declared but the lockfile never resolved it`)
-      continue
-    }
-    const newest = maxSatisfying(versions, '*', { includePrerelease: true })
-    // Prerelease identifiers are stripped for the floor comparison, exactly
-    // as the manifest floors do: 0.1.2-alpha.3 sits at the 0.1 floor.
-    const comparable = newest === null ? null : coerce(newest)
-    if (comparable === null || !gte(comparable, `${floor}.0`)) {
-      offences.push(`${name} resolved at ${versions.join(', ')} — below the ${floor} floor`)
-    }
-    const range = declared.get(name)
-    if (range !== undefined && newest !== null && !satisfies(newest, range)) {
-      offences.push(`${name} resolved at ${newest} does not satisfy the declared ${range}`)
-    }
+  const newest = maxSatisfying(versions, '*', { includePrerelease: true })
+  // Prerelease identifiers are stripped for the floor comparison, exactly
+  // as the manifest floors do: 0.1.2-alpha.3 sits at the 0.1 floor.
+  const comparable = newest === null ? null : coerce(newest)
+  if (comparable === null || !gte(comparable, `${floor}.0`)) {
+    offences.push(`${name} resolved at ${versions.join(', ')} — below the ${floor} floor`)
+  }
+  if (range !== undefined && newest !== null && !satisfies(newest, range)) {
+    offences.push(`${name} resolved at ${newest} does not satisfy the declared ${range}`)
   }
   return offences
 }

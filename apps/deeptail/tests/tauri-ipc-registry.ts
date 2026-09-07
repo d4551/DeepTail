@@ -37,7 +37,12 @@ export function deeptailRegistry(
       // serialised into the page, so anything it reads has to travel with it.
       return Promise.resolve(script.grants ?? { issuer: 'none', context: '', grants: [] })
     case 'boot_injections':
-      return script.bootError === undefined ? Promise.resolve([]) : Promise.reject(new Error(script.bootError))
+      // The table the case named, not an empty one. While this always answered
+      // empty, `applyIndexInjections` walked nothing and the bundle loader was
+      // never reached from any fixture at all.
+      return script.bootError === undefined
+        ? Promise.resolve(script.bootInjections ?? [])
+        : Promise.reject(new Error(script.bootError))
     case 'pair_host': {
       // The link itself, not just that pairing was asked for: a case that only
       // sees the command name cannot tell a composed link from any other. The

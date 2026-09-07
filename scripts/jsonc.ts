@@ -19,6 +19,24 @@ export type Json = string | number | boolean | null | Json[] | { [key: string]: 
 export const EMPTY_SECTION: { [key: string]: Json } = {}
 
 /**
+ * One member of a document, read by a key the caller supplies.
+ *
+ * The key travels as a value rather than as a written property, which is what
+ * keeps a read honest about the document being a map at that point: it has not
+ * been proven to carry the member at all. It is also the spelling the compiler
+ * requires — `noPropertyAccessFromIndexSignature` refuses the property form —
+ * and the one the linter accepts, which a written literal index is not.
+ *
+ * Three modules had written this out apiece before it lived here.
+ * @param document - the decoded document.
+ * @param key - the member to read.
+ * @returns the member, or undefined when the document has none.
+ */
+export function member(document: { [key: string]: Json }, key: string): Json | undefined {
+  return document[key]
+}
+
+/**
  * Whether a JSON value is an object, narrowed for callers that need its keys.
  * @param value - the JSON value to test; a missing member reads as undefined.
  * @returns true when the value is a JSON object.
@@ -36,29 +54,46 @@ export function isJsonObject(value: Json | undefined): value is { [key: string]:
  * @returns the same document as a Json value, or undefined for foreign shapes.
  */
 function asJson<T>(value: T): Json | undefined {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-    return value === null ? null : (value as string | boolean)
+  // Null is answered on its own rather than beside the primitives, which is
+  // what the narrowing needs: while the three shared one test, the branch's
+  // type was the union of all of them and an assertion was written to pick a
+  // member back out of it. Tested apart, each test narrows to what it names.
+  if (value === null) return null
+  if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') return value
+  if (typeof value !== 'object') return undefined
+  return Array.isArray(value) ? asJsonArray(value) : asJsonObject(value)
+}
+
+/**
+ * Bring every item of an array onto the model.
+ * @param value - the array the parser produced.
+ * @returns the items, or undefined when any item is a shape the model does not
+ * name — a foreign item makes the whole document foreign.
+ */
+function asJsonArray<T>(value: readonly T[]): Json[] | undefined {
+  const items: Json[] = []
+  for (const item of value) {
+    const converted = asJson(item)
+    if (converted === undefined) return undefined
+    items.push(converted)
   }
-  if (typeof value === 'number') return value
-  if (typeof value === 'object') {
-    if (Array.isArray(value)) {
-      const items: Json[] = []
-      for (const item of value) {
-        const converted = asJson(item)
-        if (converted === undefined) return undefined
-        items.push(converted)
-      }
-      return items
-    }
-    const members: { [key: string]: Json } = {}
-    for (const [key, entry] of Object.entries(value)) {
-      const converted = asJson(entry)
-      if (converted === undefined) return undefined
-      members[key] = converted
-    }
-    return members
+  return items
+}
+
+/**
+ * Bring every member of an object onto the model.
+ * @param value - the object the parser produced.
+ * @returns the members, or undefined when any member is a shape the model does
+ * not name.
+ */
+function asJsonObject<T extends object>(value: T): { [key: string]: Json } | undefined {
+  const members: { [key: string]: Json } = {}
+  for (const [key, entry] of Object.entries(value)) {
+    const converted = asJson(entry)
+    if (converted === undefined) return undefined
+    members[key] = converted
   }
-  return undefined
+  return members
 }
 
 /**

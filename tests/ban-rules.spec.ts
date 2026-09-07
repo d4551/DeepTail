@@ -132,6 +132,63 @@ describe('the ban on the removed and the deprecated', () => {
   })
 })
 
+describe('the ban on the browser stores', () => {
+  // The store names are assembled, so this file's own source carries neither
+  // whole and the suite reads as the fixture text it is.
+  const local = joined('local', 'Storage')
+  const session = joined('session', 'Storage')
+
+  /** What the gate says when a store is reached. */
+  const why =
+    'the browser stores keep their contents in the clear for anything that can reach the page; a paired host, its grants and its tokens belong to the native side'
+
+  it('refuses either store, read or written', () => {
+    expect(bans(`${local}.setItem('grant', g)`)).toEqual([why])
+    expect(bans(`${session}.getItem('grant')`)).toEqual([why])
+    expect(bans(`${local}.clear()`)).toEqual([why])
+  })
+
+  it('refuses a store reached through the global object, which is the same store', () => {
+    expect(bans(`window.${local}.setItem('grant', g)`)).toEqual([why])
+    expect(bans(`globalThis.${session}.getItem('grant')`)).toEqual([why])
+    expect(bans(`self.${local}.getItem('grant')`)).toEqual([why])
+  })
+
+  it('follows a rename, because a name is not the thing it stands for', () => {
+    // Binding the store to a name reaches nothing on its own; the ban is on
+    // the access. Holding both directions is what shows the alias is followed
+    // rather than the declaration merely being spotted.
+    expect(bans(`const store = ${local}`)).toEqual([])
+    expect(bans(`const store = ${local}`, "store.setItem('grant', g)")).toEqual([why])
+  })
+
+  it('admits a name that only resembles one, and the native side', () => {
+    expect(bans(`const ${local}Keys = 1`, `const n = ${local}Keys`)).toEqual([])
+    expect(bans("invoke('capability_grants')")).toEqual([])
+  })
+})
+
+describe('the ban on reading the environment where it is used', () => {
+  /** What the gate says when an environment is read. */
+  const why =
+    'reading the environment here scatters configuration across the tree; take it through the module that already resolves it'
+
+  it('refuses the runtime environments and the bundler’s', () => {
+    expect(bans('const host = process.env.DEEPTAIL_HOST')).toEqual([why])
+    expect(bans('const host = Bun.env.DEEPTAIL_HOST')).toEqual([why])
+    expect(bans('const host = import.meta.env.DEEPTAIL_HOST')).toEqual([why])
+  })
+
+  it('refuses the environment taken whole, not only one name off it', () => {
+    expect(bans('const all = process.env')).toEqual([why])
+  })
+
+  it('admits a property that only shares the name', () => {
+    expect(bans('const e = config.env', 'const f = run.env')).toEqual([])
+    expect(bans('const m = import.meta.main ? 1 : 0')).toEqual([])
+  })
+})
+
 describe('the ban on a test that does not report', () => {
   const why = 'a test that is skipped, focused or expected to fail is a test that does not report'
   const runners = ['it', 'test', 'describe']

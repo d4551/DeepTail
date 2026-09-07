@@ -119,25 +119,9 @@ function startServer(): { server: ReturnType<typeof Bun.serve>; origin: string }
  * @returns the page, loaded.
  */
 async function openPage(browser: Browser, origin: string, table: AnswerTable, options: OpenOptions): Promise<Page> {
-  const coarse = options.mobile === true || options.tablet === true
-  const preset = options.tablet === true ? TABLET_VIEWPORT : options.mobile === true ? PHONE_VIEWPORT : undefined
-  const width = options.width ?? preset?.width
-  const height = options.height ?? preset?.height
   const context = await browser.newContext({
     colorScheme: options.dark === true ? 'dark' : 'light',
-    // A phone viewport is not a phone: the row actions are revealed by
-    // `not (hover: hover)`, which only holds once the context emulates a touch
-    // device rather than merely a narrow window. An explicit width (320 CSS
-    // pixels) keeps that touch context; it does not fall back to a desktop
-    // resize.
-    ...(width !== undefined && height !== undefined
-      ? {
-          viewport: { width, height },
-          // Touch, not Chromium's mobile text-autosize: `isMobile` at 320 CSS
-          // pixels boosts 12px type and makes axe's contrast sampler lie.
-          ...(coarse ? { hasTouch: true } : {}),
-        }
-      : {}),
+    ...viewportOptions(options),
     locale: options.locale ?? 'en-GB',
     ...(options.forcedColors === true ? { forcedColors: 'active' as const } : {}),
     ...(options.reducedMotion === true ? { reducedMotion: 'reduce' as const } : {}),
@@ -157,6 +141,27 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
   const page = await context.newPage()
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
   return page
+}
+
+/**
+ * The viewport and touch emulation one set of options asks for.
+ *
+ * A phone viewport is not a phone: the row actions are revealed by
+ * `not (hover: hover)`, which only holds once the context emulates a touch
+ * device rather than merely a narrow window. An explicit width (320 CSS
+ * pixels) keeps that touch context; it does not fall back to a desktop resize.
+ * @param options - how the page should be opened.
+ * @returns the context options, or none when no size was asked for.
+ */
+function viewportOptions(options: OpenOptions): { viewport?: { width: number; height: number }; hasTouch?: boolean } {
+  const preset = options.tablet === true ? TABLET_VIEWPORT : options.mobile === true ? PHONE_VIEWPORT : undefined
+  const width = options.width ?? preset?.width
+  const height = options.height ?? preset?.height
+  if (width === undefined || height === undefined) return {}
+  // Touch, not Chromium's mobile text-autosize: `isMobile` at 320 CSS pixels
+  // boosts 12px type and makes axe's contrast sampler lie.
+  const coarse = options.mobile === true || options.tablet === true
+  return { viewport: { width, height }, ...(coarse ? { hasTouch: true } : {}) }
 }
 
 export async function startHarness(): Promise<Harness> {

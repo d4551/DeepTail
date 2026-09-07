@@ -9,12 +9,21 @@
  * better manners.
  *
  * There is no exemption here, and there was no need for one. The findings that
- * looked unavoidable were `useLiteralKeys` on `dataset` reads, where the
- * compiler's `noPropertyAccessFromIndexSignature` refuses the property
- * spelling and `unicorn/prefer-dom-node-dataset` refuses the attribute
- * spelling. Biome's rule reports a *literal* index, not a computed one, so the
- * key taken as a value — which is what `apps/deeptail/src/ui/dataset.ts`
- * already did — satisfies all three. This gate therefore refuses everything.
+ * looked unavoidable were `useLiteralKeys` on `dataset` reads, and the three
+ * checkers' own published rules are what settle it:
+ *
+ * - TypeScript's `noPropertyAccessFromIndexSignature` reference states that a
+ *   field reached through an index signature must be written with the indexed
+ *   syntax, which refuses `element.dataset.deeptailProbe`.
+ * - oxlint's `unicorn/prefer-dom-node-dataset` states that `getAttribute`,
+ *   `setAttribute`, `hasAttribute` and `removeAttribute` are the wrong way to
+ *   reach a `data-*` attribute, which refuses the attribute spelling.
+ * - Biome's `useLiteralKeys` reference lists `a[d.c]` among its *valid*
+ *   examples: the rule reports a literal index, not a computed one.
+ *
+ * So the key taken as a value satisfies all three at once — which is what
+ * `apps/deeptail/src/ui/dataset.ts` already did, and what the browser suites
+ * now do. This gate therefore refuses everything, at every severity.
  *
  * @module
  */
@@ -95,6 +104,12 @@ export function reportedTotal(output: string): number {
 
 /**
  * One finding, as this gate reports it.
+ *
+ * The wording says what this gate observed — that the finding was reported —
+ * and not what the linter's exit code was. This reader is handed the report,
+ * not the status: an earlier wording asserted the linter "exited zero", which
+ * was true of the `info` findings that prompted the gate and false of every
+ * `error` one it also refuses.
  * @param finding - the finding the linter named.
  * @returns the offence.
  */
@@ -102,7 +117,7 @@ function offenceOf(finding: LintFinding): Offence {
   return {
     label: finding.label,
     line: finding.line,
-    why: `${finding.rule}: the linter reported this and exited zero; fix it rather than reading past it`,
+    why: `${finding.rule}: fix it rather than reading past it`,
   }
 }
 
@@ -130,7 +145,10 @@ export function lintOutcome(output: string): GateOutcome {
   }
   if (findings.length > 0) {
     const rendered = findings.map((finding) => renderOffence(offenceOf(finding))).join('\n')
-    return { ok: false, text: `the linter reported findings the chain would have walked past:\n${rendered}\n` }
+    return {
+      ok: false,
+      text: `the linter reported findings, which this gate refuses at every severity:\n${rendered}\n`,
+    }
   }
   return { ok: true, text: `the linter reports nothing, at any severity (${String(files)} files)\n` }
 }

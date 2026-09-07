@@ -21,25 +21,11 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { isJsonObject, type Json, readJsonc } from './jsonc.ts'
+import { isJsonObject, type Json, member, readJsonc } from './jsonc.ts'
 import { repositoryFiles } from './source-tree.ts'
 
 /** Every kind of dependency a manifest can declare. */
 const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
-
-/**
- * One member of a decoded document, read by a key the caller supplies.
- *
- * The key travels as a value rather than as a written property, which is what
- * keeps every read here honest about the document being a map at this point:
- * it has not yet been proven to have the member at all.
- * @param document - the decoded document.
- * @param key - the member to read.
- * @returns the member, or undefined when the document has none.
- */
-function member(document: { [key: string]: Json }, key: string): Json | undefined {
-  return document[key]
-}
 
 /**
  * One string member, or the empty string when it is absent or of another kind.
@@ -163,19 +149,39 @@ export interface BunLock {
  */
 export function readLock(path: string): BunLock {
   const document = readJsonc(readFileSync(path, 'utf8'))
-  const packagesSection = member(document, 'packages')
+  return {
+    packages: lockPackages(member(document, 'packages')),
+    workspaces: lockWorkspaces(member(document, 'workspaces')),
+  }
+}
+
+/**
+ * The lock's registry packages, each as the tuple it records.
+ * @param section - the document's packages member.
+ * @returns package key to its tuple; empty when the section is not one.
+ */
+function lockPackages(section: Json | undefined): Map<string, readonly Json[]> {
   const packages = new Map<string, readonly Json[]>()
-  for (const [key, entry] of isJsonObject(packagesSection) ? Object.entries(packagesSection) : []) {
+  for (const [key, entry] of isJsonObject(section) ? Object.entries(section) : []) {
     if (Array.isArray(entry)) packages.set(key, entry)
   }
-  const workspacesSection = member(document, 'workspaces')
+  return packages
+}
+
+/**
+ * The lock's workspace members, each with the version its own manifest states.
+ * @param section - the document's workspaces member.
+ * @returns workspace path to what the lock records; empty when the section is
+ * not one.
+ */
+function lockWorkspaces(section: Json | undefined): Map<string, LockWorkspace> {
   const workspaces = new Map<string, LockWorkspace>()
-  for (const [key, entry] of isJsonObject(workspacesSection) ? Object.entries(workspacesSection) : []) {
+  for (const [key, entry] of isJsonObject(section) ? Object.entries(section) : []) {
     if (!isJsonObject(entry)) continue
     const name = member(entry, 'name')
     const version = member(entry, 'version')
     if (typeof name !== 'string') continue
     workspaces.set(key, { name, version: typeof version === 'string' ? version : undefined })
   }
-  return { packages, workspaces }
+  return workspaces
 }

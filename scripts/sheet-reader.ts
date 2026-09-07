@@ -122,6 +122,51 @@ interface Read {
   readonly declarations: Declaration[]
 }
 
+/** One walk in progress: the sheet, where its lines are, and what it has found. */
+interface Walk {
+  /** The sheet, comments already blanked. */
+  readonly sheet: string
+  /** Which line an offset falls on. */
+  readonly line: (offset: number) => number
+  /** The blocks still open, innermost last. */
+  readonly stack: OpenBlock[]
+  /** What has been read so far. */
+  readonly read: Read
+}
+
+/**
+ * The block a `{` opens, with the prelude that precedes it.
+ * @param walk - the walk in progress.
+ * @param segment - where the prelude starts.
+ * @param index - the offset of the brace.
+ * @returns the block, with no declarations in it yet.
+ */
+function openedBlock(walk: Walk, segment: number, index: number): OpenBlock {
+  const prelude = walk.sheet.slice(segment, index)
+  return {
+    prelude: prelude.trim().replaceAll(/\s+/gu, ' '),
+    line: walk.line(segment + (prelude.length - prelude.trimStart().length)),
+    atRule: prelude.trimStart().startsWith('@'),
+    nested: walk.stack.some((open) => !open.atRule),
+    declarations: [],
+  }
+}
+
+/**
+ * Record the declaration a `;` or `}` closes, when it closes one.
+ * @param walk - the walk in progress.
+ * @param segment - where the declaration starts.
+ * @param index - the offset of the separator.
+ */
+function closeDeclaration(walk: Walk, segment: number, index: number): void {
+  const open = walk.stack.at(-1)
+  if (open === undefined) return
+  const found = declarationIn(walk.sheet, segment, index, walk.line)
+  if (found === undefined) return
+  open.declarations.push(found)
+  walk.read.declarations.push(found)
+}
+
 /**
  * Walk a sheet's braces, collecting its blocks and its declarations.
  *
@@ -132,9 +177,7 @@ interface Read {
  */
 function scan(text: string): Read {
   const sheet = withoutComments(text)
-  const line = lineReader(sheet)
-  const stack: OpenBlock[] = []
-  const read: Read = { blocks: [], declarations: [] }
+  const walk: Walk = { sheet, line: lineReader(sheet), stack: [], read: { blocks: [], declarations: [] } }
   let segment = 0
   for (let index = 0; index < sheet.length; index += 1) {
     const character = sheet[index]
@@ -143,34 +186,20 @@ function scan(text: string): Read {
       continue
     }
     if (character === '{') {
-      const prelude = sheet.slice(segment, index)
-      const block: OpenBlock = {
-        prelude: prelude.trim().replaceAll(/\s+/gu, ' '),
-        line: line(segment + (prelude.length - prelude.trimStart().length)),
-        atRule: prelude.trimStart().startsWith('@'),
-        nested: stack.some((open) => !open.atRule),
-        declarations: [],
-      }
-      stack.push(block)
-      read.blocks.push(block)
+      const block = openedBlock(walk, segment, index)
+      walk.stack.push(block)
+      walk.read.blocks.push(block)
       segment = index + 1
       continue
     }
     if (character !== ';' && character !== '}') continue
-    const open = stack.at(-1)
-    if (open !== undefined) {
-      const found = declarationIn(sheet, segment, index, line)
-      if (found !== undefined) {
-        open.declarations.push(found)
-        read.declarations.push(found)
-      }
-    }
+    closeDeclaration(walk, segment, index)
     segment = index + 1
     // Popping an empty stack is a no-op, so the brace alone decides: stating
     // the same guard twice is one statement that can be deleted unnoticed.
-    if (character === '}') stack.pop()
+    if (character === '}') walk.stack.pop()
   }
-  return read
+  return walk.read
 }
 
 /**

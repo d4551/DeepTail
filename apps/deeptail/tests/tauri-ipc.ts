@@ -9,6 +9,7 @@
  * @module
  */
 
+import type { IndexInjection } from '../src/injections.ts'
 import { CARRIER_SOURCES, deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux } from './tauri-ipc-carrier.ts'
 import { deeptailListHosts, deeptailRegistry, issuedGrants } from './tauri-ipc-registry.ts'
 
@@ -151,6 +152,15 @@ export type AnswerTable = {
   readonly muxClose?: readonly string[]
   /** Why booting the harness client fails, when the test needs it to. */
   readonly bootError?: string
+  /**
+   * The scripts a host's boot table injects, in the order it names them.
+   *
+   * While this was absent the command answered an empty list, so the bundle
+   * loader was unreachable from any fixture at all.
+   */
+  readonly bootInjections?: readonly IndexInjection[]
+  /** The source each injected bundle answers with, keyed by its path. */
+  readonly bundles?: Readonly<Record<string, string>>
   /** Whether a tailnet credential is already stored. */
   readonly tailnetConnected?: boolean
   /** The machines `tailscale_devices` and `tailscale_connect` answer with. */
@@ -186,9 +196,9 @@ function deeptailInvoke(
   cmd: string,
   args: Record<string, object>,
   state: IpcState,
-  // `tailscale_connected` answers with a boolean, so the surface is every JSON
-  // value a command returns rather than objects alone.
-): Promise<object | boolean | null> {
+  // `tailscale_connected` answers a boolean and `carrier_load_bundle` the
+  // bundle's source, so the surface is every JSON value, not objects alone.
+): Promise<object | boolean | string | null> {
   // Every command is recorded, not only the remote calls. A surface that says
   // it re-reads the registry is making a claim about a command, and a claim
   // about a command needs a record of commands to be checked against.
@@ -214,6 +224,14 @@ function deeptailInvoke(
       return deeptailOpenMux(script, args, state)
     case 'carrier_send_mux':
       return deeptailSendMux(script, args, state)
+    case 'carrier_load_bundle': {
+      // The page turns this into a blob and runs it, so falling to the default
+      // below handed it `null` and the injection path looked like an empty one.
+      const { path } = args
+      const key = typeof path === 'string' ? path : ''
+      const source = script.bundles?.[key]
+      return Promise.resolve(typeof source === 'string' ? source : '')
+    }
     default:
       return Promise.resolve(null)
   }

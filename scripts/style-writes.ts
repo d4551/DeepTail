@@ -88,6 +88,31 @@ export function inspectCall(env: Constants, node: Node, report: (node: Node, why
     checkName(env, node, args[setter], 'attribute', report)
     return
   }
+  inspectHostWrite(env, node, callee, method, args, report)
+}
+
+/**
+ * Reject the writes that reach a style declaration through a host the gate
+ * knows: a key written onto it, or an object merged into it.
+ *
+ * Read apart from the attribute calls above, which decide on the method name
+ * alone. These have to establish what the method was called on first, so the
+ * two halves ask different questions of the same call.
+ * @param env - the file's constants.
+ * @param node - the call expression.
+ * @param callee - its callee, already known to be a member expression.
+ * @param method - the method name, however it was written.
+ * @param args - the call's arguments.
+ * @param report - records an offence.
+ */
+function inspectHostWrite(
+  env: Constants,
+  node: Node,
+  callee: Node,
+  method: string,
+  args: readonly Field[],
+  report: (node: Node, why: string) => void,
+): void {
   const host = unwrap(callee.object)
   if (!isNode(host) || host.type !== 'Identifier' || typeof host.name !== 'string') return
   if (!KEYED_WRITE_HOSTS.has(host.name)) return

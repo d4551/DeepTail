@@ -8,17 +8,8 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { scanSheet } from '../scripts/sheet-gate.ts'
 import { importsOf } from '../scripts/sheet-imports.ts'
-import { joined } from './fixtures.ts'
-
-/** The reasons a sheet is rejected for. */
-function sheetOffences(text: string): string[] {
-  return scanSheet('apps/deeptail/src/styles/shell.css', text).map((offence) => offence.why)
-}
-
-/** A remote host, assembled so this file's own source carries none whole. */
-const host = (scheme: string): string => joined(scheme, '//cdn.example.com')
+import { joined, remoteHost, sheetOffences } from './fixtures.ts'
 
 /** The reason a remote import is refused. */
 const REMOTE = 'a remote import loads a sheet no local install ships; ship the sheet in the bundle'
@@ -34,30 +25,29 @@ const retired = (target: string): string =>
 describe('the import reader', () => {
   it('reads a target however the import is written', () => {
     // Four spellings CSS accepts, and the gate has to see the target in each.
-    expect(sheetOffences(`@import "${host('https:')}/x.css";`)).toEqual([REMOTE])
-    expect(sheetOffences(`@import url("${host('https:')}/x.css");`)).toEqual([REMOTE])
-    expect(sheetOffences(`@import url(${host('https:')}/x.css);`)).toEqual([REMOTE])
-    expect(sheetOffences(`@import url(  "${host('https:')}/x.css"  );`)).toEqual([REMOTE])
-    expect(sheetOffences(`@import\n  "${host('https:')}/x.css";`)).toEqual([REMOTE])
+    expect(sheetOffences(`@import "${remoteHost('https:')}/x.css";`)).toEqual([REMOTE])
+    expect(sheetOffences(`@import url("${remoteHost('https:')}/x.css");`)).toEqual([REMOTE])
+    expect(sheetOffences(`@import url(${remoteHost('https:')}/x.css);`)).toEqual([REMOTE])
+    expect(sheetOffences(`@import url(  "${remoteHost('https:')}/x.css"  );`)).toEqual([REMOTE])
+    expect(sheetOffences(`@import\n  "${remoteHost('https:')}/x.css";`)).toEqual([REMOTE])
   })
 
   it('reads every import a sheet makes, not only the first', () => {
-    expect(sheetOffences(`@import "${host('https:')}/a.css";\n@import "${host('https:')}/b.css";`)).toEqual([
-      REMOTE,
-      REMOTE,
-    ])
+    expect(sheetOffences(`@import "${remoteHost('https:')}/a.css";\n@import "${remoteHost('https:')}/b.css";`)).toEqual(
+      [REMOTE, REMOTE],
+    )
   })
 
   it('reads no import out of a comment, which imports nothing', () => {
-    expect(sheetOffences(`/* @import "${host('https:')}/x.css"; */\n.a { color: currentcolor }`)).toEqual([])
+    expect(sheetOffences(`/* @import "${remoteHost('https:')}/x.css"; */\n.a { color: currentcolor }`)).toEqual([])
   })
 })
 
 describe('the remote-import rule', () => {
   it('refuses every scheme a sheet can reach the network with', () => {
-    expect(sheetOffences(`@import "${host('https:')}/x.css";`)).toEqual([REMOTE])
-    expect(sheetOffences(`@import "${host('http:')}/x.css";`)).toEqual([REMOTE])
-    expect(sheetOffences(`@import "${host('')}/x.css";`)).toEqual([REMOTE])
+    expect(sheetOffences(`@import "${remoteHost('https:')}/x.css";`)).toEqual([REMOTE])
+    expect(sheetOffences(`@import "${remoteHost('http:')}/x.css";`)).toEqual([REMOTE])
+    expect(sheetOffences(`@import "${remoteHost('')}/x.css";`)).toEqual([REMOTE])
     expect(sheetOffences(`@import "${joined('HT', 'TPS://cdn.example.com')}/x.css";`)).toEqual([REMOTE])
   })
 
@@ -65,7 +55,7 @@ describe('the remote-import rule', () => {
     expect(sheetOffences('@import "./tokens.css";')).toEqual([])
     expect(sheetOffences('@import "../styles/shell.css";')).toEqual([])
     // Anchored: the reach has to open the target, not appear somewhere in it.
-    expect(sheetOffences(`@import "./vendor/${host('https:')}.css";`)).toEqual([])
+    expect(sheetOffences(`@import "./vendor/${remoteHost('https:')}.css";`)).toEqual([])
   })
 })
 

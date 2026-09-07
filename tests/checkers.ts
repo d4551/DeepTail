@@ -14,18 +14,8 @@
  * @module
  */
 
-import { isJsonObject, type Json } from '../scripts/jsonc.ts'
+import { isJsonObject, type Json, member } from '../scripts/jsonc.ts'
 import { readJsoncSync } from './jsonc-io.ts'
-
-/**
- * One member of a decoded document, read by a key the caller supplies.
- * @param document - the decoded document.
- * @param key - the member to read.
- * @returns the member, or undefined when the document has none.
- */
-function member(document: { [key: string]: Json }, key: string): Json | undefined {
-  return document[key]
-}
 
 /**
  * One section of string-valued members, as a map.

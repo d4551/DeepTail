@@ -174,7 +174,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--dsh-weight-semibold);
   cursor: pointer;
 }
 
@@ -187,7 +187,7 @@
   border-radius: 50%;
   border: 2px solid var(--dsw-alias-border-l2);
   border-top-color: var(--dsw-alias-brand-primary);
-  animation: deeptail-spin 0.8s linear infinite;
+  animation: deeptail-spin var(--ds-spin-duration) linear infinite;
 }
 
 @keyframes deeptail-spin {

@@ -53,6 +53,12 @@ jobs:
         run: bun run check:styles
       - name: bans
         run: bun run check:bans
+      - name: commands (both planes of the native boundary name one list)
+        run: bun run check:commands
+      - name: copy (every sentence looked up through a dictionary)
+        run: bun run check:copy
+      - name: dialogs (one dialog, the one the product ships)
+        run: bun run check:dialogs
       - name: entries
         run: bun run check:entries
       - name: registry faces

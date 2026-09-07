@@ -46,6 +46,13 @@
     "Microsoft YaHei";
   --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ds-transition-duration: 0.2s;
+  /* One turn of an indefinite spinner. Held apart from the transition duration
+     because it is a different decision — a state change finishing, against a
+     wait continuing — and collapsing the two would spin the ring four times
+     faster. It is deliberately not redefined below: an indefinite animation
+     run at 0.01ms is a strobe, so the sheet that uses this stops the animation
+     outright for a reader who asked for less motion. */
+  --ds-spin-duration: 0.8s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -106,6 +113,17 @@
   --dsh-leading-lg: 20px;
   --dsh-leading-control: 22px;
   --dsh-leading-body: 24px;
+
+  /* The two emphases the product draws with, and the two trackings its
+   * uppercase headings are set on. Sizes and leadings read from this sheet
+   * while these did not: seven weights and two trackings were written out
+   * across five sheets, so a heading could be 600 in one region and 500 in
+   * another with nothing saying which was meant. */
+  --dsh-weight-medium: 500;
+  --dsh-weight-semibold: 600;
+
+  --dsh-tracking-wide: 0.04em;
+  --dsh-tracking-wider: 0.08em;
 
   /* The heights the shell's controls stand at, and the widths its regions are
    * laid out on. Each was written wherever it was needed; a width restated is

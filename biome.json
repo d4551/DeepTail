@@ -9,6 +9,10 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": { "level": "error", "options": { "maxAllowedComplexity": 12 } },
+        "noExcessiveLinesPerFunction": { "level": "error", "options": { "maxLines": 50 } }
+      },
       "suspicious": {
         "noExplicitAny": "error",
         "noConsole": "error",

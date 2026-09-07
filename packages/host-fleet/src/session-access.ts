@@ -7,6 +7,7 @@
  */
 
 import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionId as SessionIdType } from '@deepseek-ai/dsh-session/types'
 import type { FleetController, FleetSendResult } from './types.ts'
@@ -24,11 +25,16 @@ interface FleetPrompt {
 /**
  * Brand one freshly minted correlation id as a prompt identity. The controller
  * requires a client-minted `SessionRequestId`; the orchestrator is that client.
+ *
+ * Branded through the helper the brand package ships rather than by asserting
+ * the type onto the string. The two produce the same value, and only one of
+ * them keeps working when the brand's shape changes: an assertion states the
+ * answer, `brandString` is told what brand to apply and derives it.
  * @param id - a fresh UUID.
  * @returns the same string with the prompt-identity brand.
  */
 function requestId(id: string): SessionRequestId {
-  return id as SessionRequestId
+  return brandString<SessionRequestId>(id)
 }
 
 /**

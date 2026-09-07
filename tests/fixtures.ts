@@ -11,6 +11,7 @@ import * as bans from '../scripts/ban-gate.ts'
 import { constants } from '../scripts/fold.ts'
 import { freeNames } from '../scripts/free-names.ts'
 import type { Names } from '../scripts/rule-helpers.ts'
+import { scanSheet } from '../scripts/sheet-gate.ts'
 import * as styles from '../scripts/style-gate.ts'
 
 /**
@@ -49,6 +50,38 @@ export function free(...lines: readonly string[]): string[] {
  */
 export function styleOffences(text: string, label = 'fixture.ts'): string[] {
   return styles.scanSource(label, text).map((offence) => offence.why)
+}
+
+/**
+ * The sheet a fixture is attributed to when the case is not about the token
+ * sheet, which is the one file allowed to define the scales.
+ */
+export const SHELL_SHEET = 'apps/deeptail/src/styles/shell.css'
+
+/**
+ * The reasons a sheet is rejected for.
+ *
+ * Six sheet suites each declared this, four of them byte for byte, so the
+ * label a case is attributed to — which decides whether the file is read as
+ * the sheet that defines the scales — was six decisions that could drift.
+ * @param text - the fixture.
+ * @param label - the path to attribute it to.
+ * @returns one reason per offence.
+ */
+export function sheetOffences(text: string, label: string = SHELL_SHEET): string[] {
+  return scanSheet(label, text).map((offence) => offence.why)
+}
+
+/**
+ * A remote host, assembled so no suite's own source carries one whole.
+ *
+ * The sheet gate reads this repository's own files, and a remote URL written
+ * out in a fixture is a remote URL in a file the gate opens.
+ * @param scheme - the scheme, with its colon; defaults to the secure one.
+ * @returns the origin.
+ */
+export function remoteHost(scheme = 'https:'): string {
+  return joined(scheme, '//cdn.example.com')
 }
 
 /**

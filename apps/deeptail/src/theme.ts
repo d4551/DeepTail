@@ -1,48 +1,51 @@
 /**
  * Light/dark resolution, matching the harness mechanism: `prefers-color-scheme`
- * resolves the `system` preference into the `body[data-ds-dark-theme]`
- * attribute. The token sheet keys both the palette and `color-scheme` off that
- * one attribute, so native UA chrome follows without script.
+ * resolves into the `body[data-ds-dark-theme]` attribute. The token sheet keys
+ * both the palette and `color-scheme` off that one attribute, so native UA
+ * chrome follows without script.
+ *
+ * The viewer's own setting is the control. This module carried a
+ * `ThemePreference` of `light | dark | system` and a parameter to choose
+ * between them, and nothing ever passed one: the single call site asks for the
+ * default. Two of the three values were unreachable, and the branch that read
+ * them was a switch for a control this product does not draw. What is left is
+ * what actually runs. A preference surface would bring the parameter back
+ * along with the control that sets it.
  *
  * @module
  */
 
-/** What the viewer asked for; `system` follows the OS. */
-export type ThemePreference = 'light' | 'dark' | 'system'
-
 /** The attribute the token sheet keys its dark palette off. */
 const DARK_ATTRIBUTE = 'data-ds-dark-theme'
 
-/** Drops the OS listener a previous `system` preference installed. */
+/** Drops the OS listener a previous call installed. */
 let following: (() => void) | undefined
 
-/** The query the `system` preference is resolved through. */
+/** The query the viewer's setting is resolved through. */
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
 /**
- * Apply a theme preference to the document, and keep applying it.
+ * Resolve the viewer's colour setting onto the document, and keep resolving it.
  *
- * A `system` preference is a subscription, not a reading: resolved once at
- * boot, switching the OS to dark left a long-running window in the light
- * palette — and its `theme-color` stale — until it was restarted. The listener
- * is replaced on each call, so an explicit choice ends the subscription.
- * @param preference - the viewer's choice.
+ * A subscription, not a reading: resolved once at boot, switching the OS to
+ * dark left a long-running window in the light palette — and its `theme-color`
+ * stale — until it was restarted. The listener is replaced on each call, so
+ * repeated calls hold one subscription rather than accumulating them.
  */
-export function applyTheme(preference: ThemePreference = 'system'): void {
+export function applyTheme(): void {
   const media = typeof matchMedia === 'undefined' ? undefined : matchMedia(DARK_QUERY)
   following?.()
   following = undefined
-  if (preference === 'system' && media !== undefined) {
+  if (media !== undefined) {
     const follow = (): void => {
-      applyTheme('system')
+      applyTheme()
     }
     media.addEventListener('change', follow)
     following = () => {
       media.removeEventListener('change', follow)
     }
   }
-  const dark = preference === 'dark' || (preference === 'system' && (media?.matches ?? false))
-  document.body.toggleAttribute(DARK_ATTRIBUTE, dark)
+  document.body.toggleAttribute(DARK_ATTRIBUTE, media?.matches ?? false)
   // The mobile browser chrome takes its colour from the computed background,
   // so the meta tag is synced after the palette has switched.
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]') ?? document.createElement('meta')

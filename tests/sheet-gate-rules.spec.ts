@@ -9,19 +9,11 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { scanSheet } from '../scripts/sheet-gate.ts'
-import { joined } from './fixtures.ts'
-
-/** A remote host, assembled so this file's own source carries none whole. */
-const remoteHost = (): string => joined('ht', 'tps://cdn.example.com')
-
-/** The reasons a sheet is rejected for. */
-function sheetOffences(text: string, label = 'apps/deeptail/src/styles/shell.css'): string[] {
-  return scanSheet(label, text).map((offence) => offence.why)
-}
+import { scanSheet, TOKEN_SHEET } from '../scripts/sheet-gate.ts'
+import { joined, remoteHost, sheetOffences } from './fixtures.ts'
 
 /** The token sheet's own path, which is where definitions live. */
-const TOKEN = 'apps/deeptail/src/styles/tokens.css'
+const TOKEN = TOKEN_SHEET
 
 /** The grid track properties, assembled so this file's source carries none whole. */
 const COLUMNS = joined('grid-template-', 'columns')
@@ -38,6 +30,15 @@ describe('the stylesheet gate rejects', () => {
     expect(sheetOffences('.a { border-radius: 22px; }')).toHaveLength(1)
     expect(sheetOffences('.a { font-size: 16px; }')).toHaveLength(1)
     expect(sheetOffences('.a { line-height: 24px; }')).toHaveLength(1)
+  })
+
+  it('a weight or a tracking written out rather than read from the scale', () => {
+    // The shorthand sets the weight, the size and the leading at once under a
+    // property name neither this rule nor the length rule matched, so it once
+    // slipped past both. The weights and trackings themselves are driven in
+    // `sheet-gate-typography.spec.ts`.
+    expect(sheetOffences('.a { font: 600 14px/20px sans-serif; }')).toHaveLength(1)
+    expect(sheetOffences('.a { font: italic 500 13px system-ui; }')).toHaveLength(1)
   })
 
   it('a length hidden inside a function, which still decides the layout', () => {
@@ -57,6 +58,38 @@ describe('the stylesheet gate rejects', () => {
   it('and names every length it found, so one line reports all of them', () => {
     expect(sheetOffences('.a { padding: 18px 22px; }')).toEqual([
       '18px, 22px is written out rather than read from the scale in tokens.css',
+    ])
+  })
+})
+
+/** What the motion rule says about one duration, so the wording is written once. */
+function motionWhy(time: string, property: string): string {
+  return `${time} in ${property} is written out rather than read from the motion scale in tokens.css, so the reduced-motion setting cannot reach it`
+}
+
+describe('the stylesheet gate rejects motion outside the scale', () => {
+  it('a duration written out, which the reduced-motion setting cannot reach', () => {
+    // The setting is honoured by redefining the duration token, so a speed
+    // spelled in the rule keeps running at full speed for a viewer who asked
+    // it to stop. Every property that carries a time is read, shorthand and
+    // longhand, transition and animation.
+    expect(sheetOffences('.a { animation: spin 0.8s linear infinite; }')).toEqual([motionWhy('0.8s', 'animation')])
+    expect(sheetOffences('.a { transition: opacity 200ms ease; }')).toEqual([motionWhy('200ms', 'transition')])
+    expect(sheetOffences('.a { transition-duration: 0.3s; }')).toEqual([motionWhy('0.3s', 'transition-duration')])
+    expect(sheetOffences('.a { animation-delay: 150ms; }')).toEqual([motionWhy('150ms', 'animation-delay')])
+  })
+
+  it('but not a duration read from the scale, nor no duration at all', () => {
+    // `0s` says the change is not animated, which is the same statement at
+    // every speed, so it is not a speed decision the scale has to hold.
+    expect(sheetOffences('.a { transition: transform var(--ds-transition-duration) linear; }')).toEqual([])
+    expect(sheetOffences('.a { transition: visibility 0s linear var(--ds-transition-duration); }')).toEqual([])
+    expect(sheetOffences('.a { animation-delay: 0ms; }')).toEqual([])
+  })
+
+  it('and names every duration it found, as it does for lengths', () => {
+    expect(sheetOffences('.a { transition: opacity 200ms 50ms ease; }')).toEqual([
+      motionWhy('200ms, 50ms', 'transition'),
     ])
   })
 })
@@ -85,10 +118,9 @@ describe('the stylesheet gate rejects misalignment', () => {
     expect(sheetOffences(`.a { ${right}: 0; }`)).not.toEqual([])
     expect(sheetOffences(`.a { text-align: ${left}; }`)).not.toEqual([])
     expect(sheetOffences(`.a { text-align: ${right}; }`)).not.toEqual([])
-    // The logical spellings are the ones the direction follows.
+    // The logical spellings are the ones the direction follows. The two
+    // `text-align` spellings are proved by the case above, not restated here.
     expect(sheetOffences('.a { margin-inline-start: var(--dsh-space-3); }')).toEqual([])
-    expect(sheetOffences('.a { text-align: start; }')).toEqual([])
-    expect(sheetOffences('.a { text-align: end; }')).toEqual([])
   })
 })
 
@@ -191,12 +223,19 @@ describe('the stylesheet gate allows', () => {
     expect(sheetOffences('.a { z-index: var(--dsh-z-menu); }')).toEqual([])
   })
 
-  it('a colour read from the palette, and a system colour keyword', () => {
-    expect(sheetOffences('.a { color: var(--dsw-alias-label-error); }')).toEqual([])
-    expect(sheetOffences('.a { border: 1px solid CanvasText; }')).toEqual([])
-    expect(sheetOffences('.a { color: currentcolor; }')).toEqual([])
+  it('the font shorthand when it takes the whole decision from the box above', () => {
+    // `font: inherit` is how a control stops the UA sheet pinning its family;
+    // it picks no size, weight or leading of its own.
+    expect(sheetOffences('.a { font: inherit; }')).toEqual([])
   })
 
+  it('a colour read from the palette, and a system colour keyword', () => {
+    expect(sheetOffences('.a { color: var(--dsw-alias-label-error); }')).toEqual([])
+    expect(sheetOffences('.a { color: currentcolor; }')).toEqual([])
+  })
+})
+
+describe('the stylesheet gate allows, where a value is drawn rather than spaced', () => {
   it('a hairline and a focus ring, which are drawn rather than spaced', () => {
     expect(sheetOffences('.a { padding: 0px; }')).toEqual([])
     expect(sheetOffences('.a { border: 1px solid CanvasText; }')).toEqual([])
@@ -220,7 +259,7 @@ describe('the stylesheet gate allows', () => {
     expect(sheetOffences('.a { width: 100%; }')).toEqual([])
     expect(sheetOffences('.a { max-height: 100dvh; }')).toEqual([])
     expect(sheetOffences('.a { inset: 20%; }')).toEqual([])
-    expect(sheetOffences('.a { letter-spacing: 0.08em; }')).toEqual([])
+    expect(sheetOffences('.a { width: fit-content; }')).toEqual([])
   })
 
   it('a property whose length is not a scale decision', () => {

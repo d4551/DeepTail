@@ -12,13 +12,7 @@
 import { describe, expect, it } from 'bun:test'
 import { BLANK_VALUES, RING_PROPERTIES, unringedSelectors } from '../scripts/focus-ring-gate.ts'
 import { DRAWN_LENGTHS, PHYSICAL_SIDES } from '../scripts/sheet-declarations.ts'
-import { scanSheet } from '../scripts/sheet-gate.ts'
-import { joined } from './fixtures.ts'
-
-/** The reasons a sheet is rejected for. */
-function sheetOffences(text: string, label = 'apps/deeptail/src/styles/shell.css'): string[] {
-  return scanSheet(label, text).map((offence) => offence.why)
-}
+import { joined, remoteHost, sheetOffences } from './fixtures.ts'
 
 /** Every physical side spelling, each of which reads correctly in one direction only. */
 const PHYSICAL = [
@@ -198,18 +192,13 @@ describe('the focus-ring tables', () => {
 /** The reason a remote asset is refused. */
 const REMOTE_ASSET = 'a remote URL loads an asset no local install ships; ship the asset in the bundle'
 
-/** A remote host, assembled so this file's own source carries none whole. */
-function host(): string {
-  return joined('ht', 'tps://cdn.example.com')
-}
-
 describe('the remote-asset rules', () => {
   it('reject every way a URL can reach outside the bundle', () => {
     // Each spelling is a separate way past: the scheme may be absent, the
     // quote may be absent, and the space after the parenthesis may be either.
-    expect(sheetOffences(`.a { background: url("${host()}/bg.png"); }`)).toEqual([REMOTE_ASSET])
-    expect(sheetOffences(`.a { background: url(${host()}/bg.png); }`)).toEqual([REMOTE_ASSET])
-    expect(sheetOffences(`.a { background: url(  "${host()}/bg.png"); }`)).toEqual([REMOTE_ASSET])
+    expect(sheetOffences(`.a { background: url("${remoteHost()}/bg.png"); }`)).toEqual([REMOTE_ASSET])
+    expect(sheetOffences(`.a { background: url(${remoteHost()}/bg.png); }`)).toEqual([REMOTE_ASSET])
+    expect(sheetOffences(`.a { background: url(  "${remoteHost()}/bg.png"); }`)).toEqual([REMOTE_ASSET])
     expect(sheetOffences(`.a { background: url("${joined('ht', 'tp://cdn.example.com')}/bg.png"); }`)).toEqual([
       REMOTE_ASSET,
     ])

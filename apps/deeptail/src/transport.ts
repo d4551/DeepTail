@@ -10,6 +10,8 @@
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core'
+import { readCarrierResponse } from './carrier-reply.ts'
+import { NATIVE_COMMANDS } from './commands.ts'
 import { messageOf } from './reason.ts'
 import {
   SOCKET_CLOSE_ABNORMAL,
@@ -18,6 +20,7 @@ import {
   SOCKET_CONNECTING,
   SOCKET_OPEN,
 } from './socket-state.ts'
+import type { WireValue } from './wire.ts'
 
 /** One frame from the Rust-held mux socket. */
 type MuxFrame =
@@ -25,13 +28,6 @@ type MuxFrame =
   | { readonly type: 'message'; readonly data: string }
   | { readonly type: 'error'; readonly message: string }
   | { readonly type: 'close'; readonly code: number; readonly reason: string }
-
-/** The response shape the Rust unary-call command returns across the IPC boundary. */
-interface CarrierResponse {
-  readonly status: number
-  readonly headers: readonly (readonly [string, string])[]
-  readonly body: string
-}
 
 /**
  * Perform one unary `/api` call through Rust.
@@ -45,7 +41,7 @@ async function carrierFetch(host: string, input: URL, init: RequestInit): Promis
   new Headers(init.headers ?? {}).forEach((value, name) => {
     headers.push([name, value])
   })
-  const response = await invoke<CarrierResponse>('carrier_fetch', {
+  const answer = await invoke<WireValue>(NATIVE_COMMANDS.carrierFetch, {
     host,
     request: {
       path: `${input.pathname}${input.search}`,
@@ -54,9 +50,14 @@ async function carrierFetch(host: string, input: URL, init: RequestInit): Promis
       body: typeof init.body === 'string' ? init.body : null,
     },
   })
-  return new Response(response.body, {
-    status: response.status,
-    headers: new Headers(response.headers.map(([name, value]) => [name, value])),
+  // Read before it is used: `Response` refuses a status outside its range and
+  // `.map` refuses an absent header list, and both would surface as a failure
+  // from inside the transport rather than as the protocol failure they are.
+  const reply = readCarrierResponse(answer)
+  if (reply === undefined) throw new Error('deeptail: the carrier answered outside the protocol')
+  return new Response(reply.body, {
+    status: reply.status,
+    headers: new Headers(reply.headers.map(([name, value]) => [name, value])),
   })
 }
 
@@ -71,11 +72,15 @@ async function carrierFetch(host: string, input: URL, init: RequestInit): Promis
  */
 async function carrierLoadBundle(host: string, url: string): Promise<void> {
   const path = new URL(url, 'http://dsh.internal')
-  const source = await invoke<string>('carrier_load_bundle', {
+  const answer = await invoke<WireValue>(NATIVE_COMMANDS.carrierLoadBundle, {
     host,
     path: `${path.pathname}${path.search}`,
   })
-  const blob = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }))
+  // The answer becomes a script the page executes, so it is read before it is
+  // wrapped: anything but text would have been stringified into the blob and
+  // run as though the host had served it.
+  if (typeof answer !== 'string') throw new Error(`deeptail: the carrier answered bundle ${url} with no source`)
+  const blob = URL.createObjectURL(new Blob([answer], { type: 'text/javascript' }))
   await new Promise<void>((resolve, reject) => {
     const element = document.createElement('script')
     element.src = blob
@@ -122,7 +127,7 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
     const channel = new Channel<MuxFrame>((frame) => {
       this.#receive(frame)
     })
-    invoke('carrier_open_mux', { host: hostId, channel }).then(undefined, (reason) => {
+    invoke(NATIVE_COMMANDS.carrierOpenMux, { host: hostId, channel }).then(undefined, (reason) => {
       // The harness client treats an error before open as a carrier failure and
       // retries with backoff; the close keeps its bookkeeping consistent.
       this.#fail(reason)
@@ -139,7 +144,7 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
    * @param data - a serialized mux message.
    */
   send(data: string): void {
-    invoke('carrier_send_mux', { host: this.#host, data }).then(undefined, (reason) => {
+    invoke(NATIVE_COMMANDS.carrierSendMux, { host: this.#host, data }).then(undefined, (reason) => {
       // The Rust side rejects precisely when no socket is open for this host;
       // an unreported rejection strands `readyState` at OPEN while every write
       // vanishes — the failure this view exists to surface.
@@ -155,12 +160,15 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
   close(): void {
     if (this.#readyState === SOCKET_CLOSED) return
     this.#readyState = SOCKET_CLOSED
-    invoke('carrier_close_mux', { host: this.#host }).then(undefined, (reason: Parameters<typeof messageOf>[0]) => {
-      // Rust rejects this when it holds no socket for the host; the page-side
-      // retire signal goes out below and #fail's guard keeps this rejection
-      // from double-signalling it.
-      this.#fail(reason)
-    })
+    invoke(NATIVE_COMMANDS.carrierCloseMux, { host: this.#host }).then(
+      undefined,
+      (reason: Parameters<typeof messageOf>[0]) => {
+        // Rust rejects this when it holds no socket for the host; the page-side
+        // retire signal goes out below and #fail's guard keeps this rejection
+        // from double-signalling it.
+        this.#fail(reason)
+      },
+    )
     this.dispatchEvent(new CloseEvent('close', { code: SOCKET_CLOSE_NORMAL, reason: 'suspended' }))
   }
 

@@ -11,7 +11,7 @@
  * @module
  */
 
-import { type Field, fieldOf, isNode, type Node, parseScript } from './ast.ts'
+import { type Field, fieldOf, isNode, type Node, nodeOr, nodesOf, parseScript } from './ast.ts'
 
 /** One lexical scope, and the names it binds. */
 interface Scope {
@@ -95,6 +95,19 @@ function declarePattern(pattern: Field | undefined, into: Set<string>): void {
 }
 
 /**
+ * Bind every name one variable declaration introduces.
+ *
+ * The same walk answers a `var` swept up by the hoist and a `let` or `const`
+ * declared in a block: a declaration binds its declarators' patterns whichever
+ * scope it lands in, and it was written out twice.
+ * @param node - the VariableDeclaration.
+ * @param into - the scope to bind them in.
+ */
+function declareVariableNames(node: Node, into: Set<string>): void {
+  for (const declarator of nodesOf(fieldOf(node, 'declarations'))) declarePattern(fieldOf(declarator, 'id'), into)
+}
+
+/**
  * Bind the `var` and function declarations anywhere below a node, without
  * descending into a nested function, which holds its own.
  * @param value - the node or list to sweep.
@@ -107,18 +120,41 @@ function hoistVars(value: Field | undefined, into: Set<string>): void {
   }
   if (!isNode(value)) return
   const node = value
+  // A function declaration is function-like, so the branch above is the only
+  // one that ever sees one. A second binding of the same id stood after it and
+  // could not be reached: `FUNCTION_LIKE` holds `FunctionDeclaration`, so the
+  // return had already been taken.
   if (FUNCTION_LIKE.has(node.type)) {
     if (node.type === 'FunctionDeclaration') declarePattern(node.id, into)
     return
   }
-  if (node.type === 'VariableDeclaration' && node.kind === 'var') {
-    for (const declarator of (fieldOf(node, 'declarations') as readonly Node[] | null) ?? []) {
-      declarePattern(fieldOf(declarator, 'id'), into)
-    }
-  }
-  if (node.type === 'FunctionDeclaration') declarePattern(node.id, into)
+  if (node.type === 'VariableDeclaration' && node.kind === 'var') declareVariableNames(node, into)
   for (const [key, child] of Object.entries(node)) {
     if (key !== 'type') hoistVars(child, into)
+  }
+}
+
+/**
+ * The declaration an export statement wraps, or the statement itself.
+ * @param statement - the statement.
+ * @returns what actually declares a name.
+ */
+function declaring(statement: Node): Node {
+  return statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration'
+    ? nodeOr(fieldOf(statement, 'declaration'), statement)
+    : statement
+}
+
+/**
+ * Bind everything one statement declares directly in its own scope.
+ * @param node - the statement, already unwrapped from any export around it.
+ * @param into - the scope to bind them in.
+ */
+function declareStatement(node: Node, into: Set<string>): void {
+  if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') declarePattern(node.id, into)
+  if (node.type === 'VariableDeclaration') declareVariableNames(node, into)
+  if (node.type === 'ImportDeclaration') {
+    for (const specifier of nodesOf(fieldOf(node, 'specifiers'))) declarePattern(fieldOf(specifier, 'local'), into)
   }
 }
 
@@ -128,23 +164,7 @@ function hoistVars(value: Field | undefined, into: Set<string>): void {
  * @param into - the scope to bind them in.
  */
 function declareStatements(statements: readonly Node[], into: Set<string>): void {
-  for (const statement of statements) {
-    const node =
-      statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration'
-        ? ((fieldOf(statement, 'declaration') as Node | null) ?? statement)
-        : statement
-    if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') declarePattern(node.id, into)
-    if (node.type === 'VariableDeclaration') {
-      for (const declarator of (fieldOf(node, 'declarations') as readonly Node[] | null) ?? []) {
-        declarePattern(fieldOf(declarator, 'id'), into)
-      }
-    }
-    if (node.type === 'ImportDeclaration') {
-      for (const specifier of (fieldOf(node, 'specifiers') as readonly Node[] | null) ?? []) {
-        declarePattern(fieldOf(specifier, 'local'), into)
-      }
-    }
-  }
+  for (const statement of statements) declareStatement(declaring(statement), into)
 }
 
 /**
@@ -158,23 +178,39 @@ function scopeFor(node: Node, parent: Scope): Scope {
   if (!isFunction && !BLOCK_LIKE.has(node.type)) return parent
   const names = new Set<string>()
   const scope: Scope = { holdsVars: isFunction, names, parent }
-  if (isFunction) {
-    declarePattern(fieldOf(node, 'id'), names)
-    for (const param of (fieldOf(node, 'params') as readonly Node[] | null) ?? []) declarePattern(param, names)
-    hoistVars(fieldOf(node, 'body'), names)
-  }
+  if (isFunction) declareFunctionNames(node, names)
   if (node.type === 'CatchClause') declarePattern(fieldOf(node, 'param'), names)
   if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') declarePattern(fieldOf(node, 'id'), names)
-  for (const key of ['body', 'init', 'left', 'cases']) {
-    const field = fieldOf(node, key)
-    const statements = Array.isArray(field) ? field : ((fieldOf(field, 'body') as readonly Node[] | null) ?? [])
-    if (Array.isArray(statements)) declareStatements(statements as readonly Node[], names)
-    if (isNode(field) && field.type === 'VariableDeclaration') declareStatements([field], names)
-    if (Array.isArray(field)) {
-      for (const item of field) if (isNode(item) && item.type === 'SwitchCase') declareStatements(itemBody(item), names)
-    }
-  }
+  for (const key of ['body', 'init', 'left', 'cases']) declareFieldNames(fieldOf(node, key), names)
   return scope
+}
+
+/**
+ * Bind what a function brings with it: its own name, its parameters, and every
+ * `var` and function declaration hoisted out of its body.
+ * @param node - the function node.
+ * @param names - the scope being opened.
+ */
+function declareFunctionNames(node: Node, names: Set<string>): void {
+  declarePattern(fieldOf(node, 'id'), names)
+  for (const param of nodesOf(fieldOf(node, 'params'))) declarePattern(param, names)
+  hoistVars(fieldOf(node, 'body'), names)
+}
+
+/**
+ * Bind what one field of a scope-opening node declares.
+ *
+ * A field is a statement list, a block holding one, a bare declaration — a
+ * `for` head's `init` — or a list of switch cases, and each of those declares
+ * into the scope the node opened.
+ * @param field - the field's value.
+ * @param names - the scope being opened.
+ */
+function declareFieldNames(field: Field | undefined, names: Set<string>): void {
+  declareStatements(Array.isArray(field) ? nodesOf(field) : nodesOf(fieldOf(field, 'body')), names)
+  if (isNode(field) && field.type === 'VariableDeclaration') declareStatements([field], names)
+  if (!Array.isArray(field)) return
+  for (const item of field) if (isNode(item) && item.type === 'SwitchCase') declareStatements(itemBody(item), names)
 }
 
 /**
@@ -183,8 +219,24 @@ function scopeFor(node: Node, parent: Scope): Scope {
  * @returns its consequent statements.
  */
 function itemBody(node: Node): readonly Node[] {
-  const consequent = fieldOf(node, 'consequent')
-  return Array.isArray(consequent) ? (consequent as readonly Node[]) : []
+  return nodesOf(fieldOf(node, 'consequent'))
+}
+
+/**
+ * Every child node a node holds, each with the field it was read from.
+ *
+ * The field name is carried alongside, because whether an identifier is a
+ * reference at all is a question about which slot of its parent it sits in.
+ * @param node - the parent.
+ * @returns the field name and the child, in the order the fields are written.
+ */
+function childEntries(node: Node): (readonly [string, Node])[] {
+  const found: (readonly [string, Node])[] = []
+  for (const [key, child] of Object.entries(node)) {
+    if (key === 'type') continue
+    for (const item of Array.isArray(child) ? child : [child]) if (isNode(item)) found.push([key, item])
+  }
+  return found
 }
 
 /**
@@ -219,11 +271,7 @@ export function freeNames(label: string, text: string): string[] {
       return
     }
     const inner = scopeFor(node, scope)
-    for (const [childKey, child] of Object.entries(node)) {
-      if (childKey === 'type') continue
-      const items = Array.isArray(child) ? child : [child]
-      for (const item of items) if (isNode(item)) visit(item, node, childKey, inner)
-    }
+    for (const [childKey, child] of childEntries(node)) visit(child, node, childKey, inner)
   }
   for (const statement of parsed.body) visit(statement, undefined, 'body', top)
   return [...free].toSorted()

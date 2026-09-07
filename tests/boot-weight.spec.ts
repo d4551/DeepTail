@@ -65,18 +65,25 @@ function valueImporters(specifier: string): string[] {
   for (const file of repositoryFiles(['.ts'])) {
     if (!file.label.startsWith('apps/deeptail/src/')) continue
     const parsed = parseSync(file.label, readFileSync(file.path, 'utf8'))
-    for (const statement of parsed.program.body) {
-      if (statement.type !== 'ImportDeclaration' || statement.source.value !== specifier) continue
-      // A type-only import, and one whose every named binding is a type, are
-      // both erased before the bundler ever sees them.
-      const wholeDeclaration = statement.importKind === 'type'
-      const everySpecifier = statement.specifiers.every(
-        (one) => one.type === 'ImportSpecifier' && one.importKind === 'type',
-      )
-      if (!wholeDeclaration && !everySpecifier) found.push(file.label)
-    }
+    if (importsValueFrom(parsed.program.body, specifier)) found.push(file.label)
   }
   return found
+}
+
+/**
+ * Whether one module's statements import a package for its value.
+ * @param body - the module's top-level statements.
+ * @param specifier - the package to look for.
+ * @returns true when at least one import of it survives to the bundler.
+ */
+function importsValueFrom(body: ReturnType<typeof parseSync>['program']['body'], specifier: string): boolean {
+  return body.some((statement) => {
+    if (statement.type !== 'ImportDeclaration' || statement.source.value !== specifier) return false
+    // A type-only import, and one whose every named binding is a type, are
+    // both erased before the bundler ever sees them.
+    if (statement.importKind === 'type') return false
+    return !statement.specifiers.every((one) => one.type === 'ImportSpecifier' && one.importKind === 'type')
+  })
 }
 
 describe('the shell’s entry weight', () => {

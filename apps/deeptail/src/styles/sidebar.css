@@ -36,9 +36,9 @@
 
 .brand-name {
   font-size: var(--dsh-text-title);
-  font-weight: 600;
+  font-weight: var(--dsh-weight-semibold);
   line-height: var(--dsh-leading-body);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--dsh-tracking-wide);
   color: var(--dsw-alias-label-primary);
 }
 
@@ -58,7 +58,7 @@
   background: var(--dsw-alias-button-elevated-fill);
   color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-text-lg);
-  font-weight: 500;
+  font-weight: var(--dsh-weight-medium);
   line-height: var(--dsh-leading-control);
   cursor: pointer;
 }

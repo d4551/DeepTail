@@ -93,25 +93,37 @@ export interface RustAttribute {
  * @returns one entry per attribute.
  */
 export function rustAttributes(text: string): RustAttribute[] {
-  const attributes: RustAttribute[] = []
-  for (const opened of text.matchAll(ATTRIBUTE)) {
-    let cursor = opened.index + opened[0].length
-    let depth = 1
-    let held = ''
-    while (cursor < text.length && depth > 0) {
-      const literal = literalEnd(text, cursor)
-      if (literal !== undefined) {
-        held += ' '.repeat(literal - cursor)
-        cursor = literal
-        continue
-      }
-      const character = text[cursor] ?? ''
-      if (character === '[') depth += 1
-      else if (character === ']') depth -= 1
-      if (depth > 0) held += character
-      cursor += 1
+  return [...text.matchAll(ATTRIBUTE)].map((opened) => ({
+    start: opened.index,
+    held: attributeBody(text, opened.index + opened[0].length),
+  }))
+}
+
+/**
+ * What one attribute holds, read from just past its opening bracket.
+ *
+ * A literal is blanked to its own width rather than read, so a bracket written
+ * inside a string does not move the depth and every offset past it stays true.
+ * @param text - the file's contents.
+ * @param from - the offset just past the attribute's opening bracket.
+ * @returns the contents, or undefined when the bracket is never closed.
+ */
+function attributeBody(text: string, from: number): string | undefined {
+  let cursor = from
+  let depth = 1
+  let held = ''
+  while (cursor < text.length && depth > 0) {
+    const literal = literalEnd(text, cursor)
+    if (literal !== undefined) {
+      held += ' '.repeat(literal - cursor)
+      cursor = literal
+      continue
     }
-    attributes.push({ start: opened.index, held: depth === 0 ? held : undefined })
+    const character = text[cursor] ?? ''
+    if (character === '[') depth += 1
+    else if (character === ']') depth -= 1
+    if (depth > 0) held += character
+    cursor += 1
   }
-  return attributes
+  return depth === 0 ? held : undefined
 }

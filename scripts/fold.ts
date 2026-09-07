@@ -31,17 +31,30 @@ export function constants(program: readonly Node[]): Constants {
     if (node.type !== 'VariableDeclaration' || node.kind !== 'const') return
     const declarations = node.declarations
     if (!Array.isArray(declarations)) return
-    for (const declaration of declarations) {
-      if (!isNode(declaration)) continue
-      const id = unwrap(declaration.id)
-      if (!isNode(id) || id.type !== 'Identifier' || typeof id.name !== 'string') continue
-      const value = staticString(empty, declaration.init)
-      if (value === undefined) continue
-      const seen = found.get(id.name)
-      found.set(id.name, seen === undefined || seen === value ? value : null)
-    }
+    for (const declaration of declarations) recordConstant(found, empty, declaration)
   })
   return found
+}
+
+/**
+ * Record what one declarator binds, when it binds a string this gate can fold.
+ *
+ * A name already bound to a different string is marked undecided: two
+ * declarations that disagree are not one constant, and answering with either
+ * of them would be answering a question the file does not settle.
+ * @param found - the bindings collected so far.
+ * @param env - the constants a nested fold may read, which is none: a
+ * declaration is folded before the file's own bindings are known.
+ * @param declaration - one declarator of a `const` statement.
+ */
+function recordConstant(found: Map<string, string | null>, env: Constants, declaration: Field): void {
+  if (!isNode(declaration)) return
+  const id = unwrap(declaration.id)
+  if (!isNode(id) || id.type !== 'Identifier' || typeof id.name !== 'string') return
+  const value = staticString(env, declaration.init)
+  if (value === undefined) return
+  const seen = found.get(id.name)
+  found.set(id.name, seen === undefined || seen === value ? value : null)
 }
 
 /**
@@ -139,15 +152,25 @@ function foldCall(env: Constants, node: Node): string | undefined {
   const args = node.arguments
   if (!isNode(callee) || callee.type !== 'MemberExpression' || !Array.isArray(args)) return undefined
   const method = memberName(callee)
-  if (method === 'fromCharCode' || method === 'fromCodePoint') return foldCharacters(method, args)
   const receiver = callee.object
-  if (method === 'toLowerCase' || method === 'toUpperCase') {
-    const text = staticString(env, receiver)
-    return text === undefined ? undefined : method === 'toLowerCase' ? text.toLowerCase() : text.toUpperCase()
-  }
+  if (method === 'fromCharCode' || method === 'fromCodePoint') return foldCharacters(method, args)
+  if (method === 'toLowerCase' || method === 'toUpperCase') return foldCaseShift(env, method, receiver)
   if (method === 'concat') return foldParts(env, [receiver, ...args])
   if (method === 'join') return foldJoin(env, receiver, args)
   return undefined
+}
+
+/**
+ * Fold a case shift applied to a receiver that folds.
+ * @param env - the file's constants.
+ * @param method - which shift was called.
+ * @param receiver - the expression the method was called on.
+ * @returns the shifted string, or undefined when the receiver does not fold.
+ */
+function foldCaseShift(env: Constants, method: string, receiver: Field | undefined): string | undefined {
+  const text = staticString(env, receiver)
+  if (text === undefined) return undefined
+  return method === 'toLowerCase' ? text.toLowerCase() : text.toUpperCase()
 }
 
 /**

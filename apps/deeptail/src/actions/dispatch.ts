@@ -245,15 +245,30 @@ export function createDispatcher(deps: ActionDeps, ledger: GrantLedger, audit: D
         return { kind: 'denied', traceId, reason: spent.reason }
       }
       const effect = await settleHandler(() => handlers[action.id](deps, input, t), t)
-      if (effect.kind === 'unwired') return { kind: 'unwired', traceId, reason: effect.reason }
-      if (effect.kind === 'invalid') {
-        return effect.reason === 'host-refused'
-          ? { kind: 'invalid', traceId, reason: effect.reason, message: effect.message }
-          : { kind: 'invalid', traceId, reason: effect.reason }
-      }
-      return effect.announce === undefined
-        ? { kind: 'executed', traceId }
-        : { kind: 'executed', traceId, announce: effect.announce }
+      return outcomeOf(traceId, effect)
     },
   }
+}
+
+/**
+ * The outcome one landed effect reports, under the trace the dispatch opened.
+ *
+ * Every arm is named rather than spread: an effect and an outcome carry
+ * different members — the outcome carries the trace, the effect carries the
+ * host's message — and a spread would have carried whatever else an effect
+ * grew into an outcome nobody had looked at.
+ * @param traceId - the trace this dispatch opened.
+ * @param effect - what the handler landed.
+ * @returns the outcome, ready to be shown.
+ */
+function outcomeOf(traceId: string, effect: ActionEffect): ActionOutcome {
+  if (effect.kind === 'unwired') return { kind: 'unwired', traceId, reason: effect.reason }
+  if (effect.kind === 'invalid') {
+    return effect.reason === 'host-refused'
+      ? { kind: 'invalid', traceId, reason: effect.reason, message: effect.message }
+      : { kind: 'invalid', traceId, reason: effect.reason }
+  }
+  return effect.announce === undefined
+    ? { kind: 'executed', traceId }
+    : { kind: 'executed', traceId, announce: effect.announce }
 }

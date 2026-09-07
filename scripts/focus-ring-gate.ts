@@ -57,22 +57,16 @@ function ringEffect(declarations: readonly Declaration[]): RingEffect {
 }
 
 /**
- * Selectors that switch the focus ring off without writing one back.
+ * What every selector in a sheet does to the focus ring, across every rule it
+ * appears in.
  *
- * `select` and `textarea` shipped that way, hidden by a class rule while the
- * rule that gave the ring back named elements the class did not cover. The
- * restoration is required on the selector that did the hiding, so the two are
- * read together rather than one relying on a coincidence in the other.
- *
- * Every rule a selector appears in is combined before it is judged, because a
- * sheet is read that way: a selector whose outline one rule switches off and
- * another paints a shadow ring on has a ring, and reading the two rules apart
- * reported it as having none — as it did for the idiomatic custom ring, an
- * `outline: none` and a `box-shadow` written together on `:focus-visible`.
+ * Combined rather than read rule by rule: a selector whose outline one rule
+ * switches off and another paints a shadow ring on has a ring, and reading the
+ * two apart reported it as having none.
  * @param text - the sheet's contents.
- * @returns each selector that hides the ring and restores nothing.
+ * @returns one entry per selector, with what its rules together do.
  */
-export function unringedSelectors(text: string): string[] {
+function ringEffects(text: string): Map<string, RingEffect> {
   const effects = new Map<string, RingEffect>()
   for (const block of blocksOf(text)) {
     // An at-rule's block holds descriptors rather than a selector's
@@ -89,6 +83,27 @@ export function unringedSelectors(text: string): string[] {
       })
     }
   }
+  return effects
+}
+
+/**
+ * Selectors that switch the focus ring off without writing one back.
+ *
+ * `select` and `textarea` shipped that way, hidden by a class rule while the
+ * rule that gave the ring back named elements the class did not cover. The
+ * restoration is required on the selector that did the hiding, so the two are
+ * read together rather than one relying on a coincidence in the other.
+ *
+ * Every rule a selector appears in is combined before it is judged, because a
+ * sheet is read that way: a selector whose outline one rule switches off and
+ * another paints a shadow ring on has a ring, and reading the two rules apart
+ * reported it as having none — as it did for the idiomatic custom ring, an
+ * `outline: none` and a `box-shadow` written together on `:focus-visible`.
+ * @param text - the sheet's contents.
+ * @returns each selector that hides the ring and restores nothing.
+ */
+export function unringedSelectors(text: string): string[] {
+  const effects = ringEffects(text)
   const hidden: string[] = []
   for (const [selector, effect] of effects) {
     if (!effect.hides || effect.paints) continue

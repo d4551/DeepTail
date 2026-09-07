@@ -36,8 +36,8 @@
 .wordmark {
   font-size: var(--dsh-text-body);
   line-height: var(--dsh-leading-body);
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: var(--dsh-weight-semibold);
+  letter-spacing: var(--dsh-tracking-wider);
   color: var(--dsw-alias-label-primary);
 }
 

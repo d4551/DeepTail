@@ -75,21 +75,35 @@ export function sessionRow(
 function wireRowKeys(row: HTMLElement): void {
   row.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
-    const controls = [...row.querySelectorAll<HTMLButtonElement>('.session-open, .row-action')].filter(
-      (control) => !control.disabled,
-    )
-    // Narrowed rather than asserted: focus may sit anywhere, and a cast would
-    // claim the control is a button before anything has checked that it is.
-    const active = document.activeElement
-    if (!(active instanceof HTMLButtonElement)) return
-    const here = controls.indexOf(active)
-    if (here === -1) return
-    const forwards = event.key === (getComputedStyle(row).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')
-    const next = controls[here + (forwards ? 1 : -1)]
+    const next = nextRowControl(row, event.key)
     if (next === undefined) return
     event.preventDefault()
     next.focus()
   })
+}
+
+/**
+ * The control an arrow key moves focus to along a row.
+ *
+ * Where focus goes is the whole of the decision; the listener above is only
+ * which keys ask for it and what happens once it is made.
+ * @param row - the row focus is moving along.
+ * @param key - the arrow key that was pressed.
+ * @returns the control to focus, or undefined when the row does not move —
+ * focus is not on one of its controls, or it is already at the end.
+ */
+function nextRowControl(row: HTMLElement, key: string): HTMLButtonElement | undefined {
+  const controls = [...row.querySelectorAll<HTMLButtonElement>('.session-open, .row-action')].filter(
+    (control) => !control.disabled,
+  )
+  // Narrowed rather than asserted: focus may sit anywhere, and a cast would
+  // claim the control is a button before anything has checked that it is.
+  const active = document.activeElement
+  if (!(active instanceof HTMLButtonElement)) return undefined
+  const here = controls.indexOf(active)
+  if (here === -1) return undefined
+  const forwards = key === (getComputedStyle(row).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')
+  return controls[here + (forwards ? 1 : -1)]
 }
 
 /**

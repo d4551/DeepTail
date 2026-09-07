@@ -89,10 +89,16 @@ export interface Parsed {
 
 /**
  * Whether a value is a node the walk should descend into.
- * @param value - any value found on a parent node.
+ *
+ * The parameter admits a plain object as well as a field found on a parent,
+ * because the parser hands its statements out as interface-typed values that
+ * carry no index signature. Widening it here is what lets the entry point
+ * below check a statement rather than assert it into the structural shape the
+ * gates walk.
+ * @param value - any value found on a parent node, or one the parser returned.
  * @returns true when it carries a node type.
  */
-export function isNode(value: Field | undefined): value is Node {
+export function isNode(value: Field | object | undefined): value is Node {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -176,6 +182,29 @@ export function unwrap(value: Field | undefined): Field | undefined {
 }
 
 /**
+ * The nodes one field holds, when it holds a list of them.
+ *
+ * A field is whatever the parser put there, so the list is filtered rather
+ * than asserted: a declarations array carrying anything but nodes yields the
+ * nodes it does carry, and a field that is not a list at all yields none.
+ * @param value - the field to read.
+ * @returns the nodes, in the order the field holds them.
+ */
+export function nodesOf(value: Field | undefined): readonly Node[] {
+  return Array.isArray(value) ? value.filter((one) => isNode(one)) : []
+}
+
+/**
+ * One field read as a node, or the node given when it does not hold one.
+ * @param value - the field to read.
+ * @param instead - the node to answer with when the field holds none.
+ * @returns the field's node, or the one given.
+ */
+export function nodeOr(value: Field | undefined, instead: Node): Node {
+  return isNode(value) ? value : instead
+}
+
+/**
  * The property name a member expression reads, when it is written plainly.
  * @param node - the member expression.
  * @returns the name, or undefined when it is computed or not an identifier.
@@ -191,11 +220,19 @@ export function memberName(node: Node): string | undefined {
 /**
  * Read one of the parser's interface-typed statements as the structural node
  * the gates walk.
+ *
+ * Checked rather than asserted. A statement carrying no `type` is not one the
+ * walk can read, and asserting it into the shape put a value the gates cannot
+ * address at the head of the tree — where every rule would then read
+ * `undefined` from it and find nothing to refuse.
  * @param value - the statement, as the parser types it.
+ * @param label - the path, named when a statement cannot be read.
  * @returns the same object, as the walk reads it.
+ * @throws Error when the parser handed out a statement carrying no type.
  */
-function asNode(value: object): Node {
-  return value as Node
+function asNode(value: object, label: string): Node {
+  if (!isNode(value)) throw new Error(`${label}: the parser produced a statement with no type`)
+  return value
 }
 
 /**
@@ -208,7 +245,7 @@ export function parseScript(label: string, text: string): Parsed {
   const parsed = parseSync(label, text)
   const at = lineReader(text)
   return {
-    body: parsed.program.body.map(asNode),
+    body: parsed.program.body.map((statement) => asNode(statement, label)),
     comments: parsed.comments,
     errors: parsed.errors,
     lineAt: (offset: Field | undefined) => (typeof offset === 'number' ? at(offset) : 1),

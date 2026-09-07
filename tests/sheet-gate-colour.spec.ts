@@ -10,12 +10,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { scanSheet } from '../scripts/sheet-gate.ts'
-
-/** The reasons a sheet is rejected for. */
-function sheetOffences(text: string): string[] {
-  return scanSheet('apps/deeptail/src/styles/shell.css', text).map((offence) => offence.why)
-}
+import { sheetOffences } from './fixtures.ts'
 
 /**
  * The reason a raw colour is refused.

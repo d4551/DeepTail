@@ -11,15 +11,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { breakpointsOf, scanSheet } from '../scripts/sheet-gate.ts'
-import { joined } from './fixtures.ts'
-
-/** A remote host, assembled so this file's own source carries none whole. */
-const remoteHost = (): string => joined('ht', 'tps://cdn.example.com')
-
-/** The reasons a sheet is rejected for. */
-function sheetOffences(text: string, label = 'apps/deeptail/src/styles/shell.css'): string[] {
-  return scanSheet(label, text).map((offence) => offence.why)
-}
+import { joined, remoteHost, sheetOffences } from './fixtures.ts'
 
 describe('the stylesheet gate rejects a nest and an override', () => {
   it('a nest written without the operator, which CSS does not require', () => {
@@ -82,6 +74,12 @@ describe('the stylesheet gate reads a value the cascade reads', () => {
     expect(sheetOffences('.a { --probe: 37px; }')).toEqual([
       '37px is written out rather than read from the scale in tokens.css',
     ])
+    // A speed held in a custom property is the same escape as a length held in
+    // one: the property is read where the motion is declared, so the setting
+    // that redefines the motion scale never reaches it.
+    expect(sheetOffences('.a { --probe: 400ms; }')).toEqual([
+      '400ms is written out rather than read from the motion scale in tokens.css, so the reduced-motion setting cannot reach it',
+    ])
   })
 
   it('a custom property that reads the scale, or draws a hairline', () => {
@@ -89,6 +87,8 @@ describe('the stylesheet gate reads a value the cascade reads', () => {
     expect(sheetOffences('.a { --probe: 1px; }')).toEqual([])
     expect(sheetOffences('.a { --probe: 1; }')).toEqual([])
     expect(sheetOffences('.a { --probe: 100dvh; }')).toEqual([])
+    expect(sheetOffences('.a { --probe: var(--ds-transition-duration); }')).toEqual([])
+    expect(sheetOffences('.a { --probe: 0s; }')).toEqual([])
   })
 })
 

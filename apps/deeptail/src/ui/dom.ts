@@ -101,17 +101,42 @@ export function el<K extends keyof HTMLElementTagNameMap>(
  * @param aria - the state to write.
  */
 export function setAria(node: Element, aria: AriaOptions): void {
+  setAriaNames(node, aria)
+  setAriaStates(node, aria)
+}
+
+/**
+ * Write what names an element, or names what it points at.
+ *
+ * Every attribute name is written as a literal here, and not passed to a
+ * shared writer as a value. The style gate reads `setAttribute` call sites to
+ * decide whether the style attribute is being written, and a name held in a
+ * variable is a name it cannot read: one helper taking the attribute as an
+ * argument turns every ARIA write in the product into a write the gate has to
+ * take on trust.
+ * @param node - the element to write to.
+ * @param aria - the state to write.
+ */
+function setAriaNames(node: Element, aria: AriaOptions): void {
   if (aria.label !== undefined) node.setAttribute('aria-label', aria.label)
+  if (aria.controls !== undefined) node.setAttribute('aria-controls', aria.controls)
+  if (aria.describedby !== undefined) node.setAttribute('aria-describedby', aria.describedby)
+  if (aria.labelledby !== undefined) node.setAttribute('aria-labelledby', aria.labelledby)
+}
+
+/**
+ * Write what state an element is in.
+ * @param node - the element to write to.
+ * @param aria - the state to write.
+ */
+function setAriaStates(node: Element, aria: AriaOptions): void {
   if (aria.hidden !== undefined) node.setAttribute('aria-hidden', aria.hidden)
   if (aria.checked !== undefined) node.setAttribute('aria-checked', aria.checked)
   if (aria.expanded !== undefined) node.setAttribute('aria-expanded', aria.expanded)
   if (aria.modal !== undefined) node.setAttribute('aria-modal', aria.modal)
   if (aria.haspopup !== undefined) node.setAttribute('aria-haspopup', aria.haspopup)
-  if (aria.controls !== undefined) node.setAttribute('aria-controls', aria.controls)
   if (aria.live !== undefined) node.setAttribute('aria-live', aria.live)
   if (aria.busy !== undefined) node.setAttribute('aria-busy', aria.busy)
-  if (aria.describedby !== undefined) node.setAttribute('aria-describedby', aria.describedby)
-  if (aria.labelledby !== undefined) node.setAttribute('aria-labelledby', aria.labelledby)
   if (aria.invalid !== undefined) node.setAttribute('aria-invalid', aria.invalid)
   if (aria.current !== undefined) node.setAttribute('aria-current', aria.current)
 }

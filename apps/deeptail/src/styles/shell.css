@@ -56,7 +56,7 @@
 .main-title {
   margin: 0;
   font-size: var(--dsh-text-body);
-  font-weight: 500;
+  font-weight: var(--dsh-weight-medium);
   line-height: var(--dsh-leading-body);
   color: var(--dsw-alias-label-primary);
 }

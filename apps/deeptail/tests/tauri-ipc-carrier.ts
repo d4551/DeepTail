@@ -40,23 +40,42 @@ function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>,
     // holds its pending state for the whole case.
     return Promise.withResolvers<object>().promise
   }
-  const failure = script.remoteErrors?.[scoped] ?? script.remoteErrors?.[endpoint]
-  const result =
-    failure === undefined
-      ? { ok: true, value: script.remote?.[endpoint] ?? {} }
-      : {
-          ok: false,
-          error: {
-            code: script.remoteErrorCodes?.[scoped] ?? script.remoteErrorCodes?.[endpoint] ?? 'internal',
-            message: failure,
-            details: script.remoteErrorDetails?.[scoped] ?? script.remoteErrorDetails?.[endpoint] ?? {},
-          },
-        }
   return Promise.resolve({
     status: script.remoteStatuses?.[scoped] ?? script.remoteStatuses?.[endpoint] ?? 200,
     headers: [['content-type', 'application/json']],
-    body: JSON.stringify({ type: 'server-response', rpcId: envelope.rpcId ?? '0', result }),
+    body: JSON.stringify({
+      type: 'server-response',
+      rpcId: envelope.rpcId ?? '0',
+      result: deeptailRemoteResult(script, scoped, endpoint),
+    }),
   })
+}
+
+/**
+ * The Remote result one endpoint answers with: its value, or its failure.
+ *
+ * Answered here rather than inside the fetch, which decides what was called
+ * and what is recorded. Each of the three failure members is looked up twice —
+ * scoped to a host, then bare — and six of those lookups sat inside a ternary
+ * inside the response literal, where a reader had to hold the whole envelope
+ * in view to see which of the two shapes was being built.
+ * @param script - the answers this page should give.
+ * @param scoped - the endpoint qualified by host, which is preferred when the
+ * table names both.
+ * @param endpoint - the endpoint on its own.
+ * @returns the result half of the server-response envelope.
+ */
+function deeptailRemoteResult(script: AnswerTable, scoped: string, endpoint: string): object {
+  const failure = script.remoteErrors?.[scoped] ?? script.remoteErrors?.[endpoint]
+  if (failure === undefined) return { ok: true, value: script.remote?.[endpoint] ?? {} }
+  return {
+    ok: false,
+    error: {
+      code: script.remoteErrorCodes?.[scoped] ?? script.remoteErrorCodes?.[endpoint] ?? 'internal',
+      message: failure,
+      details: script.remoteErrorDetails?.[scoped] ?? script.remoteErrorDetails?.[endpoint] ?? {},
+    },
+  }
 }
 
 /**
@@ -126,6 +145,9 @@ function deeptailSendMux(script: AnswerTable, args: Record<string, object>, stat
 }
 
 /** The scripted carrier commands, emitted into the page beside the dispatcher. */
-export const CARRIER_SOURCES = [deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux] as const
+export const CARRIER_SOURCES = [deeptailCarrierFetch, deeptailRemoteResult, deeptailOpenMux, deeptailSendMux] as const
 
+// `deeptailRemoteResult` is not among these: the dispatcher calls the three
+// commands by name, and the result reader is reached only from the fetch above
+// and from `CARRIER_SOURCES`, which is what carries it into the page.
 export { deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux }

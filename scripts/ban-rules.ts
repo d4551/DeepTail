@@ -17,6 +17,15 @@ import { callsGlobal, callsMethod, identifier, literalKey, type Names, property,
 /** Properties whose assignment replaces an element's markup. */
 const MARKUP_PROPERTIES = ['innerHTML', 'outerHTML']
 
+/** The browser stores, which persist in the clear for anything that can read them. */
+const WEB_STORES: ReadonlySet<string> = new Set(['localStorage', 'sessionStorage'])
+
+/** The objects a process reads its environment straight off. */
+const ENVIRONMENTS: ReadonlySet<string> = new Set(['process', 'Bun'])
+
+/** The names the global object answers to. */
+const GLOBALS: ReadonlySet<string> = new Set(['globalThis', 'window', 'self'])
+
 /** Test runners whose modifiers take a case out of the run. */
 const RUNNERS = new Set(['it', 'test', 'describe'])
 
@@ -41,6 +50,14 @@ export const BANNED: readonly Rule[] = [
   {
     holds: (node, names) => callsMethod(node, 'document', ['write', 'writeln'], names),
     why: 'document.write is removed from modern engines',
+  },
+  {
+    holds: (node, names) => readsCarrier(node, WEB_STORES, names),
+    why: 'the browser stores keep their contents in the clear for anything that can reach the page; a paired host, its grants and its tokens belong to the native side',
+  },
+  {
+    holds: (node, names) => readsEnvironment(node, names),
+    why: 'reading the environment here scatters configuration across the tree; take it through the module that already resolves it',
   },
   {
     holds: (node, names) => node.type === 'MemberExpression' && property(node, names) === 'substr',
@@ -214,6 +231,47 @@ function expandoPrototype(node: Node, names: Names): boolean {
   if (property(assigned, names) === undefined) return false
   const carrier = unwrap(assigned.object)
   return isNode(carrier) && carrier.type === 'MemberExpression' && property(carrier, names) === 'prototype'
+}
+
+/**
+ * Whether a member expression reads one of the named carriers, reached
+ * directly or through the global object.
+ *
+ * Both spellings are one access: `localStorage.setItem` and
+ * `window.localStorage.setItem` reach the same store, and a rule that read only
+ * the bare name refused the first while letting the second through.
+ * @param node - the node to test.
+ * @param carriers - the carrier names to refuse.
+ * @param names - what this file renamed and holds in constants.
+ * @returns true when the node reads one of them.
+ */
+function readsCarrier(node: Node, carriers: ReadonlySet<string>, names: Names): boolean {
+  if (node.type !== 'MemberExpression') return false
+  const direct = identifier(node.object, names)
+  if (direct !== undefined && carriers.has(direct)) return true
+  const carrier = unwrap(node.object)
+  if (!isNode(carrier) || carrier.type !== 'MemberExpression') return false
+  const host = identifier(carrier.object, names)
+  const reached = property(carrier, names)
+  return host !== undefined && GLOBALS.has(host) && reached !== undefined && carriers.has(reached)
+}
+
+/**
+ * Whether a node reads a process environment directly.
+ *
+ * `process.env` and `Bun.env` are the runtime's, `import.meta.env` is the
+ * bundler's; all three put a configuration decision wherever they are written
+ * rather than in the one place that resolves it.
+ * @param node - the node to test.
+ * @param names - what this file renamed and holds in constants.
+ * @returns true when the node reads an environment.
+ */
+function readsEnvironment(node: Node, names: Names): boolean {
+  if (node.type !== 'MemberExpression' || property(node, names) !== 'env') return false
+  const host = identifier(node.object, names)
+  if (host !== undefined && ENVIRONMENTS.has(host)) return true
+  const meta = unwrap(node.object)
+  return isNode(meta) && meta.type === 'MetaProperty'
 }
 
 /**

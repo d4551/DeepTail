@@ -140,15 +140,9 @@ function checkAlignment(add: Report, limits: { readonly scope: string }): void {
 }
 
 /**
- * A grid nested in a grid, or a table used as a grid, is layout the sheets
- * do not own.
- *
- * Token-based `grid-template-*` computes to pixels, so this does not judge
- * track sizes — the sheet gate does that in source. What the live tree can
- * still show is a second grid inside the shell's grid, or a `<table>` with no
- * header standing in for a layout grid.
- * @param add - collects a finding.
- * @param limits - the product surfaces to read.
+ * The nearest ancestor that lays its children out as a grid.
+ * @param element - the element to look up from.
+ * @returns the ancestor, or undefined when no ancestor is a grid.
  */
 function gridAncestor(element: Element): Element | undefined {
   let ancestor = element.parentElement
@@ -160,20 +154,38 @@ function gridAncestor(element: Element): Element | undefined {
   return undefined
 }
 
+/**
+ * What one element's own display says about the layout it stands in.
+ * @param element - the element to read.
+ * @param add - collects a finding.
+ */
+function reportGridElement(element: Element, add: Report): void {
+  const display = getComputedStyle(element).display
+  if (display === 'grid' || display === 'inline-grid') {
+    const parent = gridAncestor(element)
+    if (parent !== undefined) {
+      add('nested-grid', `${describe(element)} is a grid inside ${describe(parent)}, which is also a grid`)
+    }
+  }
+  if (display === 'table' && element.tagName !== 'TABLE') {
+    add('hardcoded-grid', `${describe(element)} uses display:table as a layout grid`)
+  }
+}
+
+/**
+ * A grid nested in a grid, or a table used as a grid, is layout the sheets
+ * do not own.
+ *
+ * Token-based `grid-template-*` computes to pixels, so this does not judge
+ * track sizes — the sheet gate does that in source. What the live tree can
+ * still show is a second grid inside the shell's grid, or a `<table>` with no
+ * header standing in for a layout grid.
+ * @param add - collects a finding.
+ * @param limits - the product surfaces to read.
+ */
 function checkGrid(add: Report, limits: { readonly scope: string }): void {
   for (const node of document.querySelectorAll(limits.scope)) {
-    for (const element of [node, ...node.querySelectorAll('*')]) {
-      const display = getComputedStyle(element).display
-      if (display === 'grid' || display === 'inline-grid') {
-        const parent = gridAncestor(element)
-        if (parent !== undefined) {
-          add('nested-grid', `${describe(element)} is a grid inside ${describe(parent)}, which is also a grid`)
-        }
-      }
-      if (display === 'table' && element.tagName !== 'TABLE') {
-        add('hardcoded-grid', `${describe(element)} uses display:table as a layout grid`)
-      }
-    }
+    for (const element of [node, ...node.querySelectorAll('*')]) reportGridElement(element, add)
     for (const table of node.querySelectorAll('table')) {
       if (table.querySelector('th, [scope]') === null) {
         add('layout-table', `${describe(table)} is a table with no header, used as a layout grid`)
@@ -182,4 +194,13 @@ function checkGrid(add: Report, limits: { readonly scope: string }): void {
   }
 }
 
-export { checkAlignment, checkClipping, checkGrid, checkHorizontalOverflow, checkNestedScroll, gridAncestor, scrolls }
+export {
+  checkAlignment,
+  checkClipping,
+  checkGrid,
+  checkHorizontalOverflow,
+  checkNestedScroll,
+  gridAncestor,
+  reportGridElement,
+  scrolls,
+}

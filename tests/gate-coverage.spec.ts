@@ -46,6 +46,8 @@ const SHIPPED_CHECKS: readonly string[] = [
   'findStructureDefects',
   'gridAncestor',
   'isLayoutPane',
+  'reportGridElement',
+  'reportOwnedChildren',
   'scrolls',
 ]
 

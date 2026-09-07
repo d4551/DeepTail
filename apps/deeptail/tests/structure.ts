@@ -22,6 +22,7 @@ import {
   checkNestedScroll,
   gridAncestor,
   isLayoutPane,
+  reportGridElement,
   scrolls,
 } from './structure-layout.ts'
 import { checkOverlappingTargets, checkTouchTargets, drawnBox } from './structure-pointer.ts'
@@ -144,31 +145,40 @@ function checkAriaReferences(add: Report): void {
 }
 
 /**
+ * Report every direct child of a container whose role the container may not own.
+ *
+ * The list and the menu ask the same question of their children and were
+ * written out twice to ask it.
+ *
+ * The roles arrive as an argument rather than from a shared constant, because
+ * this travels: only the functions in `structureCheckSource` are stringified
+ * into the page, so a module-level set naming the roles would arrive in the
+ * page as a name nothing defines.
+ * @param selector - selects the containers.
+ * @param owned - the roles a child of one may carry.
+ * @param rule - the finding to report a foreign child under.
+ * @param add - collects a finding.
+ */
+function reportOwnedChildren(selector: string, owned: readonly string[], rule: string, add: Report): void {
+  for (const container of document.querySelectorAll(selector)) {
+    for (const child of container.children) {
+      if (!owned.includes(child.getAttribute('role') ?? '')) add(rule, `${describe(container)} owns ${describe(child)}`)
+    }
+  }
+}
+
+/**
  * A list role owns list items and nothing else.
+ *
+ * A menu owns the item roles plus the structural ones it is allowed to carry:
+ * a separator between groups, a group around them, and the two spellings that
+ * take an element out of the accessibility tree entirely.
  * @param add - collects a finding.
  */
 function checkListOwnership(add: Report): void {
-  for (const list of document.querySelectorAll('[role="list"]')) {
-    for (const child of list.children) {
-      if (child.getAttribute('role') !== 'listitem')
-        add('list-owns-non-item', `${describe(list)} owns ${describe(child)}`)
-    }
-  }
-  const menuItems = new Set([
-    'menuitem',
-    'menuitemradio',
-    'menuitemcheckbox',
-    'none',
-    'presentation',
-    'separator',
-    'group',
-  ])
-  for (const menu of document.querySelectorAll('[role="menu"]')) {
-    for (const child of menu.children) {
-      if (!menuItems.has(child.getAttribute('role') ?? ''))
-        add('menu-owns-non-item', `${describe(menu)} owns ${describe(child)}`)
-    }
-  }
+  reportOwnedChildren('[role="list"]', ['listitem'], 'list-owns-non-item', add)
+  const menuItems = ['menuitem', 'menuitemradio', 'menuitemcheckbox', 'none', 'presentation', 'separator', 'group']
+  reportOwnedChildren('[role="menu"]', menuItems, 'menu-owns-non-item', add)
   for (const item of document.querySelectorAll('[role="listitem"]')) {
     if (item.parentElement?.getAttribute('role') !== 'list')
       add('item-outside-list', `${describe(item)} sits outside a list`)
@@ -256,6 +266,7 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     checkNestedInteractive,
     checkHeadingOrder,
     checkAriaReferences,
+    reportOwnedChildren,
     checkListOwnership,
     checkGroupNames,
     checkClassVocabulary,
@@ -269,6 +280,7 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     checkTouchTargets,
     checkAlignment,
     gridAncestor,
+    reportGridElement,
     checkGrid,
     checkShell,
     checkInlineScripts,

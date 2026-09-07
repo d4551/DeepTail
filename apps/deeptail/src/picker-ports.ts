@@ -10,10 +10,12 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { createHostApi, FORBIDDEN, RemoteError, UNAUTHORIZED } from './api.ts'
-import type { HostRecord } from './host.ts'
+import { NATIVE_COMMANDS } from './commands.ts'
+import { type HostRecord, isHostRecord, readHostRecords } from './host.ts'
 import { messageOf } from './reason.ts'
 import { createCarrier } from './transport.ts'
 import type { HostState } from './ui/states.ts'
+import type { WireValue } from './wire.ts'
 
 /** How the picker reaches the native side; replaced wholesale in tests. */
 export interface PickerPorts {
@@ -41,12 +43,25 @@ export const settled = async <T>(
 
 /** The ports backed by the real Tauri commands. */
 export const tauriPorts: PickerPorts = {
-  listHosts: () => invoke<HostRecord[]>('list_hosts'),
-  pairHost: (link, label) => invoke<HostRecord>('pair_host', { link, label }),
+  // The registry's answers are read, not asserted: `origin` is where every
+  // credentialed request goes and `id` is the account the secret store is
+  // asked for, so a record short either is refused here rather than carried
+  // into a URL and a keychain lookup.
+  listHosts: async () => {
+    const answer = await invoke<WireValue>(NATIVE_COMMANDS.listHosts)
+    const hosts = readHostRecords(answer)
+    if (hosts === undefined) throw new Error('deeptail: the host registry answered with a record it cannot address')
+    return hosts
+  },
+  pairHost: async (link, label) => {
+    const answer = await invoke<WireValue>(NATIVE_COMMANDS.pairHost, { link, label })
+    if (!isHostRecord(answer)) throw new Error('deeptail: pairing answered with a record it cannot address')
+    return answer
+  },
   hostState: async (host) => {
     // `select_host` reads the registry and the credential store and never
     // leaves the device, so it answers one question: is there a token at all.
-    const held = await settled(invoke('select_host', { host: host.id }))
+    const held = await settled(invoke(NATIVE_COMMANDS.selectHost, { host: host.id }))
     if (!held.ok) return 'unauthorized'
     // Whether the host answers is a different question, and the dot claims to
     // report it. Without this read every unreachable host — a sleeping laptop,

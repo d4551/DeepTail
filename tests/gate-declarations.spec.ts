@@ -14,8 +14,11 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { GATE as BANS } from '../scripts/check-bans.ts'
+import { GATE as COPY } from '../scripts/check-copy.ts'
+import { GATE as DIALOGS } from '../scripts/check-dialogs.ts'
 import { GATE as ENTRIES } from '../scripts/check-entries.ts'
 import { GATE as INLINE_STYLES } from '../scripts/check-no-inline-styles.ts'
+import { GATE as SIZE } from '../scripts/check-size.ts'
 import { GATE as STYLESHEETS } from '../scripts/check-stylesheets.ts'
 import { GATE as TREE } from '../scripts/check-tree.ts'
 import { type Gate, readGate } from '../scripts/gate-runner.ts'
@@ -29,6 +32,9 @@ const GATES: readonly (readonly [string, Gate])[] = [
   ['check:styles (sheets)', STYLESHEETS],
   ['check:tree', TREE],
   ['check:entries', ENTRIES],
+  ['check:copy', COPY],
+  ['check:dialogs', DIALOGS],
+  ['check:size', SIZE],
 ]
 
 /** The temp roots the running case has written a probe file into, removed when the case ends. */

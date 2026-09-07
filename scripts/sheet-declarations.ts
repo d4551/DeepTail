@@ -3,15 +3,20 @@
  *
  * Split from `sheet-gate.ts` when it outgrew the size its own rules allow a
  * file to reach. The split is along a real seam: everything here reads a
- * single declaration — its property, or its value — while what is left there
- * reads the sheet as a whole, its blocks, its nests and its at-rules.
+ * single declaration, while what is left there reads the sheet as a whole,
+ * its blocks, its nests and its at-rules.
+ *
+ * It outgrew that size again when the motion rule arrived, and the seam this
+ * time is the one the file already named: what is left here reads the property
+ * a declaration writes, and `sheet-values.ts` reads what its value says —
+ * which every declaration answers, a custom property included.
  *
  * @module
  */
 
-import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
 import { declarationsOf } from './sheet-reader.ts'
+import { valueOffences } from './sheet-values.ts'
 
 /**
  * Lengths any sheet may write.
@@ -26,27 +31,23 @@ export const DRAWN_LENGTHS: ReadonlySet<string> = new Set(['0px', '1px', '2px', 
 /** A stacking order written as a bare number. */
 const STACKING = /^-?\d+$/u
 
-/** A `url()` that loads from outside the shipped bundle. */
-// No `g` flag: this is tested with RegExp.test across declarations, and a
-// global regex keeps lastIndex between calls, so one match would hide the next.
-const REMOTE_URL_VALUE = /url\(\s*["']?(?:https?:)?\/\//iu
-
-/**
- * The viewport units that report a box the reader cannot see.
- *
- * `vh` is the *large* viewport: on a mobile browser it is measured as though
- * the retractable chrome were retracted, so a box sized by it is taller than
- * what is on screen whenever the chrome is showing, and its tail is unreachable
- * — the menu's pinned footer sat exactly there. `vw` has the same shape of
- * problem with a classic scrollbar. The dynamic units (`dvh`, `dvw`) track what
- * is actually visible, and `svh`/`lvh` name a specific end of that range on
- * purpose, so all of those are allowed and only the two that quietly lie are
- * refused.
- */
-const STATIC_VIEWPORT_UNIT = /\b\d+(?:\.\d+)?(vh|vw)\b/u
-
 /** A length written as a number of pixels. */
 const PIXELS = /\b\d+px\b/gu
+
+/** A duration written as a number of seconds or milliseconds. */
+const DURATIONS = /\b\d+(?:\.\d+)?m?s\b/gu
+
+/**
+ * The durations any sheet may write.
+ *
+ * No time at all is not a duration decision: `visibility 0s` says the change
+ * is not animated, which is the same statement at every speed. Everything else
+ * is a speed, and a speed belongs to the motion scale.
+ */
+const NO_DURATION: ReadonlySet<string> = new Set(['0s', '0ms'])
+
+/** Properties whose values carry a duration. */
+const TIMED = /^(?:transition|animation)(?:-duration|-delay)?$/u
 
 /** Properties whose lengths are spacing, radius or type decisions. */
 const SCALED = new RegExp(
@@ -59,6 +60,30 @@ const SCALED = new RegExp(
     '|scroll-margin|scroll-padding)$',
   'u',
 )
+
+/**
+ * The typographic properties whose values are decisions, not lengths.
+ *
+ * `font-size` and `line-height` are lengths, so the scale rule above already
+ * reads them. Weight and tracking are neither lengths nor colours, so nothing
+ * read them at all: seven weights and two trackings were written out across
+ * five sheets, and a heading could be one emphasis in one region and another
+ * elsewhere with nothing saying which was meant.
+ *
+ * The `font` shorthand is here for a second reason: it sets the weight, the
+ * size and the leading at once under a property name neither this rule nor the
+ * length rule matched, so `font: 600 14px/20px` slipped past both at once.
+ */
+const TYPOGRAPHIC: ReadonlySet<string> = new Set(['font', 'font-weight', 'letter-spacing'])
+
+/**
+ * What a typographic property may say without naming a token.
+ *
+ * `inherit` takes the decision from the box above, and `normal` is the initial
+ * value a reset states on purpose. Neither picks a value of its own, so neither
+ * is a decision this scale has to hold.
+ */
+const TYPOGRAPHIC_KEYWORDS: ReadonlySet<string> = new Set(['inherit', 'normal'])
 
 /**
  * The physical side properties, which break when the document direction
@@ -112,6 +137,16 @@ function propertyOffences(label: string, property: string, value: string, line: 
       },
     ]
   }
+  if (TYPOGRAPHIC.has(property) && !value.includes('var(') && !TYPOGRAPHIC_KEYWORDS.has(value.trim())) {
+    return [
+      {
+        label,
+        line,
+        why: `${value} in ${property} is written out rather than read from the scale in tokens.css`,
+      },
+    ]
+  }
+  if (TIMED.test(property)) return timedOffences(label, property, value, line)
   if (property === 'text-align' && (value.includes('justify') || value === 'left' || value === 'right')) {
     return [
       {
@@ -125,42 +160,36 @@ function propertyOffences(label: string, property: string, value: string, line: 
 }
 
 /**
- * The rules that are about what a declaration's value says.
+ * What a custom property holds that belongs to a scale, outside the sheet that
+ * defines the scales.
  *
- * Every declaration answers these, custom properties included. While they did
- * not, a custom property was a way past every rule in this file at once: the
- * engine substitutes the value wherever it is read, so `--x: 100vh` is a static
- * viewport height, `--x: #ff0000` is a raw colour and `--x: 37px` is a length
- * off the scale, each of them exactly as much so as writing it in place.
+ * A custom property names a value, so no property rule reads it — the engine
+ * substitutes it wherever it is read, and whatever it holds is exactly as much
+ * a decision as writing that value in place. Both scales are read: a length
+ * off the spacing scale, and a speed the reduced-motion setting cannot reach.
  * @param label - the path to report offences under.
- * @param value - what the property is set to.
+ * @param value - what the custom property is set to.
  * @param line - the line it is written on.
- * @param paletteDefinition - whether this declaration is one of the palette's
- * own definitions, which is the one place a colour function states the palette
- * rather than second-guessing it.
  * @returns the offences, or an empty list.
  */
-function valueOffences(label: string, value: string, line: number, paletteDefinition: boolean): Offence[] {
+function customValueOffences(label: string, value: string, line: number): Offence[] {
   const offences: Offence[] = []
-  const viewportUnit = STATIC_VIEWPORT_UNIT.exec(value)
-  if (viewportUnit !== null) {
+  const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
+  if (lengths.length > 0) {
     offences.push({
       label,
       line,
-      // The dynamic spelling is the static one with a `d` in front, read off
-      // what was found rather than off a capture that has to be defended
-      // against being absent when the pattern cannot leave it so.
-      why: `${viewportUnit[0]} is measured against a viewport the reader may not have; use the dynamic unit d${viewportUnit[0].slice(-2)}`,
+      why: `${lengths.join(', ')} is written out rather than read from the scale in tokens.css`,
     })
   }
-  if (REMOTE_URL_VALUE.test(value)) {
+  const times = [...value.matchAll(DURATIONS)].map((found) => found[0]).filter((time) => !NO_DURATION.has(time))
+  if (times.length > 0) {
     offences.push({
       label,
       line,
-      why: 'a remote URL loads an asset no local install ships; ship the asset in the bundle',
+      why: `${times.join(', ')} is written out rather than read from the motion scale in tokens.css, so the reduced-motion setting cannot reach it`,
     })
   }
-  offences.push(...scanColour(label, value, line, paletteDefinition))
   return offences
 }
 
@@ -181,22 +210,40 @@ export function declarationOffences(label: string, text: string, defines: boolea
     const custom = property.startsWith('--')
     offences.push(...valueOffences(label, value, line, defines && custom))
     if (custom) {
-      // A custom property names a value, so no property rule reads it; the
-      // length it holds is still a length, and outside the sheet that defines
-      // the scale it is one written out rather than read from it.
-      const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
-      if (lengths.length > 0 && !defines) {
-        offences.push({
-          label,
-          line,
-          why: `${lengths.join(', ')} is written out rather than read from the scale in tokens.css`,
-        })
-      }
+      if (!defines) offences.push(...customValueOffences(label, value, line))
       continue
     }
     offences.push(...propertyOffences(label, property, value, line))
   }
   return offences
+}
+
+/**
+ * The durations a declaration writes out rather than reading from the scale.
+ *
+ * This is an accessibility rule as much as a duplication one. The reduced
+ * motion setting is honoured by redefining `--ds-transition-duration` under
+ * `prefers-reduced-motion`, so motion that reads its speed from the scale
+ * slows to a stop for a viewer who asked for that and motion that spells its
+ * own speed does not — it keeps running, at full speed, past the one place
+ * that setting is answered. Nothing read a time value at all: a spinner turned
+ * at a speed written into the rule, and any sheet could add another.
+ * @param label - the path to report offences under.
+ * @param property - the property being written.
+ * @param value - what it is set to.
+ * @param line - the line it is written on.
+ * @returns the offences, or an empty list.
+ */
+function timedOffences(label: string, property: string, value: string, line: number): Offence[] {
+  const written = [...value.matchAll(DURATIONS)].map((found) => found[0]).filter((time) => !NO_DURATION.has(time))
+  if (written.length === 0) return []
+  return [
+    {
+      label,
+      line,
+      why: `${written.join(', ')} in ${property} is written out rather than read from the motion scale in tokens.css, so the reduced-motion setting cannot reach it`,
+    },
+  ]
 }
 
 function scaledLengthOffences(label: string, property: string, value: string, line: number): Offence[] {

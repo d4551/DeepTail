@@ -132,6 +132,19 @@ export interface MarkupOffence {
 }
 
 /**
+ * An element's attributes, as the parser hands them over.
+ *
+ * Named once, and named here because every rule about one is stated in this
+ * module: the shape was spelled out at each signature that took it, so a
+ * reader had to compare four literal types character by character to see that
+ * they were the same type.
+ */
+export type Attributes = readonly { readonly name: string; readonly value?: string }[]
+
+/** One of them. */
+type Attribute = Attributes[number]
+
+/**
  * Whether a URL attribute value loads from outside the shipped bundle.
  * @param value - the attribute's value.
  * @param candidates - true for a list attribute, where each entry is one URL.
@@ -143,6 +156,91 @@ function isRemoteLoad(value: string, candidates: boolean): boolean {
 }
 
 /**
+ * The wiring one attribute name carries: an htmx hook, or a framework's own
+ * directive spelling.
+ * @param attribute - the attribute, as the parser read it.
+ * @param line - the line the element starts on.
+ * @returns the offences, or an empty list.
+ */
+function wiringOffences(attribute: Attribute, line: number): MarkupOffence[] {
+  const found: MarkupOffence[] = []
+  if (HTMX_ATTRIBUTE.test(attribute.name)) {
+    found.push({ line, why: 'an hx attribute wires behaviour into the tag; attach the listener in a module' })
+  }
+  for (const { pattern, why } of DIRECTIVE_ATTRIBUTES) {
+    if (pattern.test(attribute.name)) found.push({ line, why })
+  }
+  return found
+}
+
+/**
+ * What a class list says that no stylesheet here selects.
+ * @param value - the class attribute's value.
+ * @param line - the line the element starts on.
+ * @returns the offences, or an empty list.
+ */
+function classOffences(value: string, line: number): MarkupOffence[] {
+  const found: MarkupOffence[] = []
+  if (ARBITRARY_UTILITY.test(value)) {
+    found.push({
+      line,
+      why: 'a bracketed utility class carries a raw value; read the size or colour from tokens.css',
+    })
+  }
+  for (const token of retiredClassTokens(value)) {
+    found.push({ line, why: `retired-class: "${token}" belongs to a UI framework this product retired` })
+  }
+  return found
+}
+
+/**
+ * The layout and type one attribute decides in the tag rather than the sheet.
+ * @param name - the attribute's name, lowercased.
+ * @param tag - the element's name, lowercased when it has one.
+ * @param line - the line the element starts on.
+ * @returns the offences, or an empty list.
+ */
+function presentationOffences(name: string, tag: string | undefined, line: number): MarkupOffence[] {
+  const found: MarkupOffence[] = []
+  if (ALIGNMENT_ATTRIBUTES.has(name)) {
+    found.push({
+      line,
+      why: 'an alignment attribute is layout in the tag; put the alignment in a stylesheet and add a class',
+    })
+  }
+  // The one allowed pair: on an image these are the aspect-ratio hint that
+  // stops a layout shift before the sheet applies.
+  const ratioHint = tag === 'img' && (name === 'width' || name === 'height')
+  if (PRESENTATIONAL_ATTRIBUTES.has(name) && !ratioHint) {
+    found.push({
+      line,
+      why: 'a presentational attribute decides size or type in the tag; put it in a stylesheet and add a class',
+    })
+  }
+  return found
+}
+
+/**
+ * Whether one attribute loads an asset from outside the shipped bundle.
+ * @param attribute - the attribute, as the parser read it.
+ * @param name - its name, lowercased.
+ * @param tag - the element's name, lowercased when it has one.
+ * @param line - the line the element starts on.
+ * @returns the offence, or an empty list.
+ */
+function remoteResourceOffences(
+  attribute: Attribute,
+  name: string,
+  tag: string | undefined,
+  line: number,
+): MarkupOffence[] {
+  const resource = RESOURCE_URLS.get(tag ?? '')
+  if (resource?.includes(name) !== true) return []
+  if (!isRemoteLoad(attribute.value ?? '', name === 'srcset')) return []
+  return [{ line, why: 'a remote resource URL loads an asset no local install ships; ship the asset in the bundle' }]
+}
+
+/**
  * The per-attribute refusals a tag carries: wiring, raw values and layout.
  *
  * @param attrs - the element's attributes, as the parser read them.
@@ -151,52 +249,18 @@ function isRemoteLoad(value: string, candidates: boolean): boolean {
  * @param found - the refusal list to append to.
  */
 export function recordAttributeOffences(
-  attrs: readonly { readonly name: string; readonly value?: string }[],
+  attrs: Attributes,
   tag: string | undefined,
   line: number,
   found: MarkupOffence[],
 ): void {
   for (const attribute of attrs) {
     const name = attribute.name.toLowerCase()
-    if (HTMX_ATTRIBUTE.test(attribute.name)) {
-      found.push({ line, why: 'an hx attribute wires behaviour into the tag; attach the listener in a module' })
-    }
-    for (const { pattern, why } of DIRECTIVE_ATTRIBUTES) {
-      if (pattern.test(attribute.name)) found.push({ line, why })
-    }
-    if (name === 'class') {
-      const value = attribute.value ?? ''
-      if (ARBITRARY_UTILITY.test(value)) {
-        found.push({
-          line,
-          why: 'a bracketed utility class carries a raw value; read the size or colour from tokens.css',
-        })
-      }
-      for (const token of retiredClassTokens(value)) {
-        found.push({
-          line,
-          why: `retired-class: "${token}" belongs to a UI framework this product retired`,
-        })
-      }
-    }
-    if (ALIGNMENT_ATTRIBUTES.has(name)) {
-      found.push({
-        line,
-        why: 'an alignment attribute is layout in the tag; put the alignment in a stylesheet and add a class',
-      })
-    }
-    if (PRESENTATIONAL_ATTRIBUTES.has(name) && !(tag === 'img' && (name === 'width' || name === 'height'))) {
-      found.push({
-        line,
-        why: 'a presentational attribute decides size or type in the tag; put it in a stylesheet and add a class',
-      })
-    }
-    const resource = RESOURCE_URLS.get(tag ?? '')
-    if (resource?.includes(name) && isRemoteLoad(attribute.value ?? '', name === 'srcset')) {
-      found.push({
-        line,
-        why: 'a remote resource URL loads an asset no local install ships; ship the asset in the bundle',
-      })
-    }
+    found.push(
+      ...wiringOffences(attribute, line),
+      ...(name === 'class' ? classOffences(attribute.value ?? '', line) : []),
+      ...presentationOffences(name, tag, line),
+      ...remoteResourceOffences(attribute, name, tag, line),
+    )
   }
 }

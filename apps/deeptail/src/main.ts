@@ -16,8 +16,9 @@ import { ACTIONS } from './actions/registry.ts'
 import { type BootedHost, bootHost, teardownHost } from './boot.ts'
 import { createGrantLedger } from './capabilities/grants.ts'
 import { readNativeGrants } from './capabilities/native.ts'
+import { NATIVE_COMMANDS } from './commands.ts'
 import { renderHostPicker } from './fleet.ts'
-import type { HostRecord } from './host.ts'
+import { type HostRecord, readHostRecords } from './host.ts'
 import { followAppLifecycle } from './lifecycle.ts'
 import { createTranslate } from './locales.ts'
 import { messageOf } from './reason.ts'
@@ -25,6 +26,7 @@ import { applyTheme } from './theme.ts'
 import { type CarrierHooks, createCarrier } from './transport.ts'
 import { button, el } from './ui/dom.ts'
 import { mountShell } from './ui/shell.ts'
+import type { WireValue } from './wire.ts'
 
 const mount = document.querySelector('#root')
 if (!(mount instanceof HTMLElement)) throw new Error('deeptail: missing #root')
@@ -49,10 +51,18 @@ const ledger = createGrantLedger()
  * @returns every paired host.
  */
 async function knownHosts(attemptsLeft = REGISTRY_ATTEMPTS): Promise<readonly HostRecord[]> {
-  const read = await invoke<HostRecord[]>('list_hosts').then(
-    (hosts) => hosts,
-    (reason) => (attemptsLeft <= 1 ? Promise.reject(reason) : undefined),
-  )
+  // The answer is read, not asserted: a record short its origin or its id
+  // reaches a URL and a keychain lookup as the string `undefined`.
+  const read = await invoke<WireValue>(NATIVE_COMMANDS.listHosts)
+    .then((answer) => {
+      const hosts = readHostRecords(answer)
+      if (hosts === undefined) throw new Error('deeptail: the host registry answered with a record it cannot address')
+      return hosts
+    })
+    .then(
+      (hosts) => hosts,
+      (reason) => (attemptsLeft <= 1 ? Promise.reject(reason) : undefined),
+    )
   if (read !== undefined) {
     ledger.hydrate(
       await readNativeGrants().then(
@@ -127,7 +137,7 @@ function mountControlPlane(hosts: readonly HostRecord[], notice?: string): void 
       },
       unpair: async (hostId) => {
         await clearPage()
-        await invoke('forget_host', { host: hostId })
+        await invoke(NATIVE_COMMANDS.forgetHost, { host: hostId })
         mountControlPlane(await knownHosts())
       },
     },

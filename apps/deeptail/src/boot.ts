@@ -15,9 +15,11 @@
 
 import type { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 import { invoke } from '@tauri-apps/api/core'
+import { NATIVE_COMMANDS } from './commands.ts'
 import type { HostRecord } from './host.ts'
-import { applyIndexInjections, type IndexInjection } from './injections.ts'
+import { applyIndexInjections, readIndexInjections } from './injections.ts'
 import { type CarrierHooks, createCarrier } from './transport.ts'
+import type { WireValue } from './wire.ts'
 
 /** Names owned by the harness's page-boot protocol. */
 const BOOT_READY_KEY = '__DSH_BOOT_READY__'
@@ -64,8 +66,16 @@ export async function bootHost(host: HostRecord, container: HTMLElement): Promis
   ready.promise.then(undefined, () => null)
   const carrier = createCarrier(host.id)
   Object.assign(globalThis, { [TRANSPORT_KEY]: carrier })
-  const installed = await invoke<readonly IndexInjection[]>('boot_injections', { host: host.id })
-    .then((rows) => applyIndexInjections(rows, (src: string) => carrier.loadBundle(src)))
+  // The answer is read rather than asserted. Naming the row type as the call's
+  // type argument claimed a shape nothing had checked, and every field the
+  // applier reads off a row — the global's name, the markup, the bundle path —
+  // came from a host on the strength of that claim alone.
+  const installed = await invoke<WireValue>(NATIVE_COMMANDS.bootInjections, { host: host.id })
+    .then((answer) => {
+      const rows = readIndexInjections(answer)
+      if (rows === undefined) throw new Error('deeptail: the host served a boot table this build cannot apply')
+      return applyIndexInjections(rows, (src: string) => carrier.loadBundle(src))
+    })
     .then(
       () => ({ settled: true as const }),
       (reason) => discardFailedBoot(ready, reason),
@@ -101,7 +111,7 @@ function discardFailedBoot<T>(ready: PromiseWithResolvers<void>, reason: T): { s
 export async function teardownHost(booted: BootedHost, host: HostRecord): Promise<void> {
   booted.carrier.suspendMuxSocket()
   await booted.entry.dispose()
-  await invoke('carrier_close_mux', { host: host.id })
+  await invoke(NATIVE_COMMANDS.carrierCloseMux, { host: host.id })
   Reflect.deleteProperty(globalThis, TRANSPORT_KEY)
   Reflect.deleteProperty(globalThis, BOOT_READY_KEY)
 }

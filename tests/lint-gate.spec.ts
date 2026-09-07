@@ -78,7 +78,9 @@ describe('the report the gate prints', () => {
   it('refuses every finding, at every severity, and names each with its rule', () => {
     const outcome = lintOutcome(MIXED)
     expect(outcome.ok).toBe(false)
-    expect(outcome.text.startsWith('the linter reported findings the chain would have walked past:\n')).toBe(true)
+    expect(outcome.text.startsWith('the linter reported findings, which this gate refuses at every severity:\n')).toBe(
+      true,
+    )
     for (const named of [
       '  apps/deeptail/tests/a.browser.spec.ts:266: lint/complexity/useLiteralKeys: ',
       '  scripts/b.ts:12: lint/suspicious/noConsole: ',

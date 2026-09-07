@@ -25,6 +25,31 @@ type TextBlock = {
 }
 
 /**
+ * How many trailing messages a follow reports.
+ *
+ * Fixed rather than configured: this is the shape of the line a person scans,
+ * not a deployment's budget. The limits a deployment does vary live in
+ * `limits.ts`, resolved before a tool ever runs.
+ */
+const RECENT_LINES = 5
+
+/** The longest preview one message is rendered to, ellipsis included. */
+const PREVIEW_CHARS = 160
+
+/** What a truncated preview ends with, and what it costs from the budget. */
+const ELLIPSIS = '...'
+
+/**
+ * The characters a truncated preview keeps.
+ *
+ * Derived rather than written. The two were independent literals — 160 and
+ * 157 — so a change to the budget left the slice behind, and the preview went
+ * on ending three characters short of wherever the new limit was with nothing
+ * to say so.
+ */
+const PREVIEW_KEPT = PREVIEW_CHARS - ELLIPSIS.length
+
+/**
  * Project one controller row onto the orchestrator's reported view.
  * @param row - one `SessionSummary` from `sessionController.list`.
  * @returns the fields this package reports to the model.
@@ -57,7 +82,7 @@ export function recentLines(records: readonly SessionHistoryRecord[]): string[] 
     const role = event.type === 'user/message' ? 'user' : 'assistant'
     lines.push(`${role}: ${previewOf(event.data)}`)
   }
-  return lines.slice(-5)
+  return lines.slice(-RECENT_LINES)
 }
 
 /**
@@ -77,7 +102,7 @@ function previewOf(data: JsonValue): string {
     .map((block) => block.text)
     .join(' ')
   const collapsed = text.replaceAll(/\s+/gu, ' ').trim()
-  return collapsed.length > 160 ? `${collapsed.slice(0, 157)}...` : collapsed
+  return collapsed.length > PREVIEW_CHARS ? `${collapsed.slice(0, PREVIEW_KEPT)}${ELLIPSIS}` : collapsed
 }
 
 /**

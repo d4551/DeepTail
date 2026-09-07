@@ -16,7 +16,7 @@
  */
 
 import { type DefaultTreeAdapterTypes, parse } from 'parse5'
-import { type MarkupOffence, REMOTE_URL, recordAttributeOffences } from './markup-attributes.ts'
+import { type Attributes, type MarkupOffence, REMOTE_URL, recordAttributeOffences } from './markup-attributes.ts'
 import type { Offence } from './offence.ts'
 
 /** The attribute this gate exists to keep out of the product. */
@@ -89,10 +89,7 @@ function isRemoteRefresh(content: string): boolean {
  * @param line - the line the element starts on.
  * @returns the offence, or undefined when the meta is not a remote redirect.
  */
-function metaRedirectOffence(
-  attrs: readonly { readonly name: string; readonly value?: string }[],
-  line: number,
-): MarkupOffence | undefined {
+function metaRedirectOffence(attrs: Attributes, line: number): MarkupOffence | undefined {
   const equiv = attrs.find((attribute) => attribute.name.toLowerCase() === 'http-equiv')
   const content = attrs.find((attribute) => attribute.name.toLowerCase() === 'content')
   if ((equiv?.value ?? '').toLowerCase() !== 'refresh' || !isRemoteRefresh(content?.value ?? '')) return undefined
@@ -103,7 +100,7 @@ function metaRedirectOffence(
 type Parsed = DefaultTreeAdapterTypes.Node & {
   childNodes?: readonly DefaultTreeAdapterTypes.Node[]
   content?: DefaultTreeAdapterTypes.DocumentFragment
-  attrs?: readonly { readonly name: string; readonly value?: string }[]
+  attrs?: Attributes
   tagName?: string
   sourceCodeLocation?: { readonly startLine?: number } | null
 }
@@ -123,7 +120,7 @@ const HTMX_ELEMENT = /^hx-/u
  * @param found - collects the offences.
  */
 function recordElementOffences(
-  attrs: readonly { readonly name: string; readonly value?: string }[],
+  attrs: Attributes,
   tag: string | undefined,
   line: number,
   found: { line: number; why: string }[],
@@ -143,6 +140,50 @@ function recordElementOffences(
 }
 
 /**
+ * Every navigable attribute of one element that runs its value as code.
+ * @param attrs - the element's attributes.
+ * @param line - the line the element opens on.
+ * @returns one offence per scripted URL.
+ */
+function scriptedUrlOffences(attrs: Attributes, line: number): MarkupOffence[] {
+  return attrs
+    .filter((attribute) => URL_ATTRIBUTES.has(attribute.name.toLowerCase()) && isScriptedUrl(attribute.value ?? ''))
+    .map(() => ({
+      line,
+      why: 'a URL that executes text as code is an inline script; navigate by address or call a module',
+    }))
+}
+
+/**
+ * What one element's tag name refuses, given what the tag carries.
+ *
+ * Each of these is a decision about a single tag, so they are answered here
+ * rather than inside the walk: the walk's own job is which nodes are visited
+ * and how many landmarks have been seen, and while these sat beside it a
+ * reader had to hold both at once.
+ * @param tag - the lowercased tag name, when the node has one.
+ * @param attrs - the element's attributes.
+ * @param line - the line the element opens on.
+ * @returns the offences, or an empty list.
+ */
+function tagOffences(tag: string | undefined, attrs: Attributes, line: number): MarkupOffence[] {
+  if (tag === 'script') {
+    return attrs.some((attribute) => attribute.name.toLowerCase() === 'src')
+      ? []
+      : [{ line, why: 'an inline script is a per-page script; ship a module and load it by src' }]
+  }
+  if (tag === 'style') return [{ line, why: 'an inline stylesheet is a per-page sheet; ship a file and link it' }]
+  if (tag === 'meta') {
+    const redirect = metaRedirectOffence(attrs, line)
+    return redirect === undefined ? [] : [redirect]
+  }
+  if (tag !== undefined && PRESENTATIONAL_ELEMENTS.has(tag)) {
+    return [{ line, why: 'a retired presentational tag is alignment or type in markup; use the stylesheet' }]
+  }
+  return []
+}
+
+/**
  * Every construct a fragment carries that no page may ship inline.
  *
  * Parsed in document mode, not fragment mode: the fragment algorithm ignores
@@ -156,45 +197,28 @@ function recordElementOffences(
 export function markupOffences(text: string): MarkupOffence[] {
   const found: MarkupOffence[] = []
   let landmarks = 0
+  // The count is the whole of what this needs to remember, so it is kept
+  // beside the walk rather than inside it: the walk then states which nodes
+  // are visited and nothing else.
+  const landmarkOffences = (tag: string | undefined, line: number): MarkupOffence[] => {
+    if (tag !== LANDMARK) return []
+    landmarks += 1
+    return landmarks > 1 ? [{ line, why: 'a second main splits the shell; a document carries one' }] : []
+  }
   const visit = (node: Parsed): void => {
     const line = node.sourceCodeLocation?.startLine ?? 1
     const attrs = node.attrs ?? []
     const tag = typeof node.tagName === 'string' ? node.tagName.toLowerCase() : undefined
     recordElementOffences(attrs, tag, line, found)
     recordAttributeOffences(attrs, tag, line, found)
-    for (const attribute of attrs) {
-      if (!URL_ATTRIBUTES.has(attribute.name.toLowerCase())) continue
-      const url = attribute.value ?? ''
-      if (isScriptedUrl(url)) {
-        found.push({
-          line,
-          why: 'a URL that executes text as code is an inline script; navigate by address or call a module',
-        })
-      }
-    }
-    if (tag === 'script' && !attrs.some((attribute) => attribute.name.toLowerCase() === 'src')) {
-      found.push({ line, why: 'an inline script is a per-page script; ship a module and load it by src' })
-    }
-    if (tag === 'style') {
-      found.push({ line, why: 'an inline stylesheet is a per-page sheet; ship a file and link it' })
-    }
-    if (tag === 'meta') {
-      const redirect = metaRedirectOffence(attrs, line)
-      if (redirect !== undefined) found.push(redirect)
-    }
-    if (tag !== undefined && PRESENTATIONAL_ELEMENTS.has(tag)) {
-      found.push({ line, why: 'a retired presentational tag is alignment or type in markup; use the stylesheet' })
-    }
-    if (tag === LANDMARK) {
-      landmarks += 1
-      if (landmarks > 1) {
-        found.push({ line, why: 'a second main splits the shell; a document carries one' })
-      }
-    }
-    for (const child of node.childNodes ?? []) visit(child as Parsed)
-    for (const child of node.content?.childNodes ?? []) visit(child as Parsed)
+    found.push(...scriptedUrlOffences(attrs, line), ...tagOffences(tag, attrs, line), ...landmarkOffences(tag, line))
+    // The child lists are read as the parser types them. `Parsed` only adds
+    // optional members over that type, so a child already is one and needs no
+    // assertion claiming it carries them.
+    for (const child of node.childNodes ?? []) visit(child)
+    for (const child of node.content?.childNodes ?? []) visit(child)
   }
-  visit(parse(text, { sourceCodeLocationInfo: true }) as Parsed)
+  visit(parse(text, { sourceCodeLocationInfo: true }))
   return found
 }
 

@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "commandRunner": {
-    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/entry-gate.spec.ts tests/gate-runner.spec.ts tests/gate-declarations.spec.ts tests/stray-gate.spec.ts tests/lint-gate.spec.ts"
+    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/mutation-survivors.spec.ts tests/gen-action-registry.spec.ts tests/entry-gate.spec.ts tests/gate-runner.spec.ts tests/gate-declarations.spec.ts tests/stray-gate.spec.ts tests/lint-gate.spec.ts tests/size-gate.spec.ts tests/copy-gate.spec.ts tests/command-gate.spec.ts tests/dialog-gate.spec.ts"
   },
   "mutate": [
     "scripts/action-registry-emit.ts",
@@ -9,11 +9,18 @@
     "scripts/action-registry.ts",
     "scripts/cargo-freshness.ts",
     "scripts/check-bans.ts",
+    "scripts/check-commands.ts",
+    "scripts/check-copy.ts",
+    "scripts/check-dialogs.ts",
+    "scripts/dialog-gate.ts",
+    "scripts/native-commands.ts",
     "scripts/check-entries.ts",
     "scripts/check-lint.ts",
     "scripts/check-no-inline-styles.ts",
     "scripts/check-outdated.ts",
+    "scripts/check-size.ts",
     "scripts/check-strays.ts",
+    "scripts/copy-gate.ts",
     "scripts/check-stylesheets.ts",
     "scripts/check-tree.ts",
     "scripts/compiler-face.ts",
