@@ -8,6 +8,8 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import { existsSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import { onlyPresent, ROOT, repositoryFiles } from '../scripts/source-tree.ts'
 
 describe('the file list', () => {
@@ -45,17 +47,24 @@ describe('the file list', () => {
 })
 
 describe('the file list against the index', () => {
-  it('reads a file git has never seen, so nothing can hide behind the index', () => {
+  it('reads a file git has never seen, so nothing can hide behind the index', async () => {
     // `--others --exclude-standard`: a source file added but not yet staged is
     // a file that ships, and a gate that read only the index would not see it.
     // The probe is read, then removed, and only then is the expectation held:
     // the removal runs before anything that could fail on it, so a red case
     // leaves no probe file behind in the tree it just measured.
+    //
+    // Every step is awaited. The write was not, and its promise settled after
+    // the removal had already run: the probe outlived the case that made it,
+    // and `scripts/source-tree.tszz-source-tree-probe.probe-ext` — the same
+    // name under a mutated `ROOT` — sat in the tree afterwards with no gate
+    // reading its extension. The removal is likewise awaited, so a file left
+    // on disk is this case failing rather than the next run's mystery.
     const scratch = `${ROOT}zz-source-tree-probe.probe-ext`
-    Bun.write(scratch, 'probe\n')
+    await Bun.write(scratch, 'probe\n')
     const listed = repositoryFiles(['.probe-ext']).map((file) => file.label)
-    Bun.spawnSync(['rm', '-f', scratch])
-    expect(listed).toEqual(['zz-source-tree-probe.probe-ext'])
+    await rm(scratch, { force: true })
+    expect([listed, existsSync(scratch)]).toEqual([['zz-source-tree-probe.probe-ext'], false])
   })
 
   it('leaves out a path whose bytes are gone', () => {

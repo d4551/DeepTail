@@ -21,6 +21,7 @@
     "check:entries": "bun scripts/check-entries.ts",
     "check:outdated": "bun scripts/check-outdated.ts",
     "check:registry": "bun scripts/gen-action-registry.ts --check",
+    "check:strays": "bun scripts/check-strays.ts",
     "check:styles": "bun scripts/check-no-inline-styles.ts && bun scripts/check-stylesheets.ts",
     "check:tree": "bun scripts/check-tree.ts",
     "gen:registry": "bun scripts/gen-action-registry.ts",
@@ -41,7 +42,9 @@
     "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests --timeout 60000",
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
     "typecheck": "tsc --build tsconfig.json && tsc -p tsconfig.tools.json && tsc -p packages/host-fleet/tsconfig.tests.json && tsc -p apps/deeptail/tsconfig.tests.json",
-    "validate": "bun run lint && bun run check:tree && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:bans && bun run check:entries && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser"
+    "validate": "bun run validate:all",
+    "validate:all": "bun run lint && bun run check:tree && bun run check:strays && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:bans && bun run check:entries && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser",
+    "validate:strict": "bun run validate:all && bun run mutate"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
@@ -54,7 +57,6 @@
     "knip": "6.34.0",
     "oxc-parser": "0.149.0",
     "oxlint": "1.82.0",
-    "oxlint-tsgolint": "7.0.2001",
     "parse5": "8.0.1",
     "semver": "7.8.5",
     "typescript": "7.0.2"

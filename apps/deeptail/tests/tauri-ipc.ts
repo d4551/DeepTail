@@ -208,13 +208,17 @@ function deeptailInvoke(
       return script.bootError === undefined ? Promise.resolve([]) : Promise.reject(new Error(script.bootError))
     case 'carrier_close_mux':
       return Promise.resolve(null)
-    case 'pair_host':
+    case 'pair_host': {
       // The link itself, not just that pairing was asked for: a case that only
-      // sees the command name cannot tell a composed link from any other.
-      state.pairedLinks.push(String(args['link'] ?? ''))
+      // sees the command name cannot tell a composed link from any other. The
+      // argument is destructured rather than indexed, because the invoke
+      // arguments are a map whose contents this command decides.
+      const { link } = args
+      state.pairedLinks.push(String(link ?? ''))
       return script.pairError === undefined
         ? Promise.resolve(script.paired ?? {})
         : Promise.reject(new Error(script.pairError))
+    }
     case 'tailscale_connected':
     case 'tailscale_connect':
     case 'tailscale_devices':

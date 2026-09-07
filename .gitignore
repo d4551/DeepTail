@@ -15,6 +15,9 @@ apps/deeptail/src-tauri/gen/
 # Local bun cache redirected into the workspace when the default cache
 # directory is not writable; never shipped, never scanned.
 .tmp-bun/
+# Where `bunx` unpacks a one-off tool; the same reasoning, and the stray gate
+# refuses anything of its kind that reaches the ship list.
+.tmp-bunx/
 
 # Local Chromium override for the browser suite; the path is machine-specific.
 apps/deeptail/tests/chromium.json

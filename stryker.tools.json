@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "commandRunner": {
-    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/entry-gate.spec.ts"
+    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/entry-gate.spec.ts tests/gate-runner.spec.ts tests/gate-declarations.spec.ts tests/stray-gate.spec.ts"
   },
   "mutate": [
     "scripts/action-registry-emit.ts",
@@ -12,15 +12,17 @@
     "scripts/check-entries.ts",
     "scripts/check-no-inline-styles.ts",
     "scripts/check-outdated.ts",
+    "scripts/check-strays.ts",
     "scripts/check-stylesheets.ts",
     "scripts/check-tree.ts",
     "scripts/compiler-face.ts",
     "scripts/entry-gate.ts",
+    "scripts/gate-runner.ts",
     "scripts/gen-action-registry.ts",
     "scripts/jsonc.ts",
+    "scripts/manifest.ts",
     "scripts/mutate-restore.ts",
     "scripts/mutation-survivors.ts",
-    "scripts/pins.ts",
     "scripts/registry-readers.ts"
   ],
   "coverageAnalysis": "off",
