@@ -7,35 +7,46 @@
  *
  * Every linter the gate chain runs is pinned, not merely the first one: a
  * category quietly dropped to a warning silences as much as an ignore list
- * does, and reads as nothing at all in a diff.
+ * does, and reads as nothing at all in a diff. Neither linter names files to
+ * skip: what each reads is decided by the repository's own ship list — git's —
+ * and one list decides for every checker.
  */
 
 import { expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 
 /**
- * Assert that no checker configuration silences a finding.
+ * Pin the dead-code reader's configuration to its empty-handed shape.
  */
-async function expectNoSuppressionLists(): Promise<void> {
+async function pinKnip(): Promise<void> {
   const knip = JSON.parse(await readFile('knip.json', 'utf8')) as {
     workspaces?: Record<string, { ignoreDependencies?: string[] }>
   }
   for (const [name, workspace] of Object.entries(knip.workspaces ?? {})) {
     expect([name, workspace.ignoreDependencies]).toEqual([name, undefined])
   }
+}
 
-  // The linter config's rule groups are string maps, and the top-level `rules`
-  // object also carries the preset name as a string — both shapes are named so
+/**
+ * Pin the first linter: every rule at `error`, no file list, no overrides.
+ */
+async function pinBiome(): Promise<void> {
+  // The linter config's rule groups are string maps — both shapes are named so
   // nothing widens to an unreadable bag.
   const biome = JSON.parse(await readFile('biome.json', 'utf8')) as {
     files?: { includes?: string[] }
+    vcs?: { useIgnoreFile?: boolean }
     linter?: { enabled?: boolean; rules?: Record<string, string | Record<string, string>> }
     overrides?: object
   }
+  // Biome names no files of its own: coverage follows git's ship list through
+  // the ignore file the repository keeps, and one list decides for every
+  // checker.
+  expect(biome.files).toBeUndefined()
+  expect(biome.vcs?.useIgnoreFile).toBe(true)
   expect(biome.overrides).toBeUndefined()
-  expect(biome.files?.includes ?? []).toEqual(['**', '!**/dist', '!**/lib', '!**/gen', '!**/target', '!**/*.min.js'])
   const rules = biome.linter?.rules ?? {}
-  expect(rules.preset).toBe('recommended')
+  expect(rules['preset']).toBe('recommended')
   // Every level this config states, with the preset name -- which is not a
   // level -- left out. Filtering for `off` alone was the same oversight this
   // file's own header describes: a rule dropped to `warn` or `info` reports
@@ -45,16 +56,18 @@ async function expectNoSuppressionLists(): Promise<void> {
   )
   expect(levels.filter((level) => level !== 'error')).toEqual([])
   expect(biome.linter?.enabled).not.toBe(false)
+}
 
-  // The second linter had no such pin at all, so a category could have been
-  // dropped to a warning or a rule turned off and every gate stayed green. Its
-  // categories, its named rules and the paths it declines to read are all held
-  // to what they were, and the ignore list carries only what the build writes.
+/**
+ * Pin the second linter: every category at `error`, no ignore list.
+ */
+async function pinOxlint(): Promise<void> {
   const oxlint = JSON.parse(await readFile('.oxlintrc.json', 'utf8')) as {
     plugins?: string[]
     categories?: Record<string, string>
     rules?: Record<string, string>
     ignorePatterns?: string[]
+    overrides?: object
   }
   expect(oxlint.plugins ?? []).toEqual(['typescript', 'unicorn', 'promise'])
   expect(oxlint.categories ?? {}).toEqual({
@@ -64,9 +77,12 @@ async function expectNoSuppressionLists(): Promise<void> {
     pedantic: 'error',
   })
   expect(Object.values(oxlint.rules ?? {}).filter((level) => level !== 'error')).toEqual([])
-  expect(oxlint.ignorePatterns ?? []).toEqual(['**/lib/**', '**/dist/**', '**/gen/**', '**/target/**'])
+  expect(oxlint.ignorePatterns).toBeUndefined()
+  expect(oxlint.overrides).toBeUndefined()
 }
 
 it('keeps every suppression list empty', async () => {
-  await expectNoSuppressionLists()
+  await pinKnip()
+  await pinBiome()
+  await pinOxlint()
 })

@@ -1,5 +1,5 @@
 /**
- * Stack floors, the supply-chain hold, and checker configuration.
+ * Stack floors and checker configuration.
  *
  * A toolchain that silently slips back a major version, or a checker that is
  * quietly switched off, is a regression no other gate reports: the build still
@@ -120,7 +120,7 @@ function floorDrift(declared: ReadonlyMap<string, string>): string[] {
  */
 function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
   const lock = readJsoncSync('bun.lock')
-  const packages = isJsonObject(lock.packages) ? lock.packages : EMPTY_SECTION
+  const packages = isJsonObject(lock['packages']) ? lock['packages'] : EMPTY_SECTION
   const resolved = new Map<string, string[]>()
   for (const [name, entry] of Object.entries(packages)) {
     // Each package is a tuple whose first element is "name@version".
@@ -133,11 +133,11 @@ function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
   }
   // Workspace members are versioned by their own manifest, mirrored in the
   // lock's workspaces section rather than resolved as registry packages.
-  const workspaces = isJsonObject(lock.workspaces) ? lock.workspaces : EMPTY_SECTION
+  const workspaces = isJsonObject(lock['workspaces']) ? lock['workspaces'] : EMPTY_SECTION
   for (const entry of Object.values(workspaces)) {
     if (!isJsonObject(entry)) continue
-    const name = entry.name
-    const version = entry.version
+    const name = entry['name']
+    const version = entry['version']
     if (typeof name === 'string' && typeof version === 'string') {
       resolved.set(name, [...(resolved.get(name) ?? []), version])
     }
@@ -180,13 +180,12 @@ describe('stack floors', () => {
     expect(lockfileOffences(await everyDependency())).toEqual([])
   })
 
-  it('holds the supply-chain release hold in place', async () => {
+  it('keeps the installer hermetic and ships no release hold', async () => {
     const bunfig = await readFile('bunfig.toml', 'utf8')
-    // A newly published version must age before it can be installed, so a
-    // compromised release cannot be pulled in the hour it lands.
-    const hold = /minimumReleaseAge\s*=\s*(\d+)/u.exec(bunfig)
-    expect(hold).not.toBeNull()
-    expect(Number(hold?.[1] ?? 0)).toBeGreaterThanOrEqual(86_400)
+    // No version is withheld from resolution: a pin behind is the outdated
+    // gate's finding, not a policy's, so nothing stands between the registry
+    // and what the gate demands.
+    expect(bunfig.includes('minimumReleaseAge')).toBe(false)
     // The installer cache is redirected into the workspace so the gate chain
     // is hermetic: a read-only home directory cannot change what resolves.
     const cache = /cache\s*=\s*\{\s*dir\s*=\s*["']([^"']+)["']/u.exec(bunfig)
@@ -195,21 +194,16 @@ describe('stack floors', () => {
 
   it('keeps every linter category enabled', async () => {
     const config = readJsonc(await readFile('.oxlintrc.json', 'utf8'))
-    const categories = isJsonObject(config.categories) ? config.categories : EMPTY_SECTION
-    const rules = isJsonObject(config.rules) ? config.rules : EMPTY_SECTION
-    const ignorePatterns = config.ignorePatterns
+    const categories = isJsonObject(config['categories']) ? config['categories'] : EMPTY_SECTION
+    const rules = isJsonObject(config['rules']) ? config['rules'] : EMPTY_SECTION
     for (const category of ['correctness', 'suspicious', 'perf', 'pedantic']) {
       expect(categories[category]).toBe('error')
     }
     // A rule switched off is a defect hidden rather than fixed.
     expect(Object.values(rules).filter((level) => level === 'off')).toEqual([])
-    // oxlint may skip build output and nothing else.
-    expect(Array.isArray(ignorePatterns) ? ignorePatterns : []).toEqual([
-      '**/lib/**',
-      '**/dist/**',
-      '**/gen/**',
-      '**/target/**',
-    ])
-    expect(config.overrides).toBeUndefined()
+    // The linter carries no ignore list: what it reads is decided by the
+    // repository's own ship list, not by a second list here.
+    expect(config['ignorePatterns']).toBeUndefined()
+    expect(config['overrides']).toBeUndefined()
   })
 })

@@ -131,7 +131,7 @@ export function unwrap(value: Field | undefined): Field | undefined {
   // Bounded so a tree that somehow refers to itself cannot spin here.
   for (let depth = 0; depth < 32; depth += 1) {
     if (!isNode(inner) || !TRANSPARENT.has(inner.type)) return inner
-    inner = inner.expression
+    inner = inner['expression']
   }
   return inner
 }
@@ -142,10 +142,10 @@ export function unwrap(value: Field | undefined): Field | undefined {
  * @returns the name, or undefined when it is computed or not an identifier.
  */
 export function memberName(node: Node): string | undefined {
-  if (node.computed === true) return undefined
-  const property = unwrap(node.property)
-  return isNode(property) && property.type === 'Identifier' && typeof property.name === 'string'
-    ? property.name
+  if (node['computed'] === true) return undefined
+  const property = unwrap(node['property'])
+  return isNode(property) && property.type === 'Identifier' && typeof property['name'] === 'string'
+    ? property['name']
     : undefined
 }
 

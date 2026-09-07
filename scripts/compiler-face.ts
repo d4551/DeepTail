@@ -60,15 +60,15 @@ function optionString(value: Json | undefined): string {
  */
 export function compilerFaceOffences(options: { readonly [key: string]: Json }): string[] {
   const offences: string[] = []
-  const moduleValue = optionString(options.module)
+  const moduleValue = optionString(options['module'])
   if (TS6_MODULES.has(moduleValue)) {
     offences.push(`module ${moduleValue} is a TypeScript 6 module system; use esnext with bundler resolution`)
   }
-  const resolution = optionString(options.moduleResolution)
+  const resolution = optionString(options['moduleResolution'])
   if (TS6_RESOLUTIONS.has(resolution)) {
     offences.push(`moduleResolution ${resolution} is a TypeScript 6 resolver; use bundler`)
   }
-  const target = optionString(options.target)
+  const target = optionString(options['target'])
   if (LEGACY_TARGETS.has(target)) {
     offences.push(`target ${target} is a TypeScript ≤6 emit face; use esnext`)
   }
@@ -77,10 +77,10 @@ export function compilerFaceOffences(options: { readonly [key: string]: Json }):
       offences.push(`${flag} is a TypeScript 6 module-interop flag; TypeScript 7 verbatimModuleSyntax replaced it`)
     }
   }
-  if (options.skipLibCheck === true) {
+  if (options['skipLibCheck'] === true) {
     offences.push("skipLibCheck silences a dependency's diagnostics instead of fixing them")
   }
-  if (options.strict === false) {
+  if (options['strict'] === false) {
     offences.push('strict is off; the TypeScript 7 face keeps it on')
   }
   return offences

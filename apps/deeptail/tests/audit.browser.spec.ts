@@ -57,11 +57,11 @@ it('reports a node no scroll position can decide, on a page that scrolls', async
   // ever collapses to reporting nothing undecided, this is what fails.
   await page.addStyleTag({
     content:
-      '[data-deeptail-probe="undecidable"] { position: fixed; inset-block-start: 0; inset-inline-start: 0; color: #777; background-image: url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'%3E%3C/svg%3E"); }',
+      '[data-deeptail-probe="undecidable"] { position: fixed; inset-block-start: 0; inset-inline-start: 0; color: rgb(119, 119, 119); background-image: url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\'%3E%3C/svg%3E"); }',
   })
   await page.evaluate(() => {
     const strip = document.createElement('p')
-    strip.dataset.deeptailProbe = 'undecidable'
+    strip.dataset['deeptailProbe'] = 'undecidable'
     strip.textContent = 'contrast over an image'
     document.body.append(strip)
   })
@@ -78,7 +78,7 @@ it('reports a violation that only one scroll position can see', async () => {
   await page.evaluate(() => {
     const body = document.querySelector('[data-deeptail-dialog] .modal-body')
     const button = document.createElement('button')
-    button.dataset.deeptailProbe = 'unlabelled'
+    button.dataset['deeptailProbe'] = 'unlabelled'
     body?.append(button)
   })
   const found = await harness.audit(page)

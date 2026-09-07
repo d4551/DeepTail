@@ -135,9 +135,12 @@ function propertyOffences(label: string, property: string, value: string, line: 
  * @param label - the path to report offences under.
  * @param value - what the property is set to.
  * @param line - the line it is written on.
+ * @param paletteDefinition - whether this declaration is one of the palette's
+ * own definitions, which is the one place a colour function states the palette
+ * rather than second-guessing it.
  * @returns the offences, or an empty list.
  */
-function valueOffences(label: string, value: string, line: number): Offence[] {
+function valueOffences(label: string, value: string, line: number, paletteDefinition: boolean): Offence[] {
   const offences: Offence[] = []
   const viewportUnit = STATIC_VIEWPORT_UNIT.exec(value)
   if (viewportUnit !== null) {
@@ -157,7 +160,7 @@ function valueOffences(label: string, value: string, line: number): Offence[] {
       why: 'a remote URL loads an asset no local install ships; ship the asset in the bundle',
     })
   }
-  offences.push(...scanColour(label, value, line))
+  offences.push(...scanColour(label, value, line, paletteDefinition))
   return offences
 }
 
@@ -165,18 +168,24 @@ function valueOffences(label: string, value: string, line: number): Offence[] {
  * Every declaration a sheet writes that it may not write.
  * @param label - the path to report offences under.
  * @param text - the sheet's contents, comments already blanked.
+ * @param defines - whether this sheet is the one whose custom properties
+ * define the scale and the palette. A pixel length or a colour function on a
+ * custom property of that sheet states the scale or the palette; the same
+ * value on any other property of any sheet is a decision made outside the one
+ * place that owns it.
  * @returns one offence per rejected declaration.
  */
-export function declarationOffences(label: string, text: string): Offence[] {
+export function declarationOffences(label: string, text: string, defines: boolean): Offence[] {
   const offences: Offence[] = []
   for (const { property, value, line } of declarationsOf(text)) {
-    offences.push(...valueOffences(label, value, line))
-    if (property.startsWith('--')) {
+    const custom = property.startsWith('--')
+    offences.push(...valueOffences(label, value, line, defines && custom))
+    if (custom) {
       // A custom property names a value, so no property rule reads it; the
-      // length it holds is still a length, and outside the token sheet it is
-      // one written out rather than read from the scale.
+      // length it holds is still a length, and outside the sheet that defines
+      // the scale it is one written out rather than read from it.
       const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
-      if (lengths.length > 0) {
+      if (lengths.length > 0 && !defines) {
         offences.push({
           label,
           line,

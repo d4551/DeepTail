@@ -31,7 +31,7 @@ function folded(source: string): string | undefined {
  */
 function read(source: string): string | undefined {
   const subject = parsedBody(source)
-    .flatMap((statement) => (Array.isArray(statement.declarations) ? statement.declarations : []))
+    .flatMap((statement) => (Array.isArray(statement['declarations']) ? statement['declarations'] : []))
     .find((declarator) => nameOf(declarator) === 'subject')
   return staticString(namesOf(source).constants, fieldOf(subject, 'init'))
 }
@@ -54,7 +54,7 @@ function nameOf(declarator: Field): string | undefined {
  */
 function approximated(source: string): string | undefined {
   const declarator = nodeOfType(source, 'VariableDeclarator')
-  return approximateString(namesOf(source).constants, declarator.init)
+  return approximateString(namesOf(source).constants, declarator['init'])
 }
 
 describe('the folder reads a name however it is assembled', () => {

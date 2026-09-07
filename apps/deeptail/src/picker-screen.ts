@@ -75,7 +75,7 @@ export interface PickerFrame {
  */
 export function mountPickerFrame(container: HTMLElement): PickerFrame {
   const root = el('main', { className: 'picker' })
-  root.dataset.deeptailPicker = ''
+  root.dataset['deeptailPicker'] = ''
   const card = el('div', { className: 'card' })
   root.append(card)
   container.replaceChildren(root)

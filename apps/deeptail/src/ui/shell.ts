@@ -168,7 +168,7 @@ function newSessionButton(ports: SpawnPorts, t: Translate, announce: (text: stri
   const spawn = button('new-session', t('shell.newSession'), () => {
     openNewSession(ports, t, announce)
   })
-  spawn.dataset.deeptailAction = ACTIONS['session.spawn'].marker
+  spawn.dataset['deeptailAction'] = ACTIONS['session.spawn'].marker
   spawn.disabled = ports.hosts.length === 0
   return spawn
 }
@@ -231,7 +231,7 @@ function handOff(host: HostRecord, sessionId: string, ports: ShellPorts, frame: 
   frame.body.replaceChildren(el('div', { className: 'placeholder', text: t('shell.opening', { label: host.label }) }))
   reportSettled(ports.open(host, sessionId), t, (message) => {
     const failure = el('div', { className: 'error', text: message, role: 'alert' })
-    failure.dataset.deeptailState = 'open-error'
+    failure.dataset['deeptailState'] = 'open-error'
     frame.body.replaceChildren(failure)
   })
 }

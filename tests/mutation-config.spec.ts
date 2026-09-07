@@ -67,8 +67,7 @@ const UNDRIVEABLE: Readonly<Record<string, string>> = {
   'tests/legacy.spec.ts': 'reads every file the repository ships, instrumented ones included',
   'tests/gate-coverage.spec.ts': 'reads every file the repository ships, instrumented ones included',
   'tests/mutation-config.spec.ts': 'refuses a tree a run has instrumented, which is every tree during a run',
-  'tests/suppressions.spec.ts': 'reads checker configuration, which no scope mutates',
-  'tests/zz-probe.spec.ts': "pins the parser's own node shapes, which no scope mutates",
+  'tests/pipeline-guard.spec.ts': 'guards the workflow definitions and manifest, which no mutation scope mutates',
 }
 
 /** Every mutation configuration the repository ships, with its contents. */
@@ -197,7 +196,7 @@ describe('the unit suites a mutation run drives', () => {
   it('still runs every undriveable spec under the unit command', () => {
     // Left out of a mutation command, not out of the suite: a contributor runs
     // `bun test`, and a reader of that run has to see these.
-    const command = scripts().test ?? ''
+    const command = scripts()['test'] ?? ''
     const patterns = command.split(/\s+/u).filter((word) => word.endsWith('.spec.ts'))
     const unrun = Object.keys(UNDRIVEABLE).filter((label) => !patterns.some((pattern) => matches(pattern, label)))
     expect(unrun).toEqual([])

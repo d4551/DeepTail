@@ -6,10 +6,7 @@
   // `skipLibCheck` is the one canonical recommendation this repository refuses:
   // it silences a dependency's diagnostics instead of fixing them.
   // The canonical style block is enabled beyond its default wherever it costs
-  // nothing the codebase disagrees with; `noPropertyAccessFromIndexSignature`
-  // is the one left off, because every `dataset` read in the DOM is an index
-  // access and the flag rewrites markup hooks into bracket notation for no
-  // added safety.
+  // nothing the codebase disagrees with.
   "compilerOptions": {
     "target": "esnext",
     "module": "esnext",
@@ -35,6 +32,7 @@
     "verbatimModuleSyntax": true,
     "noUncheckedSideEffectImports": true,
     "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

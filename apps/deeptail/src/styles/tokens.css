@@ -312,7 +312,7 @@ summary:focus-visible,
 }
 
 ::-webkit-scrollbar-thumb {
-  border-radius: 4px;
+  border-radius: var(--dsh-radius-xs);
   background: var(--dsh-scrollbar-thumb);
 }
 

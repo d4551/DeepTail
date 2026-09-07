@@ -45,7 +45,7 @@ function specs(): { readonly browser: string[]; readonly unit: string[] } {
  */
 function unitTestArguments(): string[] {
   const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
-  const script = manifest.scripts?.test ?? ''
+  const script = manifest.scripts?.['test'] ?? ''
   const words = script.trim().split(/\s+/u)
   const start = words.indexOf('test')
   if (words[0] !== 'bun' || start === -1) throw new Error(`the test script is not a bun test run: ${script}`)
@@ -122,7 +122,7 @@ describe('the gates the chain runs', () => {
     const scripts = manifest.scripts ?? {}
     const gates = Object.keys(scripts).filter((name) => name.startsWith('check:'))
     expect(gates.length).toBeGreaterThan(0)
-    const chain = scripts.validate ?? ''
+    const chain = scripts['validate'] ?? ''
     expect(gates.filter((gate) => !chain.includes(`bun run ${gate}`))).toEqual([])
   })
 

@@ -19,13 +19,13 @@ import type { AnswerTable, ForwardedEvent, IpcState, JsonValue, MuxEventValue, S
  * @returns the carrier response, or a promise that never settles.
  */
 function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<object> {
-  const request = args.request as { path?: string; body?: string } | undefined
+  const request = args['request'] as { path?: string; body?: string } | undefined
   const endpoint = (request?.path ?? '').replace(/^\/api\//u, '').split('?')[0] ?? ''
   const envelope = JSON.parse(request?.body ?? '{}') as {
     rpcId?: string
     payload?: { args?: Record<string, JsonValue> }
   }
-  const host = typeof args.host === 'string' ? args.host : ''
+  const host = typeof args['host'] === 'string' ? args['host'] : ''
   state.recorded.push({ host, endpoint, args: envelope.payload?.args ?? {} })
   const scoped = `${host}:${endpoint}`
   if ((script.remotePending ?? []).some((key) => key === scoped || key === endpoint)) {
@@ -60,8 +60,8 @@ function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>,
  * @returns null once opened, or a promise that never settles.
  */
 function deeptailOpenMux(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<null> {
-  const host = typeof args.host === 'string' ? args.host : ''
-  const channel = args.channel as ScriptChannel | undefined
+  const host = typeof args['host'] === 'string' ? args['host'] : ''
+  const channel = args['channel'] as ScriptChannel | undefined
   if (channel === undefined || !(script.muxHosts ?? []).includes(host)) {
     // No socket for this host: the deferred is deliberately never settled,
     // which is what an unreachable stream looks like.
@@ -84,9 +84,9 @@ function deeptailOpenMux(script: AnswerTable, args: Record<string, object>, stat
  * @returns null.
  */
 function deeptailSendMux(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<null> {
-  const host = typeof args.host === 'string' ? args.host : ''
+  const host = typeof args['host'] === 'string' ? args['host'] : ''
   const channel = state.channels.get(host)
-  const frame = JSON.parse(typeof args.data === 'string' ? args.data : '{}') as {
+  const frame = JSON.parse(typeof args['data'] === 'string' ? args['data'] : '{}') as {
     type?: string
     streamId?: string
   }

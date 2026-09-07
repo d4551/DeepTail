@@ -1,0 +1,145 @@
+# The merge gate: what a commit must survive before it may land.
+#
+# Every job runs the repository's own gate scripts, unmodified and unfiltered:
+# no path is skipped, no step may fail without failing its job, and the `gate`
+# job at the end reports green only when every gate above it reported green.
+# Branch protection on the default branch requires `gate` and `pipeline-guard`,
+# so this workflow is what stops a red repository from merging, and
+# `scripts/pipeline-guard.ts` is what keeps this file from being rewritten into
+# something that decides nothing. Every action is pinned to a full commit sha,
+# so the code a review approved is the code the runner executes.
+name: gate
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: install
+        run: bun install --frozen-lockfile
+      - name: lint (biome)
+        run: bun run lint
+      - name: tree (no mutation instrumentation left behind)
+        run: bun run check:tree
+      - name: outdated (every pin current)
+        run: bun run check:outdated
+      - name: cargo freshness
+        run: bun run check:cargo
+      - name: lint (oxc)
+        run: bun run lint:ox
+      - name: styles
+        run: bun run check:styles
+      - name: bans
+        run: bun run check:bans
+      - name: entries
+        run: bun run check:entries
+      - name: registry faces
+        run: bun run check:registry
+      - name: knip (nothing shipped unread)
+        run: bun run knip
+
+  types-and-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: install
+        run: bun install --frozen-lockfile
+      - name: types
+        run: bun run typecheck
+      - name: build
+        run: bun run build
+      - name: unit suites
+        run: bun run test
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: install
+        run: bun install --frozen-lockfile
+      - name: restore the playwright browser cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+      - name: install the chromium the browser suites drive
+        run: bunx playwright install --with-deps chromium
+      - name: browser suites
+        run: bun run test:browser
+      - name: wcag audit
+        run: bun run a11y
+
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: install
+        run: bun install --frozen-lockfile
+      - name: build the frontend the tauri codegen reads at compile time
+        run: bun run --filter @deeptail/app build
+      - name: the system libraries the tauri carrier links
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@63fed3e2fecf6f7b51dc6f043341b79ef82a9ae7
+        with:
+          workspaces: apps/deeptail/src-tauri
+      - name: clippy
+        run: bun run lint:rust
+      - name: rust suites
+        run: bun run test:rust
+
+  gate:
+    needs: [static, types-and-tests, browser, rust]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: refuse when any gate did not report green
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: |
+          echo "a gate did not pass: ${{ toJSON(needs.*.result) }}"
+          exit 1
+      - name: every gate reported green
+        run: echo "static, types-and-tests, browser and rust all reported green"

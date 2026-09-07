@@ -16,35 +16,6 @@ export type { Violation } from './audit.ts'
 export { WCAG_TAGS } from './audit.ts'
 export type { AnswerTable } from './tauri-ipc.ts'
 
-/** Shape of the optional `tests/chromium.json` override. */
-interface ChromiumConfig {
-  readonly executablePath?: string
-}
-
-/**
- * Resolve the Chromium executable: a `chromium.json` beside the tests names
- * one for images whose environment pre-ships a browser at a fixed path; an
- * absent file means Playwright's own resolution. No ambient environment is
- * read.
- *
- * @returns the configured path, or `undefined` for Playwright's default.
- */
-async function chromiumPath(): Promise<string | undefined> {
-  const raw = await Bun.file(new URL('./chromium.json', import.meta.url))
-    .text()
-    .then(
-      (text) => JSON.parse(text) as ChromiumConfig,
-      () => null,
-    )
-  const path = raw?.executablePath ?? ''
-  if (path === '') return undefined
-  // The override names one machine's build. On any other machine that path is
-  // simply absent, and launching against it fails outright with nothing in the
-  // suite explaining why; Playwright's own resolution is the better answer
-  // there than a hard stop.
-  return (await Bun.file(path).exists()) ? path : undefined
-}
-
 /** How a page should be opened. */
 interface OpenOptions {
   /**
@@ -190,8 +161,7 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
 
 export async function startHarness(): Promise<Harness> {
   const { server, origin } = startServer()
-  const executablePath = await chromiumPath()
-  const browser: Browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
+  const browser: Browser = await chromium.launch()
 
   return {
     open: (table, options = {}) => openPage(browser, origin, table, options),

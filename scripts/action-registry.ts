@@ -122,9 +122,9 @@ function readCapability(value: Json, where: string): CapabilityRow {
   const row = asObject(value, where)
   refuseUnknownKeys(row, where, KEYS.capability)
   return {
-    id: asString(row.id, `${where}.id`),
-    subject: asOneOf(row.subject, `${where}.subject`, SUBJECTS),
-    ttlSeconds: asPositiveInt(row.ttlSeconds, `${where}.ttlSeconds`),
+    id: asString(row['id'], `${where}.id`),
+    subject: asOneOf(row['subject'], `${where}.subject`, SUBJECTS),
+    ttlSeconds: asPositiveInt(row['ttlSeconds'], `${where}.ttlSeconds`),
   }
 }
 
@@ -137,7 +137,7 @@ function readCapability(value: Json, where: string): CapabilityRow {
 function readPlacement(value: Json, where: string): PlacementRow {
   const row = asObject(value, where)
   refuseUnknownKeys(row, where, KEYS.placement)
-  return { id: asString(row.id, `${where}.id`), surface: asString(row.surface, `${where}.surface`) }
+  return { id: asString(row['id'], `${where}.id`), surface: asString(row['surface'], `${where}.surface`) }
 }
 
 /**
@@ -150,17 +150,17 @@ function readAction(value: Json, where: string): ActionRow {
   const row = asObject(value, where)
   refuseUnknownKeys(row, where, KEYS.action)
   return {
-    id: asString(row.id, `${where}.id`),
-    capability: asString(row.capability, `${where}.capability`),
-    placement: asString(row.placement, `${where}.placement`),
-    kind: asOneOf(row.kind, `${where}.kind`, KINDS),
-    pane: asOneOf(row.pane, `${where}.pane`, PANES),
-    marker: asString(row.marker, `${where}.marker`),
-    labelKey: asOptionalString(row.labelKey, `${where}.labelKey`),
-    labelKeyOn: asOptionalString(row.labelKeyOn, `${where}.labelKeyOn`),
-    availability: asOneOf(row.availability, `${where}.availability`, AVAILABILITY),
-    remote: asOptionalString(row.remote, `${where}.remote`),
-    lane: asString(row.lane, `${where}.lane`),
+    id: asString(row['id'], `${where}.id`),
+    capability: asString(row['capability'], `${where}.capability`),
+    placement: asString(row['placement'], `${where}.placement`),
+    kind: asOneOf(row['kind'], `${where}.kind`, KINDS),
+    pane: asOneOf(row['pane'], `${where}.pane`, PANES),
+    marker: asString(row['marker'], `${where}.marker`),
+    labelKey: asOptionalString(row['labelKey'], `${where}.labelKey`),
+    labelKeyOn: asOptionalString(row['labelKeyOn'], `${where}.labelKeyOn`),
+    availability: asOneOf(row['availability'], `${where}.availability`, AVAILABILITY),
+    remote: asOptionalString(row['remote'], `${where}.remote`),
+    lane: asString(row['lane'], `${where}.lane`),
   }
 }
 
@@ -232,14 +232,14 @@ export function readRegistry(text: string): Registry {
   const document = readJsonc(text)
   refuseUnknownKeys(document, 'document', KEYS.document)
   const registry: Registry = {
-    version: asPositiveInt(document.version, 'version'),
-    capabilities: asArray(document.capabilities, 'capabilities').map((row, index) =>
+    version: asPositiveInt(document['version'], 'version'),
+    capabilities: asArray(document['capabilities'], 'capabilities').map((row, index) =>
       readCapability(row, `capabilities[${String(index)}]`),
     ),
-    placements: asArray(document.placements, 'placements').map((row, index) =>
+    placements: asArray(document['placements'], 'placements').map((row, index) =>
       readPlacement(row, `placements[${String(index)}]`),
     ),
-    actions: asArray(document.actions, 'actions').map((row, index) => readAction(row, `actions[${String(index)}]`)),
+    actions: asArray(document['actions'], 'actions').map((row, index) => readAction(row, `actions[${String(index)}]`)),
   }
   crossCheck(registry)
   return registry
