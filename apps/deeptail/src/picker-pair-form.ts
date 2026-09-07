@@ -87,12 +87,12 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
   // stops the submit before the form's own `role="alert"` strip ever fills.
   link.type = 'url'
   link.placeholder = t('pair.linkPlaceholder')
-  link.dataset.deeptailField = 'link'
+  link.dataset['deeptailField'] = 'link'
 
   const name = el('input', { className: 'input' })
   name.type = 'text'
   name.placeholder = t('pair.namePlaceholder')
-  name.dataset.deeptailField = 'name'
+  name.dataset['deeptailField'] = 'name'
 
   return [
     draftField(t('pair.linkLabel'), link, current.draft.link, (value) => {
@@ -121,12 +121,12 @@ function tokenFields(t: Translate, current: PairingState, draft: EditableDraft):
   token.autocomplete = 'off'
   token.spellcheck = false
   token.placeholder = t('tailnet.tokenPlaceholder')
-  token.dataset.deeptailField = 'link'
+  token.dataset['deeptailField'] = 'link'
 
   const name = el('input', { className: 'input' })
   name.type = 'text'
   name.placeholder = t('pair.namePlaceholder')
-  name.dataset.deeptailField = 'name'
+  name.dataset['deeptailField'] = 'name'
 
   return [
     draftField(t('tailnet.tokenLabel', { label: current.draft.label }), token, current.draft.link, (value) => {

@@ -38,8 +38,6 @@ export const AUDIT_VIEWS: readonly AuditView[] = VIEWPORTS.flatMap((viewport) =>
  * Size the page to a designed width after opening with the matching pointer.
  *
  * Coarse rows open through `{ mobile: true }` / `{ tablet: true }` (hasTouch).
- * A 320 CSS-pixel phone is that touch context resized, not a desktop window
- * squeezed: a resize alone would keep a fine pointer.
  * @param page - the page just opened.
  * @param view - the width and height to realize.
  */
@@ -48,10 +46,6 @@ export async function realizeView(page: Page, view: { width: number; height: num
   if (size?.width !== view.width || size.height !== view.height) {
     await page.setViewportSize({ width: view.width, height: view.height })
   }
-  // Both axes. Widths alone identified a row only while every row had its own;
-  // the reflow floor is 320 wide like the small phone and differs only in being
-  // 256 tall, so a check on width would pass a page that never left the phone's
-  // height — which is the one thing that row exists to measure.
   expect([page.viewportSize()?.width, page.viewportSize()?.height]).toEqual([view.width, view.height])
 }
 
@@ -70,9 +64,6 @@ export function describeViolations(violations: readonly Violation[]): string {
 
 /**
  * Audit the page as it stands and refuse any violation.
- *
- * One audit, one assertion, shared by every surface: the page each case has
- * arranged is measured exactly as the operator would meet it.
  * @param harness - the suite's browser harness, which owns the axe builder.
  * @param page - the page to audit, left open for the caller to dismiss.
  */
@@ -91,10 +82,6 @@ export async function openDrawerIfPresent(page: Page): Promise<void> {
 
 /**
  * Audit one arranged surface at mobile, tablet and desktop, in both palettes.
- *
- * Tablet is opened through the harness (`tablet: true`), not by resizing a
- * desktop page: a resize would keep the fine pointer and the audit would
- * claim a width it never actually emulated.
  * @param harness - the suite's browser harness.
  * @param open - opens the surface under one view and leaves it ready to audit.
  */
@@ -112,11 +99,6 @@ export async function expectNoViolationsAtEachWidth(
       return { label: view.label, size, violations }
     }),
   )
-  // Each designed box, by both axes, in both palettes. A list of widths could
-  // not tell the reflow floor from the small phone: they share a width and
-  // differ only in height, so a sweep that opened the phone twice and never
-  // realized 256 read as having measured both — and the row whose whole point
-  // is its height was the one nothing checked.
   const realized = results.flatMap((result) =>
     result.size === null || result.size === undefined
       ? []
@@ -145,6 +127,24 @@ export async function openShell(
 ): Promise<Page> {
   const page = await harness.open(fleet(fixture), view)
   await page.waitForSelector('[data-deeptail-shell]')
+  return page
+}
+
+/**
+ * Open the shell and show the roster, which on phone and tablet widths means
+ * opening the drawer that seats it.
+ * @param harness - the suite's browser harness.
+ * @param fixture - the registry the page boots against.
+ * @param view - the viewport and palette the case is measured under.
+ * @returns the page, showing the shell with the roster visible.
+ */
+export async function openShellWithDrawer(
+  harness: Harness,
+  fixture: Parameters<typeof fleet>[0] = {},
+  view?: Parameters<Harness['open']>[1],
+): Promise<Page> {
+  const page = await openShell(harness, fixture, view)
+  await openDrawerIfPresent(page)
   return page
 }
 

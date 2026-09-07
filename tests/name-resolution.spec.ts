@@ -97,7 +97,7 @@ describe('the name reader', () => {
   it('reads an identifier through whatever it was renamed from', () => {
     const names = namesOf('const d = document\nd.write("x")')
     const call = nodeOfType('const d = document\nd.write("x")', 'MemberExpression')
-    expect(identifier(call.object, names)).toBe('document')
+    expect(identifier(call['object'], names)).toBe('document')
   })
 
   it('reads an identifier written plainly, and nothing out of what is not one', () => {
@@ -165,15 +165,15 @@ describe('the call readers', () => {
 })
 
 describe('the structural read', () => {
-  it('descends through every wrapper that changes nothing about a value', () => {
+  it('descends through parentheses and assertions to the value beneath them', () => {
     for (const wrapped of ['(document)', 'document as never', 'document satisfies never', 'document!']) {
-      const inner = unwrap(nodeOfType(`const a = ${wrapped}`, 'VariableDeclarator').init)
+      const inner = unwrap(nodeOfType(`const a = ${wrapped}`, 'VariableDeclarator')['init'])
       expect([wrapped, isNode(inner) && inner.type]).toEqual([wrapped, 'Identifier'])
     }
   })
 
   it('descends through a stack of them, and stops where the value begins', () => {
-    const inner = unwrap(nodeOfType('const a = (((document)))', 'VariableDeclarator').init)
+    const inner = unwrap(nodeOfType('const a = (((document)))', 'VariableDeclarator')['init'])
     expect(isNode(inner) && inner.type).toBe('Identifier')
     expect(unwrap(null)).toBeNull()
   })
@@ -234,7 +234,7 @@ describe('the structural walk', () => {
 
   it('reads the line an offset falls on, and the first line for a field that is not one', () => {
     const parsed = parseScript('fixture.ts', 'const a = 1\nconst b = 2')
-    expect(parsed.lineAt(parsed.body[1]?.start)).toBe(2)
+    expect(parsed.lineAt(parsed.body[1]?.['start'])).toBe(2)
     expect(parsed.lineAt(null)).toBe(1)
   })
 })

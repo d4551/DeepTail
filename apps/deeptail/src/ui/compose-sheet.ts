@@ -94,8 +94,8 @@ function buildComposeActions(t: Translate, dismiss: () => void, submit: (mode: P
   const send = button('button button-primary', t('chat.send'), () => {
     submit('queue')
   })
-  send.dataset.deeptailAction = ACTIONS['compose.send'].marker
-  steer.dataset.deeptailAction = ACTIONS['compose.steer'].marker
+  send.dataset['deeptailAction'] = ACTIONS['compose.send'].marker
+  steer.dataset['deeptailAction'] = ACTIONS['compose.steer'].marker
   return { cancel, steer, send }
 }
 

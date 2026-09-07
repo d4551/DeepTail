@@ -13,7 +13,8 @@
 import type { Offence } from './offence.ts'
 
 /**
- * The CSS named colours, which only the token sheet may write.
+ * The CSS named colours, which no sheet may write — the palette is stated in
+ * its own function form on the definitions alone.
  *
  * `currentcolor` and `transparent` are deliberately absent rather than listed
  * and filtered back out: neither states a colour — one reads whatever colour is
@@ -197,17 +198,25 @@ const OVERRIDE_FLAG = new RegExp(`!\\s*${OVERRIDE.slice(1)}\\b`, 'iu')
  * @param label - the path to report offences under.
  * @param value - the declaration's value, trimmed.
  * @param line - the line the declaration is written on.
+ * @param paletteDefinition - whether the declaration is one of the palette's
+ * own definitions in tokens.css. It changes one thing: the function form is
+ * where that sheet states the palette, so there — and only there — a colour
+ * function is the palette being named rather than second-guessed. A hex or a
+ * named colour is refused everywhere, definitions included, so the palette
+ * keeps exactly one written form.
  * @returns one offence per rule the value breaks, none when it reads the palette.
  */
-export function scanColour(label: string, value: string, line: number): Offence[] {
+export function scanColour(label: string, value: string, line: number, paletteDefinition: boolean): Offence[] {
   const offences: Offence[] = []
-  const colour = RAW.exec(value)
-  if (colour !== null) {
-    offences.push({
-      label,
-      line,
-      why: `${colour[0]} is written out rather than read from the palette in tokens.css`,
-    })
+  if (!paletteDefinition) {
+    const colour = RAW.exec(value)
+    if (colour !== null) {
+      offences.push({
+        label,
+        line,
+        why: `${colour[0]} is written out rather than read from the palette in tokens.css`,
+      })
+    }
   }
   if (OVERRIDE_FLAG.test(value)) {
     offences.push({ label, line, why: `an ${OVERRIDE} override wins every cascade; restate the selector instead` })

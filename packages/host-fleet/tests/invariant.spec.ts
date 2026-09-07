@@ -98,7 +98,7 @@ it('declares the service it reaches for, and nothing it does not', async () => {
   const watched = new Proxy(host, {
     get: (target, key, receiver) => {
       if (typeof key === 'string') read.add(key)
-      return Reflect.get(target, key, receiver) as unknown
+      return Reflect.get(target, key, receiver)
     },
   })
   await apply(watched)

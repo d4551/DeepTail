@@ -7,16 +7,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { freeNames } from '../scripts/free-names.ts'
-
-/**
- * The names one snippet reads without binding.
- * @param source - the snippet.
- * @returns the free names, sorted.
- */
-function free(source: string): string[] {
-  return freeNames('fixture.ts', source)
-}
+import { free } from './fixtures.ts'
 
 describe('the free-name reader', () => {
   it('reports a name nothing in the source binds', () => {

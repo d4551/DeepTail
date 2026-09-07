@@ -9,6 +9,7 @@ import { aliases } from '../scripts/aliases.ts'
 import { type Node, parseScript, walk } from '../scripts/ast.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { constants } from '../scripts/fold.ts'
+import { freeNames } from '../scripts/free-names.ts'
 import type { Names } from '../scripts/rule-helpers.ts'
 import * as styles from '../scripts/style-gate.ts'
 
@@ -32,6 +33,15 @@ export function joined(...parts: readonly string[]): string {
 }
 
 /**
+ * The names one snippet reads without binding.
+ * @param lines - the lines of the snippet.
+ * @returns the free names, sorted.
+ */
+export function free(...lines: readonly string[]): string[] {
+  return freeNames('fixture.ts', lines.join('\n'))
+}
+
+/**
  * The reasons a script is rejected for.
  * @param text - the fixture.
  * @param label - the path to attribute it to, which selects the dialect.
@@ -42,13 +52,8 @@ export function styleOffences(text: string, label = 'fixture.ts'): string[] {
 }
 
 /**
- * Whether the gate read a name and found it to be the style one, rather than
- * refusing a name it could not read.
- *
- * The difference is the whole of the constant folder. Both outcomes reject the
- * source, so a suite that asks only whether something was reported cannot tell
- * a fold that works from a fold that has been deleted — which is exactly what
- * an audit found: every folding rule could be removed with the suite green.
+ * Whether every offence the gate reports on this fixture names the style
+ * attribute or property.
  * @param text - the fixture.
  * @returns true when the offence names the style attribute or property.
  */

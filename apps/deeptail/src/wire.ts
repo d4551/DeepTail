@@ -55,9 +55,9 @@ export function isWireObject<T>(value: T | WireValue): value is WireObject {
 export function isSessionSummary<T>(value: T | WireValue): value is SessionSummary {
   return (
     isWireObject(value) &&
-    typeof value.sessionId === 'string' &&
-    typeof value.updatedAt === 'number' &&
-    typeof value.running === 'boolean' &&
-    typeof value.blank === 'boolean'
+    typeof value['sessionId'] === 'string' &&
+    typeof value['updatedAt'] === 'number' &&
+    typeof value['running'] === 'boolean' &&
+    typeof value['blank'] === 'boolean'
   )
 }

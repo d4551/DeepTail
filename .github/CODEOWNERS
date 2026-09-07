@@ -1,0 +1,21 @@
+# The pipeline and every gate it runs are owned: a change to any path below is
+# a change an owner is asked to review before it can land. With branch
+# protection requiring reviews from code owners, this list is what keeps the
+# pipeline and its gates a reviewed surface.
+/.github/ @d4551
+/package.json @d4551
+/bun.lock @d4551
+/bunfig.toml @d4551
+/biome.json @d4551
+/.oxlintrc.json @d4551
+/knip.json @d4551
+/tsconfig.json @d4551
+/tsconfig.base.json @d4551
+/tsconfig.tools.json @d4551
+/stryker.app.json @d4551
+/stryker.gates.json @d4551
+/stryker.host-fleet.json @d4551
+/stryker.sheets.json @d4551
+/stryker.tools.json @d4551
+/scripts/ @d4551
+/tests/ @d4551

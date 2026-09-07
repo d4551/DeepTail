@@ -31,7 +31,7 @@ function folded(source: string): string | undefined {
  */
 function read(source: string): string | undefined {
   const subject = parsedBody(source)
-    .flatMap((statement) => (Array.isArray(statement.declarations) ? statement.declarations : []))
+    .flatMap((statement) => (Array.isArray(statement['declarations']) ? statement['declarations'] : []))
     .find((declarator) => nameOf(declarator) === 'subject')
   return staticString(namesOf(source).constants, fieldOf(subject, 'init'))
 }
@@ -54,7 +54,7 @@ function nameOf(declarator: Field): string | undefined {
  */
 function approximated(source: string): string | undefined {
   const declarator = nodeOfType(source, 'VariableDeclarator')
-  return approximateString(namesOf(source).constants, declarator.init)
+  return approximateString(namesOf(source).constants, declarator['init'])
 }
 
 describe('the folder reads a name however it is assembled', () => {
@@ -67,10 +67,10 @@ describe('the folder reads a name however it is assembled', () => {
 
   it('reads a template, with and without interpolation', () => {
     expect(folded('const subject = `style`')).toBe('style')
-    expect(folded('const subject = `sty${"le"}`')).toBe('style')
-    expect(read('const part = "le"\nconst subject = `sty${part}`')).toBe('style')
-    expect(folded('const subject = `sty${unknown}`')).toBeUndefined()
-    expect(folded('const subject = `a${"b"}c${"d"}e`')).toBe('abcde')
+    expect(folded('const subject = `sty\u0024{"le"}`')).toBe('style')
+    expect(read('const part = "le"\nconst subject = `sty\u0024{part}`')).toBe('style')
+    expect(folded('const subject = `sty\u0024{unknown}`')).toBeUndefined()
+    expect(folded('const subject = `a\u0024{"b"}c\u0024{"d"}e`')).toBe('abcde')
   })
 
   it('reads concatenation, however deeply it nests, and only of the operator that joins', () => {
@@ -91,9 +91,6 @@ describe('the folder reads a name a call assembles from parts', () => {
   it('reads characters spelt from their codes, by either spelling', () => {
     expect(folded('const subject = String.fromCharCode(115, 116, 121, 108, 101)')).toBe('style')
     expect(folded('const subject = String.fromCodePoint(115, 116, 121, 108, 101)')).toBe('style')
-    // `fromCharCode` truncates each argument to sixteen bits, and the folder
-    // has to truncate with it or read a different character than the source
-    // produces.
     expect(folded('const subject = String.fromCharCode(65601)')).toBe('A')
     expect(folded('const subject = String.fromCodePoint(65601)')).toBe('\u{10041}')
     expect(folded('const subject = String.fromCharCode(code)')).toBeUndefined()
@@ -119,8 +116,6 @@ describe('the folder reads a name a call assembles', () => {
   it('reads a name held in another constant, once the table is built', () => {
     expect(read('const a = "style"\nconst subject = a')).toBe('style')
     expect(read('const subject = unknown')).toBeUndefined()
-    // A constant assembled out of another is folded where it is read: the
-    // table itself is built against an empty environment, in one pass.
     expect(read('const a = "sty"\nconst b = a + "le"\nconst subject = b')).toBeUndefined()
   })
 
@@ -143,9 +138,6 @@ describe('the constant table', () => {
   })
 
   it('marks a name bound twice to different strings as undecided rather than picking one', () => {
-    // Two declarations of one name, in two scopes, is a name that is neither
-    // value. Reporting either would be a rule stated about source that does
-    // not exist.
     const env = constants(parsedBody('const a = "x"\nfunction f() { const a = "y"; return a }'))
     expect(env.get('a')).toBeNull()
   })
@@ -156,9 +148,6 @@ describe('the constant table', () => {
   })
 
   it('folds a later constant against nothing, so a declaration cannot read one after it', () => {
-    // The table is built in one pass with an empty environment, so a constant
-    // assembled out of another is folded where it is read rather than where it
-    // is written.
     expect(
       staticString(constants(parsedBody('const a = "x"\nconst b = a')), nodeOfType('const b = a', 'Identifier')),
     ).toBeUndefined()
@@ -167,8 +156,8 @@ describe('the constant table', () => {
 
 describe('the approximate reader', () => {
   it('reads what it can of a template and stands in for the rest', () => {
-    expect(approximated('const subject = `a${unknown}b`')).toBe(`a${UNREADABLE}b`)
-    expect(approximated('const subject = `${unknown}`')).toBe(UNREADABLE)
+    expect(approximated('const subject = `a\u0024{unknown}b`')).toBe(`a${UNREADABLE}b`)
+    expect(approximated('const subject = `\u0024{unknown}`')).toBe(UNREADABLE)
     expect(approximated('const subject = `plain`')).toBe('plain')
   })
 
@@ -179,7 +168,7 @@ describe('the approximate reader', () => {
   })
 
   it('reads a nested approximation, so a gap deep inside is still only a gap', () => {
-    expect(approximated('const subject = `a${`b${unknown}c`}d`')).toBe(`ab${UNREADABLE}cd`)
+    expect(approximated('const subject = `a\u0024{`b\u0024{unknown}c`}d`')).toBe(`ab${UNREADABLE}cd`)
   })
 
   it('answers exactly where the whole expression folds', () => {
@@ -194,6 +183,6 @@ describe('the approximate reader', () => {
 
   it('stands in with one character, so what surrounds a gap keeps its shape', () => {
     expect(UNREADABLE.length).toBe(1)
-    expect(approximated('const subject = `<b x="${unknown}">`')).toBe(`<b x="${UNREADABLE}">`)
+    expect(approximated('const subject = `<b x="\u0024{unknown}">`')).toBe(`<b x="${UNREADABLE}">`)
   })
 })

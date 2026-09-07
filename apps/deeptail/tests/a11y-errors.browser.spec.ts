@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, it } from 'bun:test'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
-import { expectNoViolationsAtEachWidth, openDrawerIfPresent } from './surfaces.ts'
+import { expectNoViolationsAtEachWidth, openShellWithDrawer } from './surfaces.ts'
 
 let harness: Harness
 
@@ -20,7 +20,8 @@ afterAll(async () => {
 
 it('has no WCAG violations on a spawn refusal at every designed width, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await harness.open(
+    const page = await openShellWithDrawer(
+      harness,
       oneHost({
         remoteErrors: { 'session/create': 'no such preset' },
         remoteErrorCodes: { 'session/create': 'agent-preset-not-found' },
@@ -28,8 +29,6 @@ it('has no WCAG violations on a spawn refusal at every designed width, in both p
       }),
       view,
     )
-    await page.waitForSelector('[data-deeptail-shell]')
-    await openDrawerIfPresent(page)
     await page.locator('[data-deeptail-action="new-session"]').click()
     await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
     await page.locator('[data-deeptail-field="preset"]').fill('nope')
@@ -41,9 +40,7 @@ it('has no WCAG violations on a spawn refusal at every designed width, in both p
 
 it('has no WCAG violations on a shell-error at every designed width, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await harness.open(oneHost({ bootError: 'host refused the boot table' }), view)
-    await page.waitForSelector('[data-deeptail-shell]')
-    await openDrawerIfPresent(page)
+    const page = await openShellWithDrawer(harness, oneHost({ bootError: 'host refused the boot table' }), view)
     await page.locator('[data-deeptail-session="s-running"] .session-open').click()
     await page.locator('[data-deeptail-state="shell-error"]').waitFor({ state: 'visible' })
     return page

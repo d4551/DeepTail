@@ -1,27 +1,13 @@
 /**
  * Every binding form and every non-reference the free-name reader has to know.
  *
- * The reader decides whether the source two suites inject into a page carries
- * everything it names. Its answers are the whole of that gate, so a form it
- * gets wrong is a defect the gate will never report again: a name it wrongly
- * calls bound is a `ReferenceError` shipped to the page, and a slot it wrongly
- * calls a reference is a false alarm on a property name.
- *
  * `free-names.spec.ts` holds the shapes a reader is usually written against.
  * This holds the rest of the language.
  */
 
 import { describe, expect, it } from 'bun:test'
 import { freeNames } from '../scripts/free-names.ts'
-
-/**
- * The names one snippet reads without binding.
- * @param lines - the lines of the snippet.
- * @returns the free names, sorted.
- */
-function free(...lines: readonly string[]): string[] {
-  return freeNames('fixture.ts', lines.join('\n'))
-}
+import { free } from './fixtures.ts'
 
 describe('the reader reads a name out of every reference position', () => {
   it('reads a computed member, a computed key and a computed method name', () => {
@@ -52,7 +38,7 @@ describe('the reader reads a name out of every reference position', () => {
   })
 
   it('reads a tagged template and its substitutions', () => {
-    expect(free('function a() { return TAG`x${VALUE}y` }')).toEqual(['TAG', 'VALUE'])
+    expect(free('function a() { return TAG`x\u0024{VALUE}y` }')).toEqual(['TAG', 'VALUE'])
   })
 
   it('reads a class heritage, which is an expression like any other', () => {
@@ -85,8 +71,6 @@ describe('the reader reads no name out of a slot that binds nothing', () => {
   })
 
   it('reads no name out of either half of an export specifier', () => {
-    // Both halves name something already declared here, and the reader would
-    // otherwise report the exported alias as a name nothing binds.
     expect(free('const local = 1\nexport { local as exported }')).toEqual([])
   })
 
@@ -124,7 +108,6 @@ describe('the reader binds what a scope hoists', () => {
     expect(free('function a() { for (;;) { var x = 1 } return x }')).toEqual([])
     expect(free('function a() { try { var x = 1 } catch { } return x }')).toEqual([])
     expect(free('function a() { switch (1) { case 1: var x = 1 } return x }')).toEqual([])
-    // A `var` inside a nested function belongs to that function, not to this one.
     expect(free('function a() { function inner() { var x = 1; return x } return x }')).toEqual(['x'])
   })
 
@@ -157,13 +140,12 @@ describe('the reader binds what a scope hoists', () => {
 
 describe('the reader answers about a source it cannot read', () => {
   it('says so, naming the parser’s reason', () => {
-    const said = freeNames('fixture.ts', 'function (').join(' ')
+    const said = free('function (').join(' ')
     expect(said).toContain('this source does not parse')
     expect(said.length).toBeGreaterThan('this source does not parse: '.length)
   })
 
   it('reads a dialect off the label it is given', () => {
-    // The injected sources arrive as plain script; the gates read TypeScript.
     expect(freeNames('fixture.ts', 'function a(x: number): number { return x }')).toEqual([])
   })
 })

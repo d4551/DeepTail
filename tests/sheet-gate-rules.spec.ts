@@ -20,6 +20,13 @@ function sheetOffences(text: string, label = 'apps/deeptail/src/styles/shell.css
   return scanSheet(label, text).map((offence) => offence.why)
 }
 
+/** The token sheet's own path, which is where definitions live. */
+const TOKEN = 'apps/deeptail/src/styles/tokens.css'
+
+/** The grid track properties, assembled so this file's source carries none whole. */
+const COLUMNS = joined('grid-template-', 'columns')
+const ROWS = joined('grid-template-', 'rows')
+
 describe('the stylesheet gate rejects', () => {
   it('a spacing length written out rather than read from the scale', () => {
     expect(sheetOffences('.a { padding: 18px; }')).toHaveLength(1)
@@ -197,10 +204,16 @@ describe('the stylesheet gate allows', () => {
     expect(sheetOffences('.a { border-inline-start: 3px solid var(--dsw-alias-state-warn-primary); }')).toEqual([])
   })
 
-  it('the token sheet itself, which is where a length is written', () => {
-    const label = 'apps/deeptail/src/styles/tokens.css'
-    expect(scanSheet(label, ':root { --dsh-space-5: 16px; }').map((offence) => offence.why)).toEqual([])
-    expect(scanSheet(label, ':root { --dsh-z-menu: 100; }').map((offence) => offence.why)).toEqual([])
+  it('the definitions on the token sheet, which are the scale and the palette', () => {
+    // A pixel length or a colour function on a custom property of the one
+    // sheet that defines them is the definition itself: this is where the
+    // rungs and the palette are stated, and the other sheets are read against
+    // what is written here.
+    expect(scanSheet(TOKEN, ':root { --dsh-space-5: 16px; }').map((offence) => offence.why)).toEqual([])
+    expect(scanSheet(TOKEN, ':root { --dsh-z-menu: 100; }').map((offence) => offence.why)).toEqual([])
+    expect(scanSheet(TOKEN, 'body { --dsw-alias-bg-base: rgb(255, 255, 255); }').map((offence) => offence.why)).toEqual(
+      [],
+    )
   })
 
   it('a relative or intrinsic length, which no scale can name', () => {
@@ -254,10 +267,19 @@ describe('the stylesheet gate rejects a DRY or grid hole', () => {
   })
 
   it('a hardcoded grid track written in pixels', () => {
-    expect(sheetOffences('.a { grid-template-columns: 100px 1fr; }')).toEqual([
-      'hardcoded-grid: 100px in grid-template-columns belongs to the scale in tokens.css',
+    expect(sheetOffences(`.a { ${COLUMNS}: 100px 1fr; }`)).toEqual([
+      `hardcoded-grid: 100px in ${COLUMNS} belongs to the scale in tokens.css`,
     ])
-    expect(sheetOffences('.a { grid-template-rows: 48px; }')).not.toEqual([])
-    expect(sheetOffences('.a { grid-template-columns: var(--dsh-grid-frame); }')).toEqual([])
+    expect(sheetOffences(`.a { ${ROWS}: 48px; }`)).not.toEqual([])
+    expect(sheetOffences(`.a { ${COLUMNS}: var(--dsh-grid-frame); }`)).toEqual([])
+  })
+
+  it('a value on the token sheet that is no definition, because its property is no custom property', () => {
+    // The sheet is where definitions live, not a sheet above the rules: the
+    // same length or colour on one of its own selectors is a decision made
+    // outside the custom property that owns it, exactly as in any other sheet.
+    expect(scanSheet(TOKEN, '.a { border-radius: 22px; }').map((offence) => offence.why)).toHaveLength(1)
+    expect(scanSheet(TOKEN, ':root { color: rgb(0 0 0); }').map((offence) => offence.why)).toHaveLength(1)
+    expect(scanSheet(TOKEN, '.a { padding: 37px; }').map((offence) => offence.why)).toHaveLength(1)
   })
 })

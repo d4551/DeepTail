@@ -5,14 +5,16 @@
  * both parse scripts and markup, and the whole visual layer sat outside every
  * one of them. What that left unchecked was the design system itself — a
  * spacing value written out twenty-nine times, nine hand-rolled radii, a
- * stacking order written twice and racing itself, a breakpoint restated in a
- * second syntax in a second file, and a rule set duplicated byte for byte
+ * stacking order written twice and racing itself, a breakpoint restated in
+ * a second syntax in a second file, and a rule set duplicated byte for byte
  * fifty-five lines from its twin.
  *
  * The rules are stated about declarations, so the sheet is read the way the
- * engine reads it: a comment that names a length is prose, and the token file
- * is where a length is allowed to be written. The read itself lives in
- * `sheet-reader.ts`, shared with every gate that walks a sheet.
+ * engine reads it: a comment that names a length is prose, and the token
+ * sheet is where the scale and the palette are defined. A value defines the
+ * scale or the palette exactly when it is written on a custom property of
+ * that one sheet; the same value on any other property, or in any other
+ * sheet, is written out.
  *
  * @module
  */
@@ -27,13 +29,17 @@ import { rulesetsOf, withoutComments } from './sheet-reader.ts'
 export { deepSelectors, duplicateRulesets }
 
 /**
- * The sheet that is allowed to hold raw values, because it is where they live.
+ * The sheet where the scale and the palette are defined.
  *
- * Named by its whole path, not by its ending. A gate that exempted any file
- * whose name ended `tokens.css` exempted a file anyone could add: a sheet
- * called `probe-tokens.css` carrying a float, a physical margin, a raw hex
- * colour, a static viewport height and a remote asset passed every rule here
- * whole, because of what it was called.
+ * Named by its whole path, not by its ending — and not exempt, either: every
+ * rule in this file applies to it. What makes it the one sheet whose custom
+ * properties may carry raw values is that those declarations are the
+ * definitions the other sheets are read against; the same value on any other
+ * property of this sheet, or in any other sheet at all, is written out. A gate
+ * that exempted any file whose name ended `tokens.css` exempted a file anyone
+ * could add: a sheet called `probe-tokens.css` carrying a float, a physical
+ * margin, a raw hex colour, a static viewport height and a remote asset passed
+ * every rule here whole, because of what it was called.
  */
 export const TOKEN_SHEET = 'apps/deeptail/src/styles/tokens.css'
 
@@ -105,7 +111,6 @@ function retiredAtRules(text: string): { readonly rule: string; readonly line: n
 export function scanSheet(label: string, text: string): Offence[] {
   const blanked = withoutComments(text)
   const offences: Offence[] = [...duplicateRulesets(label, text)]
-  if (label === TOKEN_SHEET) return offences
   for (const deep of deepSelectors(text)) {
     offences.push({
       label,
@@ -127,7 +132,7 @@ export function scanSheet(label: string, text: string): Offence[] {
       why: `${retired.rule} belongs to the utility pipeline this product retired; state the declarations directly`,
     })
   }
-  offences.push(...importOffences(label, blanked), ...declarationOffences(label, blanked))
+  offences.push(...importOffences(label, blanked), ...declarationOffences(label, blanked, label === TOKEN_SHEET))
   return offences
 }
 

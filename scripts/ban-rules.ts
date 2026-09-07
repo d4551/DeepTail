@@ -25,7 +25,7 @@ const MODIFIERS = new Set(['skip', 'only', 'todo', 'failing', 'skipIf', 'todoIf'
 
 /** Idioms the project has moved past, stated about the tree. */
 export const BANNED: readonly Rule[] = [
-  { holds: (node) => node.type === 'VariableDeclaration' && node.kind === 'var', why: 'use const or let' },
+  { holds: (node) => node.type === 'VariableDeclaration' && node['kind'] === 'var', why: 'use const or let' },
   { holds: (node, names) => callsGlobal(node, 'require', names), why: 'use ES module imports' },
   {
     holds: (node, names) => callsGlobal(node, 'eval', names),
@@ -34,7 +34,7 @@ export const BANNED: readonly Rule[] = [
   { holds: (node) => node.type === 'WithStatement', why: 'with is forbidden in strict mode; name the object' },
   {
     holds: (node, names) =>
-      (node.type === 'AssignmentExpression' && writesMarkup(node.left, names)) ||
+      (node.type === 'AssignmentExpression' && writesMarkup(node['left'], names)) ||
       writesProperty(node, MARKUP_PROPERTIES, names),
     why: 'use textContent, or insertAdjacentHTML with markup this repository does not author',
   },
@@ -48,7 +48,7 @@ export const BANNED: readonly Rule[] = [
   },
   {
     holds: (node, names) =>
-      (node.type === 'NewExpression' && identifier(node.callee, names) === 'Array') ||
+      (node.type === 'NewExpression' && identifier(node['callee'], names) === 'Array') ||
       reflectsConstruct(node, 'Array', names),
     why: 'use an array literal or Array.from',
   },
@@ -77,9 +77,9 @@ export const BANNED: readonly Rule[] = [
   {
     holds: (node) =>
       node.type === 'TSModuleDeclaration' &&
-      isNode(node.id) &&
-      node.id.type === 'Identifier' &&
-      node.id.name !== 'global',
+      isNode(node['id']) &&
+      node['id'].type === 'Identifier' &&
+      node['id']['name'] !== 'global',
     why: 'a namespace is a TypeScript 6 module system; use ES module exports',
   },
   {
@@ -104,7 +104,7 @@ export const BANNED: readonly Rule[] = [
 function runsTextAsCode(node: Node, names: Names): boolean {
   const timer = callsGlobal(node, 'setTimeout', names) || callsGlobal(node, 'setInterval', names)
   if (!timer) return false
-  const args = node.arguments
+  const args = node['arguments']
   if (!Array.isArray(args)) return false
   return staticString(names.constants, args[0]) !== undefined
 }
@@ -119,7 +119,7 @@ function runsTextAsCode(node: Node, names: Names): boolean {
  */
 function reflectsConstruct(node: Node, target: string, names: Names): boolean {
   if (!callsMethod(node, 'Reflect', ['construct'], names)) return false
-  const args = node.arguments
+  const args = node['arguments']
   return Array.isArray(args) && identifier(args[0], names) === target
 }
 
@@ -132,7 +132,7 @@ function reflectsConstruct(node: Node, target: string, names: Names): boolean {
  * @returns true when it does.
  */
 function writesProperty(node: Node, wanted: readonly string[], names: Names): boolean {
-  const args = node.arguments
+  const args = node['arguments']
   if (!Array.isArray(args)) return false
   if (
     callsMethod(node, 'Reflect', ['set', 'defineProperty'], names) ||
@@ -155,14 +155,14 @@ function writesProperty(node: Node, wanted: readonly string[], names: Names): bo
 function mergesKey(merged: Field | undefined, wanted: readonly string[], names: Names): boolean {
   const argument = unwrap(merged)
   if (!isNode(argument) || argument.type !== 'ObjectExpression') return false
-  const properties = argument.properties
+  const properties = argument['properties']
   if (!Array.isArray(properties)) return false
   return properties.some((property_) => {
     if (!isNode(property_) || property_.type !== 'Property') return false
     const key =
-      property_.computed === true
-        ? staticString(names.constants, property_.key)
-        : (identifier(property_.key, names) ?? literalKey(property_.key))
+      property_['computed'] === true
+        ? staticString(names.constants, property_['key'])
+        : (identifier(property_['key'], names) ?? literalKey(property_['key']))
     return key !== undefined && wanted.includes(key)
   })
 }
@@ -178,8 +178,8 @@ function skipsTest(node: Node, names: Names): boolean {
   if (node.type !== 'MemberExpression') return false
   const modifier = property(node, names)
   if (modifier === undefined || !MODIFIERS.has(modifier)) return false
-  const host = node.object
-  const name = identifier(host, names) ?? (isNode(host) ? identifier(host.object, names) : undefined)
+  const host = node['object']
+  const name = identifier(host, names) ?? (isNode(host) ? identifier(host['object'], names) : undefined)
   return name !== undefined && RUNNERS.has(name)
 }
 
@@ -209,10 +209,10 @@ function writesMarkup(target: Field | undefined, names: Names): boolean {
  */
 function expandoPrototype(node: Node, names: Names): boolean {
   if (node.type !== 'AssignmentExpression') return false
-  const assigned = unwrap(node.left)
+  const assigned = unwrap(node['left'])
   if (!isNode(assigned) || assigned.type !== 'MemberExpression') return false
   if (property(assigned, names) === undefined) return false
-  const carrier = unwrap(assigned.object)
+  const carrier = unwrap(assigned['object'])
   return isNode(carrier) && carrier.type === 'MemberExpression' && property(carrier, names) === 'prototype'
 }
 
@@ -224,7 +224,7 @@ function expandoPrototype(node: Node, names: Names): boolean {
  */
 function namesPrototype(node: Node, names: Names): boolean {
   const name = '__proto__'
-  if (node.type === 'MemberExpression') return property(node, names) === name || literalKey(node.property) === name
-  if (node.type === 'Property') return identifier(node.key, names) === name || literalKey(node.key) === name
+  if (node.type === 'MemberExpression') return property(node, names) === name || literalKey(node['property']) === name
+  if (node.type === 'Property') return identifier(node['key'], names) === name || literalKey(node['key']) === name
   return false
 }

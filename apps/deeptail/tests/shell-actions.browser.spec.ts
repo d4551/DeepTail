@@ -35,10 +35,10 @@ it('sends a message through the compose sheet', async () => {
   const sent = (await harness.calls(page)).filter((call) => call.endpoint === 'session/prompt')
   expect(sent.length).toBe(1)
   expect(sent[0]?.host).toBe('dev-1')
-  expect(sent[0]?.args.sessionId).toBe('s-running')
-  expect(sent[0]?.args.mode).toBe('queue')
-  expect(sent[0]?.args.content).toEqual([{ type: 'text', text: 'please rerun the tests' }])
-  expect(typeof sent[0]?.args.requestId).toBe('string')
+  expect(sent[0]?.args['sessionId']).toBe('s-running')
+  expect(sent[0]?.args['mode']).toBe('queue')
+  expect(sent[0]?.args['content']).toEqual([{ type: 'text', text: 'please rerun the tests' }])
+  expect(typeof sent[0]?.args['requestId']).toBe('string')
   await page.close()
 })
 
@@ -52,7 +52,7 @@ it('steers rather than queues when Steer is chosen', async () => {
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
   // The mode is the only behavioural difference between the two buttons.
   const sent = (await harness.calls(page)).filter((call) => call.endpoint === 'session/prompt')
-  expect(sent.map((call) => call.args.mode)).toEqual(['steer'])
+  expect(sent.map((call) => call.args['mode'])).toEqual(['steer'])
   await page.close()
 })
 
@@ -63,7 +63,7 @@ it('stops a running session and clears the row once the host confirms', async ()
   await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-stop"]').click()
   const stopped = (await harness.calls(page)).filter((call) => call.endpoint === 'session/cancel')
   expect(stopped.length).toBe(1)
-  expect(stopped[0]?.args.sessionId).toBe('s-running')
+  expect(stopped[0]?.args['sessionId']).toBe('s-running')
   await page.close()
 })
 

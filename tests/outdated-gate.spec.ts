@@ -7,17 +7,11 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import {
-  behindInstallable,
-  heldByPolicy,
-  OUTDATED_COMMAND,
-  parseOutdated,
-  tablePrinted,
-} from '../scripts/check-outdated.ts'
+import { behindInstallable, OUTDATED_COMMAND, parseOutdated, tablePrinted } from '../scripts/check-outdated.ts'
 import { declaredPins } from '../scripts/pins.ts'
 
 /**
- * A table with one package behind, one held, and one at the newest.
+ * A table with one package at the newest and two behind.
  *
  * The `Update` column is what the declared range admits, so for an exactly
  * pinned dependency it equals `Current` even when a newer version exists —
@@ -27,13 +21,12 @@ const TABLE = `bun outdated v1.4.0 (34cbb9a40)
 |----------------------------------------------------|
 | Package           | Current | Update   | Latest    |
 |-------------------|---------|----------|-----------|
-| @types/node (dev) | 26.4.0  | 26.4.0 * | 26.4.0 *  |
+| @types/node (dev) | 26.4.0  | 26.4.0   | 26.4.0    |
 |-------------------|---------|----------|-----------|
 | knip (dev)        | 6.33.0  | 6.33.0   | 6.34.0    |
 |-------------------|---------|----------|-----------|
-| oxlint (dev)      | 1.80.0  | 1.80.0   | 1.81.0 *  |
+| oxlint (dev)      | 1.80.0  | 1.80.0   | 1.81.0    |
 |----------------------------------------------------|
-Note: The * indicates that version isn't true latest due to minimum release age
 `
 
 /**
@@ -84,7 +77,7 @@ const ALL_WORKSPACES = `bun outdated v1.4.2
 |------------------|---------|--------|--------|----------------|
 | playwright (dev) | 1.62.1  | 1.62.1 | 1.63.0 | @deeptail/app  |
 |------------------|---------|--------|--------|----------------|
-| oxlint (dev)     | 1.80.0  | 1.80.0 | 1.81.0 * | @deeptail/root |
+| oxlint (dev)     | 1.80.0  | 1.80.0 | 1.81.0 | @deeptail/root |
 |---------------------------------------------------------------|
 `
 
@@ -95,16 +88,10 @@ describe('the outdated gate', () => {
   })
 
   it('reports a package behind a version it could install today', () => {
-    expect(behindInstallable(parseOutdated(TABLE))).toEqual(['knip is at 6.33.0 and 6.34.0 is installable now'])
-  })
-
-  it('does not report a package the supply-chain hold is withholding', () => {
-    // oxlint's newest is 1.81.0 and the hold keeps it at 1.80.0. That is the
-    // hold working; reporting it would make the gate demand a bypass of the
-    // repository's own security policy to go green.
-    const behind = behindInstallable(parseOutdated(TABLE))
-    expect(behind.some((line) => line.startsWith('oxlint'))).toBe(false)
-    expect(heldByPolicy(parseOutdated(TABLE))).toEqual(['@types/node 26.4.0', 'oxlint 1.80.0'])
+    expect(behindInstallable(parseOutdated(TABLE))).toEqual([
+      'knip is at 6.33.0 and 6.34.0 is installable now',
+      'oxlint is at 1.80.0 and 1.81.0 is installable now',
+    ])
   })
 
   it('does not report a package ahead of a stale dist-tag', () => {
@@ -162,8 +149,8 @@ describe('the outdated gate against a table it cannot read, and against none', (
     expect(behindInstallable(rows)).toEqual([
       '@types/bun is at 1.4.0 and 1.4.1 is installable now',
       'playwright is at 1.62.1 and 1.63.0 is installable now',
+      'oxlint is at 1.80.0 and 1.81.0 is installable now',
     ])
-    expect(heldByPolicy(rows)).toEqual(['oxlint 1.80.0'])
   })
 
   it('asks bun for every workspace, not only the root', () => {

@@ -5,7 +5,10 @@
  * A doc comment attaches to whatever follows it, so one immediately followed by
  * another attaches to nothing — which is what a split leaves behind when the
  * declaration moves and its documentation stays. Two shipped that way, one of
- * them in product code, and no gate read either.
+ * them in product code, and no gate read either. A file's opening block is
+ * read by the same predicate as every other block: it is attached when it
+ * names its subject — `@module` names the file itself — and stranded when it
+ * names nothing.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -58,6 +61,14 @@ describe('the ban gate rejects a doc comment that documents nothing', () => {
       STRANDED,
     ])
   })
+
+  it("a file's opening block, which is stranded when it names no subject", () => {
+    // The first block is read by the same predicate as every other: followed
+    // only by another doc block, it is stranded unless it names what it
+    // documents. A bare opening block names nothing, so it is stranded like
+    // any other.
+    expect(reasons('/**', ' * What this module is for.', ' */', '/** Count the things. */')).toEqual([STRANDED])
+  })
 })
 
 describe('the ban gate allows a doc comment that documents something', () => {
@@ -67,11 +78,21 @@ describe('the ban gate allows a doc comment that documents something', () => {
     ).toEqual([])
   })
 
-  it("a file's opening block, which is about the module rather than what follows it", () => {
-    // The exemption is positional, so nothing is exempted by carrying a marker,
-    // and it holds whether or not the module block names one.
-    expect(reasons('/**', ' * What this module is for.', ' */', '/** Count the things. */')).toEqual([])
+  it('a block that names its subject, which is the module itself', () => {
+    // `@module` is not a switch and names no exemption: it is the block stating
+    // what it documents, the same way `@param` states what a function's
+    // documentation describes. The subject — the file — exists, so the block
+    // documents something.
     expect(reasons('/**', ' * What this module is for.', ' * @module', ' */', '/** Count. */')).toEqual([])
+  })
+
+  it("a module block with the file's imports under it, however many follow", () => {
+    // Code between two blocks is what the first documents, and an import is
+    // code: a module doc above the imports is read by the rule as attached to
+    // them, exactly as any other block is attached to its declaration.
+    expect(reasons('/**', ' * What this module is for.', ' */', "import { x } from './x.ts'", '/** Count. */')).toEqual(
+      [],
+    )
   })
 
   it('a note above a doc block, which claims to document nothing', () => {

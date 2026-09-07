@@ -48,13 +48,14 @@ describe('the file list against the index', () => {
   it('reads a file git has never seen, so nothing can hide behind the index', () => {
     // `--others --exclude-standard`: a source file added but not yet staged is
     // a file that ships, and a gate that read only the index would not see it.
+    // The probe is read, then removed, and only then is the expectation held:
+    // the removal runs before anything that could fail on it, so a red case
+    // leaves no probe file behind in the tree it just measured.
     const scratch = `${ROOT}zz-source-tree-probe.probe-ext`
     Bun.write(scratch, 'probe\n')
-    try {
-      expect(repositoryFiles(['.probe-ext']).map((file) => file.label)).toEqual(['zz-source-tree-probe.probe-ext'])
-    } finally {
-      Bun.spawnSync(['rm', '-f', scratch])
-    }
+    const listed = repositoryFiles(['.probe-ext']).map((file) => file.label)
+    Bun.spawnSync(['rm', '-f', scratch])
+    expect(listed).toEqual(['zz-source-tree-probe.probe-ext'])
   })
 
   it('leaves out a path whose bytes are gone', () => {

@@ -1,10 +1,7 @@
 /**
  * The shared parse the executed gates read.
  *
- * Both gates used to read source as lines, and both were bypassable the same
- * way: a line-by-line reader has to guess which lines are comments, which are
- * prose and which are its own rule table, and every guess is a way through.
- * They read a real parse now — oxc, the parser the project's linter already
+ * The gates read a real parse — oxc, the parser the project's linter already
  * uses — so a construct is judged by what it is rather than by how it is spelt.
  *
  * @module
@@ -45,7 +42,7 @@ export interface Parsed {
   readonly body: readonly Node[]
   /** Every comment in the file. */
   readonly comments: readonly Comment[]
-  /** Errors that stopped the parse, if any. */
+  /** Errors that stopped the parse; the list is empty when the parse is whole. */
   readonly errors: readonly { readonly message: string }[]
   /** The line a byte offset falls on, one-based. */
   readonly lineAt: (offset: Field | undefined) => number
@@ -126,11 +123,6 @@ const TRANSPARENT = new Set([
 
 /**
  * The expression inside any number of nodes that do not change it.
- *
- * oxc keeps parentheses in the tree, and a type assertion is a node of its
- * own, so a rule written about what such a node holds would see the node
- * itself instead: one pair of brackets was enough to hide a call from every
- * rule here.
  * @param value - the node to read.
  * @returns the innermost expression, or the value unchanged.
  */
@@ -139,7 +131,7 @@ export function unwrap(value: Field | undefined): Field | undefined {
   // Bounded so a tree that somehow refers to itself cannot spin here.
   for (let depth = 0; depth < 32; depth += 1) {
     if (!isNode(inner) || !TRANSPARENT.has(inner.type)) return inner
-    inner = inner.expression
+    inner = inner['expression']
   }
   return inner
 }
@@ -150,20 +142,16 @@ export function unwrap(value: Field | undefined): Field | undefined {
  * @returns the name, or undefined when it is computed or not an identifier.
  */
 export function memberName(node: Node): string | undefined {
-  if (node.computed === true) return undefined
-  const property = unwrap(node.property)
-  return isNode(property) && property.type === 'Identifier' && typeof property.name === 'string'
-    ? property.name
+  if (node['computed'] === true) return undefined
+  const property = unwrap(node['property'])
+  return isNode(property) && property.type === 'Identifier' && typeof property['name'] === 'string'
+    ? property['name']
     : undefined
 }
 
 /**
  * Read one of the parser's interface-typed statements as the structural node
  * the gates walk.
- *
- * oxc states its tree as a fixed family of interfaces while the gates read it
- * structurally, so at this single boundary the parser's plain object graph is
- * handed over whole rather than re-described node by node.
  * @param value - the statement, as the parser types it.
  * @returns the same object, as the walk reads it.
  */
@@ -184,9 +172,6 @@ export function parseScript(label: string, text: string): Parsed {
     body: parsed.program.body.map(asNode),
     comments: parsed.comments,
     errors: parsed.errors,
-    // The parse hands offsets around as tree fields, which are not always
-    // numbers; the shared reader takes an offset, so the field is judged here
-    // rather than inside a search that can do nothing about it.
     lineAt: (offset: Field | undefined) => (typeof offset === 'number' ? at(offset) : 1),
   }
 }

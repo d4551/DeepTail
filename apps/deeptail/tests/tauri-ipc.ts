@@ -196,7 +196,7 @@ function deeptailInvoke(
     case 'pair_host':
       // The link itself, not just that pairing was asked for: a case that only
       // sees the command name cannot tell a composed link from any other.
-      state.pairedLinks.push(String(args.link ?? ''))
+      state.pairedLinks.push(String(args['link'] ?? ''))
       return script.pairError === undefined
         ? Promise.resolve(script.paired ?? {})
         : Promise.reject(new Error(script.pairError))

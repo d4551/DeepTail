@@ -67,7 +67,9 @@ export function recentLines(records: readonly SessionHistoryRecord[]): string[] 
 function previewOf(data: JsonValue): string {
   const content = messageContent(data)
   const text = content
-    .filter((block): block is TextBlock => isObject(block) && block.type === 'text' && typeof block.text === 'string')
+    .filter(
+      (block): block is TextBlock => isObject(block) && block['type'] === 'text' && typeof block['text'] === 'string',
+    )
     .map((block) => block.text)
     .join(' ')
   const collapsed = text.replaceAll(/\s+/gu, ' ').trim()
@@ -90,9 +92,9 @@ function previewOf(data: JsonValue): string {
  * @returns the content blocks, or an empty list when the payload carries none.
  */
 export function messageContent(data: JsonValue): readonly JsonValue[] {
-  const direct = isObject(data) ? data.content : undefined
+  const direct = isObject(data) ? data['content'] : undefined
   if (Array.isArray(direct)) return direct
-  const nested = isObject(data) && isObject(data.message) ? data.message.content : undefined
+  const nested = isObject(data) && isObject(data['message']) ? data['message']['content'] : undefined
   return Array.isArray(nested) ? nested : []
 }
 
