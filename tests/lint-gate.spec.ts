@@ -110,7 +110,9 @@ describe('the report the gate prints', () => {
       expect([outcome.ok, outcome.text.endsWith('\n')]).toEqual([outcome.ok, true])
     }
   })
+})
 
+describe('the reports the gate refuses to read at all', () => {
   it('refuses a report it could not recognise, rather than reading it as clean', () => {
     const outcome = lintOutcome('biome: command not found\n')
     expect([outcome.ok, outcome.text.startsWith('the linter printed a report this gate could not read:\n')]).toEqual([
