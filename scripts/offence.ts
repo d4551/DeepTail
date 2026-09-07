@@ -10,9 +10,9 @@
 /** One rejected construct. */
 export interface Offence {
   /** Repository-relative path of the file it was found in. */
-  readonly label: string
+  readonly label: string;
   /** One-based line number. */
-  readonly line: number
+  readonly line: number;
   /** What is wrong, and what to do instead. */
-  readonly why: string
+  readonly why: string;
 }
