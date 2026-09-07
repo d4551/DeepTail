@@ -119,12 +119,10 @@ function floorDrift(declared: ReadonlyMap<string, string>): string[] {
  * @returns one line per disagreement.
  */
 function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
-  const lock = readJsoncSync('bun.lock')
-  const packages = isJsonObject(lock['packages']) ? lock['packages'] : EMPTY_SECTION
+  const lock = readLock('bun.lock')
   const resolved = new Map<string, string[]>()
-  for (const [name, entry] of Object.entries(packages)) {
+  for (const [name, entry] of lock.packages) {
     // Each package is a tuple whose first element is "name@version".
-    if (!Array.isArray(entry)) continue
     const resolvedId = typeof entry[0] === 'string' ? entry[0] : ''
     const version = resolvedId.startsWith(`${name}@`) ? resolvedId.slice(name.length + 1) : ''
     if (/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/u.test(version)) {
@@ -133,14 +131,9 @@ function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
   }
   // Workspace members are versioned by their own manifest, mirrored in the
   // lock's workspaces section rather than resolved as registry packages.
-  const workspaces = isJsonObject(lock['workspaces']) ? lock['workspaces'] : EMPTY_SECTION
-  for (const entry of Object.values(workspaces)) {
-    if (!isJsonObject(entry)) continue
-    const name = entry['name']
-    const version = entry['version']
-    if (typeof name === 'string' && typeof version === 'string') {
-      resolved.set(name, [...(resolved.get(name) ?? []), version])
-    }
+  for (const workspace of lock.workspaces.values()) {
+    if (workspace.version === undefined) continue
+    resolved.set(workspace.name, [...(resolved.get(workspace.name) ?? []), workspace.version])
   }
   const offences: string[] = []
   for (const [name, floor] of Object.entries(FLOORS)) {

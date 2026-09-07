@@ -12,7 +12,7 @@
  */
 
 import { compare, parse } from 'semver'
-import { declaredPins } from './pins.ts'
+import { declaredPins } from './manifest.ts'
 
 /** One row of the `bun outdated` table. */
 interface OutdatedRow {

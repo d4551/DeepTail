@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { behindInstallable, OUTDATED_COMMAND, parseOutdated, tablePrinted } from '../scripts/check-outdated.ts'
-import { declaredPins } from '../scripts/pins.ts'
+import { declaredPins } from '../scripts/manifest.ts'
 
 /**
  * A table with one package at the newest and two behind.
