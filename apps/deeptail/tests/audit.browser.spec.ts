@@ -61,7 +61,7 @@ it('reports a node no scroll position can decide, on a page that scrolls', async
   })
   await page.evaluate(() => {
     const strip = document.createElement('p')
-    strip.setAttribute('data-deeptail-probe', 'undecidable')
+    strip.dataset['deeptailProbe'] = 'undecidable'
     strip.textContent = 'contrast over an image'
     document.body.append(strip)
   })
@@ -78,7 +78,7 @@ it('reports a violation that only one scroll position can see', async () => {
   await page.evaluate(() => {
     const body = document.querySelector('[data-deeptail-dialog] .modal-body')
     const button = document.createElement('button')
-    button.setAttribute('data-deeptail-probe', 'unlabelled')
+    button.dataset['deeptailProbe'] = 'unlabelled'
     body?.append(button)
   })
   const found = await harness.audit(page)

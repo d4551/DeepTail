@@ -57,7 +57,7 @@ function isRetiredFramework(name: string): boolean {
 }
 
 describe('the stack policy bans', () => {
-  it('installs none of the UI frameworks the design system retired', async () => {
+  it('installs none of the UI frameworks the design system retired', () => {
     // Absence, not a floor: a retired framework at its newest version is still
     // a second vocabulary the tokens and the sheets never read. The manifests
     // and the lockfile are both read, so a declaration that never resolves
@@ -90,7 +90,7 @@ describe('the stack policy bans', () => {
     expect(entries).toEqual([' type="module" src="/src/main.ts"'])
   })
 
-  it('runs on a bun at the floor, and pins the manager to exactly what runs', async () => {
+  it('runs on a bun at the floor, and pins the manager to exactly what runs', () => {
     const manager = readManifest('package.json').packageManager
     const match = /^bun@(\d+\.\d+\.\d+)$/u.exec(manager)
     if (match === null) throw new Error('package.json must pin the package manager as bun@x.y.z')

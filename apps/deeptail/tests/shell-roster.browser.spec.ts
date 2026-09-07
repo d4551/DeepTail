@@ -122,13 +122,13 @@ it('drives native chrome from the same attribute as the palette', async () => {
   // `color-scheme` is a stylesheet rule keyed off the dark attribute, so the UA
   // widgets and the palette cannot disagree.
   expect(await light.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('light')
-  expect(await light.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(false)
+  expect(await light.evaluate(() => Object.hasOwn(document.body.dataset, 'dsDarkTheme'))).toBe(false)
   await light.close()
 
   const darkPage = await harness.open(fleet(), { dark: true })
   await darkPage.waitForSelector('[data-deeptail-shell]')
   expect(await darkPage.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('dark')
-  expect(await darkPage.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(true)
+  expect(await darkPage.evaluate(() => Object.hasOwn(document.body.dataset, 'dsDarkTheme'))).toBe(true)
   await darkPage.close()
 })
 

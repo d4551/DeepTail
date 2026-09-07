@@ -26,7 +26,7 @@
     "check:tree": "bun scripts/check-tree.ts",
     "gen:registry": "bun scripts/gen-action-registry.ts",
     "knip": "knip",
-    "lint": "biome check .",
+    "lint": "bun scripts/check-lint.ts",
     "lint:fix": "biome check --write .",
     "lint:ox": "oxlint . --deny-warnings",
     "lint:rust": "cd apps/deeptail/src-tauri && cargo clippy --all-targets -- -D warnings",

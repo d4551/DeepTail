@@ -10,7 +10,7 @@
  */
 
 import { CARRIER_SOURCES, deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux } from './tauri-ipc-carrier.ts'
-import { deeptailListHosts, issuedGrants } from './tauri-ipc-registry.ts'
+import { deeptailListHosts, deeptailRegistry, issuedGrants } from './tauri-ipc-registry.ts'
 
 export type MuxEventValue =
   | { readonly type: 'ready'; readonly clientId: string; readonly host: string }
@@ -197,28 +197,12 @@ function deeptailInvoke(
     case 'list_hosts':
       return deeptailListHosts(script, state)
     case 'select_host':
-      return script.selectError === undefined ? Promise.resolve({}) : Promise.reject(new Error(script.selectError))
     case 'forget_host':
-      return Promise.resolve(null)
     case 'capability_grants':
-      // Answered from the table rather than computed here: this function is
-      // serialised into the page, so anything it reads has to travel with it.
-      return Promise.resolve(script.grants ?? { issuer: 'none', context: '', grants: [] })
     case 'boot_injections':
-      return script.bootError === undefined ? Promise.resolve([]) : Promise.reject(new Error(script.bootError))
     case 'carrier_close_mux':
-      return Promise.resolve(null)
-    case 'pair_host': {
-      // The link itself, not just that pairing was asked for: a case that only
-      // sees the command name cannot tell a composed link from any other. The
-      // argument is destructured rather than indexed, because the invoke
-      // arguments are a map whose contents this command decides.
-      const { link } = args
-      state.pairedLinks.push(String(link ?? ''))
-      return script.pairError === undefined
-        ? Promise.resolve(script.paired ?? {})
-        : Promise.reject(new Error(script.pairError))
-    }
+    case 'pair_host':
+      return deeptailRegistry(script, cmd, args, state)
     case 'tailscale_connected':
     case 'tailscale_connect':
     case 'tailscale_devices':
@@ -269,7 +253,14 @@ function installTauriInternals(script: AnswerTable): void {
  * @returns the source to evaluate.
  */
 export function initScriptSource(table: AnswerTable): string {
-  const sources = [...CARRIER_SOURCES, deeptailListHosts, deeptailTailscale, deeptailInvoke, installTauriInternals]
+  const sources = [
+    ...CARRIER_SOURCES,
+    deeptailListHosts,
+    deeptailTailscale,
+    deeptailRegistry,
+    deeptailInvoke,
+    installTauriInternals,
+  ]
   // The issuance travels as data. Everything else here is source the page
   // evaluates, and a function that reached for a module would arrive naming
   // something the page has not got.

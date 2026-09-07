@@ -77,8 +77,14 @@ export function readOxlintConfig(path: string): OxlintConfig {
   }
 }
 
-/** One group of the first linter's rules, and the levels it holds them at. */
-export interface BiomeRuleGroup {
+/**
+ * One group of the first linter's rules, and the levels it holds them at.
+ *
+ * Named but not exported: it is the shape of a member of `BiomeConfig`, which
+ * is what callers hold, and a second exported name nothing imports is a name
+ * that can drift from the one thing that uses it.
+ */
+interface BiomeRuleGroup {
   /** The group's name, as the document spells it. */
   readonly group: string
   /** Rule name to the level it is held at. */

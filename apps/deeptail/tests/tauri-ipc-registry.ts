@@ -11,6 +11,52 @@ import { CAPABILITIES, type CapabilityDescriptor } from '../src/actions/capabili
 import type { AnswerTable, IpcState } from './tauri-ipc.ts'
 
 /**
+ * Answer the commands that manage the host registry, rather than reach a host.
+ *
+ * Split from the dispatcher along the seam it already had — these six answer
+ * from the table or record what was asked, and none of them talks to a host —
+ * and emitted into the page alongside it, because a function the page
+ * evaluates must travel with every function it calls.
+ * @param script - the answers this page should give.
+ * @param cmd - the command name.
+ * @param args - the invoke arguments.
+ * @param state - this page's IPC state.
+ * @returns whatever that command answers with.
+ */
+export function deeptailRegistry(
+  script: AnswerTable,
+  cmd: string,
+  args: Record<string, object>,
+  state: IpcState,
+): Promise<object | boolean | null> {
+  switch (cmd) {
+    case 'select_host':
+      return script.selectError === undefined ? Promise.resolve({}) : Promise.reject(new Error(script.selectError))
+    case 'capability_grants':
+      // Answered from the table rather than computed here: this function is
+      // serialised into the page, so anything it reads has to travel with it.
+      return Promise.resolve(script.grants ?? { issuer: 'none', context: '', grants: [] })
+    case 'boot_injections':
+      return script.bootError === undefined ? Promise.resolve([]) : Promise.reject(new Error(script.bootError))
+    case 'pair_host': {
+      // The link itself, not just that pairing was asked for: a case that only
+      // sees the command name cannot tell a composed link from any other. The
+      // argument is destructured rather than indexed, because the invoke
+      // arguments are a map whose contents this command decides.
+      const { link } = args
+      state.pairedLinks.push(String(link ?? ''))
+      return script.pairError === undefined
+        ? Promise.resolve(script.paired ?? {})
+        : Promise.reject(new Error(script.pairError))
+    }
+    default:
+      // `forget_host` and `carrier_close_mux`: the native side answers both
+      // with nothing, and a case reads the command record to see they ran.
+      return Promise.resolve(null)
+  }
+}
+
+/**
  * The grants the native authority would issue, for the hosts this page knows.
  *
  * Computed here, where the registry's capability table exists, and carried into
