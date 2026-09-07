@@ -15,29 +15,26 @@
  * nothing.
  */
 
-import { readFile } from 'node:fs/promises'
-import { repositoryFiles } from './source-tree.ts'
+import { CONSOLE, type Gate, readGate, reportGate } from './gate-runner.ts'
 
 /** The switch the instrumenter wraps around every mutated expression. */
 const MARKER = ['stry', 'MutAct_'].join('')
 
-// Guarded, as every runnable script here is: importing a module must run
-// nothing. A suite that imports one for the readers it exports would
-// otherwise run the whole gate as a side effect of the import.
-if (import.meta.main) {
-  const files = repositoryFiles(['.ts', '.tsx', '.js'])
-  const read = await Promise.all(
-    files.map(async (file) => ({ label: file.label, text: await readFile(file.path, 'utf8') })),
-  )
-  const carrying = read.flatMap((file) => (file.text.includes(MARKER) ? [file.label] : []))
-
-  if (carrying.length > 0) {
-    process.stderr.write(
-      `a mutation run left these files instrumented; run \`bun scripts/mutate-restore.ts\`:\n${carrying
-        .map((label) => `  ${label}`)
-        .join('\n')}\n`,
-    )
-    process.exit(1)
-  }
-  process.stdout.write(`no instrumentation left behind (${String(files.length)} files)\n`)
+/**
+ * What this gate reads and refuses.
+ *
+ * Exported because it is the gate's whole declaration — which files, what it
+ * says when it refuses, and what it says when it does not — and a declaration
+ * only the command line can reach is one no suite can read.
+ */
+export const GATE: Gate = {
+  extensions: ['.ts', '.tsx', '.js'],
+  refusal: 'a mutation run left these files instrumented; run `bun scripts/mutate-restore.ts`',
+  clean: (files) => `no instrumentation left behind (${String(files)} files)`,
+  scan: (label, text) =>
+    text.includes(MARKER) ? [{ label, line: 1, why: "this file carries the instrumenter's switch" }] : [],
 }
+
+// Guarded, as every runnable script here is: importing a module must run
+// nothing.
+if (import.meta.main) process.exitCode = reportGate(await readGate(GATE), CONSOLE)
