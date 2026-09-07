@@ -17,7 +17,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { readManifest } from '../scripts/manifest.ts'
+import { readManifest, scriptChain } from '../scripts/manifest.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 
 /** Where the browser suites live, and the suffix that keeps them out of the unit run. */
@@ -26,30 +26,6 @@ const BROWSER_SUFFIX = '.browser.spec.ts'
 
 /** The manifest whose scripts this suite is written about. */
 const MANIFEST = 'package.json'
-
-/**
- * Every script one entry point reaches, itself included.
- *
- * A script that runs another by name is one step of the same chain, so the
- * whole chain is walked. The visited set is what ends it, so a script that
- * named itself — directly or around a cycle — is read once rather than
- * forever.
- * @param scripts - the manifest's scripts.
- * @param entry - the script to start from.
- * @returns every script name the entry point reaches.
- */
-function chainFrom(scripts: ReadonlyMap<string, string>, entry: string): Set<string> {
-  const reached = new Set<string>()
-  const pending = [entry]
-  while (pending.length > 0) {
-    const name = pending.pop() ?? ''
-    if (reached.has(name)) continue
-    reached.add(name)
-    const command = scripts.get(name) ?? ''
-    for (const found of command.matchAll(/bun\s+run\s+([\w:-]+)/gu)) pending.push(found[1] ?? '')
-  }
-  return reached
-}
 
 /** Every spec the repository ships, by directory. */
 function specs(): { readonly browser: string[]; readonly unit: string[] } {
@@ -150,7 +126,7 @@ describe('the gates the chain runs', () => {
     // Followed through the scripts it names rather than read as one line: the
     // entry point delegates, and a reader that only looked at its own text
     // would have reported every gate missing the moment it did.
-    const chain = chainFrom(scripts, 'validate')
+    const chain = scriptChain((name) => scripts.get(name), 'validate')
     expect(gates.filter((gate) => !chain.has(gate))).toEqual([])
   })
 

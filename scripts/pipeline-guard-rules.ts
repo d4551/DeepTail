@@ -9,6 +9,8 @@
  * @module
  */
 
+import { scriptChain } from './manifest.ts'
+
 /** The workflow that carries the merge gates the branch protection requires. */
 export const MERGE_GATE_WORKFLOW = 'ci.yml'
 
@@ -40,6 +42,7 @@ export const CODE_OWNERS_FILE = '.github/CODEOWNERS'
 export const MERGE_GATES: readonly string[] = [
   'lint',
   'check:tree',
+  'check:strays',
   'check:outdated',
   'check:cargo',
   'lint:ox',
@@ -238,7 +241,11 @@ export function validateChainViolations(
 ): string[] {
   const chain = scripts.validate
   if (chain === undefined) return ['package.json: the validate chain is gone; nothing decides ship-worthiness']
-  return MERGE_GATES.filter((gate) => !runsGate(chain, gate)).map(
+  // Followed through every script it names, not read as one line. The entry
+  // point delegates, and a reader that judged its own text alone would have
+  // reported every gate gone the moment it started to.
+  const reached = scriptChain((name) => scripts[name], 'validate')
+  return MERGE_GATES.filter((gate) => !reached.has(gate)).map(
     (gate) => `package.json: the validate chain no longer runs ${gate}`,
   )
 }

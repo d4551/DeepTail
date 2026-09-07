@@ -152,6 +152,7 @@ describe('the pinned lists', () => {
     expect(MERGE_GATES).toEqual([
       'lint',
       'check:tree',
+      'check:strays',
       'check:outdated',
       'check:cargo',
       'lint:ox',

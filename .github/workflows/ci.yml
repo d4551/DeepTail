@@ -41,6 +41,8 @@ jobs:
         run: bun run lint
       - name: tree (no mutation instrumentation left behind)
         run: bun run check:tree
+      - name: strays (no file of a kind no gate reads)
+        run: bun run check:strays
       - name: outdated (every pin current)
         run: bun run check:outdated
       - name: cargo freshness

@@ -108,6 +108,31 @@ export function declaredPins(): Map<string, string> {
   return found
 }
 
+/**
+ * Every script one entry point reaches, itself included.
+ *
+ * A script that runs another by name is one step of the same chain, so the
+ * whole chain is walked rather than read as a single line: the entry point
+ * delegates, and a reader that only looked at its own text would report every
+ * gate missing the moment it did. The visited set is what ends the walk, so a
+ * script that names itself — directly or around a cycle — is read once rather
+ * than forever.
+ * @param command - the command line one script name runs, or undefined.
+ * @param entry - the script to start from.
+ * @returns every script name the entry point reaches, the entry included.
+ */
+export function scriptChain(command: (name: string) => string | undefined, entry: string): Set<string> {
+  const reached = new Set<string>()
+  const pending = [entry]
+  while (pending.length > 0) {
+    const name = pending.pop() ?? ''
+    if (reached.has(name)) continue
+    reached.add(name)
+    for (const found of (command(name) ?? '').matchAll(/bun\s+run\s+([\w:.-]+)/gu)) pending.push(found[1] ?? '')
+  }
+  return reached
+}
+
 /** One workspace member, as the lockfile records it. */
 export interface LockWorkspace {
   /** The package name the workspace publishes under. */
