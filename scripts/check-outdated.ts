@@ -5,15 +5,8 @@
  * the floors themselves going stale, so a pin could sit a year behind and every
  * gate stayed green. This reads `bun outdated`, the package manager's own
  * report, rather than asking the registry directly: a hand-rolled fetch would
- * have to reimplement range resolution, workspace filtering, and the
- * supply-chain hold, and would drift from what `bun install` actually does.
- *
- * A version held back by `minimumReleaseAge` is not a failure. That hold is
- * this repository's own policy — a newly published version is not installable
- * until it has been on the registry long enough to be withdrawn — so a row
- * marked as held is the policy working, not a pin left behind. `bun outdated`
- * marks those rows, and reports the newest installable version separately from
- * the newest published one, which is the distinction this check turns on.
+ * have to reimplement range resolution, workspace filtering, and version
+ * currency, and would drift from what `bun install` actually does.
  *
  * @module
  */
@@ -27,10 +20,8 @@ interface OutdatedRow {
   readonly name: string
   /** The version installed now. */
   readonly current: string
-  /** The newest version published, whether or not the hold admits it yet. */
+  /** The newest version published. */
   readonly latest: string
-  /** Whether the hold is why `update` is not the newest published version. */
-  readonly held: boolean
 }
 
 /**
@@ -66,16 +57,12 @@ export function parseOutdated(output: string): OutdatedRow[] {
   for (const line of output.split('\n')) {
     const cells = cellsOf(line)
     if (cells === undefined) continue
-    const [name = '', current = '', update = '', latest = ''] = cells
+    const [name = '', current = '', , latest = ''] = cells
     if (name === 'Package') continue
     rows.push({
       name: name.replace(/\s*\(dev\)$/u, '').trim(),
       current: current.trim(),
-      latest: latest.replace('*', '').trim(),
-      // The marker sits on whichever column the hold applies to; a row is held
-      // when either the in-range target or the newest published version carries
-      // it.
-      held: update.includes('*') || latest.includes('*'),
+      latest: latest.trim(),
     })
   }
   return rows
@@ -88,15 +75,14 @@ export function parseOutdated(output: string): OutdatedRow[] {
  * "Update" column. Every dependency here is pinned exactly, so the in-range
  * target is always the version already installed and a check against it can
  * never fire — which is what this function did until a downgrade failed to
- * redden it. A row the hold marks is excluded instead, so the only thing that
- * suppresses a report is this repository's own policy.
+ * redden it.
  * @param rows - the parsed table.
  * @returns one line per package that is behind, empty when none is.
  */
 export function behindInstallable(rows: readonly OutdatedRow[]): string[] {
   const behind: string[] = []
   for (const row of rows) {
-    if (row.held || row.latest === '') continue
+    if (row.latest === '') continue
     // Compared by version, not by string, and parsed, not coerced: `coerce`
     // drops the prerelease it was given, which would read 0.1.2-rc.1 and
     // 0.1.2-alpha.3 as equal and hide a channel that has moved on. A package
@@ -114,15 +100,6 @@ export function behindInstallable(rows: readonly OutdatedRow[]): string[] {
     }
   }
   return behind
-}
-
-/**
- * The packages whose newest version this repository's own hold is withholding.
- * @param rows - the parsed table.
- * @returns one line per held package, for the report.
- */
-export function heldByPolicy(rows: readonly OutdatedRow[]): string[] {
-  return rows.filter((row) => row.held).map((row) => `${row.name} ${row.current}`)
 }
 
 /**
@@ -162,15 +139,11 @@ if (import.meta.main) {
     process.exit(1)
   }
   const behind = behindInstallable(rows)
-  const held = heldByPolicy(rows)
-  if (held.length > 0) {
-    process.stdout.write(`held by the supply-chain hold, which is the hold working: ${held.join(', ')}\n`)
-  }
   if (behind.length > 0) {
     process.stderr.write(`check-outdated: dependencies behind an installable version:\n  ${behind.join('\n  ')}\n`)
     process.exit(1)
   }
   process.stdout.write(
-    `every dependency is at the newest version this workspace can install (${String(pins.size)} declared pins current; bun listed ${String(rows.length)} outdated-or-held)\n`,
+    `every dependency is at the newest version this workspace can install (${String(pins.size)} declared pins current; bun listed ${String(rows.length)} outdated)\n`,
   )
 }

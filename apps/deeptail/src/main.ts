@@ -195,7 +195,7 @@ function runToBootNotice<T>(work: Promise<T>): void {
 function showBootNotice(message: string): void {
   const strip = el('div', { className: 'error', role: 'alert', text: message, data: { deeptailState: 'boot-error' } })
   const retry = button('retry', t('action.retry'), () => runToBootNotice(start()))
-  retry.dataset.deeptailAction = ACTIONS['boot.retry'].marker
+  retry.dataset['deeptailAction'] = ACTIONS['boot.retry'].marker
   strip.append(retry)
   container.replaceChildren(strip)
 }
@@ -211,9 +211,9 @@ function showReturnBar(): void {
   const back = button('button button-outline return-button', t('shell.backToFleet'), () =>
     runToBootNotice(returnToFleet()),
   )
-  back.dataset.deeptailAction = ACTIONS['client.return'].marker
+  back.dataset['deeptailAction'] = ACTIONS['client.return'].marker
   bar.append(back)
-  bar.dataset.deeptailReturn = ''
+  bar.dataset['deeptailReturn'] = ''
   document.body.append(bar)
   returnBar = bar
 }

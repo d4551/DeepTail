@@ -161,7 +161,7 @@ describe('every tool declares its parameters', () => {
   })
 
   it('offers the two delivery modes as the only choices', () => {
-    const mode = (tool('sessions_send').parameters as SchemaNode).properties?.mode
+    const mode = (tool('sessions_send').parameters as SchemaNode).properties?.['mode']
     expect(mode?.enum).toEqual(['queue', 'steer'])
     expect(mode?.description).toContain('default "queue"')
   })
@@ -179,7 +179,7 @@ describe('every tool declares the value it answers with', () => {
       ['sessions', 'array', true],
       ['total', 'integer', true],
     ])
-    const row = schema('sessions_list').properties?.sessions?.items
+    const row = schema('sessions_list').properties?.['sessions']?.items
     expect([row?.type, row?.additionalProperties]).toEqual(['object', false])
     expect(properties(row ?? {})).toEqual([
       ['sessionId', 'string', true],
@@ -210,6 +210,6 @@ describe('every tool declares the value it answers with', () => {
       ['records', 'integer', true],
       ['recent', 'array', true],
     ])
-    expect(schema('sessions_follow').properties?.recent?.items?.type).toBe('string')
+    expect(schema('sessions_follow').properties?.['recent']?.items?.type).toBe('string')
   })
 })

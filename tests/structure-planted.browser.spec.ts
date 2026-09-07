@@ -23,6 +23,19 @@ afterAll(async () => {
   await harness?.stop()
 })
 
+/**
+ * Open the shell view one case plants under.
+ *
+ * The mutable harness is read here rather than inside the closures the
+ * registration loop creates: a function a loop creates may not name a binding
+ * a later turn can change, so the harness never appears inside the loop.
+ * @param view - the viewport and palette the case runs under; absent is the wide fine-pointer roster.
+ * @returns the page, showing the shell.
+ */
+function openPlanted(view?: Parameters<Harness['open']>[1]): Promise<Page> {
+  return openShell(harness, {}, view)
+}
+
 /** Drop the probe element a previous evaluation planted. */
 const DROP = (probe: string): string => `(() => {
   document.querySelector('[data-deeptail-probe="${probe}"]')?.remove()
@@ -41,10 +54,10 @@ async function plantTarget(page: Page, probe: string, px: number): Promise<void>
     (args: { probe: string; px: number }) => {
       const button = document.createElement('button')
       button.textContent = 'probe'
-      button.dataset.deeptailProbe = args.probe
+      button.dataset['deeptailProbe'] = args.probe
       document.querySelector('[data-deeptail-shell] main')?.append(button)
       const sheet = document.createElement('style')
-      sheet.dataset.deeptailProbe = `${args.probe}-sheet`
+      sheet.dataset['deeptailProbe'] = `${args.probe}-sheet`
       const size = String(args.px)
       sheet.textContent = `[data-deeptail-probe="${args.probe}"]{box-sizing:border-box;width:${size}px;height:${size}px;min-width:${size}px;min-height:${size}px;max-width:${size}px;max-height:${size}px;padding:0;border:0;margin:0;font-size:1px;line-height:1;overflow:hidden}`
       document.head.append(sheet)
@@ -76,7 +89,7 @@ const CASES: readonly PlantedCase[] = [
       await page.evaluate(() => {
         const link = document.createElement('a')
         link.href = '#probe'
-        link.dataset.deeptailProbe = 'nested'
+        link.dataset['deeptailProbe'] = 'nested'
         const inner = document.createElement('button')
         inner.textContent = 'inner'
         link.append(inner)
@@ -92,7 +105,7 @@ const CASES: readonly PlantedCase[] = [
       await page.evaluate(() => {
         const heading = document.createElement('h5')
         heading.textContent = 'skipped'
-        heading.dataset.deeptailProbe = 'heading'
+        heading.dataset['deeptailProbe'] = 'heading'
         document.querySelector('[data-deeptail-shell] main')?.append(heading)
       })
     },
@@ -104,7 +117,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const group = document.createElement('fieldset')
-        group.dataset.deeptailProbe = 'group'
+        group.dataset['deeptailProbe'] = 'group'
         const input = document.createElement('input')
         input.type = 'radio'
         input.name = 'probe'
@@ -128,7 +141,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const inner = document.createElement('div')
-        inner.dataset.deeptailProbe = 'grid'
+        inner.dataset['deeptailProbe'] = 'grid'
         inner.className = 'main-body'
         document.querySelector('[data-deeptail-shell]')?.append(inner)
       })
@@ -142,7 +155,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const table = document.createElement('table')
-        table.dataset.deeptailProbe = 'table'
+        table.dataset['deeptailProbe'] = 'table'
         const row = table.insertRow()
         row.insertCell().textContent = 'layout'
         document.querySelector('[data-deeptail-shell]')?.append(table)
@@ -156,8 +169,8 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const extra = document.createElement('div')
-        extra.dataset.deeptailShell = ''
-        extra.dataset.deeptailProbe = 'shell'
+        extra.dataset['deeptailShell'] = ''
+        extra.dataset['deeptailProbe'] = 'shell'
         document.querySelector('[data-deeptail-shell]')?.append(extra)
       })
     },
@@ -169,7 +182,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const script = document.createElement('script')
-        script.dataset.deeptailProbe = 'script'
+        script.dataset['deeptailProbe'] = 'script'
         script.textContent = 'void 0'
         document.querySelector('[data-deeptail-shell]')?.append(script)
       })
@@ -182,7 +195,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const script = document.createElement('script')
-        script.dataset.deeptailProbe = 'src-script'
+        script.dataset['deeptailProbe'] = 'src-script'
         script.src = '/one-off-helper.js'
         document.querySelector('[data-deeptail-shell]')?.append(script)
       })
@@ -195,7 +208,7 @@ const CASES: readonly PlantedCase[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const script = document.createElement('script')
-        script.dataset.deeptailProbe = 'body-script'
+        script.dataset['deeptailProbe'] = 'body-script'
         script.src = '/body-helper.js'
         document.body.append(script)
       })
@@ -221,12 +234,13 @@ const CASES: readonly PlantedCase[] = [
 
 for (const planted of CASES) {
   it(planted.label, async () => {
-    const page = await openShell(harness, {}, planted.view)
+    const page = await openPlanted(planted.view)
     await planted.plant(page)
     const found = await defects(page, planted.strict === true)
     for (const reason of planted.reports) expect(found).toContain(reason)
     if (planted.drop !== undefined) {
-      for (const probe of planted.drop) expect(await page.evaluate<boolean>(DROP(probe))).toBe(true)
+      const dropped = await Promise.all(planted.drop.map((name) => page.evaluate<boolean>(DROP(name))))
+      for (const gone of dropped) expect(gone).toBe(true)
       expect(await defects(page, planted.strict === true)).toBe('')
     }
     await page.close()

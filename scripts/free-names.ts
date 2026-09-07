@@ -87,8 +87,8 @@ function declarePattern(pattern: Field | undefined, into: Set<string>): void {
   }
   if (!isNode(pattern)) return
   const node = pattern
-  if (node.type === 'Identifier' && typeof node.name === 'string') {
-    into.add(node.name)
+  if (node.type === 'Identifier' && typeof node['name'] === 'string') {
+    into.add(node['name'])
     return
   }
   for (const key of ['properties', 'elements', 'value', 'left', 'argument']) declarePattern(fieldOf(node, key), into)
@@ -108,15 +108,15 @@ function hoistVars(value: Field | undefined, into: Set<string>): void {
   if (!isNode(value)) return
   const node = value
   if (FUNCTION_LIKE.has(node.type)) {
-    if (node.type === 'FunctionDeclaration') declarePattern(node.id, into)
+    if (node.type === 'FunctionDeclaration') declarePattern(node['id'], into)
     return
   }
-  if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+  if (node.type === 'VariableDeclaration' && node['kind'] === 'var') {
     for (const declarator of (fieldOf(node, 'declarations') as readonly Node[] | null) ?? []) {
       declarePattern(fieldOf(declarator, 'id'), into)
     }
   }
-  if (node.type === 'FunctionDeclaration') declarePattern(node.id, into)
+  if (node.type === 'FunctionDeclaration') declarePattern(node['id'], into)
   for (const [key, child] of Object.entries(node)) {
     if (key !== 'type') hoistVars(child, into)
   }
@@ -133,7 +133,7 @@ function declareStatements(statements: readonly Node[], into: Set<string>): void
       statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration'
         ? ((fieldOf(statement, 'declaration') as Node | null) ?? statement)
         : statement
-    if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') declarePattern(node.id, into)
+    if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') declarePattern(node['id'], into)
     if (node.type === 'VariableDeclaration') {
       for (const declarator of (fieldOf(node, 'declarations') as readonly Node[] | null) ?? []) {
         declarePattern(fieldOf(declarator, 'id'), into)
@@ -214,8 +214,8 @@ export function freeNames(label: string, text: string): string[] {
   hoistVars(parsed.body, top.names)
   const free = new Set<string>()
   const visit = (node: Node, parent: Node | undefined, key: string, scope: Scope): void => {
-    if (node.type === 'Identifier' && typeof node.name === 'string') {
-      if (isReference(parent, key) && !bound(scope, node.name)) free.add(node.name)
+    if (node.type === 'Identifier' && typeof node['name'] === 'string') {
+      if (isReference(parent, key) && !bound(scope, node['name'])) free.add(node['name'])
       return
     }
     const inner = scopeFor(node, scope)

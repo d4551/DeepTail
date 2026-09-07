@@ -52,25 +52,23 @@ const SUPPRESSIONS: readonly { readonly pattern: RegExp; readonly why: string }[
  * prose about something that is no longer there. It is what a split leaves
  * behind — the function moved and its documentation stayed — so the stranded
  * block goes on describing a contract at a place that does not hold it, and the
- * function that does hold it is left with none.
- *
- * A file's opening block is exempt, being about the module rather than about
- * the declaration under it: the exemption is positional, so nothing is exempted
- * by carrying a marker.
+ * function that does hold it is left with none. The rule reads a file's opening
+ * block by the same predicate as every other block: a block that names its
+ * subject is attached to it, and `@module` names the file itself.
  * @param parsed - the file's parse.
  * @param text - the file's contents, read for what stands between two blocks.
  * @returns one entry per stranded block, with its line.
  */
 function orphanedDocs(parsed: Parsed, text: string): { readonly line: number }[] {
-  const firstStatement = parsed.body[0]?.start
-  const opensFile = (at: number): boolean => typeof firstStatement !== 'number' || at < firstStatement
   const docs = parsed.comments.filter((comment) => comment.value.startsWith('*'))
   return docs.flatMap((comment, index) => {
     const next = docs[index + 1]
-    if (next === undefined || opensFile(comment.start)) return []
-    // A note written between two doc blocks consumes neither of them, so the
-    // first is stranded just the same; a declaration between them is what the
-    // first documents.
+    if (next === undefined) return []
+    // A block that names its subject documents that subject whether or not
+    // code sits under it: `@module` names the file itself. A block that names
+    // nothing is stranded when only prose lies between it and the next doc
+    // block, because the declaration it described is no longer there.
+    if (/@\bmodule\b/u.test(comment.value)) return []
     return onlyComments(text, comment.end, next.start, parsed.comments) ? [{ line: parsed.lineAt(comment.start) }] : []
   })
 }
@@ -120,7 +118,7 @@ export function scanScript(label: string, text: string): Offence[] {
   const names: Names = { aliases: aliases(parsed.body), constants: constants(parsed.body) }
   walk(parsed.body, (node) => {
     for (const { holds, why } of BANNED) {
-      if (holds(node, names)) offences.push({ label, line: parsed.lineAt(node.start), why })
+      if (holds(node, names)) offences.push({ label, line: parsed.lineAt(node['start']), why })
     }
   })
   return offences

@@ -22,7 +22,7 @@ export type Aliases = ReadonlyMap<string, string>
 export function aliases(program: readonly Node[]): Aliases {
   const direct = new Map<string, string>()
   walk(program, (node) => {
-    if (node.type === 'VariableDeclaration' && node.kind === 'const') recordConstAliases(node, direct)
+    if (node.type === 'VariableDeclaration' && node['kind'] === 'const') recordConstAliases(node, direct)
     if (node.type === 'ImportSpecifier') recordImportAlias(node, direct)
   })
   const resolved = new Map<string, string>()
@@ -45,15 +45,15 @@ export function aliases(program: readonly Node[]): Aliases {
  * @param into - the map to add to.
  */
 function recordConstAliases(node: Node, into: Map<string, string>): void {
-  const declarations = node.declarations
+  const declarations = node['declarations']
   if (!Array.isArray(declarations)) return
   for (const declaration of declarations) {
     if (!isNode(declaration)) continue
-    const id = unwrap(declaration.id)
-    const init = unwrap(declaration.init)
+    const id = unwrap(declaration['id'])
+    const init = unwrap(declaration['init'])
     if (!isNode(id) || id.type !== 'Identifier' || !isNode(init) || init.type !== 'Identifier') continue
-    if (typeof id.name !== 'string' || typeof init.name !== 'string') continue
-    into.set(id.name, init.name)
+    if (typeof id['name'] !== 'string' || typeof init['name'] !== 'string') continue
+    into.set(id['name'], init['name'])
   }
 }
 
@@ -63,10 +63,10 @@ function recordConstAliases(node: Node, into: Map<string, string>): void {
  * @param into - the map to add to.
  */
 function recordImportAlias(node: Node, into: Map<string, string>): void {
-  const imported = node.imported
-  const local = node.local
+  const imported = node['imported']
+  const local = node['local']
   if (!isNode(imported) || !isNode(local)) return
-  const from = imported.type === 'Identifier' ? imported.name : imported.value
-  if (typeof from !== 'string' || typeof local.name !== 'string' || local.name === from) return
-  into.set(local.name, from)
+  const from = imported.type === 'Identifier' ? imported['name'] : imported['value']
+  if (typeof from !== 'string' || typeof local['name'] !== 'string' || local['name'] === from) return
+  into.set(local['name'], from)
 }
