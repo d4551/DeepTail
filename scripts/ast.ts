@@ -138,12 +138,12 @@ export function unwrap(value: Field | undefined): Field | undefined {
 
 /**
  * The property name a member expression reads, when it is written plainly.
- * @param node - the member expression.
+ * @param node - the member expression, or any value found where one may be.
  * @returns the name, or undefined when it is computed or not an identifier.
  */
-export function memberName(node: Node): string | undefined {
-  if (node['computed'] === true) return undefined
-  const property = unwrap(node['property'])
+export function memberName(node: Field | undefined): string | undefined {
+  if (fieldOf(node, 'computed') === true) return undefined
+  const property = unwrap(fieldOf(node, 'property'))
   return isNode(property) && property.type === 'Identifier' && typeof property['name'] === 'string'
     ? property['name']
     : undefined

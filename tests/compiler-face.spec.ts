@@ -118,17 +118,47 @@ describe('the canonical TypeScript 7 compiler face', () => {
 })
 
 describe('the TypeScript 6 compiler face', () => {
-  it('is refused, option by option', () => {
-    const commonjs = compilerFaceOffences({ module: 'commonjs', target: 'ES5', moduleResolution: 'node' })
-    expect(commonjs.some((line) => line.includes('commonjs'))).toBe(true)
-    expect(commonjs.some((line) => line.includes('es5'))).toBe(true)
-    expect(commonjs.some((line) => line.includes('node'))).toBe(true)
-    expect(compilerFaceOffences({ module: 'AMD', target: 'ES6' })).not.toEqual([])
-    expect(compilerFaceOffences({ importsNotUsedAsValues: 'remove' })).not.toEqual([])
-    expect(compilerFaceOffences({ preserveValueImports: true })).not.toEqual([])
-    expect(compilerFaceOffences({ downlevelIteration: true })).not.toEqual([])
-    expect(compilerFaceOffences({ skipLibCheck: true })).not.toEqual([])
-    expect(compilerFaceOffences({ strict: false })).not.toEqual([])
+  it('is refused, option by option, and each finding says which option and why', () => {
+    // The line is what a reader acts on: it has to name the option, the value
+    // the file states, and the face to move to.
+    expect(compilerFaceOffences({ module: 'commonjs', target: 'ES5', moduleResolution: 'node' })).toEqual([
+      'module commonjs is a TypeScript 6 module system; use esnext with bundler resolution',
+      'moduleResolution node is a TypeScript 6 resolver; use bundler',
+      'target es5 is a TypeScript ≤6 emit face; use esnext',
+    ])
+    expect(compilerFaceOffences({ module: 'AMD', target: 'ES6' })).toEqual([
+      'module amd is a TypeScript 6 module system; use esnext with bundler resolution',
+      'target es6 is a TypeScript ≤6 emit face; use esnext',
+    ])
+    for (const flag of ['importsNotUsedAsValues', 'preserveValueImports', 'downlevelIteration']) {
+      expect(compilerFaceOffences({ [flag]: 'remove' })).toEqual([
+        `${flag} is a TypeScript 6 module-interop flag; TypeScript 7 verbatimModuleSyntax replaced it`,
+      ])
+    }
+    expect(compilerFaceOffences({ skipLibCheck: true })).toEqual([
+      "skipLibCheck silences a dependency's diagnostics instead of fixing them",
+    ])
+    expect(compilerFaceOffences({ strict: false })).toEqual(['strict is off; the TypeScript 7 face keeps it on'])
+  })
+
+  it('reports nothing against the face this repository ships', () => {
+    // Every named option, at the value the base states. A reader that reported
+    // one of these would report the shipped configuration as a finding.
+    expect(
+      compilerFaceOffences({
+        module: 'esnext',
+        moduleResolution: 'bundler',
+        target: 'esnext',
+        strict: true,
+        skipLibCheck: false,
+      }),
+    ).toEqual([])
+  })
+
+  it('reads an option written as anything but a string as stating nothing', () => {
+    // A tsconfig that writes a number where a face belongs states no face, and
+    // a reader that lowercased it would fail on the value rather than report.
+    expect(compilerFaceOffences({ module: 6, moduleResolution: null, target: ['es5'] })).toEqual([])
   })
 
   it('is absent from every tsconfig this repository ships', async () => {

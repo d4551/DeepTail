@@ -15,7 +15,7 @@
  * @module
  */
 
-import { isNode, type Node, parseScript } from './ast.ts'
+import { fieldOf, memberName, type Node, parseScript } from './ast.ts'
 import type { Offence } from './offence.ts'
 
 /** Statement types that declare something rather than doing something. */
@@ -44,16 +44,7 @@ const DECLARATIONS = new Set([
 function isEntryGuard(node: Node): boolean {
   if (node.type !== 'IfStatement') return false
   const test = node['test']
-  if (!isNode(test) || test.type !== 'MemberExpression') return false
-  const object = test['object']
-  const property = test['property']
-  return (
-    isNode(object) &&
-    object.type === 'MetaProperty' &&
-    isNode(property) &&
-    property.type === 'Identifier' &&
-    property['name'] === 'main'
-  )
+  return fieldOf(fieldOf(test, 'object'), 'type') === 'MetaProperty' && memberName(test) === 'main'
 }
 
 /**

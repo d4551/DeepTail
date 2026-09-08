@@ -67,13 +67,25 @@ export function asOptionalString(value: Json | undefined, where: string): string
 }
 
 /**
+ * Whether a value is a whole number, narrowed for callers that need one.
+ *
+ * `Number.isInteger` is false for every value that is not a number, so this is
+ * the type test as well as the value test.
+ * @param value - the value to test.
+ * @returns true when the value is a whole number.
+ */
+function isWholeNumber(value: Json | undefined): value is number {
+  return Number.isInteger(value)
+}
+
+/**
  * Read a positive integer, refusing anything else.
  * @param value - the value to read.
  * @param where - what it was found under.
  * @returns the number.
  */
 export function asPositiveInt(value: Json | undefined, where: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) refuse(`${where} is not a positive integer`)
+  if (!isWholeNumber(value) || value <= 0) refuse(`${where} is not a positive integer`)
   return value
 }
 

@@ -138,6 +138,16 @@ describe('the instrumentation gate', () => {
       text: 'no instrumentation left behind (1 files)\n',
     })
   })
+
+  it('reads the whole switch, not either half of it', async () => {
+    // Both halves are written in this repository's own sources — the backup
+    // directory a run keeps carries one, and the identifier the instrumenter
+    // numbers carries the other. A gate matching a half alone would refuse the
+    // files that describe a run instead of the files a run rewrote.
+    const clean = { ok: true, text: 'no instrumentation left behind (1 files)\n' }
+    expect(await drive(TREE, 'scripts/probe.ts', "const at = '.stryker-tmp'\n")).toEqual(clean)
+    expect(await drive(TREE, 'scripts/probe.ts', "const at = 'MutAct_9fa48'\n")).toEqual(clean)
+  })
 })
 
 describe('the entry gate', () => {

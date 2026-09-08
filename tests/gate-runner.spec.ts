@@ -12,8 +12,11 @@ import { describe, expect, it } from 'bun:test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { CONSOLE, type Gate, type GateOutcome, readGate, renderOffence, reportGate } from '../scripts/gate-runner.ts'
+import { type Gate, type GateOutcome, readGate, renderOffence, reportGate } from '../scripts/gate-runner.ts'
 import type { SourceFile } from '../scripts/source-tree.ts'
+
+/** The module the streams live in, by absolute path. */
+const RUNNER = new URL('../scripts/gate-runner.ts', import.meta.url).pathname
 
 /** A gate that refuses whatever a file says to refuse. */
 const REFUSING: Gate = {
@@ -110,13 +113,21 @@ describe('the gate report', () => {
     expect([recorded.out, recorded.err]).toEqual([['clean\n'], []])
   })
 
-  it('writes to the process streams when it is run from the command line', () => {
-    // The one place the report reaches a person. Writing nothing is what makes
-    // this safe to call here, and what makes it worth calling at all: the two
-    // arrows are the only lines in the chain a suite would otherwise not run.
-    expect(() => {
-      CONSOLE.out('')
-      CONSOLE.err('')
-    }).not.toThrow()
+  it('writes to the process streams when it is run from the command line', async () => {
+    // The one place the report reaches a person, and the only two lines in the
+    // chain that decide which stream a reader finds it on. Driven in a process
+    // of its own, because what is being read is that process's own output.
+    const source = [
+      `const { CONSOLE } = await import(${JSON.stringify(RUNNER)})`,
+      "CONSOLE.out('clean\\n')",
+      "CONSOLE.err('refused\\n')",
+    ].join('\n')
+    const run = Bun.spawn([process.execPath, '-e', source], { stdout: 'pipe', stderr: 'pipe' })
+    const [out, err, code] = await Promise.all([
+      new Response(run.stdout).text(),
+      new Response(run.stderr).text(),
+      run.exited,
+    ])
+    expect([code, out, err]).toEqual([0, 'clean\n', 'refused\n'])
   })
 })

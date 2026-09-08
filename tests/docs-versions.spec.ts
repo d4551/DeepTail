@@ -15,6 +15,37 @@ import { documentationDrift, statedVersions, statesPin } from '../scripts/docs-v
 import { readJsonc } from '../scripts/jsonc.ts'
 import { everyDependency } from './manifests.ts'
 
+/** Every tool the toolchain line names, at the versions a manifest pins them to. */
+const DECLARED = new Map([
+  ['typescript', '7.0.2'],
+  ['@tauri-apps/api', '2.11.1'],
+  ['vite', '8.2.2'],
+  ['playwright', '1.63.0'],
+])
+
+/** Prose that agrees with those pins, at the depth each is written to. */
+const AGREEING = 'TypeScript 7.0.2 · Bun 1.4.2 · Tauri 2.11 · Vite 8 · Playwright 1.63.0.'
+
+describe('the versions a line states', () => {
+  it('reads a version whose parts run past a single digit', () => {
+    // Every tool this repository documents happens to be at a single-digit
+    // major. A reader that stopped at one digit would read the next release of
+    // any of them as a version it cannot find, or as no version at all.
+    expect([...statedVersions('Playwright 10.63.0 · Node 24 LTS')]).toEqual([
+      ['Playwright', '10.63.0'],
+      ['Node', '24'],
+    ])
+  })
+
+  it('reads the name and the version apart at the space between them', () => {
+    expect([...statedVersions('Vite 8')]).toEqual([['Vite', '8']])
+  })
+
+  it('reads nothing out of prose that states no version', () => {
+    expect([...statedVersions('Rust edition · Node LTS')]).toEqual([])
+  })
+})
+
 describe('the documented toolchain', () => {
   it('documents the toolchain it installs, at the version it installs', async () => {
     const readme = await readFile('README.md', 'utf8')
@@ -48,6 +79,16 @@ describe('the documented toolchain', () => {
       'Bun is pinned at 1.4.2 and the toolchain line no longer names it',
       'TypeScript is pinned at 7.0.2 and the toolchain line no longer names it',
       'Playwright is documented as 1.62.1 and pinned at 1.63.0',
+    ])
+  })
+
+  it('reads bun off a pin that names bun, and not off one that merely contains it', () => {
+    // `packageManager` names the manager as well as its version. A reader that
+    // took the version out of the middle of that name would read a fork, or a
+    // scoped build, as the bun this repository runs on.
+    expect(documentationDrift(statedVersions(AGREEING), DECLARED, 'bun@1.4.2')).toEqual([])
+    expect(documentationDrift(statedVersions(AGREEING), DECLARED, '@acme/bun@1.4.2')).toEqual([
+      'Bun is documented as 1.4.2 and pinned at @acme/bun@1.4.2',
     ])
   })
 })

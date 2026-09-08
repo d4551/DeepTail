@@ -69,20 +69,41 @@ describe('the entry gate allows a module that only declares', () => {
     ).toEqual([])
   })
 
-  it('the guard a runnable script does its work behind', () => {
+  it('every declaration form the type system adds, which erase to nothing at all', () => {
+    // None of these appear in this repository's own sources, so the gate has
+    // never met one. A gate that did not know a form would report a file that
+    // declares in it as doing work at import, and no such file could be added.
+    expect(
+      entries(
+        'declare function ambient(value: number): void',
+        'declare module "ambient" { export const held: number }',
+        'declare namespace Held { const value: number }',
+        'enum Mode { first, second }',
+        'import legacyRequire = require("node:path")',
+      ),
+    ).toEqual([])
+  })
+})
+
+describe('the guard a runnable script does its work behind', () => {
+  it('is the entry check, written as an if', () => {
     expect(entries('if (import.meta.main) {', '  doWork()', '}')).toEqual([])
     expect(entries('if (import.meta.main) process.exitCode = await main()')).toEqual([])
   })
 
-  it('but not a guard that reads something else', () => {
+  it('is not any other condition around work that still runs on import', () => {
     // Only the entry check is the guard; anything else is a condition around
     // work that still runs on import.
     expect(entries('if (ready) doWork()')).toEqual([RUNS])
+    // The guard is an `if`. Every other statement that carries a condition
+    // carries it around work that runs on import, however the condition reads.
+    expect(entries('while (import.meta.main) doWork()')).toEqual([RUNS])
+    expect(entries('import.meta.main && doWork()')).toEqual([RUNS])
     expect(entries('if (import.meta.url) doWork()')).toEqual([RUNS])
     expect(entries('if (globalThis.main) doWork()')).toEqual([RUNS])
   })
 
-  it('says so when the module does not parse, rather than reading nothing', () => {
+  it('does not stop the gate saying so when the module does not parse at all', () => {
     expect(scanEntry('fixture.ts', 'function (').map((one) => one.why)[0]).toContain('does not parse')
   })
 })

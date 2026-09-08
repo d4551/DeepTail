@@ -17,11 +17,12 @@ const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'peerDependencies',
 
 /**
  * Every dependency this repository declares, from every manifest it ships.
+ * @param manifests - the manifests to read, for a caller that has its own list.
  * @returns name to declared range.
  */
-export function declaredPins(): Map<string, string> {
+export function declaredPins(manifests = repositoryFiles(['package.json'])): Map<string, string> {
   const found = new Map<string, string>()
-  for (const manifest of repositoryFiles(['package.json'])) {
+  for (const manifest of manifests) {
     const parsed = readJsonc(readFileSync(manifest.path, 'utf8'))
     for (const kind of DEPENDENCY_KINDS) {
       const raw = parsed[kind]

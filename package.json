@@ -36,7 +36,7 @@
     "mutate:sheets": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.sheets.json",
     "mutate:tools": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.tools.json",
     "tauri": "tauri",
-    "test": "bun test packages/host-fleet/tests/*.spec.ts tests/*.spec.ts",
+    "test": "bun test packages/host-fleet/tests/*.spec.ts tests/*.spec.ts tests/tree/*.spec.ts",
     "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests --timeout 60000",
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
     "typecheck": "tsc --build tsconfig.json && tsc -p tsconfig.tools.json && tsc -p packages/host-fleet/tsconfig.tests.json && tsc -p apps/deeptail/tsconfig.tests.json",

@@ -12,8 +12,9 @@
  * that every scope names a `bun test` command and a non-empty `mutate`, that
  * nothing is excluded from `mutate`, that every source file the repository
  * ships is inside some scope, that every scope has a script and every script a
- * scope, that every unit spec is either driven by some scope or declared here
- * as one no scope can drive, and that no source carries the disable comment.
+ * scope, that every unit spec outside `tests/tree/` is driven by some scope and
+ * that the directory holds nothing but suites which read the whole tree, and
+ * that no source carries the disable comment.
  * It does not verify that a scope's command exercises the modules that scope
  * mutates — only a run can say that, and the run is what reports the score.
  */
@@ -21,8 +22,10 @@
 import { describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { repositoryFiles } from '../scripts/source-tree.ts'
-import { joined } from './fixtures.ts'
+import { GATE as TREE } from '../../scripts/check-tree.ts'
+import { readGate } from '../../scripts/gate-runner.ts'
+import { repositoryFiles } from '../../scripts/source-tree.ts'
+import { joined } from '../fixtures.ts'
 
 /** One mutation run's configuration, as far as this suite reads one. */
 interface StrykerConfig {
@@ -75,20 +78,19 @@ function unmatched(files: readonly string[], patterns: readonly string[]): strin
 }
 
 /**
- * Unit specs no mutation scope can drive, and why.
+ * Where the suites that judge the tree at rest live.
  *
  * A suite that reads the whole tree cannot judge a mutation of the modules it
- * reads: the instrumenter writes `var` and the bans refuse it, so the case
- * fails for every mutant alike, and a run whose every mutant is killed by the
- * same always-failing case scores a hundred while proving nothing. Leaving such
- * a suite out of a scope's command is the only honest answer — deleting it is
- * not, so each still runs under `bun run test`, which is checked below.
+ * reads: a run rewrites the tree on purpose, so the case fails for every mutant
+ * alike, and a run whose every mutant is killed by one always-failing case
+ * scores a hundred while proving nothing. Those suites sit in a directory of
+ * their own, which is what a run is pointed away from — a place rather than a
+ * list, so nothing is excused by name and nothing is excused in prose.
  */
-const UNDRIVEABLE: Readonly<Record<string, string>> = {
-  'tests/legacy.spec.ts': 'reads every file the repository ships, instrumented ones included',
-  'tests/gate-coverage.spec.ts': 'reads every file the repository ships, instrumented ones included',
-  'tests/mutation-config.spec.ts': 'refuses a tree a run has instrumented, which is every tree during a run',
-}
+const TREE_SUITES = 'tests/tree/'
+
+/** What a suite in that directory does: read the repository's own file list. */
+const READS_THE_TREE = /\b(?:repositoryFiles|readGate)\(/u
 
 /** Every mutation configuration the repository ships, with its contents. */
 async function configs(): Promise<{ readonly label: string; readonly config: StrykerConfig }[]> {
@@ -211,38 +213,49 @@ describe('every mutation scope and the scripts that run it', () => {
   })
 })
 
+/** Every spec the repository ships, apart from the ones a browser drives. */
+function unitSpecs(): string[] {
+  return repositoryFiles(['.spec.ts'])
+    .map((file) => file.label)
+    .filter((label) => !label.endsWith('.browser.spec.ts'))
+}
+
 describe('the unit suites a mutation run drives', () => {
-  it('drives every unit spec except the ones declared undriveable here', async () => {
+  it('drives every unit spec outside the tree suites, with nothing excused', async () => {
     // Which suites judge a run is the other half of the denominator: a spec
     // quietly left out of every command is coverage the score never sees.
-    const driven = new Set(
-      (await configs()).flatMap(({ config }) =>
-        (config.commandRunner?.command ?? '').split(/\s+/u).filter((word) => word.endsWith('.spec.ts')),
-      ),
+    const commands = (await configs()).map(({ config }) => (config.commandRunner?.command ?? '').split(/\s+/u))
+    const driven = new Set(commands.flatMap((words) => words.filter((word) => word.endsWith('.spec.ts'))))
+    const directories = commands.flatMap((words) => words.filter((word) => word.endsWith('/tests')))
+    const left = unitSpecs().filter(
+      (label) =>
+        !label.startsWith(TREE_SUITES) &&
+        !driven.has(label) &&
+        !directories.some((directory) => label.startsWith(`${directory}/`)),
     )
-    const directories = (await configs()).flatMap(({ config }) =>
-      (config.commandRunner?.command ?? '').split(/\s+/u).filter((word) => word.endsWith('/tests')),
-    )
-    const specs = repositoryFiles(['.spec.ts'])
-      .map((file) => file.label)
-      .filter((label) => !label.endsWith('.browser.spec.ts'))
-    const left = specs.filter(
-      (label) => !driven.has(label) && !directories.some((directory) => label.startsWith(`${directory}/`)),
-    )
-    expect(left.toSorted()).toEqual(Object.keys(UNDRIVEABLE).toSorted())
+    expect(left.toSorted()).toEqual([])
   })
 
-  it('still runs every undriveable spec under the unit command', () => {
-    // Left out of a mutation command, not out of the suite: a contributor runs
+  it('holds nothing in the tree suites but suites that read the whole tree', async () => {
+    // The directory is the whole of the exception, so what may sit in it is a
+    // property rather than a permission: a suite that reads one module would
+    // be a suite parked out of reach of every run.
+    const suites = repositoryFiles(['.spec.ts']).filter((file) => file.label.startsWith(TREE_SUITES))
+    expect(suites.length).toBeGreaterThan(0)
+    const read = await Promise.all(
+      suites.map(async (file) => ({ label: file.label, text: await readFile(file.path, 'utf8') })),
+    )
+    expect(read.filter((file) => !READS_THE_TREE.test(file.text)).map((file) => file.label)).toEqual([])
+  })
+
+  it('still runs the tree suites under the unit command', () => {
+    // Out of a mutation command, not out of the suite: a contributor runs
     // `bun test`, and a reader of that run has to see these.
-    const command = scripts()['test'] ?? ''
-    const patterns = command.split(/\s+/u).filter((word) => word.endsWith('.spec.ts'))
-    const unrun = Object.keys(UNDRIVEABLE).filter((label) => !patterns.some((pattern) => matches(pattern, label)))
+    const patterns = (scripts()['test'] ?? '').split(/\s+/u).filter((word) => word.endsWith('.spec.ts'))
+    const unrun = unitSpecs().filter(
+      (label) => label.startsWith(TREE_SUITES) && !patterns.some((pattern) => matches(pattern, label)),
+    )
     expect(unrun).toEqual([])
-  })
-
-  it('declares a reason for each one, rather than a bare list', () => {
-    expect(Object.entries(UNDRIVEABLE).filter(([, why]) => why.length < 20)).toEqual([])
   })
 })
 
@@ -266,15 +279,11 @@ describe('the repository', () => {
     // touched rewritten: the instrumenter's switch wrapped around every
     // expression, and the original restorable only from git. It happened here.
     // A tree in that state still type-checks and still passes its suites, so
-    // nothing else would have said so. `check:tree` runs the same read from the
-    // gate chain, where a mutation run can reach it; this is what a contributor
-    // running `bun test` sees.
-    const marker = joined('stry', 'MutAct_')
-    const files = repositoryFiles(['.ts', '.tsx', '.js'])
-    const read = await Promise.all(
-      files.map(async (file) => ({ label: file.label, text: await readFile(file.path, 'utf8') })),
-    )
-    expect(read.flatMap((file) => (file.text.includes(marker) ? [file.label] : []))).toEqual([])
+    // nothing else would have said so. The gate `check:tree` runs is what is
+    // read here, so there is one walk; this is what a contributor running
+    // `bun test` sees of it.
+    const outcome = await readGate(TREE)
+    expect(outcome.ok ? [] : outcome.text.split('\n').filter((line) => line !== '')).toEqual([])
   })
 
   it('exempts no mutant in place', async () => {

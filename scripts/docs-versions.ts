@@ -26,15 +26,24 @@ const DOCUMENTED_TOOLS: Readonly<Record<string, string>> = {
 }
 
 /** One `Name 1.2.3` pair, as the toolchain line writes it. */
-const STATED_VERSION = /\b([A-Z][A-Za-z]+) (\d+(?:\.\d+)*)\b/gu
+const STATED_VERSION = /\b[A-Z][A-Za-z]+ \d+(?:\.\d+)*\b/gu
 
 /**
  * The versions a stretch of prose states, by tool name.
+ *
+ * The pair is read off the whole match rather than out of groups: a group is
+ * optional to the compiler however certain the pattern is of it, and standing a
+ * value in for one that cannot be missing is a line no reading reaches.
  * @param text - the prose to read.
  * @returns tool name to the version written beside it.
  */
 export function statedVersions(text: string): Map<string, string> {
-  return new Map([...text.matchAll(STATED_VERSION)].map((match) => [match[1] ?? '', match[2] ?? '']))
+  const found = new Map<string, string>()
+  for (const match of text.matchAll(STATED_VERSION)) {
+    const gap = match[0].indexOf(' ')
+    found.set(match[0].slice(0, gap), match[0].slice(gap + 1))
+  }
+  return found
 }
 
 /**
@@ -49,10 +58,8 @@ export function statedVersions(text: string): Map<string, string> {
  * @returns true when the prose agrees with the pin.
  */
 export function statesPin(stated: string, pinned: string): boolean {
-  const parts = stated.split('.')
   const actual = pinned.split('.')
-  if (parts.length > actual.length) return false
-  return parts.every((part, index) => part === actual[index])
+  return stated.split('.').every((part, index) => part === actual[index])
 }
 
 /**
@@ -70,7 +77,7 @@ export function documentationDrift(
   const drift: string[] = []
   const pins = new Map<string, string>([['Bun', manager.replace(/^bun@/u, '')]])
   for (const [name, dependency] of Object.entries(DOCUMENTED_TOOLS)) {
-    const pinned = coerce(declared.get(dependency) ?? '')
+    const pinned = coerce(declared.get(dependency))
     if (pinned === null) {
       drift.push(`${name}: nothing declares ${dependency}`)
       continue

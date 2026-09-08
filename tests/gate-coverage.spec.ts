@@ -4,8 +4,10 @@
  * A rule that works is worth nothing if the file it would have caught is never
  * read. A previous gate walked a hand-written list of directories and reported
  * success over the trees the list left out, so what is asserted here is the
- * reach of the file list itself, and that the repository is clean under both
- * gates when every file it ships is actually read.
+ * reach of the file list itself.
+ *
+ * Whether the repository is clean under those gates is asserted once, in
+ * `tests/tree/legacy.spec.ts`, through the gates the chain runs.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -81,26 +83,6 @@ describe('the file list both gates read', () => {
     const present: SourceFile = { label: 'scripts/source-tree.ts', path: `${ROOT}scripts/source-tree.ts` }
     const deleted: SourceFile = { label: 'scripts/never-shipped.ts', path: `${ROOT}scripts/never-shipped.ts` }
     expect(onlyPresent([present, deleted]).map((file) => file.label)).toEqual(['scripts/source-tree.ts'])
-  })
-})
-
-describe('the repository under both gates', () => {
-  it('is clean when every file it ships is actually read', async () => {
-    const files = repositoryFiles([...styles.SCRIPT_EXTENSIONS, ...styles.MARKUP_EXTENSIONS, ...bans.PLAIN_EXTENSIONS])
-    const offences = await Promise.all(
-      files.map(async (file) => {
-        const text = await readFile(file.path, 'utf8')
-        const found = [...styles.SCRIPT_EXTENSIONS, ...styles.MARKUP_EXTENSIONS].some((extension) =>
-          file.label.endsWith(extension),
-        )
-          ? styles.scanSource(file.label, text)
-          : []
-        return [...found, ...bans.scanSource(file.label, text)].map(
-          (offence) => `${offence.label}:${String(offence.line)}: ${offence.why}`,
-        )
-      }),
-    )
-    expect(offences.flat()).toEqual([])
   })
 })
 
