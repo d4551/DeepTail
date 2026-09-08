@@ -18,7 +18,7 @@
 
 import { readFile } from 'node:fs/promises'
 import type { Offence } from './offence.ts'
-import type { SourceFile } from './source-tree.ts'
+import { repositoryFiles, type SourceFile } from './source-tree.ts'
 
 /**
  * What one gate declares about itself.
@@ -106,7 +106,7 @@ export function renderOffence(offence: Offence): string {
  * @param files - the listing to read it through.
  * @returns what the gate has to say, and whether it refused anything.
  */
-export async function readGate(gate: Gate, files: readonly SourceFile[]): Promise<GateOutcome> {
+export async function readGate(gate: Gate, files = repositoryFiles(gate.extensions)): Promise<GateOutcome> {
   const narrow = gate.only
   const read = narrow === undefined ? files : files.filter((file) => narrow(file))
   const scanned = await Promise.all(read.map(async (file) => gate.scan(file.label, await readFile(file.path, 'utf8'))))
