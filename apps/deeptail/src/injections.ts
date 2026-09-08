@@ -18,33 +18,40 @@ export type IndexInjection =
   | { readonly kind: 'html'; readonly placement: 'head' | 'body'; readonly html: string }
 
 /**
+ * What the two bundle rows of a table are carried out with.
+ *
+ * Both are the carrier: the row URLs are host paths behind the device token,
+ * which only an authenticated request can reach, so no browser mechanism —
+ * neither a `<script src>` nor a preload link — can honour either row.
+ */
+export interface BundleCarrier {
+  /** Fetches a `script-preload` row's bundle so the row that runs it need not. */
+  readonly warm: (src: string) => Promise<void>
+  /** Fetches, if it was not warmed, and runs a `script-src` row's bundle. */
+  readonly run: (src: string) => Promise<void>
+}
+
+/**
  * Execute every row in table order.
  *
  * Order is the contract: a `global` row must land before the scripts that read
  * it, so this awaits each script row rather than starting them concurrently.
  *
  * @param rows - the boot table, exactly as the host serialized it.
- * @param loadScript - executes one `script-src` row; DeepTail's carrier, because
- * the row URLs are host paths that only an authenticated request can reach.
+ * @param bundles - how the two bundle rows reach the host.
  */
-export function applyIndexInjections(
-  rows: readonly IndexInjection[],
-  loadScript: (src: string) => Promise<void>,
-): Promise<void> {
+export function applyIndexInjections(rows: readonly IndexInjection[], bundles: BundleCarrier): Promise<void> {
   // Sequential by construction: each row's promise is chained onto the previous
   // one, so a `global` row always lands before the scripts that read it.
-  return rows.reduce<Promise<void>>(
-    (previous, row) => previous.then(() => applyRow(row, loadScript)),
-    Promise.resolve(),
-  )
+  return rows.reduce<Promise<void>>((previous, row) => previous.then(() => applyRow(row, bundles)), Promise.resolve())
 }
 
 /**
  * Execute one row.
  * @param row - the row to apply.
- * @param loadScript - executes a `script-src` row through the carrier.
+ * @param bundles - how the two bundle rows reach the host.
  */
-async function applyRow(row: IndexInjection, loadScript: (src: string) => Promise<void>): Promise<void> {
+async function applyRow(row: IndexInjection, bundles: BundleCarrier): Promise<void> {
   switch (row.kind) {
     case 'global':
       Object.assign(globalThis, { [row.name]: row.value })
@@ -56,11 +63,14 @@ async function applyRow(row: IndexInjection, loadScript: (src: string) => Promis
       break
     }
     case 'script-src':
-      await loadScript(row.src)
+      await bundles.run(row.src)
       break
     case 'script-preload':
-      // Our carrier has no browser-visible URL to warm; the matching
-      // `script-src` row performs the real request.
+      // A served page hands this row to the browser as a preload link. There is
+      // no browser-visible URL here, so the fetch the row asks for is made
+      // through the carrier and held; the `script-src` row that follows runs
+      // what this fetched instead of asking the host a second time.
+      await bundles.warm(row.src)
       break
     case 'style': {
       const element = document.createElement('style')

@@ -61,20 +61,42 @@ async function carrierFetch(host: string, input: URL, init: RequestInit): Promis
 }
 
 /**
- * Fetch one client plugin bundle through Rust and run it as a page script,
- * exactly as the served shell loads its own same-origin bundles.
+ * Fetch one client plugin bundle's source through Rust.
+ *
+ * Split from running it because the boot table asks for the two separately: a
+ * `script-preload` row says fetch this now, and the `script-src` row that
+ * follows says run what was fetched.
+ * @param host - paired host id.
+ * @param url - bundle URL the boot table named, absolute on the host.
+ * @returns the bundle's source.
+ */
+async function fetchBundle(host: string, url: string): Promise<string> {
+  const path = new URL(url, 'http://dsh.internal')
+  // Settled rather than awaited outright: a host that refuses one bundle
+  // rejects with its own reason, and that reason names no bundle. The boot
+  // table can carry several `script-src` rows, so a failure that does not say
+  // which of them failed leaves the operator reading a message about a request
+  // they cannot identify.
+  const [fetched] = await Promise.allSettled([
+    invoke<string>('carrier_load_bundle', { host, path: `${path.pathname}${path.search}` }),
+  ])
+  if (fetched === undefined || fetched.status === 'rejected') {
+    const refusal: unknown = fetched?.reason
+    throw new Error(`deeptail: bundle ${url} could not be fetched: ${String(refusal)}`, { cause: refusal })
+  }
+  return fetched.value
+}
+
+/**
+ * Run one bundle's source as a page script, exactly as the served shell loads
+ * its own same-origin bundles.
  *
  * A blob URL is used rather than `eval` so the app's CSP can stay at
  * `script-src 'self' blob:` instead of allowing arbitrary evaluation.
- * @param host - paired host id.
- * @param url - bundle URL the boot table named, absolute on the host.
+ * @param url - the bundle URL, for the failure a refusal reports.
+ * @param source - the source fetched for it.
  */
-async function carrierLoadBundle(host: string, url: string): Promise<void> {
-  const path = new URL(url, 'http://dsh.internal')
-  const source = await invoke<string>('carrier_load_bundle', {
-    host,
-    path: `${path.pathname}${path.search}`,
-  })
+async function executeBundle(url: string, source: string): Promise<void> {
   const blob = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }))
   await new Promise<void>((resolve, reject) => {
     const element = document.createElement('script')
@@ -229,15 +251,40 @@ export interface CarrierHooks {
 }
 
 /**
+ * The carrier, plus the one capability the harness contract does not name.
+ *
+ * The harness client reads `CarrierHooks` and nothing else. Warming a bundle
+ * is DeepTail's own: a served page hands a preload row to the browser, and a
+ * page inside a webview has no browser-visible URL to hand it, so the boot
+ * table's preload row is honoured here or not at all.
+ */
+export interface Carrier extends CarrierHooks {
+  /**
+   * Fetch a bundle now so the row that runs it does not wait on the network.
+   * @param url - bundle URL the boot table named, absolute on the host.
+   */
+  readonly warmBundle: (url: string) => Promise<void>
+}
+
+/**
  * Build the carrier for one paired host.
  * @param host - paired host id.
  * @returns hooks to install as `__DSH_TRANSPORT__` before the shell boots.
  */
-export function createCarrier(host: string): CarrierHooks {
+export function createCarrier(host: string): Carrier {
   let live: CarrierMuxSocket | undefined
+  // What a preload row fetched, held until the row that runs it takes it.
+  const warmed = new Map<string, string>()
   return {
     send: (input, init) => carrierFetch(host, input, init),
-    loadBundle: (url) => carrierLoadBundle(host, url),
+    warmBundle: async (url) => {
+      warmed.set(url, await fetchBundle(host, url))
+    },
+    loadBundle: async (url) => {
+      const held = warmed.get(url)
+      warmed.delete(url)
+      await executeBundle(url, held ?? (await fetchBundle(host, url)))
+    },
     openMuxSocket: () => {
       live = new CarrierMuxSocket(host)
       return live

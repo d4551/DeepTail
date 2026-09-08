@@ -9,8 +9,11 @@
  * @module
  */
 
+import type { IndexInjection } from '../src/injections.ts'
+import { BOOT_SOURCES, deeptailBootTable, deeptailLoadBundle } from './tauri-ipc-boot.ts'
 import { CARRIER_SOURCES, deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux } from './tauri-ipc-carrier.ts'
-import { deeptailListHosts, issuedGrants } from './tauri-ipc-registry.ts'
+import { deeptailListHosts, deeptailPairHost, issuedGrants } from './tauri-ipc-registry.ts'
+import { deeptailTailscale, TAILNET_SOURCES } from './tauri-ipc-tailnet.ts'
 
 export type MuxEventValue =
   | { readonly type: 'ready'; readonly clientId: string; readonly host: string }
@@ -84,6 +87,8 @@ export interface IpcState {
   readonly commands: string[]
   /** Every pairing link the page asked the native side to spend, in order. */
   readonly pairedLinks: string[]
+  /** Every bundle path the page asked the carrier for, in order. */
+  readonly bundlePaths: string[]
   /** How many times the page has read the host registry. */
   listReads: number
 }
@@ -136,26 +141,26 @@ export type AnswerTable = {
   readonly muxClose?: readonly string[]
   /** Why booting the harness client fails, when the test needs it to. */
   readonly bootError?: string
+  /**
+   * The boot table the host serves, in the order it serves it.
+   *
+   * This is the harness's server-rendered index injection table, which a
+   * served page carries in its HTML and a non-served shell has to reproduce.
+   * The default is the empty table, which is what every case ran against
+   * before this existed — so every row kind, and the order that is the whole
+   * contract, went unexercised.
+   */
+  readonly bootInjections?: readonly IndexInjection[]
+  /** The source `carrier_load_bundle` answers with, keyed by the path asked for. */
+  readonly bundleSources?: Readonly<Record<string, string>>
+  /** Why a bundle path fails to load, keyed the same way. */
+  readonly bundleErrors?: Readonly<Record<string, string>>
   /** Whether a tailnet credential is already stored. */
   readonly tailnetConnected?: boolean
   /** The machines `tailscale_devices` and `tailscale_connect` answer with. */
   readonly tailnetDevices?: readonly TailnetFixture[]
   /** Why listing the tailnet fails, when the test needs it to. */
   readonly tailnetError?: string
-}
-
-/**
- * Answer one of the four Tailscale commands.
- * @param script - the answers this page should give.
- * @param cmd - the command name.
- * @returns whatever that command answers with.
- */
-function deeptailTailscale(script: AnswerTable, cmd: string): Promise<object | boolean | null> {
-  if (cmd === 'tailscale_connected') return Promise.resolve(script.tailnetConnected === true)
-  if (cmd === 'tailscale_forget') return Promise.resolve(null)
-  return script.tailnetError === undefined
-    ? Promise.resolve(script.tailnetDevices ?? [])
-    : Promise.reject(new Error(script.tailnetError))
 }
 
 /**
@@ -171,9 +176,10 @@ function deeptailInvoke(
   cmd: string,
   args: Record<string, object>,
   state: IpcState,
-  // `tailscale_connected` answers with a boolean, so the surface is every JSON
-  // value a command returns rather than objects alone.
-): Promise<object | boolean | null> {
+  // `tailscale_connected` answers with a boolean and `carrier_load_bundle`
+  // with a bundle's source, so the surface is every JSON value a command
+  // returns rather than objects alone.
+): Promise<object | boolean | string | null> {
   // Every command is recorded, not only the remote calls. A surface that says
   // it re-reads the registry is making a claim about a command, and a claim
   // about a command needs a record of commands to be checked against.
@@ -190,16 +196,13 @@ function deeptailInvoke(
       // serialised into the page, so anything it reads has to travel with it.
       return Promise.resolve(script.grants ?? { issuer: 'none', context: '', grants: [] })
     case 'boot_injections':
-      return script.bootError === undefined ? Promise.resolve([]) : Promise.reject(new Error(script.bootError))
+      return deeptailBootTable(script)
+    case 'carrier_load_bundle':
+      return deeptailLoadBundle(script, args, state)
     case 'carrier_close_mux':
       return Promise.resolve(null)
     case 'pair_host':
-      // The link itself, not just that pairing was asked for: a case that only
-      // sees the command name cannot tell a composed link from any other.
-      state.pairedLinks.push(String(args['link'] ?? ''))
-      return script.pairError === undefined
-        ? Promise.resolve(script.paired ?? {})
-        : Promise.reject(new Error(script.pairError))
+      return deeptailPairHost(script, args, state)
     case 'tailscale_connected':
     case 'tailscale_connect':
     case 'tailscale_devices':
@@ -224,12 +227,14 @@ function installTauriInternals(script: AnswerTable): void {
     recorded: [],
     commands: [],
     pairedLinks: [],
+    bundlePaths: [],
     listReads: 0,
   }
   Object.assign(window, {
     deeptailRecordedCalls: state.recorded,
     deeptailInvokedCommands: state.commands,
     deeptailPairedLinks: state.pairedLinks,
+    deeptailBundlePaths: state.bundlePaths,
     __TAURI_INTERNALS__: {
       invoke: (cmd: string, args?: Record<string, object>) => deeptailInvoke(script, cmd, args ?? {}, state),
       transformCallback: (callback: () => object) => callback,
@@ -250,7 +255,15 @@ function installTauriInternals(script: AnswerTable): void {
  * @returns the source to evaluate.
  */
 export function initScriptSource(table: AnswerTable): string {
-  const sources = [...CARRIER_SOURCES, deeptailListHosts, deeptailTailscale, deeptailInvoke, installTauriInternals]
+  const sources = [
+    ...CARRIER_SOURCES,
+    ...BOOT_SOURCES,
+    ...TAILNET_SOURCES,
+    deeptailListHosts,
+    deeptailPairHost,
+    deeptailInvoke,
+    installTauriInternals,
+  ]
   // The issuance travels as data. Everything else here is source the page
   // evaluates, and a function that reached for a module would arrive naming
   // something the page has not got.
@@ -266,6 +279,8 @@ declare global {
     readonly deeptailInvokedCommands?: readonly string[]
     /** Every pairing link the page spent, in order. */
     readonly deeptailPairedLinks?: readonly string[]
+    /** Every bundle path the page asked the carrier for, in order. */
+    readonly deeptailBundlePaths?: readonly string[]
     /** The hook an open mux leaves for the harness to forward events through. */
     readonly deeptailForwardEvent?: (event: string, args: ForwardedEvent['args']) => void
   }

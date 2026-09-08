@@ -17,7 +17,7 @@ import type { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 import { invoke } from '@tauri-apps/api/core'
 import type { HostRecord } from './host.ts'
 import { applyIndexInjections, type IndexInjection } from './injections.ts'
-import { type CarrierHooks, createCarrier } from './transport.ts'
+import { type Carrier, createCarrier } from './transport.ts'
 
 /** Names owned by the harness's page-boot protocol. */
 const BOOT_READY_KEY = '__DSH_BOOT_READY__'
@@ -34,7 +34,7 @@ declare global {
 /** A running shell and the carrier feeding it. */
 export interface BootedHost {
   readonly entry: AppWebEntry
-  readonly carrier: CarrierHooks
+  readonly carrier: Carrier
 }
 
 /**
@@ -65,7 +65,7 @@ export async function bootHost(host: HostRecord, container: HTMLElement): Promis
   const carrier = createCarrier(host.id)
   Object.assign(globalThis, { [TRANSPORT_KEY]: carrier })
   const installed = await invoke<readonly IndexInjection[]>('boot_injections', { host: host.id })
-    .then((rows) => applyIndexInjections(rows, (src: string) => carrier.loadBundle(src)))
+    .then((rows) => applyIndexInjections(rows, { warm: carrier.warmBundle, run: carrier.loadBundle }))
     .then(
       () => ({ settled: true as const }),
       (reason) => discardFailedBoot(ready, reason),
