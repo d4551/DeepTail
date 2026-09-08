@@ -74,7 +74,7 @@ export async function realizeView(page: Page, view: { width: number; height: num
  * stopped just as surely as a finished one, so both are awaited together.
  * @param page - the page to settle.
  */
-export async function settleAnimations(page: Page): Promise<void> {
+async function settleAnimations(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const running = document
       .getAnimations()
