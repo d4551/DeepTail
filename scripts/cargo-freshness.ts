@@ -18,6 +18,8 @@
  * @module
  */
 
+import { allThree } from './captures.ts'
+
 /** The command that asks cargo what refreshing the lockfile would move. */
 export const FRESHNESS_COMMAND = ['cargo', 'update', '--dry-run'] as const
 
@@ -38,21 +40,6 @@ const UPDATING = /^\s*Updating\s+(\S+)\s+v(\S+)\s+->\s+v(\S+)\s*$/u
 const HELD = /(\d+)\s+unchanged dependencies behind latest/u
 
 /**
- * The first three groups a pattern captured, when it captured all three.
- *
- * A group is optional to the compiler however sure the pattern is of it, and a
- * fallback value written per group is three pieces of unreachable code rather
- * than one readable rule. This is the rule: all three, or nothing to read.
- * @param found - what a pattern matched.
- * @returns the three captures, or undefined when the pattern left one behind.
- */
-export function capturedThree(found: RegExpExecArray): readonly [string, string, string] | undefined {
-  const [, first, second, third] = found
-  if (first === undefined || second === undefined || third === undefined) return undefined
-  return [first, second, third]
-}
-
-/**
  * The crates a lockfile refresh would move.
  * @param output - what the command printed.
  * @returns one entry per crate, in the order cargo listed them.
@@ -63,7 +50,7 @@ export function staleCrates(output: string): StaleCrate[] {
     // `Updating crates.io index` is progress, not a crate: it has no arrow, so
     // the pattern does not match it.
     const found = UPDATING.exec(line)
-    const parts = found === null ? undefined : capturedThree(found)
+    const parts = found === null ? undefined : allThree([found[1], found[2], found[3]])
     if (parts !== undefined) stale.push({ name: parts[0], from: parts[1], to: parts[2] })
   }
   return stale

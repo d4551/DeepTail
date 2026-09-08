@@ -12,6 +12,7 @@
  */
 
 import { compare, parse } from 'semver'
+import { allThree } from './captures.ts'
 import { declaredPins } from './pins.ts'
 
 /** One row of the `bun outdated` table. */
@@ -34,17 +35,30 @@ interface OutdatedRow {
  */
 export const OUTDATED_COMMAND = ['bun', 'outdated', '--filter', '*'] as const
 
-/** The cells of one table row, or undefined when the line is a rule or header. */
-function cellsOf(line: string): string[] | undefined {
+/** The suffix bun appends to a package it installed as a development dependency. */
+const DEV_SUFFIX = /\s*\(dev\)$/u
+
+/**
+ * The three columns this gate reads out of one table line.
+ *
+ * Four columns is one workspace. Five is the all-workspace table (Workspace
+ * appended). Six or more is a later bun column the gate does not judge, and
+ * dropping those rows used to hide an outdated pin behind an extra cell — so
+ * what is required is that the three columns exist, not that there are exactly
+ * so many. A line with fewer is a rule, a header underline, or a row bun wrote
+ * in a shape this reader does not know, and there is nothing in it to read.
+ * @param line - one line of the report.
+ * @returns the columns, or undefined when the line carries no row.
+ */
+export function rowOf(line: string): OutdatedRow | undefined {
   if (!line.startsWith('|') || line.startsWith('|--')) return undefined
   const cells = line
     .split('|')
     .slice(1, -1)
     .map((cell) => cell.trim())
-  // Four columns is one workspace. Five is the all-workspace table (Workspace
-  // appended). Six or more is a later bun column the gate does not judge.
-  // Dropping those rows used to hide an outdated pin behind an extra cell.
-  return cells.length >= 4 ? cells : undefined
+  const read = allThree([cells[0], cells[1], cells[3]])
+  if (read === undefined) return undefined
+  return { name: read[0], current: read[1], latest: read[2] }
 }
 
 /**
@@ -55,15 +69,11 @@ function cellsOf(line: string): string[] | undefined {
 export function parseOutdated(output: string): OutdatedRow[] {
   const rows: OutdatedRow[] = []
   for (const line of output.split('\n')) {
-    const cells = cellsOf(line)
-    if (cells === undefined) continue
-    const [name = '', current = '', , latest = ''] = cells
-    if (name === 'Package') continue
-    rows.push({
-      name: name.replace(/\s*\(dev\)$/u, '').trim(),
-      current: current.trim(),
-      latest: latest.trim(),
-    })
+    const row = rowOf(line)
+    // The header names the columns; it is not a package that is behind.
+    if (row === undefined || row.name === 'Package') continue
+    // The cells arrive trimmed, so only the suffix bun appends is stripped.
+    rows.push({ ...row, name: row.name.replace(DEV_SUFFIX, '') })
   }
   return rows
 }
@@ -111,39 +121,65 @@ export function behindInstallable(rows: readonly OutdatedRow[]): string[] {
  * @param output - what the command printed.
  */
 export function tablePrinted(output: string): boolean {
-  return output.split('\n').some((line) => {
-    if (!line.startsWith('|') || line.startsWith('|--')) return false
-    const cells = line
-      .split('|')
-      .slice(1, -1)
-      .map((cell) => cell.trim())
-    return cells[0] === 'Package' && cells.length >= 4
-  })
+  // Read through the same reader the rows are read with, so a header this gate
+  // can see and a row it cannot are impossible to have at once.
+  return output.split('\n').some((line) => rowOf(line)?.name === 'Package')
 }
 
-if (import.meta.main) {
-  const run = Bun.spawnSync([...OUTDATED_COMMAND], { stderr: 'pipe' })
-  if (run.exitCode !== 0) {
-    process.stderr.write(`check-outdated: bun outdated exited ${String(run.exitCode)}\n${run.stderr?.toString() ?? ''}`)
-    process.exit(1)
-  }
-  const output = run.stdout?.toString() ?? ''
+/** What the gate tells a reader, a shell, and each of the two streams. */
+export interface Outdated {
+  /** What is written to the output stream. */
+  readonly out: string
+  /** What is written to the error stream. */
+  readonly err: string
+  /** The code the shell is given. */
+  readonly code: number
+}
+
+/**
+ * What the gate reports for one `bun outdated` report.
+ *
+ * Separated from the run that produces it: the decision — what a reader is
+ * told, and what the shell is told — is the half a suite can drive without a
+ * registry behind it.
+ * @param output - what the command printed.
+ * @param pins - every dependency the workspace declares.
+ * @returns the two streams and the exit code.
+ */
+export function outdatedReport(output: string, pins: ReadonlyMap<string, string>): Outdated {
   const rows = parseOutdated(output)
   if (tablePrinted(output) && rows.length === 0) {
-    process.stderr.write('check-outdated: bun printed a table this gate could not read\n')
-    process.exit(1)
+    return { out: '', err: 'check-outdated: bun printed a table this gate could not read\n', code: 1 }
   }
-  const pins = declaredPins()
   if (pins.size === 0) {
-    process.stderr.write('check-outdated: no dependencies are declared in any workspace manifest\n')
-    process.exit(1)
+    return { out: '', err: 'check-outdated: no dependencies are declared in any workspace manifest\n', code: 1 }
   }
   const behind = behindInstallable(rows)
   if (behind.length > 0) {
-    process.stderr.write(`check-outdated: dependencies behind an installable version:\n  ${behind.join('\n  ')}\n`)
-    process.exit(1)
+    return {
+      out: '',
+      err: `check-outdated: dependencies behind an installable version:\n  ${behind.join('\n  ')}\n`,
+      code: 1,
+    }
   }
-  process.stdout.write(
-    `every dependency is at the newest version this workspace can install (${String(pins.size)} declared pins current; bun listed ${String(rows.length)} outdated)\n`,
-  )
+  return {
+    out: `every dependency is at the newest version this workspace can install (${String(pins.size)} declared pins current; bun listed ${String(rows.length)} outdated)\n`,
+    err: '',
+    code: 0,
+  }
+}
+
+if (import.meta.main) {
+  // Both streams come back as buffers, so neither read needs a fallback for a
+  // stream that was never captured, and there is nothing here to ask for.
+  const run = Bun.spawnSync([...OUTDATED_COMMAND])
+  if (run.exitCode === 0) {
+    const report = outdatedReport(run.stdout.toString(), declaredPins())
+    process.stdout.write(report.out)
+    process.stderr.write(report.err)
+    process.exitCode = report.code
+  } else {
+    process.stderr.write(`check-outdated: bun outdated exited ${String(run.exitCode)}\n${run.stderr.toString()}`)
+    process.exitCode = 1
+  }
 }

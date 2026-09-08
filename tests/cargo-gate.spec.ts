@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { capturedThree, FRESHNESS_COMMAND, heldByRange, staleCrates } from '../scripts/cargo-freshness.ts'
+import { FRESHNESS_COMMAND, heldByRange, staleCrates } from '../scripts/cargo-freshness.ts'
 
 describe('the cargo freshness reader', () => {
   it('reads every crate a lockfile refresh would move', () => {
@@ -77,30 +77,5 @@ describe('the shapes the cargo reader admits and refuses', () => {
     // Reading cargo's own answer is what keeps the gate from drifting from
     // what `cargo build` would actually resolve.
     expect([...FRESHNESS_COMMAND]).toEqual(['cargo', 'update', '--dry-run'])
-  })
-})
-
-describe('the three parts a pattern has to have captured', () => {
-  it('hands back every capture when the pattern made all three', () => {
-    const found = /(\w+) (\w+) (\w+)/u.exec('one two three')
-    expect(found === null ? undefined : capturedThree(found)).toEqual(['one', 'two', 'three'])
-  })
-
-  it('hands back nothing when the pattern left any one of them behind', () => {
-    // A group a pattern declares optional is a group a match may not carry, and
-    // a reader that took whatever was there would build an entry out of a hole.
-    // Each of the three in turn, because a reader can stop checking at any one
-    // of them and go on answering for the other two.
-    const first = /(a)?(b) (c)/u.exec('b c')
-    expect(first === null ? undefined : capturedThree(first)).toBeUndefined()
-    const second = /(a) (b)?(c)/u.exec('a c')
-    expect(second === null ? undefined : capturedThree(second)).toBeUndefined()
-    const third = /(a) (b) (c)?/u.exec('a b ')
-    expect(third === null ? undefined : capturedThree(third)).toBeUndefined()
-  })
-
-  it('reads the first three, not whatever the pattern captured last', () => {
-    const found = /(\w+) (\w+) (\w+) (\w+)/u.exec('one two three four')
-    expect(found === null ? undefined : capturedThree(found)).toEqual(['one', 'two', 'three'])
   })
 })

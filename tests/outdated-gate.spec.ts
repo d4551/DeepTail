@@ -181,3 +181,20 @@ describe('the outdated gate against a table it cannot read, and against none', (
     expect(parseOutdated('bun outdated v1.4.2 (744846f84)\n')).toEqual([])
   })
 })
+
+describe('the rows the comparison passes over', () => {
+  it('passes over a row whose newest column is blank', () => {
+    // bun leaves the column empty for a package it has nothing to say about.
+    // Read as a version it would be a version nothing can parse, and the gate
+    // would fail on a row bun declined to answer for.
+    expect(behindInstallable([{ name: 'oxlint', current: '1.81.0', latest: '' }])).toEqual([])
+  })
+
+  it('does not pass over a row whose newest column says something', () => {
+    // The other half of the same rule: blank is silence, and anything else is
+    // an answer this gate has to judge.
+    expect(behindInstallable([{ name: 'oxlint', current: '1.81.0', latest: 'newest' }])).toEqual([
+      'oxlint reports versions this gate cannot read: 1.81.0 vs newest',
+    ])
+  })
+})
