@@ -202,6 +202,16 @@ describe('every mutation run reads the tree it claims to', () => {
 })
 
 describe('every mutation scope and the scripts that run it', () => {
+  it('is run by the one script that runs them all', () => {
+    // `bun run mutate` is what a contributor runs and what the weekly audit
+    // runs. A scope it does not name is a scope nothing measures, and the
+    // score it declares is a number nobody has ever seen it earn.
+    const all = scripts()['mutate'] ?? ''
+    const scopes = Object.keys(scripts()).filter((name) => name.startsWith('mutate:'))
+    expect(scopes.length).toBeGreaterThan(0)
+    expect(scopes.filter((name) => !all.includes(`bun run ${name}`))).toEqual([])
+  })
+
   it('has a script for every scope, and a scope for every script', async () => {
     const declared = new Set((await configs()).map(({ label }) => label))
     const named = new Set(

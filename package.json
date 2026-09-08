@@ -29,7 +29,7 @@
     "lint:fix": "biome check --write .",
     "lint:ox": "oxlint . --deny-warnings",
     "lint:rust": "cd apps/deeptail/src-tauri && cargo clippy --all-targets -- -D warnings",
-    "mutate": "bun run mutate:host-fleet && bun run mutate:sheets && bun run mutate:gates && bun run mutate:tools",
+    "mutate": "bun run mutate:host-fleet && bun run mutate:sheets && bun run mutate:gates && bun run mutate:tools && bun run mutate:app",
     "mutate:app": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.app.json",
     "mutate:gates": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.gates.json",
     "mutate:host-fleet": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.host-fleet.json",

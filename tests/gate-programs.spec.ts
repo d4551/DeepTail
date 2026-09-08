@@ -60,8 +60,9 @@ describe('each gate run from the command line', () => {
   it('says what the gate says, on the stream and under the status that match it', async () => {
     const checked = await Promise.all(
       PROGRAMS.map(async ([name, gate]) => {
-        const outcome = await readGate(gate)
-        const said = await run([join(ROOT, 'scripts', name)])
+        // Read and run at once: the two answer the same question about the
+        // same tree, and one after the other is twice the walk.
+        const [outcome, said] = await Promise.all([readGate(gate), run([join(ROOT, 'scripts', name)])])
         const expected: Said = outcome.ok
           ? { code: 0, out: outcome.text, err: '' }
           : { code: 1, out: '', err: outcome.text }
