@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { FRESHNESS_COMMAND, heldByRange, staleCrates } from '../scripts/cargo-freshness.ts'
+import { capturedThree, FRESHNESS_COMMAND, heldByRange, staleCrates } from '../scripts/cargo-freshness.ts'
 
 describe('the cargo freshness reader', () => {
   it('reads every crate a lockfile refresh would move', () => {
@@ -42,9 +42,65 @@ describe('the cargo freshness reader', () => {
     expect(heldByRange('every crate is current')).toBe(0)
   })
 
+  it('reads a note cargo spaced differently, rather than counting nothing', () => {
+    // cargo pads its notes to line them up, so the run of spaces before the
+    // word is a run, not a space. A reader that admitted exactly one would
+    // report zero held back for a report that named twenty-six.
+    expect(heldByRange('note: 26  unchanged dependencies behind latest')).toBe(26)
+  })
+})
+
+describe('the shapes the cargo reader admits and refuses', () => {
+  it('reads a crate however cargo spaced the line, and not one it did not name', () => {
+    // Every gap in that line is a run of whitespace cargo chooses the width of,
+    // and a reader that admitted exactly one space at any of them would walk
+    // past the crate entirely.
+    expect(staleCrates('    Updating  mio  v1.2.2  ->  v1.2.3')).toEqual([{ name: 'mio', from: '1.2.2', to: '1.2.3' }])
+    // Trailing whitespace is still the end of the line.
+    expect(staleCrates('    Updating mio v1.2.2 -> v1.2.3   ')).toEqual([{ name: 'mio', from: '1.2.2', to: '1.2.3' }])
+  })
+
+  it('reads no crate out of a line that merely mentions one', () => {
+    // The word has to open the line. A reader that found it anywhere would read
+    // cargo's own prose, and a warning naming a crate would fail the gate.
+    expect(staleCrates('warning: Updating mio v1.2.2 -> v1.2.3 was skipped')).toEqual([])
+    expect(staleCrates('  Blocking Updating mio v1.2.2 -> v1.2.3')).toEqual([])
+  })
+
+  it('reads no crate out of a line that carries anything after the version', () => {
+    // The line ends at the version cargo would move to. Reading past it would
+    // take a note about a crate for the move itself.
+    expect(staleCrates('    Updating mio v1.2.2 -> v1.2.3 (held back)')).toEqual([])
+  })
+
   it('asks cargo rather than the registry', () => {
     // Reading cargo's own answer is what keeps the gate from drifting from
     // what `cargo build` would actually resolve.
     expect([...FRESHNESS_COMMAND]).toEqual(['cargo', 'update', '--dry-run'])
+  })
+})
+
+describe('the three parts a pattern has to have captured', () => {
+  it('hands back every capture when the pattern made all three', () => {
+    const found = /(\w+) (\w+) (\w+)/u.exec('one two three')
+    expect(found === null ? undefined : capturedThree(found)).toEqual(['one', 'two', 'three'])
+  })
+
+  it('hands back nothing when the pattern left any one of them behind', () => {
+    // A group a pattern declares optional is a group a match may not carry, and
+    // a reader that took whatever was there would build an entry out of a hole.
+    // Each of the three in turn, because a reader can stop checking at any one
+    // of them and go on answering for the other two.
+    const first = /(a)?(b) (c)/u.exec('b c')
+    expect(first === null ? undefined : capturedThree(first)).toBeUndefined()
+    const second = /(a) (b)?(c)/u.exec('a c')
+    expect(second === null ? undefined : capturedThree(second)).toBeUndefined()
+    const third = /(a) (b) (c)?/u.exec('a b ')
+    expect(third === null ? undefined : capturedThree(third)).toBeUndefined()
+  })
+
+  it('reads the first three, not whatever the pattern captured last', () => {
+    const found = /(\w+) (\w+) (\w+) (\w+)/u.exec('one two three four')
+    expect(found === null ? undefined : capturedThree(found)).toEqual(['one', 'two', 'three'])
   })
 })

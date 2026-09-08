@@ -61,12 +61,7 @@ export async function pipelineViolations(root: string): Promise<readonly string[
   // has no version, and coercing its absence into an empty string to run the
   // pattern over is a step that decides nothing.
   const pinned = manifest.packageManager
-  // Fails closed, and stops: a manifest whose pin is not a string is one this
-  // reader cannot read, and every rule below is about holding a workflow to a
-  // version it has no way to know.
-  if (pinned !== undefined && typeof pinned !== 'string') {
-    return ['package.json: the packageManager pin is not a string, so no workflow can be held to it']
-  }
+  const unreadable = pinned !== undefined && typeof pinned !== 'string'
   // Read off the string rather than through the pattern: `exec` takes anything
   // and coerces it, so a reader that lost its type test would go on answering
   // `undefined` for a manifest that pins nothing and nothing would say so.
@@ -76,7 +71,10 @@ export async function pipelineViolations(root: string): Promise<readonly string[
   const violations = [
     ...validateChainViolations(scripts),
     ...scriptViolations(scripts),
-    ...(version === undefined ? ['package.json: no bun@x.y.z packageManager pin for the workflows to match'] : []),
+    ...(unreadable ? ['package.json: the packageManager pin is not a string, so no workflow can be held to it'] : []),
+    ...(version === undefined && !unreadable
+      ? ['package.json: no bun@x.y.z packageManager pin for the workflows to match']
+      : []),
   ]
   const names = (await readdir(join(root, WORKFLOW_DIRECTORY)))
     .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))

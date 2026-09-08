@@ -146,9 +146,25 @@ describe('the pin the reader holds every workflow to', () => {
   it('names a pin it cannot read at all, rather than treating it as absent', async () => {
     // A manifest carrying `packageManager: 5` is not a manifest that pins
     // nothing; it is one this reader cannot read, and an unreadable pipeline is
-    // a red pipeline.
+    // a red pipeline. Named once: an unreadable pin and an absent one are the
+    // same fact about which bun a workflow can be held to.
     expect(await pipelineViolations(await pipelineTree(5))).toEqual([
       'package.json: the packageManager pin is not a string, so no workflow can be held to it',
+    ])
+  })
+})
+
+describe('what the reader still reports around a pin it cannot read', () => {
+  it('goes on reading the rest of the pipeline when the pin is unreadable', async () => {
+    // Every violation at once is the whole point of a guard a reviewer reads;
+    // stopping at the first one it cannot read turns a report into a headline.
+    const root = await pipelineTree(5)
+    await rm(join(root, '.github', 'CODEOWNERS'))
+    await rm(join(root, WORKFLOWS, 'mutation.yml'))
+    expect(await pipelineViolations(root)).toEqual([
+      'package.json: the packageManager pin is not a string, so no workflow can be held to it',
+      'the workflow definition mutation.yml is gone; the pipeline is shorter than its pinned shape',
+      `${join('.github', 'CODEOWNERS')} is gone; nothing names who must review the pipeline`,
     ])
   })
 
