@@ -5,18 +5,21 @@
  * A pipeline that decides whether the repository ships is text that nothing
  * else re-reads, so it is exactly the text worth rewriting first. This module
  * reads the definitions under `.github/workflows`, the package manifest and
- * the code-owner list, applies every rule in `pipeline-guard-rules.ts` and
- * `pipeline-guard-jobs.ts`, and
+ * the code-owner list, applies every rule in `pipeline-guard-rules.ts`,
+ * `pipeline-guard-gates.ts` and `pipeline-guard-jobs.ts`, and
  * fails closed: a definition the rules cannot read is a violation, never an
- * absence of one. The suite in `tests/pipeline-guard.spec.ts` drives each rule
- * against synthetic definitions that carry the cheat, then drives every rule
- * at once against the repository's own pipeline.
+ * absence of one. The rules are driven against synthetic definitions that carry
+ * the cheat in `tests/pipeline-guard.spec.ts`, `pipeline-guard-actions.spec.ts`
+ * and `pipeline-guard-jobs.spec.ts`; what this module does with a tree, and
+ * every rule at once against the repository's own pipeline, is
+ * `tests/pipeline-guard-tree.spec.ts`.
  *
  * @module
  */
 
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { gateCoverageViolations, validateChainViolations } from './pipeline-guard-gates.ts'
 import { aggregationViolations } from './pipeline-guard-jobs.ts'
 import {
   actionRefViolations,
@@ -25,12 +28,10 @@ import {
   codeOwnersViolations,
   FORBIDDEN_IN_WORKFLOWS,
   forbiddenTokenViolations,
-  gateCoverageViolations,
   installViolations,
   scheduleViolations,
   scriptViolations,
   timeoutViolations,
-  validateChainViolations,
   workflowSetViolations,
 } from './pipeline-guard-rules.ts'
 
