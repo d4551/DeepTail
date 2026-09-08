@@ -38,8 +38,12 @@ interface StrykerConfig {
  */
 const TREE_SUITES = 'tests/tree/'
 
-/** What a suite in that directory does: read the repository's own file list. */
-const READS_THE_TREE = /\b(?:repositoryFiles|readGate)\(/u
+/**
+ * What a suite in that directory does: read the bytes of files the repository
+ * ships — through the shared file list, through a gate that walks it, or by
+ * path from the repository root.
+ */
+const READS_THE_TREE = /\b(?:repositoryFiles|readGate)\(|\bROOT\b/u
 
 /** Every mutation configuration the repository ships, with its contents. */
 async function configs(): Promise<{ readonly label: string; readonly config: StrykerConfig }[]> {

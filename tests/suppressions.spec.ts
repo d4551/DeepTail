@@ -69,7 +69,10 @@ async function pinOxlint(): Promise<void> {
     ignorePatterns?: string[]
     overrides?: object
   }
-  expect(oxlint.plugins ?? []).toEqual(['typescript', 'unicorn', 'promise'])
+  // `oxc` is on by default and a plugin list replaces that default rather
+  // than adding to it, so leaving it out of the list switched a whole set of
+  // rules off with nothing in the file saying so.
+  expect(oxlint.plugins ?? []).toEqual(['typescript', 'unicorn', 'promise', 'oxc'])
   expect(oxlint.categories ?? {}).toEqual({
     correctness: 'error',
     suspicious: 'error',

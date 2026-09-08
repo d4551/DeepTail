@@ -77,10 +77,9 @@ export async function restoreInstrumented(root: string): Promise<string[]> {
       (await filesUnder(backup)).map((path) => ({ backup, path, target: join(root, path) })),
     ),
   )
-  const instrumented = await Promise.all(
-    held.flat().map(async (file) => ({ ...file, stale: await carriesMarker(file.target) })),
-  )
-  const wanted = instrumented.filter((file) => file.stale)
+  const backed = held.flat()
+  const stale = await Promise.all(backed.map(async (file) => await carriesMarker(file.target)))
+  const wanted = backed.filter((_file, index) => stale[index] === true)
   await Promise.all(wanted.map(async (file) => await copyFile(join(file.backup, file.path), file.target)))
   return wanted.map((file) => file.path)
 }

@@ -61,10 +61,13 @@ export const tauriPorts: PickerPorts = {
 /**
  * What a failed probe says about a host, by the failure code the read settled
  * with.
+ *
+ * Exported because it is the whole of what the roster's dot claims to report,
+ * and a decision only a Tauri command can reach is one no suite can drive.
  * @param code - the code a failed read settled with, when it carried one.
  * @returns the reachability to draw.
  */
-function probeState(code: string | undefined): HostState {
+export function probeState(code: string | undefined): HostState {
   if (code === UNAUTHORIZED) return 'unauthorized'
   if (code === FORBIDDEN) return 'forbidden'
   return 'offline'

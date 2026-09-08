@@ -141,8 +141,9 @@ describe('the quoting of a name', () => {
 
 describe('the native table', () => {
   it('prices a route once when two actions reach it for the same capability', () => {
-    const shared = actionsNamed(['boot.retry', 'boot.again']).map((row) => ({ ...row, remote: 'host/retry' }))
-    const written = emitRust(registryOf(shared))
+    const first: ActionRow = { ...ACTION, remote: 'host/retry' }
+    const second: ActionRow = { ...ACTION, id: 'boot.again', marker: 'boot-again', remote: 'host/retry' }
+    const written = emitRust(registryOf([first, second]))
     expect(written.split('host/retry').length - 1).toBe(1)
   })
 

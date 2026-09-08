@@ -69,6 +69,15 @@ describe('the entry gate allows a module that only declares', () => {
     ).toEqual([])
   })
 
+  it('a declaration written without an export, and a semicolon nothing precedes', () => {
+    // An export is a declaration of its own, so a fixture that only ever
+    // exports never reaches the forms underneath it. And a semicolon written
+    // after a statement is absorbed into that statement, so the only empty
+    // statement a file really holds is one with nothing before it.
+    expect(entries('type X = string', 'interface Y { a: number }')).toEqual([])
+    expect(entries(';', 'const a = 1')).toEqual([])
+  })
+
   it('every declaration form the type system adds, which erase to nothing at all', () => {
     // None of these appear in this repository's own sources, so the gate has
     // never met one. A gate that did not know a form would report a file that

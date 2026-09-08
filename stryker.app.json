@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "commandRunner": {
-    "command": "bun test tests/actions.spec.ts tests/capability.spec.ts tests/dispatcher.spec.ts tests/locales.spec.ts tests/roster.spec.ts tests/store.spec.ts tests/stream.spec.ts"
+    "command": "bun test tests/actions.spec.ts tests/capability.spec.ts tests/dispatcher.spec.ts tests/locales.spec.ts tests/roster.spec.ts tests/store.spec.ts tests/stream.spec.ts tests/frames.spec.ts tests/reason.spec.ts tests/tailscale.spec.ts tests/fleet-pairing.spec.ts tests/fleet-tailnet.spec.ts tests/picker-ports.spec.ts tests/action-registry.spec.ts tests/action-registry-emit.spec.ts"
   },
   "mutate": ["apps/deeptail/src/**/*.ts"],
   "coverageAnalysis": "off",

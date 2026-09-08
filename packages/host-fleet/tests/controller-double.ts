@@ -154,7 +154,12 @@ function scriptedController(recording: Script): FleetController {
   return {
     list: () =>
       Promise.resolve({
-        items: (recording.listed ?? []).map((row) => ({ ...row, sessionId: SessionId(row.sessionId) })),
+        items: (recording.listed ?? []).map((row) => ({
+          sessionId: SessionId(row.sessionId),
+          running: row.running,
+          blank: row.blank,
+          updatedAt: row.updatedAt,
+        })),
       }),
     follow: (request) => {
       if (request.address.kind !== 'session') {

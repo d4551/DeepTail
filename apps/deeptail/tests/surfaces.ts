@@ -25,14 +25,22 @@ export interface AuditView {
 
 /** Every `VIEWPORTS` row in both palettes. Tablet/phone keep a coarse pointer. */
 export const AUDIT_VIEWS: readonly AuditView[] = VIEWPORTS.flatMap((viewport) =>
-  ([false, true] as const).map((dark) => ({
-    label: `${viewport.label} ${dark ? 'dark' : 'light'}`,
-    dark,
-    width: viewport.width,
-    height: viewport.height,
-    ...pointerFlags(viewport),
-  })),
+  ([false, true] as const).map((dark) => auditView(viewport, dark)),
 )
+
+/**
+ * One designed width in one palette.
+ * @param viewport - the designed width.
+ * @param dark - whether the palette is the dark one.
+ * @returns the row the audit opens.
+ */
+function auditView(viewport: Viewport, dark: boolean): AuditView {
+  const label = `${viewport.label} ${dark ? 'dark' : 'light'}`
+  const size = { label, dark, width: viewport.width, height: viewport.height }
+  const pointer = pointerFlags(viewport)
+  if (pointer.tablet === true) return { ...size, tablet: true }
+  return pointer.mobile === true ? { ...size, mobile: true } : size
+}
 
 /**
  * Size the page to a designed width after opening with the matching pointer.
