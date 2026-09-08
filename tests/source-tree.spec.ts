@@ -10,6 +10,35 @@
 import { describe, expect, it } from 'bun:test'
 import { onlyPresent, ROOT, repositoryFiles } from '../scripts/source-tree.ts'
 
+/**
+ * The repository root, resolved from this file rather than from the module
+ * under test.
+ *
+ * The probe below has to be written somewhere and then taken away again. Taking
+ * the place to write it from the module being measured means a mutation run can
+ * move it, and the sweep then looks where the probe is not — so the one path
+ * this suite writes to is its own.
+ */
+const REPOSITORY = new URL('../', import.meta.url).pathname
+
+/** The extension the probe carries, which nothing the repository ships uses. */
+const PROBE_EXTENSION = '.probe-ext'
+
+/**
+ * Remove every probe file anywhere in the repository.
+ *
+ * `git clean` over the extension, so a probe is removed wherever it was
+ * written. Ignored paths are left alone — the flag that would reach into them
+ * is not passed — so nothing outside what this suite writes is in reach.
+ * @returns the paths it removed, repository-relative.
+ */
+function sweepProbes(): string[] {
+  const run = Bun.spawnSync(['git', 'clean', '-f', '--', `*${PROBE_EXTENSION}`], { cwd: REPOSITORY })
+  return (run.stdout?.toString() ?? '')
+    .split('\n')
+    .flatMap((line) => (line.startsWith('Removing ') ? [line.slice('Removing '.length).trim()] : []))
+}
+
 describe('the file list', () => {
   it('reports each file by a repository-relative label and a path that opens it', async () => {
     const file = repositoryFiles(['/package.json']).find((one) => one.label === 'apps/deeptail/package.json')
@@ -45,17 +74,30 @@ describe('the file list', () => {
 })
 
 describe('the file list against the index', () => {
-  it('reads a file git has never seen, so nothing can hide behind the index', () => {
+  it('reads a file git has never seen, so nothing can hide behind the index', async () => {
     // `--others --exclude-standard`: a source file added but not yet staged is
     // a file that ships, and a gate that read only the index would not see it.
     // The probe is read, then removed, and only then is the expectation held:
     // the removal runs before anything that could fail on it, so a red case
     // leaves no probe file behind in the tree it just measured.
-    const scratch = `${ROOT}zz-source-tree-probe.probe-ext`
-    Bun.write(scratch, 'probe\n')
+    //
+    // Awaited, and swept rather than unlinked. `Bun.write` returns a promise,
+    // and leaving it unawaited raced the removal on the next line: the write
+    // landed after the `rm` and the probe stayed in the repository — which is
+    // how `scripts/source-tree.tszz-source-tree-probe.probe-ext` came to sit
+    // in a working tree. The sweep is `git clean` over the extension, so a
+    // probe written anywhere in the repository is removed, not only the path
+    // this case computed: under a mutation run the root is a mutable thing,
+    // and a probe left where the sweep is not looking is debris this suite
+    // wrote and nothing removes.
+    const scratch = `${REPOSITORY}zz-source-tree-probe.probe-ext`
+    await Bun.write(scratch, 'probe\n')
     const listed = repositoryFiles(['.probe-ext']).map((file) => file.label)
-    Bun.spawnSync(['rm', '-f', scratch])
+    const swept = sweepProbes()
     expect(listed).toEqual(['zz-source-tree-probe.probe-ext'])
+    // What the sweep removed is asserted too: a case that wrote nothing, or
+    // one whose probe escaped the path it named, both read differently here.
+    expect(swept).toEqual(['zz-source-tree-probe.probe-ext'])
   })
 
   it('leaves out a path whose bytes are gone', () => {
