@@ -21,6 +21,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { GATE as BANS } from '../../scripts/check-bans.ts'
+import { GATE as ENTRIES } from '../../scripts/check-entries.ts'
 import { GATE as INLINE_STYLES } from '../../scripts/check-no-inline-styles.ts'
 import { GATE as STYLESHEETS } from '../../scripts/check-stylesheets.ts'
 import { type Gate, readGate } from '../../scripts/gate-runner.ts'
@@ -46,5 +47,9 @@ describe('the repository under the gates that read all of it', () => {
 
   it('carries no stylesheet value outside the scale', async () => {
     expect(await refused(STYLESHEETS)).toEqual([])
+  })
+
+  it('carries no script that does work when it is imported', async () => {
+    expect(await refused(ENTRIES)).toEqual([])
   })
 })

@@ -18,6 +18,7 @@ import { readFile } from 'node:fs/promises'
 import { GATE as TREE } from '../../scripts/check-tree.ts'
 import { readGate } from '../../scripts/gate-runner.ts'
 import { repositoryFiles } from '../../scripts/source-tree.ts'
+import { filtersOf, selected } from '../../scripts/test-commands.ts'
 import { joined } from '../fixtures.ts'
 
 /** One mutation run's configuration, as far as this suite reads one. */
@@ -62,6 +63,27 @@ function unitSpecs(): string[] {
     .map((file) => file.label)
     .filter((label) => !label.endsWith('.browser.spec.ts'))
 }
+
+describe('the suites a mutation command may name', () => {
+  it('names no browser suite, which cannot observe a mutant at all', async () => {
+    // The instrumenter selects the active mutant out of a process environment
+    // variable. A page has no process: the bundle it loads carries every
+    // mutant and activates none, so a browser suite answers for the unmutated
+    // code however the run is configured. Naming one in a mutation command
+    // spends its whole run — two minutes a mutant here — and kills nothing,
+    // which reads as coverage in the command and is none.
+    const browser = repositoryFiles(['.spec.ts'])
+      .map((file) => file.label)
+      .filter((label) => label.endsWith('.browser.spec.ts'))
+    expect(browser.length).toBeGreaterThan(0)
+    const named = (await configs()).flatMap(({ label, config }) =>
+      filtersOf(config.commandRunner?.command ?? '')
+        .flatMap((filter) => selected(filter, browser))
+        .map((spec) => `${label}: ${spec}`),
+    )
+    expect(named).toEqual([])
+  })
+})
 
 describe('the unit suites a mutation run drives', () => {
   it('drives every unit spec outside the tree suites, with nothing excused', async () => {

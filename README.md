@@ -300,12 +300,7 @@ withholds a release from resolution: `bunfig.toml` sets no release hold, and
 a policy to explain. The floors in `tests/stack.spec.ts` are held equal to the
 pins, so a downgrade fails there and an upgrade has to be written down.
 
-Playwright resolves the Chromium it installed. An image that pre-ships one at a
-fixed path instead names it in `apps/deeptail/tests/chromium.json`:
-
-```json
-{ "executablePath": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" }
-```
+Playwright resolves the Chromium it installed.
 
 ## Pipeline
 

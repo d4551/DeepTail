@@ -20,7 +20,8 @@
     "scripts/source-tree.ts",
     "scripts/style-gate.ts",
     "scripts/style-writes.ts",
-    "scripts/extensions.ts"
+    "scripts/extensions.ts",
+    "scripts/test-commands.ts"
   ],
   "coverageAnalysis": "off",
   "disableTypeChecks": false,

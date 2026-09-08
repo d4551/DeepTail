@@ -17,8 +17,11 @@
  * is silent: `bun test a b` where `a` names a spec and `b` names nothing exits
  * zero, having run only `a`. So a renamed spec turns every command that named
  * it by hand into a command that runs less than it says, and reports the same
- * green. Every command the repository ships is read here for that, the
- * mutation scopes' included, because they name their suites by hand too.
+ * green. Every command the repository ships is read for that, the mutation
+ * scopes' included, because they name their suites by hand too.
+ *
+ * The readers themselves are `scripts/test-commands.ts`, so the two suites that
+ * ask what a command runs ask one reader.
  *
  * @module
  */
@@ -26,6 +29,7 @@
 import { describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { repositoryFiles } from '../scripts/source-tree.ts'
+import { expand, filtersOf, selected, selectsSomething, testCommands } from '../scripts/test-commands.ts'
 
 /** Where the browser suites live, and the suffix that keeps them out of the unit run. */
 const BROWSER_DIRECTORY = 'apps/deeptail/tests/'
@@ -59,98 +63,6 @@ function unitTestArguments(): string[] {
   return words.slice(start + 1).filter((word) => !word.startsWith('-'))
 }
 
-/**
- * The paths one shell glob expands to, against the files the repository ships.
- *
- * Only `*` is honoured, which is the whole of what the script uses; a pattern
- * carrying anything else expands to nothing here and is refused by name rather
- * than reading as an empty answer.
- * @param pattern - one positional argument from the script.
- * @param files - every spec the repository ships.
- * @returns the paths the shell would hand bun.
- */
-function expand(pattern: string, files: readonly string[]): string[] {
-  if (/[?[\]{}]/u.test(pattern)) throw new Error(`this reader cannot expand ${pattern}`)
-  if (!pattern.includes('*')) return [pattern]
-  const source = `^${pattern
-    .split('*')
-    .map((part) => part.replaceAll(/[.+^$()|\\]/gu, String.raw`\$&`))
-    .join('[^/]*')}$`
-  const matcher = new RegExp(source, 'u')
-  return files.filter((label) => matcher.test(label))
-}
-
-/** The word that takes the next word as its value rather than as a filter. */
-const VALUED_FLAG = '--timeout'
-
-/**
- * Every `bun test` command the repository ships, by where it is written.
- *
- * The manifest's scripts and the mutation scopes' command runners are the only
- * two places one lives, and both name their suites by hand.
- * @returns one entry per command, labelled by the file and key that holds it.
- */
-function testCommands(): { readonly where: string; readonly command: string }[] {
-  const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
-  const fromScripts = Object.entries(manifest.scripts ?? {})
-    .filter(([, command]) => command.includes('bun test '))
-    .map(([name, command]) => ({ where: `package.json script ${name}`, command }))
-  const fromScopes = repositoryFiles(['.json'])
-    .filter((file) => /^stryker\..*\.json$/u.test(file.label))
-    .map((file) => {
-      const config = JSON.parse(readFileSync(file.path, 'utf8')) as { commandRunner?: { command?: string } }
-      return { where: file.label, command: config.commandRunner?.command ?? '' }
-    })
-    .filter((entry) => entry.command.includes('bun test '))
-  return [...fromScripts, ...fromScopes]
-}
-
-/** The words that end one shell statement and begin the next. */
-const SEPARATORS = new Set(['&&', ';', '||', '|'])
-
-/**
- * The filters a command hands bun, with its flags and their values dropped.
- *
- * A command can hold more than one statement — the browser and axe scripts
- * build first and test after — so every `bun test` in it is read, not the
- * first: reading only the first would leave a later run's filters unread,
- * which is the same silence this file exists to refuse.
- * @param command - the command as it is written.
- * @returns the positional words of every `bun test` statement, in order.
- */
-function filtersOf(command: string): string[] {
-  const words = command.trim().split(/\s+/u)
-  const positional: string[] = []
-  for (const [index, word] of words.entries()) {
-    if (word !== 'test' || words[index - 1] !== 'bun') continue
-    for (let at = index + 1; at < words.length; at += 1) {
-      const next = words[at] ?? ''
-      if (SEPARATORS.has(next)) break
-      if (next === VALUED_FLAG) {
-        at += 1
-        continue
-      }
-      if (next.startsWith('-')) continue
-      positional.push(next)
-    }
-  }
-  return positional
-}
-
-/**
- * Whether one filter selects at least one spec the repository ships.
- *
- * A glob is expanded the way the shell expands it, before bun ever sees it; a
- * plain word is matched the way bun matches it, as a substring of a path.
- * @param filter - the positional word.
- * @param all - every spec the repository ships.
- * @returns true when the filter selects something.
- */
-function selectsSomething(filter: string, all: readonly string[]): boolean {
-  if (filter.includes('*')) return expand(filter, all).length > 0
-  return all.some((label) => label.includes(filter))
-}
-
 describe('the suites the gate chain runs', () => {
   it('names every browser spec so the unit command cannot select it', () => {
     const { browser } = specs()
@@ -176,8 +88,8 @@ describe('the suites the gate chain runs', () => {
     const all = [...browser, ...specs().unit]
     const filters = unitTestArguments().flatMap((pattern) => expand(pattern, all))
     expect(filters.length).toBeGreaterThan(0)
-    const selected = browser.filter((label) => filters.some((filter) => label.includes(filter)))
-    expect(selected).toEqual([])
+    const swept = browser.filter((label) => filters.some((filter) => label.includes(filter)))
+    expect(swept).toEqual([])
   })
 })
 
@@ -228,6 +140,20 @@ describe('the readers that decide what a command runs', () => {
     expect(filtersOf(command)).toEqual(['a.spec.ts', 'b.spec.ts'])
     expect(filtersOf('bun test x.spec.ts && bun test y.spec.ts')).toEqual(['x.spec.ts', 'y.spec.ts'])
     expect(filtersOf('bun run test:browser')).toEqual([])
+  })
+
+  it('names the specs a filter selects, not merely whether it selects one', () => {
+    // Which suites a filter reaches is what says whether a command runs what
+    // it means to: a filter that reaches a browser suite spends a run on code
+    // no mutant is active in, and a reader that answered only yes or no could
+    // not say which one it reached.
+    const all = ['tests/pins.spec.ts', 'tests/pins-extra.spec.ts', 'apps/deeptail/tests/a11y.browser.spec.ts']
+    expect(selected('tests/pins.spec.ts', all)).toEqual(['tests/pins.spec.ts'])
+    expect(selected('tests/pins', all)).toEqual(['tests/pins.spec.ts', 'tests/pins-extra.spec.ts'])
+    expect(selected('apps/deeptail/tests', all)).toEqual(['apps/deeptail/tests/a11y.browser.spec.ts'])
+    expect(selected('tests/*.spec.ts', all)).toEqual(['tests/pins.spec.ts', 'tests/pins-extra.spec.ts'])
+    expect(selected('tests/renamed-away.spec.ts', all)).toEqual([])
+    expect(selected('tests/renamed-*.spec.ts', all)).toEqual([])
   })
 
   it('reads arguments out of the script rather than assuming them', () => {
