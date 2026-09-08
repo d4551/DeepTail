@@ -15,7 +15,7 @@
  * @module
  */
 
-import { readdir, readFile } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { aggregationViolations } from './pipeline-guard-jobs.ts'
 import {
@@ -48,15 +48,30 @@ interface WorkflowFile {
 
 /**
  * Every violation the pipeline definitions carry, by name.
- * @param root - the repository root the definitions live under.
+ * @param root - the tree the definitions live under; the program reads the
+ *   working directory, and a suite reads a tree of its own.
  * @returns one entry per rule a definition breaks; empty when the pipeline is sound.
  */
-export async function pipelineViolations(root: string = '.'): Promise<readonly string[]> {
-  const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+export async function pipelineViolations(root: string): Promise<readonly string[]> {
+  const manifest = JSON.parse(await Bun.file(join(root, 'package.json')).text()) as {
     packageManager?: string
     scripts?: Record<string, string>
   }
-  const version = PACKAGE_MANAGER_BUN.exec(manifest.packageManager ?? '')?.[1]
+  // Read only when there is something to read: a manifest that pins no manager
+  // has no version, and coercing its absence into an empty string to run the
+  // pattern over is a step that decides nothing.
+  const pinned = manifest.packageManager
+  // Fails closed, and stops: a manifest whose pin is not a string is one this
+  // reader cannot read, and every rule below is about holding a workflow to a
+  // version it has no way to know.
+  if (pinned !== undefined && typeof pinned !== 'string') {
+    return ['package.json: the packageManager pin is not a string, so no workflow can be held to it']
+  }
+  // Read off the string rather than through the pattern: `exec` takes anything
+  // and coerces it, so a reader that lost its type test would go on answering
+  // `undefined` for a manifest that pins nothing and nothing would say so.
+  // `match` is the same read spelt on the string, and a string is what it needs.
+  const version = typeof pinned === 'string' ? pinned.match(PACKAGE_MANAGER_BUN)?.[1] : undefined
   const scripts = manifest.scripts ?? {}
   const violations = [
     ...validateChainViolations(scripts),
@@ -68,7 +83,7 @@ export async function pipelineViolations(root: string = '.'): Promise<readonly s
     .toSorted()
   violations.push(...workflowSetViolations(names))
   const files: readonly WorkflowFile[] = await Promise.all(
-    names.map(async (name) => ({ name, text: await readFile(join(root, WORKFLOW_DIRECTORY, name), 'utf8') })),
+    names.map(async (name) => ({ name, text: await Bun.file(join(root, WORKFLOW_DIRECTORY, name)).text() })),
   )
   for (const file of files) {
     violations.push(...workflowViolations(file, version))
@@ -105,12 +120,12 @@ function workflowViolations(file: WorkflowFile, version: string | undefined): st
 async function ownershipViolations(root: string): Promise<string[]> {
   const present = (await readdir(join(root, '.github'))).includes('CODEOWNERS')
   if (!present) return [`${join('.github', 'CODEOWNERS')} is gone; nothing names who must review the pipeline`]
-  return codeOwnersViolations(await readFile(join(root, '.github', 'CODEOWNERS'), 'utf8'))
+  return codeOwnersViolations(await Bun.file(join(root, '.github', 'CODEOWNERS')).text())
 }
 
 /** Guarded, as every runnable script here is: importing a module must run nothing. */
 if (import.meta.main) {
-  const violations = await pipelineViolations()
+  const violations = await pipelineViolations(process.cwd())
   if (violations.length > 0) {
     process.stderr.write(
       `the pipeline definitions carry ${String(violations.length)} violation(s):\n${violations

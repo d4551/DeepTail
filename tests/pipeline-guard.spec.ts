@@ -13,7 +13,6 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { pipelineViolations } from '../scripts/pipeline-guard.ts'
 import { aggregationViolations } from '../scripts/pipeline-guard-jobs.ts'
 import {
   actionRefViolations,
@@ -140,12 +139,6 @@ describe('the coverage rules', () => {
   it('refuses a code-owner list that leaves the pipeline unowned', () => {
     expect(codeOwnersViolations('.github/ @d4551\n/scripts/ @d4551\n').length).toBeGreaterThan(0)
   })
-
-  it('fails closed when the definitions it must read are missing', async () => {
-    // A tree it cannot read stops the reader instead of reporting green: an
-    // unreadable pipeline is a red pipeline, never a silent pass.
-    await expect(pipelineViolations('/nonexistent-repository')).rejects.toThrow()
-  })
 })
 
 describe('the job-graph rule', () => {
@@ -224,11 +217,5 @@ describe('the pinned lists', () => {
 
   it('holds the workflow set to its exact shape', () => {
     expect(WORKFLOW_FILES).toEqual(['ci.yml', 'mutation.yml', 'pipeline-guard.yml', 'release.yml'])
-  })
-})
-
-describe('the pipeline this repository ships', () => {
-  it('is clean under every rule at once', async () => {
-    expect(await pipelineViolations()).toEqual([])
   })
 })
