@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { pipelineViolations } from '../scripts/pipeline-guard.ts'
+import { aggregationViolations } from '../scripts/pipeline-guard-jobs.ts'
 import {
   actionRefViolations,
   bunVersionViolations,
@@ -147,6 +148,43 @@ describe('the coverage rules', () => {
   })
 })
 
+describe('the job-graph rule', () => {
+  it('refuses a merge gate whose jobs are not all aggregated into the one check', () => {
+    const refusal = [
+      "    if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')",
+      "      || contains(needs.*.result, 'skipped') }}",
+      '    run: exit 1',
+    ].join('\n')
+    const sound = ['jobs:', '  static:', '    runs-on: ubuntu-latest', '  gate:', '    needs: [static]', refusal].join(
+      '\n',
+    )
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, sound)).toEqual([])
+    // The same shape written as a block list: a rule that knew only the inline
+    // one would be a rule a rewrite steps around by changing punctuation.
+    const block = sound.replace('needs: [static]', 'needs:\n      - static')
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, block)).toEqual([])
+    // A job added beside the aggregate: it runs, it reports, and branch
+    // protection — which waits on the aggregate — never sees it.
+    const orphaned = sound.replace('  gate:', '  browser:\n    runs-on: ubuntu-latest\n  gate:')
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, orphaned)).toEqual([
+      'workflow ci.yml: browser, gate are each waited on by nothing; exactly one job aggregates the rest',
+    ])
+    // An aggregate that waits on a name no job carries waits on nothing.
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, sound.replace('[static]', '[typo]'))).toEqual([
+      'workflow ci.yml: the aggregate waits on typo, which is not a job here',
+    ])
+    // Reading the results and then exiting zero is reading them for nothing.
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, sound.replace('exit 1', 'echo fine'))).toEqual([
+      'workflow ci.yml: the aggregate does not refuse on exit 1',
+    ])
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, sound.replace("'cancelled'", "'nothing'"))).toEqual([
+      "workflow ci.yml: the aggregate does not refuse on 'cancelled'",
+    ])
+    // Only the merge gate is aggregated: the others gate no merge.
+    expect(aggregationViolations('release.yml', 'jobs:\n  bundles:\n    runs-on: ubuntu-latest\n')).toEqual([])
+  })
+})
+
 describe('the pinned lists', () => {
   it('holds the merge gates to their exact shape', () => {
     expect(MERGE_GATES).toEqual([
@@ -166,6 +204,7 @@ describe('the pinned lists', () => {
       'lint:rust',
       'test:rust',
       'test:browser',
+      'a11y',
     ])
   })
 

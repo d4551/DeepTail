@@ -3,14 +3,14 @@
  *
  * A mutation score is only worth what its denominator is. Three edits move it
  * without touching a line of product code — lowering the breaking threshold,
- * narrowing what is mutated, and leaving a source root out of every scope —
+ * narrowing what is mutated, and leaving a source file out of every scope —
  * and all three read as configuration rather than as a weakened test. A fourth,
  * the disable comment, exempts one mutant in place and leaves nothing at all in
  * the diff to say what was exempted or why.
  *
  * All four are refused here. What this suite checks, exactly: the thresholds,
  * that every scope names a `bun test` command and a non-empty `mutate`, that
- * nothing is excluded from `mutate`, that every source root the repository
+ * nothing is excluded from `mutate`, that every source file the repository
  * ships is inside some scope, that every scope has a script and every script a
  * scope, that every unit spec is either driven by some scope or declared here
  * as one no scope can drive, and that no source carries the disable comment.
@@ -39,18 +39,39 @@ interface StrykerConfig {
 const REQUIRED_SCORE = 99
 
 /**
- * Every directory of source the repository ships, which some scope must mutate.
+ * Every file of source the repository ships, which some scope must mutate.
  *
  * Read off the tree rather than listed: a package added with its own `src`
  * joins this on its own, and a scope that does not cover it fails here rather
  * than quietly shrinking the denominator.
+ *
+ * One file, not one directory. Reading this at directory granularity — "some
+ * pattern begins `scripts/`" — is what let `scripts/pipeline-guard.ts` and
+ * `scripts/pipeline-guard-rules.ts` sit outside every scope while the case
+ * below reported the denominator whole: forty-odd siblings inside a scope
+ * answered for them, and the two files nothing mutated were never named.
+ * @returns every source file's path, sorted.
  */
-function sourceRoots(): string[] {
-  const roots = repositoryFiles(['.ts'])
+function sourceFiles(): string[] {
+  return repositoryFiles(['.ts'])
     .map((file) => file.label)
     .filter((label) => label.startsWith('scripts/') || /^(?:apps|packages)\/[^/]+\/src\//u.test(label))
-    .map((label) => (label.startsWith('scripts/') ? 'scripts' : label.split('/').slice(0, 3).join('/')))
-  return [...new Set(roots)].toSorted()
+    .toSorted()
+}
+
+/**
+ * The files no `mutate` pattern selects.
+ *
+ * Matched by the same glob shapes the scopes are written in, so a pattern that
+ * would not select a file cannot answer for it either — which is exactly what
+ * a directory-prefix read let happen.
+ * @param files - the source the repository ships.
+ * @param patterns - every `mutate` pattern, from every scope.
+ * @returns one entry per file no scope mutates.
+ */
+function unmatched(files: readonly string[], patterns: readonly string[]): string[] {
+  const globs = patterns.map((pattern) => new Bun.Glob(pattern))
+  return files.filter((file) => !globs.some((glob) => glob.match(file)))
 }
 
 /**
@@ -67,7 +88,6 @@ const UNDRIVEABLE: Readonly<Record<string, string>> = {
   'tests/legacy.spec.ts': 'reads every file the repository ships, instrumented ones included',
   'tests/gate-coverage.spec.ts': 'reads every file the repository ships, instrumented ones included',
   'tests/mutation-config.spec.ts': 'refuses a tree a run has instrumented, which is every tree during a run',
-  'tests/pipeline-guard.spec.ts': 'guards the workflow definitions and manifest, which no mutation scope mutates',
 }
 
 /** Every mutation configuration the repository ships, with its contents. */
@@ -153,14 +173,33 @@ describe('every mutation run reads the tree it claims to', () => {
     expect(sandboxed).toEqual([])
   })
 
-  it('covers every root of source the repository ships', async () => {
-    // The denominator. A root inside no scope is a directory whose every
-    // mutant is uncounted, and nothing else in this repository would say so.
+  it('covers every file of source the repository ships', async () => {
+    // The denominator. A file inside no scope is a file whose every mutant is
+    // uncounted, and nothing else in this repository would say so.
     const patterns = (await configs()).flatMap(({ config }) => config.mutate ?? [])
-    const uncovered = sourceRoots().filter((root) => !patterns.some((pattern) => pattern.startsWith(`${root}/`)))
-    expect(uncovered).toEqual([])
+    expect(unmatched(sourceFiles(), patterns)).toEqual([])
   })
 
+  it('reads a source file at all, rather than an empty denominator', () => {
+    // The case above passes over an empty list. What it reads is the tree, so
+    // a reader that stopped answering would read as full coverage.
+    expect(sourceFiles().length).toBeGreaterThan(0)
+  })
+
+  it('names an uncovered file when it is given one, rather than only ever being green', () => {
+    // Driven against the exact hole this case was blind to for as long as it
+    // read directories: a sibling inside a scope answering for a file that is
+    // inside none. A pattern is only allowed to answer for what it selects.
+    const files = ['scripts/ast.ts', 'scripts/pipeline-guard.ts', 'apps/x/src/deep/one.ts']
+    expect(unmatched(files, ['scripts/ast.ts', 'apps/x/src/**/*.ts'])).toEqual(['scripts/pipeline-guard.ts'])
+    expect(unmatched(files, ['scripts/*.ts', 'apps/x/src/**/*.ts'])).toEqual([])
+    // A directory prefix is not a pattern that selects anything: the shape the
+    // old reader accepted must now be refused.
+    expect(unmatched(files, ['scripts/', 'apps/x/src/'])).toEqual(files)
+  })
+})
+
+describe('every mutation scope and the scripts that run it', () => {
   it('has a script for every scope, and a scope for every script', async () => {
     const declared = new Set((await configs()).map(({ label }) => label))
     const named = new Set(

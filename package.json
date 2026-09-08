@@ -40,19 +40,19 @@
     "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests --timeout 60000",
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
     "typecheck": "tsc --build tsconfig.json && tsc -p tsconfig.tools.json && tsc -p packages/host-fleet/tsconfig.tests.json && tsc -p apps/deeptail/tsconfig.tests.json",
-    "validate": "bun run lint && bun run check:tree && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:bans && bun run check:entries && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser"
+    "validate": "bun run lint && bun run check:tree && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:bans && bun run check:entries && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser && bun run a11y"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
     "@stryker-mutator/core": "10.0.0",
     "@tauri-apps/cli": "2.11.4",
-    "@types/bun": "^1.4.1",
-    "@types/node": "^26.4.1",
+    "@types/bun": "^1.4.2",
+    "@types/node": "^26.5.0",
     "@types/semver": "7.8.0",
     "jsonc-parser": "3.3.1",
     "knip": "6.34.0",
-    "oxc-parser": "0.148.0",
-    "oxlint": "1.81.0",
+    "oxc-parser": "0.149.0",
+    "oxlint": "1.82.0",
     "parse5": "8.0.1",
     "semver": "7.8.5",
     "typescript": "7.0.2"

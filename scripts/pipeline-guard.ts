@@ -5,7 +5,8 @@
  * A pipeline that decides whether the repository ships is text that nothing
  * else re-reads, so it is exactly the text worth rewriting first. This module
  * reads the definitions under `.github/workflows`, the package manifest and
- * the code-owner list, applies every rule in `pipeline-guard-rules.ts`, and
+ * the code-owner list, applies every rule in `pipeline-guard-rules.ts` and
+ * `pipeline-guard-jobs.ts`, and
  * fails closed: a definition the rules cannot read is a violation, never an
  * absence of one. The suite in `tests/pipeline-guard.spec.ts` drives each rule
  * against synthetic definitions that carry the cheat, then drives every rule
@@ -16,6 +17,7 @@
 
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { aggregationViolations } from './pipeline-guard-jobs.ts'
 import {
   actionRefViolations,
   bunVersionViolations,
@@ -90,6 +92,7 @@ function workflowViolations(file: WorkflowFile, version: string | undefined): st
     ...installViolations(file.name, file.text),
     ...scheduleViolations(file.name, file.text),
     ...gateCoverageViolations(file.name, file.text),
+    ...aggregationViolations(file.name, file.text),
     ...(version === undefined ? [] : bunVersionViolations(file.name, file.text, version)),
   ]
 }

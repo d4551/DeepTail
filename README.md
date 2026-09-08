@@ -258,7 +258,7 @@ until three changes land upstream. The control plane does not depend on them.
 
 ```sh
 bun install
-bun run validate          # biome, oxlint, styles gate, typecheck, tests, knip, clippy, cargo test, browser
+bun run validate          # biome, oxlint, styles gate, typecheck, tests, knip, clippy, cargo test, browser, axe
 bun run tauri dev         # desktop
 bun run tauri android dev # Android Studio, JAVA_HOME, ANDROID_HOME, NDK_HOME
 bun run tauri ios dev     # macOS + Xcode + CocoaPods only
@@ -292,11 +292,13 @@ names it. The 44px floor is only measured on a page opened with `hasTouch`:
 against it would test a pairing that does not exist.
 
 Every dependency is held at the newest version this workspace can install.
-`check:outdated` reads `bun outdated` — the package manager's own report, which
-already knows about ranges, workspaces and the supply-chain hold in
-`bunfig.toml` — rather than asking the registry itself. A version the hold is
-withholding is reported and passes: that hold is policy working, and demanding
-it would make going green require bypassing it.
+`check:outdated` reads `bun outdated --filter "*"` — the package manager's own
+report, which already knows about ranges and workspaces — rather than asking
+the registry itself, and refuses any pin behind a published version. Nothing
+withholds a release from resolution: `bunfig.toml` sets no release hold, and
+`tests/stack.spec.ts` refuses one, so a pin behind is a pin to move rather than
+a policy to explain. The floors in `tests/stack.spec.ts` are held equal to the
+pins, so a downgrade fails there and an upgrade has to be written down.
 
 Playwright resolves the Chromium it installed. An image that pre-ships one at a
 fixed path instead names it in `apps/deeptail/tests/chromium.json`:
@@ -305,10 +307,45 @@ fixed path instead names it in `apps/deeptail/tests/chromium.json`:
 { "executablePath": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" }
 ```
 
+## Pipeline
+
+Two checks decide a merge, and branch protection requires both.
+
+`gate` (`.github/workflows/ci.yml`) runs the repository's own gate scripts
+unmodified across four jobs — `static`, `types-and-tests`, `browser` and `rust`
+— and a fifth, `gate`, that waits on all four and exits non-zero unless every
+one reported green. A job outside that aggregate would run, report, and block
+nothing, so `aggregationViolations` in `scripts/pipeline-guard-rules.ts` refuses
+one. Every action is pinned to a full commit sha, every job is bounded by a
+timeout, every checkout drops its token, and every install is frozen to the
+lockfile.
+
+`pipeline-guard` (`scripts/pipeline-guard.ts`) reads the workflow definitions,
+the manifest and the code-owner list the way a reviewer would, and fails closed:
+a definition it cannot read is a violation, never an absence of one. The gates
+that decide ship-worthiness are pinned by name in `MERGE_GATES`, held to the
+same list by the `validate` chain and by `ci.yml`, so dropping one turns this
+check red on the same commit that drops it. `tests/pipeline-guard.spec.ts`
+drives every rule against a definition carrying the cheat, then drives all of
+them at once against the pipeline this repository actually ships.
+
+`mutation` (`.github/workflows/mutation.yml`) is an audit on a clock rather than
+a merge decision. Five Stryker scopes cover every source file the repository
+ships — `scripts/`, `apps/deeptail/src/` and `packages/host-fleet/src/` — each
+breaking below a score of 99. `tests/mutation-config.spec.ts` reads the scopes
+against the tree file by file, so a file inside no scope is named rather than
+answered for by a sibling, and refuses the four edits that move a score without
+touching product code: a lowered threshold, a narrowed `mutate`, a file left
+outside every scope, and the in-place disable comment.
+
 ## Toolchain
 
-TypeScript 7.0.2 · Bun 1.4 · Node 24 LTS · Tauri 2.11 · Rust edition 2024 ·
-Vite 8 · Playwright 1.62.1.
+TypeScript 7.0.2 · Bun 1.4.2 · Node 24 LTS · Tauri 2.11 · Rust edition 2024 ·
+Vite 8 · Playwright 1.63.0.
+
+`tests/stack.spec.ts` reads the versions on that line back against the
+manifests, so a toolchain line that says something the repository does not
+install is a failure rather than a paragraph nobody re-read.
 
 ## License
 

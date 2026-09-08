@@ -54,6 +54,7 @@ export const MERGE_GATES: readonly string[] = [
   'lint:rust',
   'test:rust',
   'test:browser',
+  'a11y',
 ]
 
 /**
