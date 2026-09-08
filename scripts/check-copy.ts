@@ -36,7 +36,11 @@ const UI_SOURCE = 'apps/deeptail/src/'
 export function scanCopy(label: string, text: string): readonly Offence[] {
   const parsed = parseScript(label, text)
   const names: Names = { aliases: aliases(parsed.body), constants: constants(parsed.body) }
-  const offences: Offence[] = []
+  const offences: Offence[] = parsed.errors.map((error) => ({
+    label,
+    line: 1,
+    why: `this file does not parse, so it cannot be checked: ${error.message}`,
+  }))
   walk(parsed.body, (node) => {
     if (writesUntranslatedCopy(node, names)) {
       offences.push({ label, line: parsed.lineAt(node.start), why: COPY_REFUSAL })
