@@ -52,8 +52,7 @@ export const MAX_CODE_LINES = 300
 /** Where a block comment opens and closes, in every dialect this reads. */
 const BLOCK_COMMENTS = /\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->/gu
 
-/** A line that carries only a comment, in every dialect this reads. */
-const COMMENT_LINE = /^(?:\/\/|\*|<!--|-->)/u
+const COMMENT_LINE = /^\/\//u
 
 /**
  * How many lines of a file are code.
