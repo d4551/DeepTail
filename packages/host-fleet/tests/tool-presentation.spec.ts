@@ -10,7 +10,9 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { GenericCallView } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import type { FleetTool } from '../src/types.ts'
 import { registerTools, script } from './controller-double.ts'
 
 /** Every tool, registered once for the whole suite. */
@@ -21,28 +23,10 @@ const tools = registerTools(script())
  * @param name - the tool's name.
  * @returns its definition.
  */
-function tool(name: string): ToolDefinition {
+function tool(name: string): FleetTool {
   const found = tools.get(name)
   if (found === undefined) throw new Error(`${name} was never registered`)
   return found
-}
-
-/** One content block a renderer produced. */
-interface Block {
-  readonly type?: string
-  readonly text?: string
-}
-
-/**
- * The blocks a tool's renderer produces for one value.
- * @param name - the tool's name.
- * @param value - the value the execution returned.
- * @param args - the arguments the call was made with.
- * @returns the blocks, whole.
- */
-function blocks(name: string, value: object, args: object = {}): readonly Block[] {
-  const output = tool(name).output as { readonly render?: (a: object, v: object) => readonly Block[] } | undefined
-  return output?.render?.(args, value) ?? []
 }
 
 /**
@@ -56,31 +40,30 @@ function blocks(name: string, value: object, args: object = {}): readonly Block[
  * @param args - the arguments the call was made with.
  * @returns the rendered text.
  */
-function rendered(name: string, value: object, args: object = {}): string {
-  const produced = blocks(name, value, args)
+function rendered(name: string, value: JsonValue, args: JsonValue = {}): string {
+  const produced = tool(name).output.render(args, value)
   expect(produced.map((block) => block.type)).toEqual(produced.map(() => 'text'))
   expect(produced.length).toBeGreaterThan(0)
-  return produced.map((block) => block.text ?? '').join('')
-}
-
-/** What a tool's call card carries. */
-interface Card {
-  readonly card: string
-  readonly title: string
-  readonly kind: string
-  readonly rawInput?: string
+  return produced.map((block) => (block.type === 'text' ? block.text : '')).join('')
 }
 
 /**
  * The call card a tool presents for one set of arguments.
+ *
+ * A card is a tagged union, and only the generic arm carries the category and
+ * the salient input these tools declare; a tool that presented a terminal or a
+ * diff card refuses here rather than reading as a generic one with both absent.
  * @param name - the tool's name.
  * @param args - the arguments the call was made with.
  * @returns the card.
  */
-function card(name: string, args: object): Card {
-  const present = tool(name).presentCall as ((a: object) => Card) | undefined
+function card(name: string, args: JsonValue): GenericCallView {
+  const present = tool(name).presentCall
   if (present === undefined) throw new Error(`${name} presents no call card`)
-  return present(args)
+  const view = present(args)
+  if (view === undefined) throw new Error(`${name} presents no card for those arguments`)
+  if (view.card !== 'generic') throw new Error(`${name} presents a ${view.card} card, not a generic one`)
+  return view
 }
 
 describe('every tool renders its result for a person', () => {

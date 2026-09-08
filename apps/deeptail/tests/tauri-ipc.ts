@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { IndexInjection } from '../src/injections.ts'
+import type { JsonValue } from '../src/wire.ts'
 import { BOOT_SOURCES, deeptailBootTable, deeptailLoadBundle } from './tauri-ipc-boot.ts'
 import { CARRIER_SOURCES, deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux } from './tauri-ipc-carrier.ts'
 import { deeptailListHosts, deeptailPairHost, issuedGrants } from './tauri-ipc-registry.ts'
@@ -58,7 +58,7 @@ export interface ForwardedEvent {
 }
 
 /** A JSON value, as the wire carries it: the shape every recorded argument has. */
-export type JsonValue = string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue }
+export type { JsonValue }
 
 /** One machine as the native side reports it. */
 interface TailnetFixture {
@@ -150,7 +150,7 @@ export type AnswerTable = {
    * before this existed — so every row kind, and the order that is the whole
    * contract, went unexercised.
    */
-  readonly bootInjections?: readonly IndexInjection[]
+  readonly bootInjections?: readonly JsonValue[]
   /** The source `carrier_load_bundle` answers with, keyed by the path asked for. */
   readonly bundleSources?: Readonly<Record<string, string>>
   /** Why a bundle path fails to load, keyed the same way. */

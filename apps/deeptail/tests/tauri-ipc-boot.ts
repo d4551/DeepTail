@@ -14,7 +14,7 @@
  * @module
  */
 
-import type { IndexInjection } from '../src/injections.ts'
+import type { JsonValue } from '../src/wire.ts'
 import type { AnswerTable, IpcState } from './tauri-ipc.ts'
 
 /**
@@ -22,7 +22,7 @@ import type { AnswerTable, IpcState } from './tauri-ipc.ts'
  * @param script - the answers this page should give.
  * @returns the rows the host serves, or the refusal the case asked for.
  */
-export function deeptailBootTable(script: AnswerTable): Promise<readonly IndexInjection[]> {
+export function deeptailBootTable(script: AnswerTable): Promise<readonly JsonValue[]> {
   return script.bootError === undefined
     ? Promise.resolve(script.bootInjections ?? [])
     : Promise.reject(new Error(script.bootError))

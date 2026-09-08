@@ -71,12 +71,12 @@ describe('the stack policy bans', () => {
     // The v3-and-earlier pipeline was configured by a file; the v4-and-later
     // one compiles away inside the build. Either is a pipeline this product
     // retired, and a config file is the shape a reintroduction takes first.
-    const legacy = repositoryFiles(['.js', '.cjs', '.mjs', '.ts', '.json', '.yml', '.yaml', '.toml'])
+    const retired = repositoryFiles(['.js', '.cjs', '.mjs', '.ts', '.json', '.yml', '.yaml', '.toml'])
       .map((file) => file.label)
       .filter((label) =>
         /(?:^|\/)(?:tailwind|postcss|daisyui|purgecss|autoprefixer)\.config\b|\.postcssrc\b/u.test(label),
       )
-    expect(legacy).toEqual([])
+    expect(retired).toEqual([])
   })
 
   it('ships exactly one page, wired to exactly the one module entry', async () => {

@@ -16,7 +16,8 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { assertObjectJsonSchema, type JsonSchemaNode, type ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
+import type { FleetTool } from '../src/types.ts'
 import { registerTools, script } from './controller-double.ts'
 
 /** Every tool, registered once for the whole suite. */
@@ -27,35 +28,39 @@ const tools = registerTools(script())
  * @param name - the tool's name.
  * @returns its definition.
  */
-function tool(name: string): ToolDefinition {
+function tool(name: string): FleetTool {
   const found = tools.get(name)
   if (found === undefined) throw new Error(`${name} was never registered`)
   return found
 }
 
 /**
- * A JSON-schema node, as far as this suite reads one.
+ * One tool's parameter schema, checked against the subset the registry enforces.
  *
- * The registry normalizes what a tool declares: a `required: true` beside a
- * property becomes a name in the object's own `required` list, and an object
- * that requires nothing carries no list at all.
+ * `ToolSchema.parameters` is declared as an open record, so every reader below
+ * would otherwise be telling the compiler what it hopes is there. The registry's
+ * own assertion is what decides: a parameter block that is not an object-rooted
+ * schema in the enforced subset refuses here, by path, rather than reading as an
+ * object with no properties and passing every assertion about what it declares.
+ * @param name - the tool's name.
+ * @returns the parameter schema.
  */
-interface SchemaNode {
-  readonly type?: string
-  readonly required?: readonly string[]
-  readonly additionalProperties?: boolean
-  readonly description?: string
-  readonly enum?: readonly string[]
-  readonly properties?: Readonly<Record<string, SchemaNode>>
-  readonly items?: SchemaNode
+function parameterSchema(name: string): ObjectJsonSchema {
+  const declared = tool(name).parameters
+  assertObjectJsonSchema(declared)
+  return declared
 }
 
 /**
  * Each property of an object schema, as name, type and whether it is required.
+ *
+ * The registry normalizes what a tool declares: a `required: true` beside a
+ * property becomes a name in the object's own `required` list, and an object
+ * that requires nothing carries no list at all.
  * @param node - the object schema.
  * @returns one row per property, in declaration order.
  */
-function properties(node: SchemaNode): [string, string, boolean][] {
+function properties(node: JsonSchemaNode): [string, string, boolean][] {
   const required = new Set(node.required ?? [])
   return Object.entries(node.properties ?? {}).map(([key, one]) => [key, one.type ?? '', required.has(key)])
 }
@@ -66,7 +71,7 @@ function properties(node: SchemaNode): [string, string, boolean][] {
  * @returns one row per parameter, in declaration order.
  */
 function parameters(name: string): [string, string, boolean][] {
-  return properties(tool(name).parameters as SchemaNode)
+  return properties(parameterSchema(name))
 }
 
 /**
@@ -75,8 +80,7 @@ function parameters(name: string): [string, string, boolean][] {
  * @returns the descriptions, in declaration order.
  */
 function parameterText(name: string): string[] {
-  const declared = (tool(name).parameters as SchemaNode).properties ?? {}
-  return Object.values(declared).map((one) => one.description ?? '')
+  return Object.values(parameterSchema(name).properties ?? {}).map((one) => one.description ?? '')
 }
 
 /**
@@ -84,10 +88,8 @@ function parameterText(name: string): string[] {
  * @param name - the tool's name.
  * @returns the schema.
  */
-function schema(name: string): SchemaNode {
-  const output = tool(name).output as { readonly schema: SchemaNode } | undefined
-  if (output === undefined) throw new Error(`${name} declares no output schema`)
-  return output.schema
+function schema(name: string): JsonSchemaNode {
+  return tool(name).output.schema
 }
 
 describe('every tool declares itself to the model', () => {
@@ -161,7 +163,7 @@ describe('every tool declares its parameters', () => {
   })
 
   it('offers the two delivery modes as the only choices', () => {
-    const mode = (tool('sessions_send').parameters as SchemaNode).properties?.['mode']
+    const mode = parameterSchema('sessions_send').properties?.['mode']
     expect(mode?.enum).toEqual(['queue', 'steer'])
     expect(mode?.description).toContain('default "queue"')
   })

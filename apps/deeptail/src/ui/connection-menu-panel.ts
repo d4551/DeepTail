@@ -14,7 +14,8 @@ import { ACTIONS } from '../actions/registry.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
 import type { ConnectionPorts } from './connection-menu.ts'
-import { bindRovingFocus, button, el, screenReaderText } from './dom.ts'
+import { button, el, screenReaderText } from './dom.ts'
+import { bindRovingFocus } from './roving.ts'
 import { hostStateLabel } from './states.ts'
 
 /** Everything one open menu is drawn from. */

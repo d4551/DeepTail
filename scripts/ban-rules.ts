@@ -9,9 +9,10 @@
  * @module
  */
 
-import { type Field, isNode, type Node, unwrap } from './ast.ts'
+import { type Field, fieldOf, isNode, type Node, unwrap } from './ast.ts'
+import { namesDebt } from './debt-names.ts'
 import { staticString } from './fold.ts'
-import { LEGACY_RULES } from './react-tauri-rules.ts'
+import { SUPERSEDED_RULES } from './react-tauri-rules.ts'
 import { callsGlobal, callsMethod, identifier, literalKey, type Names, property, type Rule } from './rule-helpers.ts'
 
 /** Properties whose assignment replaces an element's markup. */
@@ -71,6 +72,18 @@ export const BANNED: readonly Rule[] = [
     why: 'a non-null assertion overrides the checker; narrow the value or handle the absent case',
   },
   {
+    holds: (node) => node.type === 'TSAsExpression' && !isConstAssertion(node),
+    why: 'an as-expression claims a shape nothing proved; narrow the value with a predicate',
+  },
+  {
+    holds: (node) => node.type === 'CatchClause',
+    why: 'a catch reads any failure as one shape; settle the promise, or let the failure travel',
+  },
+  {
+    holds: (node) => namesDebt(node),
+    why: 'this name says the code stands in for something real; name what it does, or remove the debt',
+  },
+  {
     holds: (node) => node.type === 'TSImportEqualsDeclaration',
     why: 'import-equals is TypeScript 6 syntax; use a default import or `import type`',
   },
@@ -86,8 +99,20 @@ export const BANNED: readonly Rule[] = [
     holds: (node, names) => expandoPrototype(node, names),
     why: 'the constructor-function expando pattern was removed in TypeScript 7; use a class',
   },
-  ...LEGACY_RULES,
+  ...SUPERSEDED_RULES,
 ]
+
+/**
+ * Whether an as-expression is the const assertion.
+ *
+ * `as const` claims nothing about a value: it narrows a literal to itself,
+ * which is the opposite of the escape the ban is about.
+ * @param node - the as-expression.
+ * @returns true when it is `as const`.
+ */
+function isConstAssertion(node: Node): boolean {
+  return fieldOf(fieldOf(node['typeAnnotation'], 'typeName'), 'name') === 'const'
+}
 
 /**
  * Whether a timer call receives text to run rather than a function.

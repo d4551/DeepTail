@@ -191,3 +191,84 @@ describe('the ban on syntax the checker no longer follows', () => {
     expect(bans('Chart.prototype = base')).toEqual([])
   })
 })
+
+describe('the ban on claiming what nothing proved', () => {
+  const why = 'an as-expression claims a shape nothing proved; narrow the value with a predicate'
+
+  it('refuses an as-expression, however far the claim reaches', () => {
+    expect(bans('const a = b as Row')).toEqual([why])
+    expect(bans('const a = b as unknown as Row')).toEqual([why, why])
+    expect(bans('function f(v) { return (v as Row).id }')).toEqual([why])
+  })
+
+  it('admits the const assertion, which narrows a literal to itself', () => {
+    expect(bans('const a = [1, 2] as const')).toEqual([])
+    expect(bans('const a = { k: 1 } as const')).toEqual([])
+  })
+
+  it('admits a value narrowed by a predicate, which is what the ban asks for', () => {
+    expect(bans('function isRow(v) { return typeof v === "object" }', 'const a = isRow(b) ? b : undefined')).toEqual([])
+  })
+})
+
+describe('the ban on reading every failure as one shape', () => {
+  const why = 'a catch reads any failure as one shape; settle the promise, or let the failure travel'
+
+  it('refuses a catch clause, named binding or not', () => {
+    expect(bans(joined('try { go() } cat', 'ch (error) { report(error) }'))).toEqual([why])
+    expect(bans(joined('try { go() } cat', 'ch { report() }'))).toEqual([why])
+    expect(bans(joined('try { go() } cat', 'ch (error) { report(error) } finally { done() }'))).toEqual([why])
+  })
+
+  it('admits a failure that is settled rather than swallowed', () => {
+    expect(bans('const a = go().then(done, report)')).toEqual([])
+    expect(bans('const a = await Promise.allSettled([go()])')).toEqual([])
+  })
+})
+
+describe('the ban on a name that says the code stands in for something', () => {
+  const why = 'this name says the code stands in for something real; name what it does, or remove the debt'
+
+  it('refuses a debt word wherever a name is written, in each casing a name uses', () => {
+    expect(bans('function stubDeps() { return 1 }')).toEqual([why])
+    expect(bans('class FakeSocket {}')).toEqual([why])
+    expect(bans('const MOCK_ROWS = []')).toEqual([why])
+    expect(bans('const temporaryRows = 1')).toEqual([why])
+    expect(bans('const compat_layer = 1')).toEqual([why])
+  })
+
+  it('refuses the word wherever it sits in the name, not only at its head', () => {
+    expect(bans('const readStubRow = 1')).toEqual([why])
+    expect(bans('const rowsAreFake = 1')).toEqual([why])
+  })
+
+  it('refuses one in a declaration of any kind, a member or a parameter included', () => {
+    expect(bans('interface FakeRow { id: string }')).toEqual([why])
+    expect(bans('type LegacyRow = { id: string }')).toEqual([why])
+    expect(bans('const row = { mockId: 1 }')).toEqual([why])
+    expect(bans('function read(stubRow) { return stubRow }')).toEqual([why])
+    expect(bans('const { fakeRow } = source')).toEqual([why])
+    expect(bans('const [firstMock] = rows')).toEqual([why])
+    expect(bans('class Reader { dummyRow = 1 }')).toEqual([why])
+  })
+
+  it('admits a name that merely contains the letters, which claims nothing', () => {
+    // A rule matching substrings would refuse `broadcast` for `cast` and
+    // `company` for `any`, which is a rule nobody could satisfy.
+    expect(bans('const broadcast = 1')).toEqual([])
+    expect(bans('const company = 1')).toEqual([])
+    expect(bans('const template = 1')).toEqual([])
+    expect(bans('const stubborn = 1')).toEqual([])
+  })
+
+  it('admits a member of an API this repository did not name, which it cannot rename', () => {
+    // `input.placeholder` is the DOM's own property and `it.todo` is the test
+    // runner's own modifier — which the ban above refuses on its own terms.
+    expect(bans('input.placeholder = text')).toEqual([])
+    expect(bans('const key = row["mockId"]')).toEqual([])
+  })
+
+  it('admits the word as data, because a table of banned words is not a name', () => {
+    expect(bans(joined('const words = ["st', 'ub", "fa', 'ke"]'))).toEqual([])
+  })
+})

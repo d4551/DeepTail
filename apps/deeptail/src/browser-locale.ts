@@ -7,8 +7,18 @@
  * @module
  */
 
-/** The locales DeepTail ships. */
-export type LocaleId = 'en' | 'zh'
+/**
+ * Every locale this product ships, in the order it prefers them.
+ *
+ * Written as a list as well as a type, because a reader that walks the
+ * locales — a suite holding the dictionaries to one key set, a picker offering
+ * a choice — needs the members rather than the union, and reading them off
+ * `Object.keys` answers with strings and claims they are locales.
+ */
+export const LOCALES = ['en', 'zh'] as const
+
+/** One locale this product ships. */
+export type LocaleId = (typeof LOCALES)[number]
 
 /** The navigator fields the resolution reads, present in every target browser. */
 interface LanguagePreference {

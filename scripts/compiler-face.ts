@@ -22,7 +22,7 @@ const TS6_RESOLUTIONS = new Set(['node', 'node10', 'classic'])
  * Targets below `esnext`. A face that emits ES5/ES6/ES2020 is a TypeScript 6
  * (or earlier) default this repository does not ship.
  */
-const LEGACY_TARGETS = new Set([
+const SUPERSEDED_TARGETS = new Set([
   'es3',
   'es5',
   'es6',
@@ -75,7 +75,7 @@ export function compilerFaceOffences(options: { readonly [key: string]: Json }):
   if (resolution !== undefined) {
     offences.push(`moduleResolution ${resolution} is a TypeScript 6 resolver; use bundler`)
   }
-  const target = statedOneOf(options['target'], LEGACY_TARGETS)
+  const target = statedOneOf(options['target'], SUPERSEDED_TARGETS)
   if (target !== undefined) {
     offences.push(`target ${target} is a TypeScript ≤6 emit face; use esnext`)
   }

@@ -22,6 +22,7 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import type { IndexInjection } from '../src/injections.ts'
+import type { JsonValue } from '../src/wire.ts'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
 
@@ -97,7 +98,7 @@ const EVERY_KIND: readonly IndexInjection[] = [
  * @returns the page, with the boot attempted.
  */
 async function boot(
-  table: readonly IndexInjection[],
+  table: readonly JsonValue[],
   sources: Readonly<Record<string, string>> = {},
   failures: Readonly<Record<string, string>> = {},
 ): Promise<Page> {
@@ -176,11 +177,10 @@ it('refuses a row of a kind it does not know, rather than skipping it in silence
   // A table is a contract with a host that may be ahead of this client. A row
   // this build cannot honour is a shell that would boot missing something, so
   // it stops the boot and says which row it was.
-  const unknown = [
+  const page = await boot([
     { kind: 'global', name: 'deeptailBootProbe', value: 'served' },
     { kind: 'chalk-outline', placement: 'body' },
-  ] as unknown as readonly IndexInjection[]
-  const page = await boot(unknown)
+  ])
   await page.locator('[data-deeptail-state="shell-error"]').waitFor({ state: 'visible' })
   expect(await textOf(page, '[data-deeptail-state="shell-error"]')).toContain('chalk-outline')
   await page.close()

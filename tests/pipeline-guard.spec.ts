@@ -149,10 +149,10 @@ describe('the names a gate is told apart from', () => {
     const shortChain = MERGE_GATES.filter((gate) => gate !== 'knip')
       .map((gate) => `bun run ${gate}`)
       .join(' && ')
-    expect(validateChainViolations({ validate: shortChain })).toEqual([
+    expect(validateChainViolations(new Map([['validate', shortChain]]))).toEqual([
       'package.json: the validate chain no longer runs knip',
     ])
-    expect(validateChainViolations({})).toEqual([
+    expect(validateChainViolations(new Map())).toEqual([
       'package.json: the validate chain is gone; nothing decides ship-worthiness',
     ])
   })

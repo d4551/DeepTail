@@ -105,8 +105,8 @@ function checkHeadingOrder(add: Report): void {
   // `offsetParent` is null for anything `position: fixed`, which is the whole
   // of an open drawer and every dialog, so filtering on it excluded exactly the
   // surfaces whose outline is hardest to get right.
-  const headings = [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')].filter((node) =>
-    (node as HTMLElement).checkVisibility(),
+  const headings = [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')].filter(
+    (node) => node instanceof HTMLElement && node.checkVisibility(),
   )
   const levels = headings.map((node) => Number(node.tagName.slice(1)))
   if (levels.length === 0) add('no-heading', 'the page has no heading at all')

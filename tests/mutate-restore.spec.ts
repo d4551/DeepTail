@@ -24,7 +24,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 /** Where a run keeps the originals of the files it rewrote. */
-const TEMP = '.stryker-tmp'
+const ORIGINALS = '.stryker-tmp'
 
 /** The switch the instrumenter wraps around every mutated expression. */
 const MARKER = ['stry', 'MutAct_'].join('')
@@ -80,7 +80,7 @@ async function write(path: string, text: string): Promise<void> {
  */
 async function interruptedRun(original: string, working: string): Promise<{ root: string; file: string }> {
   const root = await scratch()
-  await write(join(root, TEMP, 'backup-abc123', 'src', 'thing.ts'), original)
+  await write(join(root, ORIGINALS, 'backup-abc123', 'src', 'thing.ts'), original)
   await write(join(root, 'src', 'thing.ts'), working)
   return { root, file: join(root, 'src', 'thing.ts') }
 }
@@ -120,7 +120,7 @@ it('names every file it put back, one to a line, with nothing between them', asy
   // One path per line is what makes the report readable rather than counted.
   // Anything written between two of them is a path a reader cannot open.
   const { root } = await interruptedRun(ORIGINAL, INSTRUMENTED)
-  await write(join(root, TEMP, 'backup-abc123', 'src', 'other.ts'), ORIGINAL)
+  await write(join(root, ORIGINALS, 'backup-abc123', 'src', 'other.ts'), ORIGINAL)
   await write(join(root, 'src', 'other.ts'), INSTRUMENTED)
   const said = await guard(root)
   expect(said.out.split('\n').toSorted()).toEqual(['', join('src', 'other.ts'), join('src', 'thing.ts')])
@@ -156,8 +156,8 @@ it('reads the backups a run took, and nothing else kept beside them', async () =
   // put a file back to a state no one asked for, and a stray file there is not
   // a directory a walk can even open.
   const { root, file } = await interruptedRun(ORIGINAL, INSTRUMENTED)
-  await write(join(root, TEMP, 'sandbox-xyz789', 'src', 'thing.ts'), 'export const x = 99\n')
-  await write(join(root, TEMP, 'reporter.json'), '{}\n')
+  await write(join(root, ORIGINALS, 'sandbox-xyz789', 'src', 'thing.ts'), 'export const x = 99\n')
+  await write(join(root, ORIGINALS, 'reporter.json'), '{}\n')
   expect(await guard(root)).toEqual({
     code: 0,
     out: `${join('src', 'thing.ts')}\n`,
@@ -170,7 +170,7 @@ it('passes over a backup of a file the working tree no longer holds', async () =
   // A backup names what the run rewrote, not what the tree holds now. A file
   // deleted since is not a file to write back into existence.
   const root = await scratch()
-  await write(join(root, TEMP, 'backup-abc123', 'src', 'gone.ts'), ORIGINAL)
+  await write(join(root, ORIGINALS, 'backup-abc123', 'src', 'gone.ts'), ORIGINAL)
   expect(await guard(root)).toEqual(SILENT)
   expect(await Bun.file(join(root, 'src', 'gone.ts')).exists()).toBe(false)
 })

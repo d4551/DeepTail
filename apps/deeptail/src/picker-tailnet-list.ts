@@ -14,7 +14,8 @@ import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
 import type { PickerContext } from './picker-views.ts'
 import type { TailnetHost } from './tailscale.ts'
-import { bindRovingFocus, el } from './ui/dom.ts'
+import { el } from './ui/dom.ts'
+import { bindRovingFocus } from './ui/roving.ts'
 
 /** The machine-list state. */
 export interface TailnetListState {

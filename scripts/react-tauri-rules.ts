@@ -66,7 +66,7 @@ function namesMember(node: Node, wanted: string, names: Names): boolean {
 }
 
 /** Idioms React 19 and Tauri 2 removed, stated about the tree. */
-export const LEGACY_RULES: readonly Rule[] = [
+export const SUPERSEDED_RULES: readonly Rule[] = [
   {
     holds: (node, names) => callsMethod(node, 'ReactDOM', [...REACT_REMOVED_CALLS], names),
     why: 'ReactDOM render and its siblings were removed in React 19; use createRoot and refs',

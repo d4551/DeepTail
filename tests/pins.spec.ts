@@ -8,10 +8,10 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { readManifest, sectionOf } from '../scripts/manifest.ts'
 import { declaredPins } from '../scripts/pins.ts'
 import { repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
 
@@ -37,9 +37,9 @@ describe('the declared pins', () => {
     expect(manifests.length).toBeGreaterThan(1)
     const pins = declaredPins()
     for (const manifest of manifests) {
-      const parsed = JSON.parse(readFileSync(manifest.path, 'utf8')) as Record<string, Record<string, string>>
+      const parsed = readManifest(manifest.path)
       for (const kind of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
-        for (const [name, range] of Object.entries(parsed[kind] ?? {})) {
+        for (const [name, range] of sectionOf(parsed, kind)) {
           expect([manifest.label, name, pins.get(name)]).toEqual([manifest.label, name, range])
         }
       }
@@ -53,9 +53,7 @@ describe('the declared pins', () => {
     const kinds = ['dependencies', 'devDependencies']
     const found = kinds.map((kind) => {
       const declared = repositoryFiles(['package.json']).flatMap((manifest) =>
-        Object.keys(
-          (JSON.parse(readFileSync(manifest.path, 'utf8')) as Record<string, Record<string, string>>)[kind] ?? {},
-        ),
+        Array.from(sectionOf(readManifest(manifest.path), kind).keys()),
       )
       return declared.every((name) => pins.has(name)) && declared.length > 0
     })

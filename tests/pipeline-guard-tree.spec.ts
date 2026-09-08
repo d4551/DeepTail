@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { readManifest } from '../scripts/manifest.ts'
 import { pipelineViolations } from '../scripts/pipeline-guard.ts'
 import { CODE_OWNED_PATHS, WORKFLOW_FILES } from '../scripts/pipeline-guard-rules.ts'
 import { ROOT } from '../scripts/source-tree.ts'
@@ -27,10 +28,23 @@ const WORKFLOWS = join('.github', 'workflows')
 /** The program the merge gate runs, by absolute path. */
 const GUARD = new URL('../scripts/pipeline-guard.ts', import.meta.url).pathname
 
-/** The manager pin this repository ships, which a copied tree carries too. */
-const SHIPPED_PIN = (
-  JSON.parse(await Bun.file(new URL('../package.json', import.meta.url).pathname).text()) as { packageManager: string }
-).packageManager
+/** This repository's own manifest, which a copied tree is built from. */
+const SHIPPED = readManifest(new URL('../package.json', import.meta.url).pathname)
+
+/**
+ * The manager pin it carries, which a copied tree carries too.
+ * @returns the pin.
+ * @throws Error when this repository declares none, which every case below
+ * would otherwise read as a pin of no characters.
+ */
+function shippedPin(): string {
+  const pin = SHIPPED['packageManager']
+  if (typeof pin !== 'string') throw new Error('this repository declares no packageManager pin')
+  return pin
+}
+
+/** The manager pin it carries, which a copied tree carries too. */
+const SHIPPED_PIN = shippedPin()
 
 /** Trees this suite made, removed when it ends. */
 const made: string[] = []
@@ -59,8 +73,7 @@ async function pipelineTree(pin?: string | number): Promise<string> {
     ),
   )
   await Bun.write(join(root, '.github', 'CODEOWNERS'), await Bun.file(join(ROOT, '.github', 'CODEOWNERS')).text())
-  const shipped = JSON.parse(await Bun.file(join(ROOT, 'package.json')).text()) as Record<string, unknown>
-  const rest = Object.fromEntries(Object.entries(shipped).filter(([key]) => key !== 'packageManager'))
+  const rest = Object.fromEntries(Object.entries(SHIPPED).filter(([key]) => key !== 'packageManager'))
   const carried = pin === undefined ? rest : { ...rest, packageManager: pin }
   await Bun.write(join(root, 'package.json'), JSON.stringify(carried))
   return root

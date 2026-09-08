@@ -4,6 +4,7 @@
  */
 
 import { expect, it } from 'bun:test'
+import { followAnswer, listAnswer } from './answers.ts'
 import { registerTools, run, script } from './controller-double.ts'
 
 it('lists rows newest first, honours the running filter, and refuses a limit of zero', async () => {
@@ -13,15 +14,12 @@ it('lists rows newest first, honours the running filter, and refuses a limit of 
     { sessionId: 's-running', running: true, blank: false, updatedAt: 2 },
   ]
   const tools = registerTools(recorded)
-  const all = (await run(tools, 'sessions_list', {})) as { sessions: { sessionId: string }[]; total: number }
+  const all = listAnswer(await run(tools, 'sessions_list', {}))
   // The fixture is deliberately stored oldest first, so a tool that merely
   // passes the store's order through fails here rather than reading as correct.
   expect(all.sessions.map((row) => row.sessionId)).toEqual(['s-running', 's-idle'])
   expect(all.total).toBe(2)
-  const running = (await run(tools, 'sessions_list', { runningOnly: true })) as {
-    sessions: { sessionId: string }[]
-    total: number
-  }
+  const running = listAnswer(await run(tools, 'sessions_list', { runningOnly: true }))
   expect(running.sessions.map((row) => row.sessionId)).toEqual(['s-running'])
   expect(running.total).toBe(1)
   await expect(run(tools, 'sessions_list', { limit: 0 })).rejects.toThrow('must be a positive number')
@@ -35,10 +33,7 @@ it('caps the listed rows at the limit it was given', async () => {
     blank: false,
     updatedAt: index,
   }))
-  const capped = (await run(registerTools(recorded), 'sessions_list', { limit: 2 })) as {
-    sessions: { sessionId: string }[]
-    total: number
-  }
+  const capped = listAnswer(await run(registerTools(recorded), 'sessions_list', { limit: 2 }))
   // The total reports what the host has; the rows report what was asked for.
   expect([capped.sessions.length, capped.total]).toEqual([2, 4])
   // And they are the two newest. Applying the budget before the ordering would
@@ -54,15 +49,6 @@ it('reads one snapshot from a followed session and leaves no stream behind', asy
       type: 'snapshot',
       cursor: 7,
       hasMore: true,
-      records: [{ type: 'event', event: { type: 'user/message', seq: 1, time: 0, data: { content: [] } } }],
-    },
-  ]
-  recorded.frames = [
-    { type: 'other' },
-    {
-      type: 'snapshot',
-      cursor: 7,
-      hasMore: true,
       records: [
         {
           type: 'event',
@@ -72,13 +58,7 @@ it('reads one snapshot from a followed session and leaves no stream behind', asy
     },
     { type: 'never-read' },
   ]
-  const followed = (await run(registerTools(recorded), 'sessions_follow', { sessionId: 'other' })) as {
-    sessionId: string
-    cursor: number
-    hasMore: boolean
-    records: number
-    recent: string[]
-  }
+  const followed = followAnswer(await run(registerTools(recorded), 'sessions_follow', { sessionId: 'other' }))
   expect([followed.sessionId, followed.cursor, followed.hasMore, followed.records]).toEqual(['other', 7, true, 1])
   // The window the model actually reads, rather than only its size.
   expect(followed.recent).toEqual(['user: ping'])
@@ -165,10 +145,7 @@ it('reads the whole list when the caller sets no budget of their own', async () 
     blank: false,
     updatedAt: index,
   }))
-  const listed = (await run(registerTools(recorded), 'sessions_list', {})) as {
-    sessions: { sessionId: string }[]
-    total: number
-  }
+  const listed = listAnswer(await run(registerTools(recorded), 'sessions_list', {}))
   expect([listed.sessions.length, listed.total]).toEqual([5, 6])
 })
 

@@ -17,8 +17,8 @@
  * @module
  */
 
-import { readFileSync } from 'node:fs'
-import { repositoryFiles } from './source-tree.ts'
+import { manifestScripts } from './manifest.ts'
+import { scopeConfigs } from './stryker-config.ts'
 
 /** One `bun test` command, and where it is written. */
 export interface TestCommand {
@@ -115,16 +115,11 @@ export function selected(filter: string, all: readonly string[]): string[] {
  * @returns one entry per command, labelled by the file and key that holds it.
  */
 export function testCommands(): TestCommand[] {
-  const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
-  const fromScripts = Object.entries(manifest.scripts ?? {})
+  const fromScripts = [...manifestScripts()]
     .filter(([, command]) => command.includes('bun test '))
     .map(([name, command]) => ({ where: `package.json script ${name}`, command }))
-  const fromScopes = repositoryFiles(['.json'])
-    .filter((file) => /^stryker\..*\.json$/u.test(file.label))
-    .map((file) => {
-      const config = JSON.parse(readFileSync(file.path, 'utf8')) as { commandRunner?: { command?: string } }
-      return { where: file.label, command: config.commandRunner?.command ?? '' }
-    })
+  const fromScopes = scopeConfigs()
+    .map((scope) => ({ where: scope.label, command: scope.command }))
     .filter((entry) => entry.command.includes('bun test '))
   return [...fromScripts, ...fromScopes]
 }

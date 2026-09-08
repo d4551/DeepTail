@@ -1,6 +1,6 @@
 /**
- * The bans on legacy idioms and on inline styles, read against the source that
- * ships.
+ * The bans on superseded idioms and on inline styles, read against the source
+ * that ships.
  *
  * Source that reintroduces a pattern the project has moved past, or a style
  * written where a class belongs, is a regression no other gate reports: the

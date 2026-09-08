@@ -14,6 +14,7 @@
  */
 
 import { readFile } from 'node:fs/promises'
+import { isJsonObject, type Json, readJsonc } from './jsonc.ts'
 
 /** One mutant, as the report records it. */
 export interface Mutant {
@@ -48,6 +49,58 @@ const MUTATOR_WIDTH = 22
 
 /** How much of a replacement is shown before it is cut. */
 const REPLACEMENT_WIDTH = 90
+
+/**
+ * One mutant, read off the report rather than claimed.
+ *
+ * The report is another program's output. A mutant whose location is missing,
+ * or whose status is not a word, is not one this can print a line for, and
+ * reading it as one would print a line naming `undefined:undefined`.
+ * @param value - one entry of a file's mutant list.
+ * @returns the mutant, or undefined when the entry is not one.
+ */
+function readMutant(value: Json): Mutant | undefined {
+  if (!isJsonObject(value)) return undefined
+  const location = value['location']
+  const start = isJsonObject(location) ? location['start'] : undefined
+  const line = isJsonObject(start) ? start['line'] : undefined
+  const column = isJsonObject(start) ? start['column'] : undefined
+  const mutatorName = value['mutatorName']
+  const status = value['status']
+  if (typeof mutatorName !== 'string' || typeof status !== 'string') return undefined
+  if (typeof line !== 'number' || typeof column !== 'number') return undefined
+  const replacement = value['replacement']
+  const read = { mutatorName, status, location: { start: { line, column } } }
+  return typeof replacement === 'string' ? { ...read, replacement } : read
+}
+
+/**
+ * Every mutant one file's section lists.
+ * @param value - the section, as the report wrote it.
+ * @returns the mutants it holds, in the order it holds them.
+ */
+function readMutants(value: Json | undefined): Mutant[] {
+  const mutants = isJsonObject(value) ? value['mutants'] : undefined
+  if (!Array.isArray(mutants)) return []
+  return mutants.flatMap((entry) => {
+    const mutant = readMutant(entry)
+    return mutant === undefined ? [] : [mutant]
+  })
+}
+
+/**
+ * Read a report onto the shape this program prints from.
+ * @param text - the report a run wrote.
+ * @returns the report.
+ * @throws Error when the document names no files at all.
+ */
+export function readReport(text: string): Report {
+  const files = readJsonc(text)['files']
+  if (!isJsonObject(files)) throw new Error('mutation report: the document names no files')
+  const read: Record<string, { readonly mutants: readonly Mutant[] }> = {}
+  for (const [file, held] of Object.entries(files)) read[file] = { mutants: readMutants(held) }
+  return { files: read }
+}
 
 /**
  * Every file carrying a mutant of the wanted status, with those mutants in
@@ -100,6 +153,6 @@ export function renderMutants(open: readonly OpenFile[], wanted: string): string
 // otherwise run the whole gate as a side effect of the import.
 if (import.meta.main) {
   const [path = DEFAULT_REPORT, wanted = DEFAULT_STATUS] = Bun.argv.slice(2)
-  const report = JSON.parse(await readFile(path, 'utf8')) as Report
+  const report = readReport(await readFile(path, 'utf8'))
   process.stdout.write(renderMutants(openMutants(report, wanted), wanted))
 }

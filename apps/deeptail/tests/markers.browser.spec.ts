@@ -171,8 +171,6 @@ it('draws every marker the registry declares, on the surface it places it', asyn
 
 it('draws no marker the registry does not declare', async () => {
   const found = await everyMarkerDrawn()
-  const declared = new Set(ACTION_LIST.map((action) => action.marker))
-  expect(
-    [...found].filter((marker) => !declared.has(marker as (typeof ACTION_LIST)[number]['marker'])).toSorted(),
-  ).toEqual([])
+  const declared = new Set<string>(ACTION_LIST.map((action) => action.marker))
+  expect([...found].filter((marker) => !declared.has(marker)).toSorted()).toEqual([])
 }, 180_000)

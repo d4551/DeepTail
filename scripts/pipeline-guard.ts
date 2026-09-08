@@ -19,6 +19,8 @@
 
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { readJsonc } from './jsonc.ts'
+import { sectionOf } from './manifest.ts'
 import { gateCoverageViolations, validateChainViolations } from './pipeline-guard-gates.ts'
 import { aggregationViolations } from './pipeline-guard-jobs.ts'
 import {
@@ -54,21 +56,18 @@ interface WorkflowFile {
  * @returns one entry per rule a definition breaks; empty when the pipeline is sound.
  */
 export async function pipelineViolations(root: string): Promise<readonly string[]> {
-  const manifest = JSON.parse(await Bun.file(join(root, 'package.json')).text()) as {
-    packageManager?: string
-    scripts?: Record<string, string>
-  }
+  const manifest = readJsonc(await Bun.file(join(root, 'package.json')).text())
   // Read only when there is something to read: a manifest that pins no manager
   // has no version, and coercing its absence into an empty string to run the
   // pattern over is a step that decides nothing.
-  const pinned = manifest.packageManager
+  const pinned = manifest['packageManager']
   const unreadable = pinned !== undefined && typeof pinned !== 'string'
   // Read off the string rather than through the pattern: `exec` takes anything
   // and coerces it, so a reader that lost its type test would go on answering
   // `undefined` for a manifest that pins nothing and nothing would say so.
   // `match` is the same read spelt on the string, and a string is what it needs.
   const version = typeof pinned === 'string' ? pinned.match(PACKAGE_MANAGER_BUN)?.[1] : undefined
-  const scripts = manifest.scripts ?? {}
+  const scripts = sectionOf(manifest, 'scripts')
   const violations = [
     ...validateChainViolations(scripts),
     ...scriptViolations(scripts),

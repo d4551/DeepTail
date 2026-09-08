@@ -1,5 +1,5 @@
 /**
- * What the suppression and legacy-idiom bans reject and allow, and how the
+ * What the suppression and superseded-idiom bans reject and allow, and how the
  * gates read a name however it is reached.
  *
  * @module
@@ -73,6 +73,32 @@ describe('the suppression ban allows', () => {
   })
 })
 
+describe('the debt-marker ban', () => {
+  const why = 'a marker records work left undone; do the work, or delete what is not wanted'
+  // Assembled in parts, so this file's own comments carry no marker.
+  const markers = [['TO', 'DO'].join(''), ['FIX', 'ME'].join(''), ['HA', 'CK'].join(''), ['X', 'XX'].join('')]
+
+  it('rejects every marker, in a line comment and in a block comment', () => {
+    for (const marker of markers) {
+      expect([marker, banOffences(`// ${marker}: finish this\nconst a = 1`)]).toEqual([marker, [why]])
+      expect([marker, banOffences(`/* ${marker} */\nconst a = 1`)]).toEqual([marker, [why]])
+    }
+  })
+
+  it('rejects a marker in a Rust comment, which the .ts-only walk never reached', () => {
+    expect(banOffences(`// ${markers[0] ?? ''}: port this`, 'lib.rs')).toEqual([why])
+  })
+
+  it('allows the letters inside a word, which record nothing', () => {
+    expect(banOffences('// the mastodon renders here\nconst a = 1')).toEqual([])
+    expect(banOffences(`// a marker is written ${markers[0] ?? ''}ish\nconst a = 1`)).toEqual([])
+  })
+
+  it('allows a marker named in code as data, which is what the rule table is', () => {
+    expect(banOffences(source(`const markers = ${JSON.stringify(markers)}`, 'export { markers }'))).toEqual([])
+  })
+})
+
 /**
  * Every idiom the project has moved past, with the reason each must produce.
  *
@@ -82,8 +108,8 @@ describe('the suppression ban allows', () => {
  * its rule, which is how the React 19 removal ban sat uncovered while its
  * case read green.
  */
-const LEGACY_CASES: readonly [string, string, string, string?][] = [
-  ['var', 'var legacy = 1', 'use const or let'],
+const SUPERSEDED_CASES: readonly [string, string, string, string?][] = [
+  ['var', 'var count = 1', 'use const or let'],
   ['require', "const x = require('node:fs')", 'use ES module imports'],
   ['innerHTML', 'el.innerHTML = markup', 'use textContent'],
   ['document.write', "document.write('x')", 'removed from modern engines'],
@@ -127,9 +153,9 @@ const LEGACY_CASES: readonly [string, string, string, string?][] = [
   ['expando prototype via brackets', "Chart['prototype'].draw = draw", 'removed in TypeScript 7'],
 ]
 
-describe('the legacy ban rejects', () => {
+describe('the superseded-idiom ban rejects', () => {
   it('every idiom the project has moved past', () => {
-    const misreported = LEGACY_CASES.flatMap(([name, text, reason, label = 'fixture.ts']) => {
+    const misreported = SUPERSEDED_CASES.flatMap(([name, text, reason, label = 'fixture.ts']) => {
       const found = banOffences(text, label)
       // A fixture that fails to parse reports the parse error and nothing else,
       // so naming the reason is also what keeps a fixture honest about the
@@ -140,7 +166,7 @@ describe('the legacy ban rejects', () => {
   })
 })
 
-describe('the legacy ban allows', () => {
+describe('the superseded-idiom ban allows', () => {
   it('the selector escape, which is a method rather than the global', () => {
     expect(banOffences("CSS.escape('#a b')")).toEqual([])
   })

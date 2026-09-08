@@ -182,8 +182,8 @@ export function scheduleViolations(name: string, text: string): string[] {
  * @param scripts - the manifest's scripts, by name.
  * @returns one entry per laundered script.
  */
-export function scriptViolations(scripts: Readonly<Record<string, string>>): string[] {
-  return Object.entries(scripts).flatMap(([name, command]) =>
+export function scriptViolations(scripts: ReadonlyMap<string, string>): string[] {
+  return [...scripts].flatMap(([name, command]) =>
     FORBIDDEN_IN_SCRIPTS.filter((token) => command.includes(token)).map(
       (token) => `package.json script ${name}: carries ${JSON.stringify(token)}`,
     ),

@@ -28,11 +28,15 @@ export { PLAIN_EXTENSIONS } from './extensions.ts'
 export { SCRIPT_EXTENSIONS }
 
 /**
- * Directives that switch a checker off, in every language the repository uses.
+ * Directives that switch a checker off, and markers that stand in for work, in
+ * every language the repository uses.
  *
  * Suppressing a rule hides the defect rather than fixing it, so the ban is
  * absolute; a rule that genuinely does not apply is a rule to remove from the
- * configuration, where the removal is visible.
+ * configuration, where the removal is visible. A debt marker is the same
+ * evasion written as prose: it records that something is wrong and leaves it
+ * wrong, and it is read here rather than in the tree because a marker is only
+ * ever a comment.
  */
 const SUPPRESSIONS: readonly { readonly pattern: RegExp; readonly why: string }[] = [
   { pattern: /@ts-(?:ignore|nocheck|expect-error)/u, why: 'suppressing the type checker hides the defect' },
@@ -42,6 +46,10 @@ const SUPPRESSIONS: readonly { readonly pattern: RegExp; readonly why: string }[
   },
   { pattern: /(?:istanbul|c8|v8)\s+ignore/u, why: 'excluding a line from coverage hides the gap' },
   { pattern: /@public\b/u, why: 'marking an unused export public hides that nothing imports it' },
+  {
+    pattern: /\b(?:TODO|FIXME|HACK|XXX)\b/u,
+    why: 'a marker records work left undone; do the work, or delete what is not wanted',
+  },
 ]
 
 /**

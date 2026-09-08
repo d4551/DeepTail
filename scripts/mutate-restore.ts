@@ -15,7 +15,7 @@ import { copyFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /** Where Stryker keeps the originals of the files it rewrote. */
-const TEMP = '.stryker-tmp'
+const ORIGINALS = '.stryker-tmp'
 
 /** What a run names the directory holding one set of originals. */
 const BACKUP = 'backup-'
@@ -29,7 +29,7 @@ const MARKER = ['stry', 'MutAct_'].join('')
  * @returns the directory the backups sit in.
  */
 function backupRoot(root: string): string {
-  return join(root, TEMP)
+  return join(root, ORIGINALS)
 }
 
 /**

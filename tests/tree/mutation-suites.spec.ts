@@ -13,18 +13,14 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { GATE as TREE } from '../../scripts/check-tree.ts'
 import { readGate } from '../../scripts/gate-runner.ts'
+import { manifestScripts } from '../../scripts/manifest.ts'
 import { repositoryFiles } from '../../scripts/source-tree.ts'
+import { type ScopeConfig, scopeConfigs } from '../../scripts/stryker-config.ts'
 import { filtersOf, selected } from '../../scripts/test-commands.ts'
 import { joined } from '../fixtures.ts'
-
-/** One mutation run's configuration, as far as this suite reads one. */
-interface StrykerConfig {
-  readonly commandRunner?: { readonly command?: string }
-}
 
 /**
  * Where the suites that judge the tree at rest live.
@@ -45,20 +41,9 @@ const TREE_SUITES = 'tests/tree/'
  */
 const READS_THE_TREE = /\b(?:repositoryFiles|readGate)\(|\bROOT\b/u
 
-/** Every mutation configuration the repository ships, with its contents. */
-async function configs(): Promise<{ readonly label: string; readonly config: StrykerConfig }[]> {
-  const files = repositoryFiles(['.json']).filter((file) => /^stryker\..*\.json$/u.test(file.label))
-  return await Promise.all(
-    files.map(async (file) => ({
-      label: file.label,
-      config: JSON.parse(await readFile(file.path, 'utf8')) as StrykerConfig,
-    })),
-  )
-}
-
-/** The manifest's scripts. */
-function scripts(): Readonly<Record<string, string>> {
-  return (JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }).scripts ?? {}
+/** Every mutation scope the repository ships. */
+function configs(): readonly ScopeConfig[] {
+  return scopeConfigs()
 }
 
 /** Every spec the repository ships, apart from the ones a browser drives. */
@@ -69,7 +54,7 @@ function unitSpecs(): string[] {
 }
 
 describe('the suites a mutation command may name', () => {
-  it('names no browser suite, which cannot observe a mutant at all', async () => {
+  it('names no browser suite, which cannot observe a mutant at all', () => {
     // The instrumenter selects the active mutant out of a process environment
     // variable. A page has no process: the bundle it loads carries every
     // mutant and activates none, so a browser suite answers for the unmutated
@@ -80,20 +65,20 @@ describe('the suites a mutation command may name', () => {
       .map((file) => file.label)
       .filter((label) => label.endsWith('.browser.spec.ts'))
     expect(browser.length).toBeGreaterThan(0)
-    const named = (await configs()).flatMap(({ label, config }) =>
-      filtersOf(config.commandRunner?.command ?? '')
+    const named = configs().flatMap((scope) =>
+      filtersOf(scope.command)
         .flatMap((filter) => selected(filter, browser))
-        .map((spec) => `${label}: ${spec}`),
+        .map((spec) => `${scope.label}: ${spec}`),
     )
     expect(named).toEqual([])
   })
 })
 
 describe('the unit suites a mutation run drives', () => {
-  it('drives every unit spec outside the tree suites, with nothing excused', async () => {
+  it('drives every unit spec outside the tree suites, with nothing excused', () => {
     // Which suites judge a run is the other half of the denominator: a spec
     // quietly left out of every command is coverage the score never sees.
-    const commands = (await configs()).map(({ config }) => (config.commandRunner?.command ?? '').split(/\s+/u))
+    const commands = configs().map((scope) => scope.command.split(/\s+/u))
     const driven = new Set(commands.flatMap((words) => words.filter((word) => word.endsWith('.spec.ts'))))
     const directories = commands.flatMap((words) => words.filter((word) => word.endsWith('/tests')))
     const left = unitSpecs().filter(
@@ -120,7 +105,7 @@ describe('the unit suites a mutation run drives', () => {
   it('still runs the tree suites under the unit command', () => {
     // Out of a mutation command, not out of the suite: a contributor runs
     // `bun test`, and a reader of that run has to see these.
-    const patterns = (scripts()['test'] ?? '').split(/\s+/u).filter((word) => word.endsWith('.spec.ts'))
+    const patterns = (manifestScripts().get('test') ?? '').split(/\s+/u).filter((word) => word.endsWith('.spec.ts'))
     const unrun = unitSpecs().filter(
       (label) => label.startsWith(TREE_SUITES) && !patterns.some((pattern) => matches(pattern, label)),
     )

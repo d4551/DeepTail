@@ -41,11 +41,11 @@ interface Calls {
 }
 
 /** A dependency set that records what a handler asked for. */
-function stubDeps(calls: Calls): ActionDeps {
+function recordingDeps(calls: Calls): ActionDeps {
   const note = (name: string): void => {
     calls.names.push(name)
   }
-  // The application's own seams answer with a promise, so the stubs do too —
+  // The application's own seams answer with a promise, so the recorders do too —
   // by returning one rather than by being `async`, which would read as work
   // that is pending when a push onto an array is all that happens.
   const noted = (name: string): Promise<void> => {
@@ -128,7 +128,7 @@ describe('the dispatcher', () => {
   it('runs every action the registry declares', async () => {
     const calls: Calls = { names: [] }
     const audit = createDenialAudit()
-    const dispatcher = createDispatcher(stubDeps(calls), fullLedger(), audit, t)
+    const dispatcher = createDispatcher(recordingDeps(calls), fullLedger(), audit, t)
     // One after another, and deliberately: every action spends from the same
     // ledger and appends to the same call list, so running them at once would
     // measure an order nothing guarantees.
@@ -151,7 +151,7 @@ describe('the dispatcher’s refusals', () => {
     const calls: Calls = { names: [] }
     const audit = createDenialAudit()
     const dispatcher = createDispatcher(
-      stubDeps(calls),
+      recordingDeps(calls),
       createGrantLedger(() => 1_000_000),
       audit,
       t,
@@ -167,7 +167,7 @@ describe('the dispatcher’s refusals', () => {
   it('tells the operator which grant was missing, in their language', async () => {
     const calls: Calls = { names: [] }
     const dispatcher = createDispatcher(
-      stubDeps(calls),
+      recordingDeps(calls),
       createGrantLedger(() => 1_000_000),
       createDenialAudit(),
       t,
@@ -180,7 +180,7 @@ describe('the dispatcher’s refusals', () => {
 
   it('refuses a control whose own precondition does not hold', async () => {
     const calls: Calls = { names: [] }
-    const dispatcher = createDispatcher(stubDeps(calls), fullLedger(), createDenialAudit(), t)
+    const dispatcher = createDispatcher(recordingDeps(calls), fullLedger(), createDenialAudit(), t)
     const outcome = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], {
       ...facts,
       running: false,
@@ -194,7 +194,7 @@ describe('the dispatcher’s refusals', () => {
 describe('what the dispatcher hands back', () => {
   it('refuses an empty message before it reaches the host', async () => {
     const calls: Calls = { names: [] }
-    const dispatcher = createDispatcher(stubDeps(calls), fullLedger(), createDenialAudit(), t)
+    const dispatcher = createDispatcher(recordingDeps(calls), fullLedger(), createDenialAudit(), t)
     const outcome = await dispatcher.dispatch(
       ACTIONS['compose.send'],
       {
@@ -211,7 +211,7 @@ describe('what the dispatcher hands back', () => {
 
   it('reports a host failure with the host’s own sentence', async () => {
     const calls: Calls = { names: [] }
-    const failing: ActionDeps = { ...stubDeps(calls), cancel: () => Promise.reject(new Error('agent busy')) }
+    const failing: ActionDeps = { ...recordingDeps(calls), cancel: () => Promise.reject(new Error('agent busy')) }
     const dispatcher = createDispatcher(failing, fullLedger(), createDenialAudit(), t)
     const outcome = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
     expect(outcome.kind === 'invalid' && outcome.reason).toBe('host-refused')
@@ -223,7 +223,7 @@ describe('what the dispatcher hands back', () => {
     const time = clock()
     const ledger = createGrantLedger(time.now)
     ledger.hydrate(snapshot([hostGrant('session.cancel', 'host-a', 1, 1_500_000)]))
-    const dispatcher = createDispatcher(stubDeps(calls), ledger, createDenialAudit(), t)
+    const dispatcher = createDispatcher(recordingDeps(calls), ledger, createDenialAudit(), t)
     const soon = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
     time.advance(600_000)
     const late = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
@@ -239,7 +239,7 @@ describe('a handler that fails where it stands', () => {
     // operator is owed and surfaced as an unhandled rejection instead.
     const calls: Calls = { names: [] }
     const failing: ActionDeps = {
-      ...stubDeps(calls),
+      ...recordingDeps(calls),
       openSpawn: () => {
         throw new Error('the dialog would not open')
       },

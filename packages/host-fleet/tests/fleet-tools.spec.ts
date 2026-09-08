@@ -4,6 +4,7 @@
  */
 
 import { expect, it } from 'bun:test'
+import { answeredMembers, sendAnswer, spawnAnswer } from './answers.ts'
 import { registerTools, run, script } from './controller-double.ts'
 
 it('registers every fleet tool', () => {
@@ -67,11 +68,7 @@ it('refuses a session that addresses itself', async () => {
 it('delivers a message and cancels by session id', async () => {
   const recorded = script()
   const tools = registerTools(recorded)
-  const sent = (await run(tools, 'sessions_send', { sessionId: 'other', message: 'hi', mode: 'steer' })) as {
-    sessionId: string
-    mode: string
-    requestId: string
-  }
+  const sent = sendAnswer(await run(tools, 'sessions_send', { sessionId: 'other', message: 'hi', mode: 'steer' }))
   // What reached the host, not merely that something did: the target, the mode
   // and the text the session will actually read.
   expect(recorded.prompted).toEqual([
@@ -132,7 +129,7 @@ it('spends no spawn budget on a call it refuses before creating', async () => {
 
 it('opens the session it created with the task, queued', async () => {
   const recorded = script()
-  const spawned = (await run(registerTools(recorded), 'sessions_spawn', { task: '  go  ' })) as { sessionId: string }
+  const spawned = spawnAnswer(await run(registerTools(recorded), 'sessions_spawn', { task: '  go  ' }))
   expect(recorded.prompted).toEqual([
     {
       sessionId: spawned.sessionId,
@@ -164,5 +161,5 @@ it('reports the preset the host composed, and omits it when the host names none'
   const silent = script()
   const spawned = await run(registerTools(silent), 'sessions_spawn', { task: 'go' })
   expect(spawned).toEqual({ sessionId: 's-1' })
-  expect('agentPreset' in (spawned as object)).toBe(false)
+  expect(answeredMembers('sessions_spawn', spawned)).toEqual(['sessionId'])
 })

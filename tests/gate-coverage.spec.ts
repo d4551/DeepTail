@@ -7,7 +7,7 @@
  * reach of the file list itself.
  *
  * Whether the repository is clean under those gates is asserted once, in
- * `tests/tree/legacy.spec.ts`, through the gates the chain runs.
+ * `tests/tree/superseded.spec.ts`, through the gates the chain runs.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -17,6 +17,7 @@ import { structureCheckSource } from '../apps/deeptail/tests/structure.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { onlyPresent, ROOT, repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
+import { tagTree } from './markup-tree.ts'
 
 /**
  * Every function the structure checks ship to the page, by definition.
@@ -152,17 +153,9 @@ describe('what the checks the browser suite evaluates are made of', () => {
     // it is read as the parser's doing, and a future swap of the parser that
     // changes this tree fails a named test instead of quietly shifting what
     // the rule can see.
-    const tree: string[] = []
-    const walk = (node: parse5.DefaultTreeAdapterTypes.Node, depth: number): void => {
-      if ('tagName' in node) tree.push(`${'  '.repeat(depth)}${String(node.tagName)}`)
-      for (const child of 'childNodes' in node ? (node.childNodes as parse5.DefaultTreeAdapterTypes.Node[]) : []) {
-        walk(child, depth + 1)
-      }
-    }
     // The fragment node itself sits at depth 0, so its children indent once:
     // two `button` lines at one depth, not a `button` under a `button`.
-    walk(parse5.parseFragment('<button>a<button>b</button></button>'), 0)
-    expect(tree).toEqual(['  button', '  button'])
+    expect(tagTree(parse5.parseFragment('<button>a<button>b</button></button>'))).toEqual(['  button', '  button'])
   })
 })
 

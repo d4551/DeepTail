@@ -17,7 +17,8 @@
 import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
-import { bindRovingFocus, el, screenReaderText } from './ui/dom.ts'
+import { el, screenReaderText } from './ui/dom.ts'
+import { bindRovingFocus } from './ui/roving.ts'
 import { type HostState, hostStateLabel } from './ui/states.ts'
 
 /** What every picker view needs from its surroundings. */

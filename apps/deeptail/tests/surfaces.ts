@@ -43,9 +43,18 @@ function auditView(viewport: Viewport, dark: boolean): AuditView {
 }
 
 /**
- * Size the page to a designed width after opening with the matching pointer.
+ * Size the page to a designed width after opening with the matching pointer,
+ * then let what is moving finish moving.
  *
  * Coarse rows open through `{ mobile: true }` / `{ tablet: true }` (hasTouch).
+ *
+ * The shell's drawer carries a transform transition, and a resize restarts
+ * layout under it. An audit taken during one measures a frame no reader is
+ * ever shown — a panel part-way across the viewport, and a colour axe samples
+ * through whatever it is still sliding over, which is how a strip at eleven to
+ * one was reported as failing contrast. Everything running is awaited first,
+ * and then one frame, so what is audited is what a reader would be looking at.
+ * A spinner never finishes and is not waited for.
  * @param page - the page just opened.
  * @param view - the width and height to realize.
  */
@@ -55,6 +64,26 @@ export async function realizeView(page: Page, view: { width: number; height: num
     await page.setViewportSize({ width: view.width, height: view.height })
   }
   expect([page.viewportSize()?.width, page.viewportSize()?.height]).toEqual([view.width, view.height])
+  await settleAnimations(page)
+}
+
+/**
+ * Wait until nothing on the page is still moving.
+ *
+ * A cancelled animation settles as a rejection, which is an animation that has
+ * stopped just as surely as a finished one, so both are awaited together.
+ * @param page - the page to settle.
+ */
+export async function settleAnimations(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const running = document
+      .getAnimations()
+      .filter((animation) => animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY)
+    await Promise.allSettled(running.map((animation) => animation.finished))
+    await new Promise((paint) => {
+      requestAnimationFrame(() => paint(null))
+    })
+  })
 }
 
 /**

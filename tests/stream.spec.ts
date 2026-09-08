@@ -18,7 +18,7 @@ const OPEN = 1
 const CLOSED = 3
 
 /** A socket the test drives directly. */
-class FakeSocket extends EventTarget implements MuxSocketLike {
+class DrivenSocket extends EventTarget implements MuxSocketLike {
   readyState = OPEN
   readonly sent: string[] = []
   closed = false
@@ -52,11 +52,11 @@ class FakeSocket extends EventTarget implements MuxSocketLike {
 }
 
 /** A carrier handing out sockets the test keeps hold of. */
-function fakeCarrier(): { carrier: Pick<CarrierHooks, 'openMuxSocket'>; sockets: FakeSocket[] } {
-  const sockets: FakeSocket[] = []
+function drivenCarrier(): { carrier: Pick<CarrierHooks, 'openMuxSocket'>; sockets: DrivenSocket[] } {
+  const sockets: DrivenSocket[] = []
   const carrier: Pick<CarrierHooks, 'openMuxSocket'> = {
     openMuxSocket: (): MuxSocketLike => {
-      const socket = new FakeSocket()
+      const socket = new DrivenSocket()
       sockets.push(socket)
       return socket
     },
@@ -66,10 +66,12 @@ function fakeCarrier(): { carrier: Pick<CarrierHooks, 'openMuxSocket'>; sockets:
 
 /** What the subscription reported. */
 function recorder(): { ready: number; lost: string[]; events: string[]; sinks: Parameters<typeof subscribeRoster>[1] } {
+  const lost: string[] = []
+  const events: string[] = []
   const state = {
     ready: 0,
-    lost: [] as string[],
-    events: [] as string[],
+    lost,
+    events,
     sinks: {
       onReady: () => {
         state.ready += 1
@@ -95,7 +97,7 @@ const tick = (ms: number): Promise<void> =>
 const parsed = (): Promise<void> => tick(0)
 
 it('publishes nothing before the host answers with its ready frame', async () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
@@ -112,7 +114,7 @@ it('publishes nothing before the host answers with its ready frame', async () =>
 })
 
 it('cancels the stream and closes the socket when disposed', () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
@@ -123,7 +125,7 @@ it('cancels the stream and closes the socket when disposed', () => {
 })
 
 it('never reconnects after the disposer has returned', async () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
@@ -139,7 +141,7 @@ it('never reconnects after the disposer has returned', async () => {
 })
 
 it('reports a drop once, however many times the socket announces it', () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
@@ -152,7 +154,7 @@ it('reports a drop once, however many times the socket announces it', () => {
 })
 
 it('reconnects after a drop and reports the host reachable again', async () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
@@ -171,7 +173,7 @@ it('reconnects after a drop and reports the host reachable again', async () => {
 })
 
 it('does not let a retired socket retire the one that replaced it', async () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
@@ -194,7 +196,7 @@ it('does not let a retired socket retire the one that replaced it', async () => 
 })
 
 it('treats an opening frame that is not the ready frame as a lost connection', async () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
@@ -206,7 +208,7 @@ it('treats an opening frame that is not the ready frame as a lost connection', a
 })
 
 it('discards a malformed frame instead of throwing', () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   sockets[0]?.open()
@@ -234,7 +236,7 @@ it('spreads its reconnection delays and caps them', () => {
 })
 
 it('sends nothing on a socket that opens after the subscription was disposed', () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   dispose()
@@ -246,7 +248,7 @@ it('sends nothing on a socket that opens after the subscription was disposed', (
 })
 
 it('starts the backoff again once a connection has been established', async () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   const dispose = subscribeRoster(carrier, seen.sinks)
   // Two failures in a row, so the next wait is the third rung of the backoff.
@@ -271,7 +273,7 @@ it('starts the backoff again once a connection has been established', async () =
 })
 
 it('is already shut when it says why it ended, so a subscriber cannot re-enter it', () => {
-  const { carrier, sockets } = fakeCarrier()
+  const { carrier, sockets } = drivenCarrier()
   const seen = recorder()
   let reported = 0
   const dispose = subscribeRoster(carrier, {

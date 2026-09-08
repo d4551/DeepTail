@@ -7,6 +7,7 @@
  */
 
 import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionId as SessionIdType } from '@deepseek-ai/dsh-session/types'
 import type { FleetController, FleetSendResult } from './types.ts'
@@ -24,11 +25,14 @@ interface FleetPrompt {
 /**
  * Brand one freshly minted correlation id as a prompt identity. The controller
  * requires a client-minted `SessionRequestId`; the orchestrator is that client.
+ *
+ * Minted through the brand package's own function rather than claimed with a
+ * cast: a brand is the vendor's, and the vendor ships the way to apply it.
  * @param id - a fresh UUID.
  * @returns the same string with the prompt-identity brand.
  */
 function requestId(id: string): SessionRequestId {
-  return id as SessionRequestId
+  return brandString<SessionRequestId>(id)
 }
 
 /**

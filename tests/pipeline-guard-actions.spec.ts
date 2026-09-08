@@ -83,7 +83,10 @@ describe('the lines an action reference is read out of', () => {
   })
 
   it('refuses a package script that cannot fail', () => {
-    const laundered = { test: 'bun test || true', lint: 'biome check .; exit 0' }
+    const laundered = new Map([
+      ['test', 'bun test || true'],
+      ['lint', 'biome check .; exit 0'],
+    ])
     expect(scriptViolations(laundered)).toEqual([
       'package.json script test: carries "|| true"',
       'package.json script lint: carries "exit 0"',

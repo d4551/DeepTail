@@ -20,20 +20,9 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { manifestScripts } from '../../scripts/manifest.ts'
 import { repositoryFiles } from '../../scripts/source-tree.ts'
-
-/** One mutation run's configuration, as far as this suite reads one. */
-interface StrykerConfig {
-  readonly testRunner?: string
-  readonly commandRunner?: { readonly command?: string }
-  readonly mutate?: readonly string[]
-  readonly coverageAnalysis?: string
-  readonly inPlace?: boolean
-  readonly incremental?: boolean
-  readonly thresholds?: { readonly high?: number; readonly low?: number; readonly break?: number | null }
-}
+import { type ScopeConfig, scopeConfigs } from '../../scripts/stryker-config.ts'
 
 /** The score every scope is held to. */
 const REQUIRED_SCORE = 99
@@ -74,93 +63,82 @@ function unmatched(files: readonly string[], patterns: readonly string[]): strin
   return files.filter((file) => !globs.some((glob) => glob.match(file)))
 }
 
-/** Every mutation configuration the repository ships, with its contents. */
-async function configs(): Promise<{ readonly label: string; readonly config: StrykerConfig }[]> {
-  const files = repositoryFiles(['.json']).filter((file) => /^stryker\..*\.json$/u.test(file.label))
-  return await Promise.all(
-    files.map(async (file) => ({
-      label: file.label,
-      config: JSON.parse(await readFile(file.path, 'utf8')) as StrykerConfig,
-    })),
-  )
-}
-
-/** The manifest's scripts. */
-function scripts(): Readonly<Record<string, string>> {
-  return (JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }).scripts ?? {}
+/** Every mutation scope the repository ships. */
+function configs(): readonly ScopeConfig[] {
+  return scopeConfigs()
 }
 
 describe('every mutation run', () => {
-  it('exists at all', async () => {
+  it('exists at all', () => {
     // A suite that reads a list of configurations passes vacuously on an empty
     // list, which is what every assertion below would do if the runs were
     // deleted rather than weakened.
-    expect((await configs()).length).toBeGreaterThan(0)
+    expect(configs().length).toBeGreaterThan(0)
   })
 
-  it('breaks below the score it claims, rather than merely reporting it', async () => {
-    const weak = (await configs()).flatMap(({ label, config }) =>
-      config.thresholds?.break === REQUIRED_SCORE ? [] : [`${label}: break is ${String(config.thresholds?.break)}`],
+  it('breaks below the score it claims, rather than merely reporting it', () => {
+    const weak = configs().flatMap((scope) =>
+      scope.thresholds.break === REQUIRED_SCORE ? [] : [`${scope.label}: break is ${String(scope.thresholds.break)}`],
     )
     expect(weak).toEqual([])
   })
 
-  it('reports every score below the bar as a failure rather than as a shade of green', async () => {
-    const graded = (await configs()).flatMap(({ label, config }) =>
-      config.thresholds?.high === REQUIRED_SCORE && config.thresholds.low === REQUIRED_SCORE ? [] : [label],
+  it('reports every score below the bar as a failure rather than as a shade of green', () => {
+    const graded = configs().flatMap((scope) =>
+      scope.thresholds.high === REQUIRED_SCORE && scope.thresholds.low === REQUIRED_SCORE ? [] : [scope.label],
     )
     expect(graded).toEqual([])
   })
 
-  it('names a bun test command and something to mutate', async () => {
-    const unpaired = (await configs()).flatMap(({ label, config }) =>
-      (config.commandRunner?.command ?? '').startsWith('bun test ') && (config.mutate ?? []).length > 0 ? [] : [label],
+  it('names a bun test command and something to mutate', () => {
+    const unpaired = configs().flatMap((scope) =>
+      scope.command.startsWith('bun test ') && scope.mutate.length > 0 ? [] : [scope.label],
     )
     expect(unpaired).toEqual([])
   })
 
-  it('uses the built-in runner, and asks it for no coverage it cannot give', async () => {
+  it('uses the built-in runner, and asks it for no coverage it cannot give', () => {
     // The command runner knows nothing about which test covered which mutant,
     // so anything but `off` here is a claim the runner cannot honour. The
     // runner itself is Stryker's default and is named nowhere: naming it makes
     // the dependency reader look for a plugin package that does not exist.
-    const wrong = (await configs()).flatMap(({ label, config }) =>
-      config.coverageAnalysis === 'off' && config.testRunner === undefined ? [] : [label],
+    const wrong = configs().flatMap((scope) =>
+      scope.coverageAnalysis === 'off' && scope.testRunner === undefined ? [] : [scope.label],
     )
     expect(wrong).toEqual([])
   })
 
-  it('excludes nothing from what it mutates', async () => {
-    const excluded = (await configs()).flatMap(({ label, config }) =>
-      (config.mutate ?? []).filter((pattern) => pattern.startsWith('!')).map((pattern) => `${label}: ${pattern}`),
+  it('excludes nothing from what it mutates', () => {
+    const excluded = configs().flatMap((scope) =>
+      scope.mutate.filter((pattern) => pattern.startsWith('!')).map((pattern) => `${scope.label}: ${pattern}`),
     )
     expect(excluded).toEqual([])
   })
 })
 
 describe('every mutation run reads the tree it claims to', () => {
-  it('re-reads every mutant on every run, rather than trusting a stored verdict', async () => {
+  it('re-reads every mutant on every run, rather than trusting a stored verdict', () => {
     // Incremental mode keys a stored verdict on the mutated source. The command
     // runner tells it nothing about the tests, so a run after a test was added
     // — or deleted — reuses every verdict and reports the score the tests used
     // to earn. It did exactly that here: a scope whose coverage had just been
     // rewritten reported its old number, to the decimal.
-    const stale = (await configs()).flatMap(({ label, config }) => (config.incremental === true ? [label] : []))
+    const stale = configs().flatMap((scope) => (scope.incremental === true ? [scope.label] : []))
     expect(stale).toEqual([])
   })
 
-  it('mutates the source in place, so nothing it reads is a copy', async () => {
+  it('mutates the source in place, so nothing it reads is a copy', () => {
     // The gates read the repository through `git ls-files`, and a sandbox copy
     // is not a repository. Mutating in place is what keeps the suites reading
     // the same tree they read outside a mutation run.
-    const sandboxed = (await configs()).flatMap(({ label, config }) => (config.inPlace === true ? [] : [label]))
+    const sandboxed = configs().flatMap((scope) => (scope.inPlace === true ? [] : [scope.label]))
     expect(sandboxed).toEqual([])
   })
 
-  it('covers every file of source the repository ships', async () => {
+  it('covers every file of source the repository ships', () => {
     // The denominator. A file inside no scope is a file whose every mutant is
     // uncounted, and nothing else in this repository would say so.
-    const patterns = (await configs()).flatMap(({ config }) => config.mutate ?? [])
+    const patterns = configs().flatMap((scope) => scope.mutate)
     expect(unmatched(sourceFiles(), patterns)).toEqual([])
   })
 
@@ -188,16 +166,16 @@ describe('every mutation scope and the scripts that run it', () => {
     // `bun run mutate` is what a contributor runs and what the weekly audit
     // runs. A scope it does not name is a scope nothing measures, and the
     // score it declares is a number nobody has ever seen it earn.
-    const all = scripts()['mutate'] ?? ''
-    const scopes = Object.keys(scripts()).filter((name) => name.startsWith('mutate:'))
+    const all = manifestScripts().get('mutate') ?? ''
+    const scopes = [...manifestScripts().keys()].filter((name) => name.startsWith('mutate:'))
     expect(scopes.length).toBeGreaterThan(0)
     expect(scopes.filter((name) => !all.includes(`bun run ${name}`))).toEqual([])
   })
 
-  it('has a script for every scope, and a scope for every script', async () => {
-    const declared = new Set((await configs()).map(({ label }) => label))
+  it('has a script for every scope, and a scope for every script', () => {
+    const declared = new Set(configs().map((scope) => scope.label))
     const named = new Set(
-      Object.entries(scripts())
+      [...manifestScripts()]
         .filter(([name]) => name.startsWith('mutate:'))
         .flatMap(([, command]) => command.split(/\s+/u).filter((word) => word.endsWith('.json'))),
     )

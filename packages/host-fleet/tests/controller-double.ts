@@ -11,31 +11,18 @@
 
 import type { SessionFollowFrame, SessionHistoryRecord } from '@deepseek-ai/dsh-api-session-controller/types'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { validateJsonSchemaValue } from '@deepseek-ai/dsh-tools'
 import { applyFleetTools } from '../src/tools.ts'
-import type { FleetContext, FleetController } from '../src/types.ts'
+import type { FleetContext, FleetController, FleetExecution, FleetTool } from '../src/types.ts'
 
 /** The arguments one tool execution receives, as the host declares them. */
-type ToolArguments = Parameters<ToolDefinition['execute']>[0]
+type ToolArguments = Parameters<FleetTool['execute']>[0]
 
 /** What one tool execution settles with, as the host declares it. */
-type ToolOutcome = Awaited<ReturnType<ToolDefinition['execute']>>
+type ToolOutcome = Awaited<ReturnType<FleetTool['execute']>>
 
 /** What one prompt admission carries, as the controller face declares it. */
 type PromptRequest = Parameters<FleetController['prompt']>[0]
-
-/**
- * The execution fixture: everything the run context carries, with the members
- * the double cannot mint declared at their widest honest type — call
- * identities as strings, the owning agent as the handle the tools read, the
- * token as an opaque symbol.
- */
-type ExecFixture = Omit<ToolRunContext, 'agent' | 'token' | 'callId' | 'rootCallId'> & {
-  readonly callId: string
-  readonly rootCallId: string
-  readonly agent?: { readonly session: { readonly id: string } }
-  readonly token: symbol
-}
 
 /** Limits small enough that a test can reach every ceiling. */
 const LIMITS = {
@@ -200,13 +187,13 @@ function scriptedController(recording: Script): FleetController {
  * @param recording - what the controller records and how it answers.
  * @returns every registered tool, by name.
  */
-export function registerTools(recording: Script): Map<string, ToolDefinition> {
-  const tools = new Map<string, ToolDefinition>()
+export function registerTools(recording: Script): Map<string, FleetTool> {
+  const tools = new Map<string, FleetTool>()
   const controller = scriptedController(recording)
   const ctx: FleetContext = {
     sessionController: controller,
     tools: {
-      register: (definition: ToolDefinition) => {
+      register: (definition: FleetTool) => {
         tools.set(definition.name, definition)
         return () => null
       },
@@ -226,31 +213,34 @@ export function script(): Script {
 }
 
 /**
- * Run one tool through the double's execution fixture.
+ * Run one tool the way the registry would, and hold its answer to the schema it
+ * declares.
+ *
+ * The registry validates every successful value against the tool's own
+ * `output.schema` before a caller sees it. Driving `execute` directly skips
+ * that, so it is done here: a tool that answered with a field it never
+ * declared, or left out one it did, was previously read by whichever suite
+ * happened to look at that field, and by nothing at all otherwise.
  * @param tools - the registered tools.
  * @param name - which one to run.
  * @param args - its arguments.
  * @param agent - the session the caller speaks for, or null for none.
- * @returns whatever the tool returned.
+ * @returns the tool's answer, validated against its declared output schema.
  */
-export function run(
-  tools: Map<string, ToolDefinition>,
+export async function run(
+  tools: Map<string, FleetTool>,
   name: string,
   args: ToolArguments,
   agent: string | null = 'caller',
 ): Promise<ToolOutcome> {
   const tool = tools.get(name)
   if (tool === undefined) throw new Error(`${name} was never registered`)
-  const exec: ExecFixture = {
-    callId: `c-${name}`,
-    rootCallId: `c-${name}`,
-    name,
-    arguments: args,
+  const exec: FleetExecution = {
     signal: new AbortController().signal,
     ...(agent === null ? {} : { agent: { session: { id: SessionId(agent) } } }),
-    token: Symbol('tool-execution'),
-    deferContext: () => null,
-    concludeTurn: () => null,
   }
-  return tool.execute(args, exec as Parameters<typeof tool.execute>[1])
+  const answered = await tool.execute(args, exec)
+  const violations = validateJsonSchemaValue(tool.output.schema, answered, name)
+  if (violations.length > 0) throw new Error(`${name} broke its own output schema: ${violations.join('; ')}`)
+  return answered
 }
