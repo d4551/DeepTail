@@ -83,6 +83,17 @@ export async function restoreInstrumented(root = '.'): Promise<string[]> {
 
 // Guarded, as every runnable script here is: importing a module must run nothing.
 if (import.meta.main) {
-  const restored = await restoreInstrumented()
+  // The working directory unless a tree is named, so the suite can drive this
+  // program against a tree of its own — in a process whose working directory
+  // is that tree — and the repository is never in reach of what it restores.
+  // Driving it in process was: a mutant that reads the working directory
+  // instead of the tree it was given restored the repository mid-run, which
+  // put every file back to its uninstrumented text, and every mutant tested
+  // after that survived by never having been active. Three files reported a
+  // score of zero that way, and the run reported 48.57 where it had earned no
+  // number at all.
+  const restored = await restoreInstrumented(process.argv[2] ?? '.')
+  // One path per line, so what was restored is readable rather than counted.
+  process.stdout.write(restored.map((path) => `${path}\n`).join(''))
   if (restored.length > 0) process.stderr.write(`mutate: restored ${String(restored.length)} instrumented file(s)\n`)
 }
