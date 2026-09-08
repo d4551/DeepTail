@@ -15,6 +15,8 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { answered, type Invoke, isBoolean, isNothing, listOf } from './native-call.ts'
+import { isWireObject, type WireValue } from './wire.ts'
 
 /** How a tailnet is listed: an API key, or an OAuth client that mints tokens. */
 export type TailnetCredential =
@@ -53,13 +55,53 @@ export interface TailnetPorts {
   forget(): Promise<void>
 }
 
-/** The ports backed by the real Tauri commands. */
-export const tauriTailnetPorts: TailnetPorts = {
-  connected: () => invoke<boolean>('tailscale_connected'),
-  connect: (credential, tailnet) => invoke<TailnetHost[]>('tailscale_connect', { credential, tailnet }),
-  devices: (tailnet) => invoke<TailnetHost[]>('tailscale_devices', { tailnet }),
-  forget: () => invoke<void>('tailscale_forget'),
+/**
+ * The ports backed by the native commands.
+ *
+ * The call is a parameter rather than a binding, because the command names and
+ * the argument each one carries are this module's whole contract with Rust —
+ * and a table wired straight to Tauri can only be read by a page, where no
+ * mutant is ever active.
+ * @param call - how a command reaches the native side.
+ * @returns the ports.
+ */
+export function nativeTailnetPorts(call: Invoke = invoke): TailnetPorts {
+  return {
+    connected: async () => answered('tailscale_connected', await call('tailscale_connected'), isBoolean),
+    connect: async (credential, tailnet) =>
+      answered('tailscale_connect', await call('tailscale_connect', { credential, tailnet }), isTailnetHosts),
+    devices: async (tailnet) =>
+      answered('tailscale_devices', await call('tailscale_devices', { tailnet }), isTailnetHosts),
+    forget: async () => answered('tailscale_forget', await call('tailscale_forget'), isNothing),
+  }
 }
+
+/**
+ * Whether a value the native side sent is a machine on the tailnet.
+ *
+ * Read by field rather than claimed: Tailscale's control plane is on the other
+ * side of two process boundaries, and a machine with no origin would be drawn
+ * as one a viewer can choose and then pair against nothing.
+ * @param value - any value the native side may have sent.
+ * @returns whether the value is a machine the picker can draw.
+ */
+function isTailnetHost(value: TailnetHost | WireValue): value is TailnetHost {
+  return (
+    isWireObject(value) &&
+    typeof value['id'] === 'string' &&
+    typeof value['label'] === 'string' &&
+    typeof value['origin'] === 'string' &&
+    typeof value['os'] === 'string' &&
+    typeof value['lastSeen'] === 'string' &&
+    Array.isArray(value['tags']) &&
+    value['tags'].every((tag) => typeof tag === 'string') &&
+    typeof value['authorized'] === 'boolean' &&
+    typeof value['paired'] === 'boolean'
+  )
+}
+
+/** Whether a value is a list of machines on the tailnet. */
+const isTailnetHosts = listOf(isTailnetHost)
 
 /**
  * The pairing link for one tailnet machine's origin and one launch token.

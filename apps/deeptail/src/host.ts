@@ -5,6 +5,8 @@
  * @module
  */
 
+import { isWireObject, type WireValue } from './wire.ts'
+
 /** One paired harness host. */
 export interface HostRecord {
   /** Stable local identity; also the secret-store account name. */
@@ -13,4 +15,22 @@ export interface HostRecord {
   readonly label: string
   /** Canonical origin: scheme and authority, no path. */
   readonly origin: string
+}
+
+/**
+ * Whether a value the native registry sent is a host record.
+ *
+ * Read by field rather than claimed: the registry is another process, and a
+ * record with a missing origin would reach the picker as a host nothing can
+ * be paired against.
+ * @param value - any value the native side may have sent.
+ * @returns whether the value is a record the picker can hold.
+ */
+export function isHostRecord(value: HostRecord | WireValue): value is HostRecord {
+  return (
+    isWireObject(value) &&
+    typeof value['id'] === 'string' &&
+    typeof value['label'] === 'string' &&
+    typeof value['origin'] === 'string'
+  )
 }

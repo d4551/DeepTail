@@ -130,6 +130,18 @@ describe('an attempt the host answers', () => {
     ])
     expect(paired.finished).toEqual([PAIRED])
   })
+
+  it('writes no key for a refusal it does not carry, or an origin it was not given', async () => {
+    // `exactOptionalPropertyTypes` makes an absent field and one present and
+    // empty two different shapes, and the views read the difference: a phase
+    // carrying an empty error draws an empty strip under the form.
+    const pasted = await run(draft('https://box.ts.net/?token=abc'), Promise.resolve(PAIRED))
+    expect(pasted.phases.map((phase) => Object.keys(phase).toSorted())).toEqual([['busy', 'draft', 'hosts', 'kind']])
+    const chosen = await run(draft('abc'), Promise.resolve(PAIRED), 'https://box.ts.net/')
+    expect(chosen.phases.map((phase) => Object.keys(phase).toSorted())).toEqual([
+      ['busy', 'draft', 'hosts', 'kind', 'origin'],
+    ])
+  })
 })
 
 describe('an attempt the host refuses', () => {

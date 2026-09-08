@@ -64,9 +64,15 @@ describe('the localized message of a failure', () => {
 
 describe('the localized message of a failure the transport raised', () => {
   it('names the endpoint and the detail for a protocol or transport failure', () => {
-    const malformed = new RemoteError(PROTOCOL, 'no result', { endpoint: 'session/create', detail: 'no result' })
+    // The detail the transport carried, not the sentence it wrote around it:
+    // the two differ here so a reader that reached for the message instead is
+    // reporting the protocol's own words at the operator again.
+    const malformed = new RemoteError(PROTOCOL, 'session/create returned HTTP 200 with no result', {
+      endpoint: 'session/create',
+      detail: 'no result',
+    })
     expect(describeFailure(malformed, t)).toBe('session/create answered outside the protocol: no result')
-    const unreachable = new RemoteError(TRANSPORT, 'connection refused', {
+    const unreachable = new RemoteError(TRANSPORT, 'fetch to session/list failed', {
       endpoint: 'session/list',
       detail: 'connection refused',
     })

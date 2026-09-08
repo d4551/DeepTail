@@ -19,6 +19,16 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { SessionSummary } from './api.ts'
 
 /**
+ * The JSON model itself, re-named here.
+ *
+ * This module is where a value stops being arbitrary JSON and becomes an
+ * answer a predicate has read, so it is also where a caller that has to build
+ * one — a suite standing in for the other side of a boundary — names the model
+ * it is building on.
+ */
+export type { JsonValue }
+
+/**
  * The JSON values an envelope may carry, by the package that owns them, plus
  * the hole an argument list can carry where the host sent nothing.
  *

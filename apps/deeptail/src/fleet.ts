@@ -13,9 +13,9 @@ import { type PairingRuntime, pairAndFinish } from './fleet-pairing.ts'
 import { connectPhase, connectTailnet, forgetTailnet, openTailnet, tailnetPairingPhase } from './fleet-tailnet.ts'
 import type { HostRecord } from './host.ts'
 import { createTranslate, type Translate } from './locales.ts'
-import { type PickerPorts, settled, tauriPorts } from './picker-ports.ts'
+import { nativePorts, type PickerPorts, settled } from './picker-ports.ts'
 import { mountPickerFrame, type Phase, type PickerActions, type PickerFrame, paintScreen } from './picker-screen.ts'
-import { type TailnetPorts, tauriTailnetPorts } from './tailscale.ts'
+import { nativeTailnetPorts, type TailnetPorts } from './tailscale.ts'
 import type { HostState } from './ui/states.ts'
 import './styles/tokens.css'
 import './styles/picker.css'
@@ -214,10 +214,10 @@ async function loadRoster(run: PickerRuntime): Promise<void> {
  */
 export function renderHostPicker(
   container: HTMLElement,
-  ports: PickerPorts = tauriPorts,
+  ports: PickerPorts = nativePorts(),
   translate: Translate = createTranslate(),
   repairing?: string,
-  tailnet: TailnetPorts = tauriTailnetPorts,
+  tailnet: TailnetPorts = nativeTailnetPorts(),
 ): Promise<void> {
   return new Promise<void>((resolve) => {
     const run: PickerRuntime = {

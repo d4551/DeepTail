@@ -82,9 +82,7 @@ export function readSocketFrame(event: Event, streamId: string): Promise<ServerM
   if (!(event instanceof MessageEvent)) return Promise.resolve(null)
   const data: JsonValue = event.data
   if (typeof data !== 'string') return Promise.resolve(null)
-  return parseServerMessage(data).then((message) =>
-    message !== null && message.streamId === streamId ? message : null,
-  )
+  return parseServerMessage(data, streamId)
 }
 
 /**
@@ -112,8 +110,6 @@ export function decideFrame(message: ServerMessage, ready: boolean): FrameOutcom
       return { kind: 'lost', reason: message.error.message ?? 'event stream failed' }
     case 'end':
       return { kind: 'lost', reason: 'event stream ended' }
-    default:
-      return IGNORE
   }
 }
 
@@ -124,33 +120,41 @@ export function decideFrame(message: ServerMessage, ready: boolean): FrameOutcom
  * as a discarded frame rather than an exception crossing into the listener the
  * socket dispatched.
  * @param text - the raw text message.
+ * @param streamId - the logical stream the connection opened.
  * @returns the frame, or null when it is not one.
  */
-function parseServerMessage(text: string): Promise<ServerMessage | null> {
+function parseServerMessage(text: string, streamId: string): Promise<ServerMessage | null> {
   return Promise.resolve(text)
     .then((candidate): JsonValue => JSON.parse(candidate))
-    .then(projectServerMessage, () => null)
+    .then(
+      (value) => projectServerMessage(value, streamId),
+      () => null,
+    )
 }
 
 /**
- * Narrow a parsed value to a frame this wire knows.
+ * Narrow a parsed value to a frame this wire knows, on the stream that asked.
+ *
+ * The stream the connection opened is what the frame is read against rather
+ * than read out of: the socket carries every logical stream at once, so a frame
+ * addressed elsewhere belongs to another reader — and reading the id out of the
+ * frame, then comparing it, asks the same question twice.
  * @param value - whatever the text parsed to.
- * @returns the frame, or null when it is not one.
+ * @param streamId - the logical stream the connection opened.
+ * @returns the frame, or null when it is not one of this stream's.
  */
-function projectServerMessage(value: JsonValue): ServerMessage | null {
-  if (!isRecord(value) || typeof value['streamId'] !== 'string') return null
+function projectServerMessage(value: JsonValue, streamId: string): ServerMessage | null {
+  if (!isRecord(value) || value['streamId'] !== streamId) return null
   const type = value['type']
   if (type === 'item') {
-    return value['value'] === undefined
-      ? { type, streamId: value['streamId'] }
-      : { type, streamId: value['streamId'], value: value['value'] }
+    return value['value'] === undefined ? { type, streamId } : { type, streamId, value: value['value'] }
   }
-  if (type === 'end') return { type, streamId: value['streamId'] }
+  if (type === 'end') return { type, streamId }
   if (type === 'error') {
     const error = value['error']
     return {
       type,
-      streamId: value['streamId'],
+      streamId,
       error: isRecord(error) && typeof error['message'] === 'string' ? { message: error['message'] } : {},
     }
   }

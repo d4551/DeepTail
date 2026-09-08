@@ -108,6 +108,14 @@ describe('the connect phase', () => {
       draft: EMPTY_TAILNET_DRAFT,
       error: 'no',
     })
+    // Absent rather than present and empty: `exactOptionalPropertyTypes` makes
+    // those two shapes, and the form draws an empty strip for the second.
+    expect(Object.keys(connectPhase(HOSTS, EMPTY_TAILNET_DRAFT, false)).toSorted()).toEqual([
+      'busy',
+      'draft',
+      'hosts',
+      'kind',
+    ])
   })
 })
 

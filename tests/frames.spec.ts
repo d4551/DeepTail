@@ -30,6 +30,20 @@ function dispatched(data: unknown): MessageEvent {
   return new MessageEvent('message', { data })
 }
 
+/** An event that carries text and is not the socket's message event. */
+class Framed extends Event {
+  /** The text an impostor carries where a message event carries its data. */
+  readonly data: string
+
+  /**
+   * @param data - the text to carry.
+   */
+  constructor(data: string) {
+    super('message')
+    this.data = data
+  }
+}
+
 /**
  * One frame as the host writes it on the wire.
  * @param frame - the frame's fields.
@@ -64,9 +78,14 @@ describe('the frames a client reads', () => {
     })
   })
 
-  it('reads an item that carries no value as one, rather than as no frame', async () => {
+  it('reads an item that carries no value as one, carrying no value', async () => {
+    // The field is absent rather than present and empty: `exactOptionalPropertyTypes`
+    // makes those different shapes, and a reader that wrote the key in would
+    // hand the connection a frame that says the host sent nothing.
     const item = wire({ type: 'item', streamId: STREAM })
-    expect(await readSocketFrame(dispatched(item), STREAM)).toEqual({ type: 'item', streamId: STREAM })
+    const read = await readSocketFrame(dispatched(item), STREAM)
+    expect(read).toEqual({ type: 'item', streamId: STREAM })
+    expect(Object.keys(read ?? {}).toSorted()).toEqual(['streamId', 'type'])
   })
 
   it('reads an end and an error, with the error’s message when it carries one', async () => {
@@ -80,12 +99,18 @@ describe('the frames a client reads', () => {
       streamId: STREAM,
       error: { message: 'the host gave up' },
     })
-    const bare = wire({ type: 'error', streamId: STREAM, error: { code: 7 } })
-    expect(await readSocketFrame(dispatched(bare), STREAM)).toEqual({
-      type: 'error',
-      streamId: STREAM,
-      error: {},
-    })
+    const held = [{ code: 7 }, 'a string', null, [1], { message: 7 }]
+    const read = await Promise.all(
+      held.map(
+        async (error) => await readSocketFrame(dispatched(wire({ type: 'error', streamId: STREAM, error })), STREAM),
+      ),
+    )
+    expect(read).toEqual(held.map(() => ({ type: 'error', streamId: STREAM, error: {} })))
+    // Absent rather than present and empty, for the reason the item case
+    // gives: a message key written in is a sentence the host never sent.
+    expect(read.map((one) => Object.keys(one !== null && one.type === 'error' ? one.error : { unread: 1 }))).toEqual(
+      held.map(() => []),
+    )
   })
 })
 
@@ -112,8 +137,20 @@ describe('the frames a client passes over', () => {
     expect(read).toEqual(cases.map(() => null))
   })
 
-  it('reads nothing out of anything but a socket message carrying text', async () => {
+  it('reads nothing out of an event that is not the socket’s message event', async () => {
+    // The reader takes an `Event`, which is what a listener is handed. An
+    // event that merely carries text where a message event carries its data
+    // is not a frame this socket sent, however well the text parses.
+    expect(await readSocketFrame(new Framed(wire({ type: 'item', streamId: STREAM })), STREAM)).toBeNull()
     expect(await readSocketFrame(new Event('open'), STREAM)).toBeNull()
+  })
+
+  it('reads nothing out of data that is not text, however it would read as text', async () => {
+    // A socket can deliver a value that is not a string, and one that renders
+    // as the frame it is not: a reader that let the parser coerce it would
+    // read a frame out of something the host never sent as one.
+    const framed = wire({ type: 'item', streamId: STREAM })
+    expect(await readSocketFrame(dispatched([framed]), STREAM)).toBeNull()
     expect(await readSocketFrame(dispatched({ type: 'item', streamId: STREAM }), STREAM)).toBeNull()
     expect(await readSocketFrame(dispatched(7), STREAM)).toBeNull()
   })
@@ -161,6 +198,7 @@ describe('an item the connection cannot act on', () => {
       { type: 'item', streamId: STREAM, value: { type: 'emit', args: [] } },
       { type: 'item', streamId: STREAM, value: { type: 'emit', event: 'x' } },
       { type: 'item', streamId: STREAM, value: { type: 'emit', event: 'x', args: 'not a list' } },
+      { type: 'item', streamId: STREAM, value: { type: 'ready', event: 'x', args: [1] } },
       { type: 'item', streamId: STREAM, value: [1, 2] },
       { type: 'item', streamId: STREAM, value: 'text' },
     ]
