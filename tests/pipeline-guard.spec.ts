@@ -170,11 +170,36 @@ describe('the job-graph rule', () => {
     expect(aggregationViolations(MERGE_GATE_WORKFLOW, sound.replace('exit 1', 'echo fine'))).toEqual([
       'workflow ci.yml: the aggregate does not refuse on exit 1',
     ])
-    expect(aggregationViolations(MERGE_GATE_WORKFLOW, sound.replace("'cancelled'", "'nothing'"))).toEqual([
-      "workflow ci.yml: the aggregate does not refuse on 'cancelled'",
-    ])
+    // Each outcome in turn: a job that reads three of the four and passes the
+    // fourth through is a merge waiting on a check that lets one state by.
+    for (const outcome of ["'failure'", "'cancelled'", "'skipped'"]) {
+      expect(aggregationViolations(MERGE_GATE_WORKFLOW, sound.replace(outcome, "'nothing'"))).toEqual([
+        `workflow ci.yml: the aggregate does not refuse on ${outcome}`,
+      ])
+    }
     // Only the merge gate is aggregated: the others gate no merge.
     expect(aggregationViolations('release.yml', 'jobs:\n  bundles:\n    runs-on: ubuntu-latest\n')).toEqual([])
+  })
+})
+
+describe('the job graph the rule reads', () => {
+  it('refuses a graph with no aggregate in it at all', () => {
+    // A block with no job in it decides nothing, and every job waited on by
+    // another is a graph with no one check a merge can be pointed at. A reader
+    // that took either for "all aggregated" would pass a pipeline branch
+    // protection cannot be made to wait on.
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, 'jobs:\n')).toEqual([
+      'workflow ci.yml: no job is defined, so nothing decides the merge',
+    ])
+    const refusal = [
+      "    if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')",
+      "      || contains(needs.*.result, 'skipped') }}",
+      '    run: exit 1',
+    ].join('\n')
+    const cycle = ['jobs:', '  a:', '    needs: [b]', '  b:', '    needs: [a]', refusal].join('\n')
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, cycle)).toEqual([
+      'workflow ci.yml: every job is waited on, so none of them is the aggregate',
+    ])
   })
 })
 

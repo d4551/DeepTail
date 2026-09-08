@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "commandRunner": {
-    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/entry-gate.spec.ts tests/gate-runner.spec.ts tests/gate-declarations.spec.ts tests/registry-readers.spec.ts tests/pins.spec.ts tests/pipeline-guard.spec.ts tests/docs-versions.spec.ts tests/mutation-survivors.spec.ts tests/gen-action-registry.spec.ts tests/pipeline-guard-tree.spec.ts tests/cargo-gate-program.spec.ts tests/outdated-gate-program.spec.ts tests/captures.spec.ts"
+    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/entry-gate.spec.ts tests/gate-runner.spec.ts tests/gate-declarations.spec.ts tests/registry-readers.spec.ts tests/pins.spec.ts tests/pipeline-guard.spec.ts tests/docs-versions.spec.ts tests/mutation-survivors.spec.ts tests/gen-action-registry.spec.ts tests/pipeline-guard-tree.spec.ts tests/cargo-gate-program.spec.ts tests/outdated-gate-program.spec.ts tests/captures.spec.ts tests/pipeline-guard-jobs.spec.ts"
   },
   "mutate": [
     "scripts/action-registry-emit.ts",

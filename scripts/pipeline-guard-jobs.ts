@@ -15,7 +15,32 @@
 import { MERGE_GATE_WORKFLOW } from './pipeline-guard-rules.ts'
 
 /** One job id, as a workflow writes it: two spaces of indent, directly under `jobs:`. */
-const JOB_ID = /^ {2}([A-Za-z_][\w-]*):$/u
+const JOB_ID = /^ {2}[A-Za-z_][\w-]*:$/u
+
+/** The line that opens the block every job is written inside. */
+const JOBS_KEY = 'jobs:'
+
+/** A key in the first column, which is where the `jobs:` block ends. */
+const TOP_LEVEL_KEY = /^[A-Za-z_]/u
+
+// A colon separates a key from its value only when whitespace or the end of
+// the line follows it, and a dash opens a sequence entry only when whitespace
+// follows it. `needs:[a]` and `-a` are plain scalars, not a list and not an
+// entry, and a reader that took them for one would count a dependency the
+// workflow does not have — which is a job reported as waited on that nothing
+// waits on.
+
+/** `needs: [a, b]`, the shape that names its jobs on the same line. */
+const NEEDS_INLINE = /^\s*needs:\s+\[[^\]]*\]\s*$/u
+
+/** `needs: a`, the shape that names exactly one. */
+const NEEDS_ONE = /^\s*needs:\s+[A-Za-z_][\w-]*\s*$/u
+
+/** `needs:` alone, which opens a list written one job to a line. */
+const NEEDS_BLOCK = /^\s*needs:\s*$/u
+
+/** `- a`, one job of a list written that way. */
+const NEEDS_ITEM = /^\s*-\s+[A-Za-z_][\w-]*\s*$/u
 
 /**
  * The outcomes the aggregating job must refuse, and the exit it must refuse
@@ -37,12 +62,12 @@ const AGGREGATION_TOKENS: readonly string[] = ["'failure'", "'cancelled'", "'ski
  * @param text - the definition's contents.
  * @returns the block's lines, empty when the definition declares no jobs.
  */
-function jobsSection(text: string): string[] {
+export function jobsSection(text: string): string[] {
   const lines = text.split('\n')
-  const start = lines.indexOf('jobs:')
+  const start = lines.indexOf(JOBS_KEY)
   if (start === -1) return []
   const rest = lines.slice(start + 1)
-  const end = rest.findIndex((line) => /^[A-Za-z_]/u.test(line))
+  const end = rest.findIndex((line) => TOP_LEVEL_KEY.test(line))
   return end === -1 ? rest : rest.slice(0, end)
 }
 
@@ -51,11 +76,18 @@ function jobsSection(text: string): string[] {
  * @param text - the definition's contents.
  * @returns the ids, in the order they are written.
  */
-function jobIds(text: string): string[] {
-  return jobsSection(text).flatMap((line) => {
-    const match = JOB_ID.exec(line)
-    return match === null ? [] : [match[1] ?? '']
-  })
+export function jobIds(text: string): string[] {
+  // Tested, then read off the line: the id is everything between the indent
+  // the shape requires and the colon that ends it, so there is no capture to
+  // stand in for when a match is certain to have made one.
+  return jobsSection(text)
+    .filter((line) => JOB_ID.test(line))
+    .map((line) => line.trim().slice(0, -1))
+}
+
+/** The value written after the first colon on a line. */
+function afterColon(line: string): string {
+  return line.slice(line.indexOf(':') + 1).trim()
 }
 
 /**
@@ -66,30 +98,30 @@ function jobIds(text: string): string[] {
  * @param text - the definition's contents.
  * @returns every job id some job depends on.
  */
-function neededJobs(text: string): string[] {
+export function neededJobs(text: string): string[] {
   const lines = jobsSection(text)
   const named: string[] = []
   for (const [index, line] of lines.entries()) {
-    const inline = /^\s*needs:\s*\[([^\]]*)\]\s*$/u.exec(line)
-    if (inline !== null) {
+    if (NEEDS_INLINE.test(line)) {
       named.push(
-        ...(inline[1] ?? '')
+        ...line
+          .slice(line.indexOf('[') + 1, line.indexOf(']'))
           .split(',')
           .map((word) => word.trim())
           .filter((word) => word !== ''),
       )
       continue
     }
-    const single = /^\s*needs:\s*([A-Za-z_][\w-]*)\s*$/u.exec(line)
-    if (single !== null) {
-      named.push(single[1] ?? '')
+    if (NEEDS_ONE.test(line)) {
+      named.push(afterColon(line))
       continue
     }
-    if (!/^\s*needs:\s*$/u.test(line)) continue
-    for (let at = index + 1; at < lines.length; at += 1) {
-      const item = /^\s*-\s*([A-Za-z_][\w-]*)\s*$/u.exec(lines[at] ?? '')
-      if (item === null) break
-      named.push(item[1] ?? '')
+    if (!NEEDS_BLOCK.test(line)) continue
+    // The list runs from the key to the first line that is not one of its
+    // items, so a job written after it is not read as one of its dependencies.
+    for (const item of lines.slice(index + 1)) {
+      if (!NEEDS_ITEM.test(item)) break
+      named.push(item.trim().slice(1).trim())
     }
   }
   return named
