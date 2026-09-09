@@ -4,7 +4,7 @@
  *
  * Source that reintroduces a pattern the project has moved past, or a style
  * written where a class belongs, is a regression no other gate reports: the
- * build still succeeds and every other suite stays green. The compiler face the
+ * build still succeeds and every other suite stays green. The compiler face that the
  * same kind of drift lands on is held by `compiler-face.spec.ts`.
  *
  * Each rule is read here through the gate the chain runs, over the files that
