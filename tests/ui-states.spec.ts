@@ -55,16 +55,24 @@ describe('a row announcing that a settled read found nothing', () => {
 
 describe('a failed read, carrying the retry that clears it', () => {
   it('replaces the screen as an alert when nothing answered', () => {
-    const strip = retryStrip('error', 'the host did not answer', 'try again', () => undefined)
+    let retried = 0
+    const strip = retryStrip('error', 'the host did not answer', 'try again', () => {
+      retried += 1
+    })
     expect(strip.getAttribute('role')).toBe('alert')
     expect(strip.dataset['deeptailState']).toBe('error')
     expect(strip.textContent?.startsWith('the host did not answer')).toBe(true)
+    expect(retried).toBe(0)
   })
 
   it('sits beside working content as a status when only part answered', () => {
-    const strip = retryStrip('partial', 'one host refused', 'try again', () => undefined)
+    let retried = 0
+    const strip = retryStrip('partial', 'one host refused', 'try again', () => {
+      retried += 1
+    })
     expect(strip.getAttribute('role')).toBe('status')
     expect(strip.className).toContain('warning')
+    expect(retried).toBe(0)
   })
 
   it('wires its retry to the caller', () => {

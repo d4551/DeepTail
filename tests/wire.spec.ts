@@ -26,11 +26,9 @@ describe('whether a value names a serialised object', () => {
     expect(isWireObject(null)).toBe(false)
   })
 
-  it('refuses every scalar the wire carries', () => {
-    expect(isWireObject('s-1')).toBe(false)
-    expect(isWireObject(12)).toBe(false)
-    expect(isWireObject(true)).toBe(false)
-    expect(isWireObject(undefined)).toBe(false)
+  it('refuses every scalar the wire carries, including an absent value', () => {
+    const scalars: readonly WireValue[] = ['s-1', 12, true, undefined]
+    expect(scalars.map((value) => isWireObject(value))).toEqual(scalars.map(() => false))
   })
 })
 
@@ -64,10 +62,8 @@ describe('whether a value is a row the roster can hold', () => {
     expect(isSessionSummary({ ...full, blank: null })).toBe(false)
   })
 
-  it('refuses everything that is not an object at all', () => {
-    expect(isSessionSummary(null)).toBe(false)
-    expect(isSessionSummary('s-1')).toBe(false)
-    expect(isSessionSummary([full])).toBe(false)
-    expect(isSessionSummary(undefined)).toBe(false)
+  it('refuses everything that is not an object at all, including an absent value', () => {
+    const notRows: readonly WireValue[] = [null, 's-1', [full], undefined]
+    expect(notRows.map((value) => isSessionSummary(value))).toEqual(notRows.map(() => false))
   })
 })
