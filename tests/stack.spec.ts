@@ -66,7 +66,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   'react-dom': '19.3',
   semver: '7.8',
   typescript: '7.0',
-  vite: '8.2',
+  vite: '8.3',
 }
 
 /**
