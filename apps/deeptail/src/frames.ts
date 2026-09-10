@@ -107,7 +107,7 @@ export function decideFrame(message: ServerMessage, ready: boolean): FrameOutcom
       return forwarded === undefined ? IGNORE : { kind: 'event', event: forwarded }
     }
     case 'error':
-      return { kind: 'lost', reason: message.error.message ?? 'event stream failed' }
+      return { kind: 'lost', reason: message.error['message'] ?? 'event stream failed' }
     case 'end':
       return { kind: 'lost', reason: 'event stream ended' }
   }

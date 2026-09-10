@@ -75,7 +75,7 @@ function declarationLines(text: string, declaration: string): readonly string[] 
   const lines = text.split('\n')
   const at = lines.findIndex((line) => line.startsWith(declaration))
   const rest = lines.slice(at)
-  const end = rest.findIndex((line) => line === '')
+  const end = rest.indexOf('')
   return end === -1 ? rest : rest.slice(0, end)
 }
 

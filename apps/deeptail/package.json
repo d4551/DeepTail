@@ -22,7 +22,7 @@
     "playwright": "1.63.0",
     "playwright-core": "1.63.0",
     "typescript": "7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.3.0"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-client-modules": "0.1.2-rc.1",

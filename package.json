@@ -43,7 +43,7 @@
     "validate": "bun run lint && bun run check:tree && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:bans && bun run check:entries && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser && bun run a11y"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12",
+    "@biomejs/biome": "2.5.13",
     "@happy-dom/global-registrator": "^20.14.3",
     "@stryker-mutator/core": "10.0.0",
     "@tauri-apps/cli": "2.11.4",

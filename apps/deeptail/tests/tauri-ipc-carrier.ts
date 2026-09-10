@@ -14,13 +14,16 @@ import type { AnswerTable, ForwardedEvent, IpcState, JsonValue, MuxEventValue, S
 /** A record of JSON values, which is what every frame here parses to. */
 type Sent = { readonly [field: string]: JsonValue }
 
+/** Anything an invoke argument can arrive as: a wire value, a live handle, or nothing. */
+type Invoked = JsonValue | object | undefined
+
 /**
  * Whether a value is a record this reads fields off.
  * @param value - the value to test.
  * @returns true when it is a record.
  */
-function isRecord(value: unknown): value is Sent {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+function isRecord(value: Invoked): value is Sent {
+  return value !== undefined && value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 /**
@@ -29,7 +32,7 @@ function isRecord(value: unknown): value is Sent {
  * @param key - the field.
  * @returns the text, or empty when the field carries none.
  */
-function textAt(value: unknown, key: string): string {
+function textAt(value: Invoked, key: string): string {
   if (!isRecord(value)) return ''
   const held = value[key]
   return typeof held === 'string' ? held : ''
@@ -41,7 +44,7 @@ function textAt(value: unknown, key: string): string {
  * @returns its fields, or none when it is not a record.
  */
 function readJson(text: string): Sent {
-  const parsed: unknown = JSON.parse(text === '' ? '{}' : text)
+  const parsed: Invoked = JSON.parse(text === '' ? '{}' : text)
   return isRecord(parsed) ? parsed : {}
 }
 
@@ -55,10 +58,10 @@ function readJson(text: string): Sent {
  * @param value - the argument.
  * @returns true when the argument is a channel handle.
  */
-function isChannel(value: unknown): value is ScriptChannel {
-  if (typeof value !== 'object' || value === null) return false
+function isChannel(value: Invoked): value is ScriptChannel {
+  if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) return false
   if (!('onmessage' in value)) return true
-  return value.onmessage === undefined || typeof value.onmessage === 'function'
+  return value['onmessage'] === undefined || typeof value['onmessage'] === 'function'
 }
 
 /**

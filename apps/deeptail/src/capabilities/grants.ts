@@ -237,9 +237,9 @@ function hydrateInto<T>(
     grants.clear()
     return { reason: snapshot, context: issuedUnder }
   }
-  if (snapshot.context !== issuedUnder) grants.clear()
-  applyGrants(grants, snapshot.grants)
-  return { reason: 'hydrated', context: snapshot.context }
+  if (snapshot['context'] !== issuedUnder) grants.clear()
+  applyGrants(grants, snapshot['grants'])
+  return { reason: 'hydrated', context: snapshot['context'] }
 }
 
 /**
