@@ -14,9 +14,9 @@ import {
   credentialOf,
   draftIsComplete,
   EMPTY_TAILNET_DRAFT,
-  tailnetConnectView,
   type TailnetConnectState,
   type TailnetDraft,
+  tailnetConnectView,
 } from '../apps/deeptail/src/picker-tailnet.ts'
 import { resetDocument } from './dom.ts'
 

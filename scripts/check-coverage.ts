@@ -16,8 +16,8 @@
  * @module
  */
 
-import { allThree } from './captures.ts'
 import { readFile } from 'node:fs/promises'
+import { allThree } from './captures.ts'
 
 /**
  * The directories the unit command names, and the pattern each is scanned

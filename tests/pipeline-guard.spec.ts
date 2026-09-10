@@ -245,6 +245,7 @@ describe('the pinned lists', () => {
       'typecheck',
       'build',
       'test',
+      'check:coverage',
       'knip',
       'lint:rust',
       'test:rust',

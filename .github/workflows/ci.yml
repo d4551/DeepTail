@@ -76,6 +76,8 @@ jobs:
         run: bun run build
       - name: unit suites
         run: bun run test
+      - name: coverage floors
+        run: bun run check:coverage
 
   browser:
     runs-on: ubuntu-latest

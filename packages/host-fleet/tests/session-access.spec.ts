@@ -31,7 +31,9 @@ interface Admitted {
 function controllerDouble(recorded: Admitted[]): FleetController {
   return {
     list: () => Promise.resolve({ items: [] }),
-    follow: () => ({ [Symbol.asyncIterator]: () => ({ next: () => Promise.resolve({ done: true, value: undefined }) }) }),
+    follow: () => ({
+      [Symbol.asyncIterator]: () => ({ next: () => Promise.resolve({ done: true, value: undefined }) }),
+    }),
     create: () => Promise.resolve({ sessionId: SessionId('s-new') }),
     prompt: async (request, signal) => {
       recorded.push({ request, signal })

@@ -10,14 +10,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import {
-  createHostApi,
-  FORBIDDEN,
-  PROTOCOL,
-  RemoteError,
-  TRANSPORT,
-  UNAUTHORIZED,
-} from '../apps/deeptail/src/api.ts'
+import { createHostApi, FORBIDDEN, PROTOCOL, RemoteError, TRANSPORT, UNAUTHORIZED } from '../apps/deeptail/src/api.ts'
 import type { CarrierHooks } from '../apps/deeptail/src/transport.ts'
 import type { WireValue } from '../apps/deeptail/src/wire.ts'
 
@@ -37,7 +30,11 @@ interface ReplyEnvelope {
     | { readonly ok: true; readonly value: WireValue }
     | {
         readonly ok: false
-        readonly error?: { readonly code: string; readonly message: string; readonly details: Record<string, WireValue> }
+        readonly error?: {
+          readonly code: string
+          readonly message: string
+          readonly details: Record<string, WireValue>
+        }
       }
 }
 
