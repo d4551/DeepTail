@@ -27,7 +27,7 @@ interface ReplyEnvelope {
   readonly type: string
   readonly rpcId: string
   readonly result:
-    | { readonly ok: true; readonly value: WireValue }
+    | { readonly ok: true; readonly value?: WireValue }
     | {
         readonly ok: false
         readonly error?: {
@@ -46,35 +46,54 @@ interface Sent {
   readonly body: RequestEnvelope
 }
 
+/** What the double's mux socket recorded of its own short life. */
+interface MuxRecord {
+  sent: string[]
+  closed: number
+}
+
 /**
  * A carrier that answers every send with the envelope given, recording what
  * was posted.
  * @param status - the status to answer with.
  * @param reply - the reply body.
- * @returns the hooks, and what was sent so far.
+ * @returns the hooks, what was sent so far, and the mux socket's record.
  */
-function carrierDouble(status: number, reply: ReplyEnvelope): { hooks: CarrierHooks; sent: Sent[] } {
+function carrierDouble(status: number, reply: ReplyEnvelope): { hooks: CarrierHooks; sent: Sent[]; mux: MuxRecord } {
   const sent: Sent[] = []
+  const mux: MuxRecord = { sent: [], closed: 0 }
   const hooks: CarrierHooks = {
-    send: async (input, init) => {
+    send: (input, init) => {
       const body: RequestEnvelope = JSON.parse(String(init.body))
       sent.push({ path: input.pathname, body })
-      return new Response(JSON.stringify(reply), { status, headers: { 'content-type': 'application/json' } })
+      return Promise.resolve(
+        new Response(JSON.stringify(reply), { status, headers: { 'content-type': 'application/json' } }),
+      )
     },
-    loadBundle: async () => undefined,
+    loadBundle: () => Promise.resolve(),
     openMuxSocket: () =>
-      Object.assign(new EventTarget(), { readyState: 0, send: () => undefined, close: () => undefined }),
-    suspendMuxSocket: () => undefined,
+      Object.assign(new EventTarget(), {
+        readyState: 0,
+        send: (data: string) => {
+          mux.sent.push(data)
+        },
+        close: () => {
+          mux.closed += 1
+        },
+      }),
+    suspendMuxSocket: () => {
+      mux.closed += 1
+    },
   }
-  return { hooks, sent }
+  return { hooks, sent, mux }
 }
 
 /**
  * The envelope a host answers a successful call with.
- * @param result - the result field.
+ * @param result - the result field, absent for a method that returns nothing.
  * @returns the reply body.
  */
-function ok(result: WireValue): ReplyEnvelope {
+function ok(result?: WireValue): ReplyEnvelope {
   return { type: 'server-response', rpcId: '0', result: { ok: true, value: result } }
 }
 
@@ -132,7 +151,7 @@ describe('listing sessions', () => {
 
 describe('directing a session', () => {
   it('sends a prompt as the content list the host reads, with a fresh correlation', async () => {
-    const { hooks, sent } = carrierDouble(200, ok(undefined))
+    const { hooks, sent } = carrierDouble(200, ok())
     await createHostApi(hooks).prompt('s-1', 'please rerun the tests', 'queue')
     expect(sent.length).toBe(1)
     expect(sent[0]?.path).toBe('/api/session/prompt')
@@ -143,7 +162,7 @@ describe('directing a session', () => {
   })
 
   it('correlates each call with a fresh id, so two prompts never share one', async () => {
-    const { hooks, sent } = carrierDouble(200, ok(undefined))
+    const { hooks, sent } = carrierDouble(200, ok())
     const api = createHostApi(hooks)
     await api.prompt('s-1', 'first', 'queue')
     await api.prompt('s-1', 'second', 'steer')
@@ -151,7 +170,7 @@ describe('directing a session', () => {
   })
 
   it('sends a cancellation naming the session alone', async () => {
-    const { hooks, sent } = carrierDouble(200, ok(undefined))
+    const { hooks, sent } = carrierDouble(200, ok())
     await createHostApi(hooks).cancel('s-1')
     expect(sent[0]?.path).toBe('/api/session/cancel')
     expect(sent[0]?.body.payload.args).toEqual({ sessionId: 's-1' })
@@ -172,20 +191,20 @@ describe('directing a session', () => {
 
 describe('what an HTTP rejection is reported as', () => {
   it('reports a revoked token as unauthorized, the one failure re-pairing answers', async () => {
-    const { hooks } = carrierDouble(401, ok(null))
+    const { hooks } = carrierDouble(401, ok())
     const failure = await refusalOf(createHostApi(hooks).listSessions())
     expect(failure?.code).toBe(UNAUTHORIZED)
     expect(failure?.message).toBe('session/list returned HTTP 401')
   })
 
   it('reports a refused request as forbidden, which re-pairing does not answer', async () => {
-    const { hooks } = carrierDouble(403, ok(null))
+    const { hooks } = carrierDouble(403, ok())
     const failure = await refusalOf(createHostApi(hooks).listSessions())
     expect(failure?.code).toBe(FORBIDDEN)
   })
 
   it('reports every other status as a transport failure, with the status named', async () => {
-    const { hooks } = carrierDouble(503, ok(null))
+    const { hooks } = carrierDouble(503, ok())
     const failure = await refusalOf(createHostApi(hooks).listSessions())
     expect(failure?.code).toBe(TRANSPORT)
     expect(failure?.details['status']).toBe(503)

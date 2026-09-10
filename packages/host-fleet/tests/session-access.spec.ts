@@ -35,12 +35,26 @@ function controllerDouble(recorded: Admitted[]): FleetController {
       [Symbol.asyncIterator]: () => ({ next: () => Promise.resolve({ done: true, value: undefined }) }),
     }),
     create: () => Promise.resolve({ sessionId: SessionId('s-new') }),
-    prompt: async (request, signal) => {
+    prompt: (request, signal) => {
       recorded.push({ request, signal })
-      return { accepted: true as const }
+      return Promise.resolve({ accepted: true })
     },
-    cancel: () => ({ accepted: true as const }),
+    cancel: () => ({ accepted: true }),
   }
+}
+
+/**
+ * Deliver one prompt and read back what the controller was handed.
+ * @param recorded - where the admissions are collected.
+ * @param mode - how the prompt is admitted.
+ * @returns the delivery's answer.
+ */
+async function delivered(recorded: Admitted[], mode: 'queue' | 'steer'): Promise<FleetSendResult> {
+  return sendPrompt(
+    controllerDouble(recorded),
+    { sessionId: admitSessionId('s-1', 'sessions_send'), text: 'hello', mode },
+    5000,
+  )
 }
 
 describe('admitting a model-supplied session id', () => {
@@ -73,11 +87,7 @@ describe('admitting a model-supplied session id', () => {
 describe('delivering one prompt to another session', () => {
   it('sends the text as the content list the controller reads, under a fresh correlation', async () => {
     const recorded: Admitted[] = []
-    await sendPrompt(
-      controllerDouble(recorded),
-      { sessionId: admitSessionId('s-1', 'sessions_send'), text: 'hello', mode: 'queue' },
-      5000,
-    )
+    await delivered(recorded, 'queue')
     expect(recorded.length).toBe(1)
     const admission = recorded[0]
     expect(String(admission?.request.sessionId)).toBe('s-1')
@@ -89,23 +99,17 @@ describe('delivering one prompt to another session', () => {
 
   it('answers the correlation, the target and the mode it delivered', async () => {
     const recorded: Admitted[] = []
-    const result: FleetSendResult = await sendPrompt(
-      controllerDouble(recorded),
-      { sessionId: admitSessionId('s-1', 'sessions_send'), text: 'hello', mode: 'steer' },
-      5000,
-    )
+    const result = await delivered(recorded, 'steer')
     expect(String(result.sessionId)).toBe('s-1')
     expect(result.mode).toBe('steer')
     expect(result.requestId).toBe(String(recorded[0]?.request.requestId))
   })
+})
 
+describe('the cancellation one delivery carries', () => {
   it('attaches the caller’s timeout as the admission’s cancellation', async () => {
     const recorded: Admitted[] = []
-    await sendPrompt(
-      controllerDouble(recorded),
-      { sessionId: admitSessionId('s-1', 'sessions_send'), text: 'hello', mode: 'queue' },
-      5000,
-    )
+    await delivered(recorded, 'queue')
     // The signal is the one the controller honours while admitting: a timeout
     // that never reached it would leave the delivery waiting for ever.
     expect(recorded[0]?.signal.aborted).toBe(false)
