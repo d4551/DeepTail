@@ -198,7 +198,7 @@ export const FLOORS: Readonly<Record<string, number>> = {
 }
 
 /** The line coverage the whole chain is held to, pinned the same way. */
-export const OVERALL_FLOOR = 92.98
+export const OVERALL_FLOOR = 93.1
 
 /** What the gate tells a reader, a shell, and each of the two streams. */
 export interface CoverageOutcome {

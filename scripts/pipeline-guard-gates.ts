@@ -37,6 +37,7 @@ export const MERGE_GATES: readonly string[] = [
   'typecheck',
   'build',
   'test',
+  'check:coverage',
   'knip',
   'lint:rust',
   'test:rust',
