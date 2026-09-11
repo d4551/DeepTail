@@ -193,13 +193,16 @@ export async function openShell(
 
 /**
  * Open the shell and show the roster, which on phone and tablet widths means
- * opening the drawer that seats it.
+ * opening the drawer that seats it. Every suite that drives the shell with the
+ * roster visible goes through `auditShellAtEachWidth`, which opens through
+ * here; the shell suites that arrange one width at a time open through
+ * `openShell` and call `openDrawerIfPresent` themselves.
  * @param harness - the suite's browser harness.
  * @param fixture - the registry the page boots against.
  * @param view - the viewport and palette the case is measured under.
  * @returns the page, showing the shell with the roster visible.
  */
-export async function openShellWithDrawer(
+async function openShellWithDrawer(
   harness: Harness,
   fixture: Parameters<typeof fleet>[0] = {},
   view?: Parameters<Harness['open']>[1],
