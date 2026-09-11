@@ -35,6 +35,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@deepseek-ai/cordis': '4.0',
   '@deepseek-ai/cordis-plugin-loader': '1.0',
   '@deepseek-ai/dsh-api-session-controller': '0.1',
+  '@deepseek-ai/dsh-brand': '0.1',
   '@deepseek-ai/dsh-client-modules': '0.1',
   '@deepseek-ai/dsh-client-store': '0.1',
   '@deepseek-ai/dsh-client-ui-primitives': '0.1',
@@ -47,24 +48,25 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@deepseek-ai/dsh-util-values': '0.1',
   '@deepseek-ai/schemastery': '3.18',
   '@deeptail/host-fleet': '0.1',
+  '@happy-dom/global-registrator': '20.14',
   '@stryker-mutator/core': '10.0',
   '@tauri-apps/api': '2.11',
   '@tauri-apps/cli': '2.11',
   '@types/bun': '1.4',
-  '@types/node': '26.4',
+  '@types/node': '26.5',
   '@types/semver': '7.8',
   'jsonc-parser': '3.3',
-  knip: '6.34',
-  'oxc-parser': '0.148',
-  oxlint: '1.81',
+  knip: '6.35',
+  'oxc-parser': '0.149',
+  oxlint: '1.82',
   parse5: '8.0',
   playwright: '1.63',
   'playwright-core': '1.63',
-  react: '19.2',
-  'react-dom': '19.2',
+  react: '19.3',
+  'react-dom': '19.3',
   semver: '7.8',
   typescript: '7.0',
-  vite: '8.2',
+  vite: '8.3',
 }
 
 /**
@@ -120,7 +122,7 @@ function floorDrift(declared: ReadonlyMap<string, string>): string[] {
  */
 function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
   const lock = readJsoncSync('bun.lock')
-  const packages = isJsonObject(lock['packages']) ? lock['packages'] : EMPTY_SECTION
+  const packages = isJsonObject(lock.packages) ? lock.packages : EMPTY_SECTION
   const resolved = new Map<string, string[]>()
   for (const [name, entry] of Object.entries(packages)) {
     // Each package is a tuple whose first element is "name@version".
@@ -133,11 +135,11 @@ function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
   }
   // Workspace members are versioned by their own manifest, mirrored in the
   // lock's workspaces section rather than resolved as registry packages.
-  const workspaces = isJsonObject(lock['workspaces']) ? lock['workspaces'] : EMPTY_SECTION
+  const workspaces = isJsonObject(lock.workspaces) ? lock.workspaces : EMPTY_SECTION
   for (const entry of Object.values(workspaces)) {
     if (!isJsonObject(entry)) continue
-    const name = entry['name']
-    const version = entry['version']
+    const name = entry.name
+    const version = entry.version
     if (typeof name === 'string' && typeof version === 'string') {
       resolved.set(name, [...(resolved.get(name) ?? []), version])
     }
@@ -194,8 +196,8 @@ describe('stack floors', () => {
 
   it('keeps every linter category enabled', async () => {
     const config = readJsonc(await readFile('.oxlintrc.json', 'utf8'))
-    const categories = isJsonObject(config['categories']) ? config['categories'] : EMPTY_SECTION
-    const rules = isJsonObject(config['rules']) ? config['rules'] : EMPTY_SECTION
+    const categories = isJsonObject(config.categories) ? config.categories : EMPTY_SECTION
+    const rules = isJsonObject(config.rules) ? config.rules : EMPTY_SECTION
     for (const category of ['correctness', 'suspicious', 'perf', 'pedantic']) {
       expect(categories[category]).toBe('error')
     }
@@ -203,7 +205,7 @@ describe('stack floors', () => {
     expect(Object.values(rules).filter((level) => level === 'off')).toEqual([])
     // The linter carries no ignore list: what it reads is decided by the
     // repository's own ship list, not by a second list here.
-    expect(config['ignorePatterns']).toBeUndefined()
-    expect(config['overrides']).toBeUndefined()
+    expect(config.ignorePatterns).toBeUndefined()
+    expect(config.overrides).toBeUndefined()
   })
 })

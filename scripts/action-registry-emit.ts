@@ -31,14 +31,25 @@ function quote(value: string): string {
 }
 
 /**
- * The union type one list of names becomes.
- * @param names - the names, in document order.
- * @returns the union, wrapped onto lines when it is long.
+ * The width the formatter wraps at, which every emitted line is held to.
+ *
+ * Exported so a suite can read it against the formatter's own configuration:
+ * a generated file the formatter would rewrite fails the lint gate, and the
+ * only thing standing between the two numbers is that they agree.
  */
-function union(names: readonly string[]): string {
+export const LINE_WIDTH = 120
+
+/**
+ * One union type declaration, wrapped onto lines when it will not sit on one.
+ * @param declaration - everything up to and including the `=`.
+ * @param names - the names, in document order.
+ * @returns the declaration.
+ */
+function union(declaration: string, names: readonly string[]): string {
   const parts = names.map((name) => quote(name))
-  const oneLine = ` ${parts.join(' | ')}`
-  return oneLine.length <= 97 ? oneLine : `\n${parts.map((part) => `  | ${part}`).join('\n')}`
+  const oneLine = `${declaration} ${parts.join(' | ')}`
+  if (oneLine.length <= LINE_WIDTH) return oneLine
+  return `${declaration}\n${parts.map((part) => `  | ${part}`).join('\n')}`
 }
 
 /**
@@ -49,7 +60,7 @@ function union(names: readonly string[]): string {
  */
 function array(declaration: string, items: readonly string[]): string {
   const oneLine = `${declaration} [${items.join(', ')}]`
-  if (oneLine.length <= 120) return oneLine
+  if (oneLine.length <= LINE_WIDTH) return oneLine
   return `${declaration} [\n${items.map((item) => `  ${item},`).join('\n')}\n]`
 }
 
@@ -100,11 +111,20 @@ function header(what: string): string[] {
  */
 function emitNames(registry: Registry): string[] {
   return [
-    `type PlacementId =${union(registry.placements.map((row) => row.id))}`,
+    union(
+      'type PlacementId =',
+      registry.placements.map((row) => row.id),
+    ),
     '',
-    `export type ActionId =${union(registry.actions.map((row) => row.id))}`,
+    union(
+      'export type ActionId =',
+      registry.actions.map((row) => row.id),
+    ),
     '',
-    `export type ActionMarker =${union(registry.actions.map((row) => row.marker))}`,
+    union(
+      'export type ActionMarker =',
+      registry.actions.map((row) => row.marker),
+    ),
     '',
     `type AvailabilityId = ${AVAILABILITY.map((name) => quote(name)).join(' | ')}`,
     '',
@@ -154,7 +174,7 @@ export function emitCapabilities(registry: Registry): string {
   const capabilityIds = registry.capabilities.map((row) => row.id)
   return `${[
     ...header('Every capability the registry declares, and how long a grant of one lasts.'),
-    `export type CapabilityId =${union(capabilityIds)}`,
+    union('export type CapabilityId =', capabilityIds),
     '',
     "type SubjectKind = 'device' | 'host'",
     '',

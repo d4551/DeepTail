@@ -5,15 +5,19 @@
  * offence, the choice of an exit status — and four of the five copies sat
  * inside an `import.meta.main` guard, where nothing but the command line could
  * reach them. What a gate prints is what a reader acts on, so it is stated
- * here once and driven directly.
+ * here once and driven directly, including the two command-line streams, which
+ * are held by spies here so the write is read in the process that made it.
  */
 
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CONSOLE, type Gate, type GateOutcome, readGate, renderOffence, reportGate } from '../scripts/gate-runner.ts'
 import type { SourceFile } from '../scripts/source-tree.ts'
+
+/** The module the streams live in, by absolute path. */
+const RUNNER = new URL('../scripts/gate-runner.ts', import.meta.url).pathname
 
 /** A gate that refuses whatever a file says to refuse. */
 const REFUSING: Gate = {
@@ -60,35 +64,29 @@ describe('the offence rendering', () => {
 describe('the gate reading', () => {
   it('says what it refused, one line per offence, under the gate’s own refusal', async () => {
     const { files, dispose } = await tree({ 'a.probe': 'bad', 'b.probe': 'fine', 'c.probe': 'bad' })
-    try {
-      expect(await readGate(REFUSING, files)).toEqual({
-        ok: false,
-        text: 'the probe refused something:\n  a.probe:2: this file says bad\n  c.probe:2: this file says bad\n',
-      })
-    } finally {
-      await dispose()
-    }
+    const outcome = await readGate(REFUSING, files)
+    await dispose()
+    expect(outcome).toEqual({
+      ok: false,
+      text: 'the probe refused something:\n  a.probe:2: this file says bad\n  c.probe:2: this file says bad\n',
+    })
   })
 
   it('says how many files it read when it refused nothing', async () => {
     const { files, dispose } = await tree({ 'a.probe': 'fine', 'b.probe': 'fine' })
-    try {
-      expect(await readGate(REFUSING, files)).toEqual({ ok: true, text: 'the probe refused nothing (2 files)\n' })
-    } finally {
-      await dispose()
-    }
+    const outcome = await readGate(REFUSING, files)
+    await dispose()
+    expect(outcome).toEqual({ ok: true, text: 'the probe refused nothing (2 files)\n' })
   })
 
   it('reads only the files it says it reads, and counts only those', async () => {
     const { files, dispose } = await tree({ 'keep.probe': 'bad', 'skip.probe': 'bad' })
-    try {
-      const only: Gate = { ...REFUSING, only: (file) => file.label.startsWith('keep') }
-      const outcome = await readGate(only, files)
-      expect(outcome.text).toBe('the probe refused something:\n  keep.probe:2: this file says bad\n')
-      expect((await readGate({ ...only, scan: () => [] }, files)).text).toBe('the probe refused nothing (1 files)\n')
-    } finally {
-      await dispose()
-    }
+    const only: Gate = { ...REFUSING, only: (file) => file.label.startsWith('keep') }
+    const outcome = await readGate(only, files)
+    const clean = await readGate({ ...only, scan: () => [] }, files)
+    await dispose()
+    expect(outcome.text).toBe('the probe refused something:\n  keep.probe:2: this file says bad\n')
+    expect(clean.text).toBe('the probe refused nothing (1 files)\n')
   })
 
   it('is clean over no files at all, rather than reading that as a refusal', async () => {
@@ -110,13 +108,41 @@ describe('the gate report', () => {
     expect([recorded.out, recorded.err]).toEqual([['clean\n'], []])
   })
 
-  it('writes to the process streams when it is run from the command line', () => {
-    // The one place the report reaches a person. Writing nothing is what makes
-    // this safe to call here, and what makes it worth calling at all: the two
-    // arrows are the only lines in the chain a suite would otherwise not run.
-    expect(() => {
-      CONSOLE.out('')
-      CONSOLE.err('')
-    }).not.toThrow()
+  it('writes to the process streams when it is run from the command line', async () => {
+    // The one place the report reaches a person, and the only two lines in the
+    // chain that decide which stream a reader finds it on. Driven in a process
+    // of its own, because what is being read is that process's own output.
+    const source = [
+      `const { CONSOLE } = await import(${JSON.stringify(RUNNER)})`,
+      "CONSOLE.out('clean\\n')",
+      "CONSOLE.err('refused\\n')",
+    ].join('\n')
+    const run = Bun.spawn([process.execPath, '-e', source], { stdout: 'pipe', stderr: 'pipe' })
+    const [out, err, code] = await Promise.all([
+      new Response(run.stdout).text(),
+      new Response(run.stderr).text(),
+      run.exited,
+    ])
+    expect([code, out, err]).toEqual([0, 'clean\n', 'refused\n'])
+  })
+})
+
+describe('the command-line streams, in this process', () => {
+  it('writes a clean report to the process output stream', () => {
+    // The child-process case above proves the wiring end to end; this drives
+    // the same two arrows where the coverage of this chain is measured.
+    const write = spyOn(process.stdout, 'write').mockImplementation(() => true)
+    CONSOLE.out('clean\n')
+    const written = write.mock.calls.map((call) => String(call[0]))
+    write.mockRestore()
+    expect(written).toEqual(['clean\n'])
+  })
+
+  it('writes a refusal to the process error stream', () => {
+    const write = spyOn(process.stderr, 'write').mockImplementation(() => true)
+    CONSOLE.err('refused\n')
+    const written = write.mock.calls.map((call) => String(call[0]))
+    write.mockRestore()
+    expect(written).toEqual(['refused\n'])
   })
 })

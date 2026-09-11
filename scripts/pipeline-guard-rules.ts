@@ -29,34 +29,6 @@ export const WORKFLOW_FILES: readonly string[] = ['ci.yml', 'mutation.yml', 'pip
 export const CODE_OWNERS_FILE = '.github/CODEOWNERS'
 
 /**
- * The merge gates, pinned by name.
- *
- * The `validate` chain in `package.json` is the manifest of what decides
- * ship-worthiness; this list is the same chain held still, so a gate dropped
- * from the manifest or from the workflow fails here by name. Changing the
- * chain therefore means changing this file, and that change travels through
- * review with the code it re-points.
- */
-export const MERGE_GATES: readonly string[] = [
-  'lint',
-  'check:tree',
-  'check:outdated',
-  'check:cargo',
-  'lint:ox',
-  'check:styles',
-  'check:bans',
-  'check:entries',
-  'check:registry',
-  'typecheck',
-  'build',
-  'test',
-  'knip',
-  'lint:rust',
-  'test:rust',
-  'test:browser',
-]
-
-/**
  * Tokens that let a run report without deciding, or run what no review read.
  *
  * `continue-on-error` reports past a failure; `pull_request_target` runs a
@@ -97,8 +69,11 @@ export const CODE_OWNED_PATHS: readonly string[] = [
 /** An action reference whose commit cannot move after the fact. */
 const IMMUTABLE_ACTION = /^[\w.-]+\/[\w.-]+(?:\/[\w.-]+)?@[0-9a-f]{40}$/u
 
+/** The key that names what a workflow runs outside its own code. */
+const USES_KEY = 'uses:'
+
 /** One `uses:` line, which is the only way a workflow runs outside code. */
-const ACTION_REFERENCE = /^\s*(?:-\s+)?uses:\s*(\S+)\s*$/gmu
+const ACTION_REFERENCE = /^\s*(?:-\s+)?uses:\s*\S+\s*$/gmu
 
 /**
  * Every action reference a definition carries that can change after a review.
@@ -108,7 +83,10 @@ const ACTION_REFERENCE = /^\s*(?:-\s+)?uses:\s*(\S+)\s*$/gmu
  */
 export function actionRefViolations(name: string, text: string): string[] {
   return [...text.matchAll(ACTION_REFERENCE)].flatMap((match) => {
-    const reference = match[1] ?? ''
+    // Read off the line the pattern matched rather than out of a capture: a
+    // capture is optional to the compiler however sure the pattern is of it,
+    // and the reference is simply what follows the key.
+    const reference = match[0].slice(match[0].indexOf(USES_KEY) + USES_KEY.length).trim()
     if (reference.startsWith('./')) return []
     if (IMMUTABLE_ACTION.test(reference)) return []
     return [
@@ -200,54 +178,12 @@ export function scheduleViolations(name: string, text: string): string[] {
 }
 
 /**
- * Whether the text runs exactly this gate, and not a longer name that begins
- * the same way.
- *
- * `bun run lint` is a prefix of `bun run lint:ox`, so a substring read would
- * let the longer gate stand in for the shorter one and a dropped gate would
- * still read as covered. The gate's name must end at a boundary: what follows
- * it may not be a character a script name continues with.
- * @param text - the chain or the definition to read.
- * @param gate - the gate's name in the manifest.
- * @returns true when the text runs exactly this gate.
- */
-function runsGate(text: string, gate: string): boolean {
-  return new RegExp(`bun run ${gate}(?![\\w:.-])`, 'u').test(text)
-}
-
-/**
- * Whether the merge-gate workflow runs every gate the pinned chain declares.
- * @param name - the definition's file name, for the report.
- * @param text - the definition's contents.
- * @returns one entry per gate the workflow stopped running.
- */
-export function gateCoverageViolations(name: string, text: string): string[] {
-  if (name !== MERGE_GATE_WORKFLOW) return []
-  return MERGE_GATES.filter((gate) => !runsGate(text, gate)).map(
-    (gate) => `workflow ${name}: the merge gate does not run ${gate}`,
-  )
-}
-
-/**
- * Whether the manifest's validate chain still carries every pinned gate.
- * @param scripts - the manifest's scripts, by name.
- * @returns one entry per gate the chain stopped running.
- */
-export function validateChainViolations(scripts: Readonly<Record<string, string>>): string[] {
-  const chain = scripts['validate']
-  if (chain === undefined) return ['package.json: the validate chain is gone; nothing decides ship-worthiness']
-  return MERGE_GATES.filter((gate) => !runsGate(chain, gate)).map(
-    (gate) => `package.json: the validate chain no longer runs ${gate}`,
-  )
-}
-
-/**
  * Whether any package script carries a token that stops it failing.
  * @param scripts - the manifest's scripts, by name.
  * @returns one entry per laundered script.
  */
-export function scriptViolations(scripts: Readonly<Record<string, string>>): string[] {
-  return Object.entries(scripts).flatMap(([name, command]) =>
+export function scriptViolations(scripts: ReadonlyMap<string, string>): string[] {
+  return [...scripts].flatMap(([name, command]) =>
     FORBIDDEN_IN_SCRIPTS.filter((token) => command.includes(token)).map(
       (token) => `package.json script ${name}: carries ${JSON.stringify(token)}`,
     ),

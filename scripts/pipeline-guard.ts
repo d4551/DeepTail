@@ -5,17 +5,24 @@
  * A pipeline that decides whether the repository ships is text that nothing
  * else re-reads, so it is exactly the text worth rewriting first. This module
  * reads the definitions under `.github/workflows`, the package manifest and
- * the code-owner list, applies every rule in `pipeline-guard-rules.ts`, and
+ * the code-owner list, applies every rule in `pipeline-guard-rules.ts`,
+ * `pipeline-guard-gates.ts` and `pipeline-guard-jobs.ts`, and
  * fails closed: a definition the rules cannot read is a violation, never an
- * absence of one. The suite in `tests/pipeline-guard.spec.ts` drives each rule
- * against synthetic definitions that carry the cheat, then drives every rule
- * at once against the repository's own pipeline.
+ * absence of one. The rules are driven against synthetic definitions that carry
+ * the cheat in `tests/pipeline-guard.spec.ts`, `pipeline-guard-actions.spec.ts`
+ * and `pipeline-guard-jobs.spec.ts`; what this module does with a tree, and
+ * every rule at once against the repository's own pipeline, is
+ * `tests/pipeline-guard-tree.spec.ts`.
  *
  * @module
  */
 
-import { readdir, readFile } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { readJsonc } from './jsonc.ts'
+import { sectionOf } from './manifest.ts'
+import { gateCoverageViolations, validateChainViolations } from './pipeline-guard-gates.ts'
+import { aggregationViolations } from './pipeline-guard-jobs.ts'
 import {
   actionRefViolations,
   bunVersionViolations,
@@ -23,12 +30,10 @@ import {
   codeOwnersViolations,
   FORBIDDEN_IN_WORKFLOWS,
   forbiddenTokenViolations,
-  gateCoverageViolations,
   installViolations,
   scheduleViolations,
   scriptViolations,
   timeoutViolations,
-  validateChainViolations,
   workflowSetViolations,
 } from './pipeline-guard-rules.ts'
 
@@ -46,27 +51,37 @@ interface WorkflowFile {
 
 /**
  * Every violation the pipeline definitions carry, by name.
- * @param root - the repository root the definitions live under.
+ * @param root - the tree the definitions live under; the program reads the
+ *   working directory, and a suite reads a tree of its own.
  * @returns one entry per rule a definition breaks; empty when the pipeline is sound.
  */
-export async function pipelineViolations(root: string = '.'): Promise<readonly string[]> {
-  const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
-    packageManager?: string
-    scripts?: Record<string, string>
-  }
-  const version = PACKAGE_MANAGER_BUN.exec(manifest.packageManager ?? '')?.[1]
-  const scripts = manifest.scripts ?? {}
+export async function pipelineViolations(root: string): Promise<readonly string[]> {
+  const manifest = readJsonc(await Bun.file(join(root, 'package.json')).text())
+  // Read only when there is something to read: a manifest that pins no manager
+  // has no version, and coercing its absence into an empty string to run the
+  // pattern over is a step that decides nothing.
+  const pinned = manifest.packageManager
+  const unreadable = pinned !== undefined && typeof pinned !== 'string'
+  // Read off the string rather than through the pattern: `exec` takes anything
+  // and coerces it, so a reader that lost its type test would go on answering
+  // `undefined` for a manifest that pins nothing and nothing would say so.
+  // `match` is the same read spelt on the string, and a string is what it needs.
+  const version = typeof pinned === 'string' ? pinned.match(PACKAGE_MANAGER_BUN)?.[1] : undefined
+  const scripts = sectionOf(manifest, 'scripts')
   const violations = [
     ...validateChainViolations(scripts),
     ...scriptViolations(scripts),
-    ...(version === undefined ? ['package.json: no bun@x.y.z packageManager pin for the workflows to match'] : []),
+    ...(unreadable ? ['package.json: the packageManager pin is not a string, so no workflow can be held to it'] : []),
+    ...(version === undefined && !unreadable
+      ? ['package.json: no bun@x.y.z packageManager pin for the workflows to match']
+      : []),
   ]
   const names = (await readdir(join(root, WORKFLOW_DIRECTORY)))
     .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
     .toSorted()
   violations.push(...workflowSetViolations(names))
   const files: readonly WorkflowFile[] = await Promise.all(
-    names.map(async (name) => ({ name, text: await readFile(join(root, WORKFLOW_DIRECTORY, name), 'utf8') })),
+    names.map(async (name) => ({ name, text: await Bun.file(join(root, WORKFLOW_DIRECTORY, name)).text() })),
   )
   for (const file of files) {
     violations.push(...workflowViolations(file, version))
@@ -90,6 +105,7 @@ function workflowViolations(file: WorkflowFile, version: string | undefined): st
     ...installViolations(file.name, file.text),
     ...scheduleViolations(file.name, file.text),
     ...gateCoverageViolations(file.name, file.text),
+    ...aggregationViolations(file.name, file.text),
     ...(version === undefined ? [] : bunVersionViolations(file.name, file.text, version)),
   ]
 }
@@ -102,12 +118,12 @@ function workflowViolations(file: WorkflowFile, version: string | undefined): st
 async function ownershipViolations(root: string): Promise<string[]> {
   const present = (await readdir(join(root, '.github'))).includes('CODEOWNERS')
   if (!present) return [`${join('.github', 'CODEOWNERS')} is gone; nothing names who must review the pipeline`]
-  return codeOwnersViolations(await readFile(join(root, '.github', 'CODEOWNERS'), 'utf8'))
+  return codeOwnersViolations(await Bun.file(join(root, '.github', 'CODEOWNERS')).text())
 }
 
 /** Guarded, as every runnable script here is: importing a module must run nothing. */
 if (import.meta.main) {
-  const violations = await pipelineViolations()
+  const violations = await pipelineViolations(process.cwd())
   if (violations.length > 0) {
     process.stderr.write(
       `the pipeline definitions carry ${String(violations.length)} violation(s):\n${violations

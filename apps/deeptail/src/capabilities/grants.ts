@@ -114,18 +114,18 @@ function keyOf(capability: CapabilityId, subject: GrantSubject): string {
 function readGrant<T>(value: T | WireValue): Grant | undefined {
   if (!isWireObject(value)) return undefined
   const row: WireObject = value
-  const capability = row['capability']
-  const revision = row['revision']
-  const expiresAt = row['expiresAt']
+  const capability = row.capability
+  const revision = row.revision
+  const expiresAt = row.expiresAt
   if (typeof capability !== 'string' || !isCapabilityId(capability)) return undefined
   if (typeof revision !== 'number' || !Number.isInteger(revision) || revision < 0) return undefined
   if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) return undefined
   const declared = CAPABILITIES[capability]
   if (declared.subject === 'host') {
-    if (typeof row['subject'] !== 'string' || row['subject'] === '') return undefined
-    return { capability, subject: { kind: 'host', hostId: row['subject'] }, revision, expiresAt }
+    if (typeof row.subject !== 'string' || row.subject === '') return undefined
+    return { capability, subject: { kind: 'host', hostId: row.subject }, revision, expiresAt }
   }
-  if (row['subject'] !== 'device') return undefined
+  if (row.subject !== 'device') return undefined
   return { capability, subject: { kind: 'device' }, revision, expiresAt }
 }
 
@@ -142,18 +142,18 @@ function readSnapshot<T>(
 ): { readonly context: string; readonly grants: readonly Grant[] } | 'malformed-hydration' | 'not-issued-natively' {
   if (!isWireObject(raw)) return 'malformed-hydration'
   const snapshot: WireObject = raw
-  if (typeof snapshot['issuer'] !== 'string' || typeof snapshot['context'] !== 'string' || snapshot['context'] === '') {
+  if (typeof snapshot.issuer !== 'string' || typeof snapshot.context !== 'string' || snapshot.context === '') {
     return 'malformed-hydration'
   }
-  if (!Array.isArray(snapshot['grants'])) return 'malformed-hydration'
-  if (snapshot['issuer'] !== 'native') return 'not-issued-natively'
-  const read = snapshot['grants'].map((grant) => readGrant(grant))
+  if (!Array.isArray(snapshot.grants)) return 'malformed-hydration'
+  if (snapshot.issuer !== 'native') return 'not-issued-natively'
+  const read = snapshot.grants.map((grant) => readGrant(grant))
   const grants: Grant[] = []
   for (const grant of read) {
     if (grant === undefined) return 'malformed-hydration'
     grants.push(grant)
   }
-  return { context: snapshot['context'], grants }
+  return { context: snapshot.context, grants }
 }
 
 /**

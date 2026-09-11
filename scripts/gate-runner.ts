@@ -72,7 +72,8 @@ export function renderOffence(offence: Offence): string {
  * @returns what it found, and what to print.
  */
 export async function readGate(gate: Gate, files = repositoryFiles(gate.extensions)): Promise<GateOutcome> {
-  const read = gate.only === undefined ? files : files.filter((file) => gate.only?.(file) === true)
+  const only = gate.only
+  const read = only === undefined ? files : files.filter((file) => only(file))
   const scanned = await Promise.all(read.map(async (file) => gate.scan(file.label, await readFile(file.path, 'utf8'))))
   const offences = scanned.flat()
   if (offences.length === 0) return { ok: true, text: `${gate.clean(read.length)}\n` }

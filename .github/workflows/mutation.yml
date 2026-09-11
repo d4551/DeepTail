@@ -33,9 +33,7 @@ jobs:
           bun-version: 1.4.2
       - name: install
         run: bun install --frozen-lockfile
-      - name: mutation audit (host-fleet, sheets, gates, tools)
+      - name: mutation audit (every scope)
         run: bun run mutate
-      - name: mutation audit (app)
-        run: bun run mutate:app
       - name: the tree the mutation runs left behind
         run: bun run check:tree

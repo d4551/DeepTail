@@ -76,7 +76,7 @@ export function drawnBox(node: Element): {
  */
 export function checkOverlappingTargets(add: Report, limits: { readonly interactive: string }): void {
   const drawn = [...document.querySelectorAll(limits.interactive)]
-    .filter((node) => node.closest('[inert]') === null && (node as HTMLElement).checkVisibility())
+    .filter((node) => node.closest('[inert]') === null && node instanceof HTMLElement && node.checkVisibility())
     .map((node) => ({ node, box: drawnBox(node) }))
     // Nothing painted, nothing to overlap. A control scrolled out of its own
     // pane still reports a layout box where it would sit if the pane were
@@ -117,7 +117,7 @@ export function checkTouchTargets(add: Report, limits: PointerLimits): void {
   for (const node of document.querySelectorAll(limits.interactive)) {
     // An inert subtree is not reachable, so its geometry is not a target.
     if (node.closest('[inert]') !== null) continue
-    if (!(node as HTMLElement).checkVisibility()) continue
+    if (!(node instanceof HTMLElement) || !node.checkVisibility()) continue
     const box = node.getBoundingClientRect()
     // A control that is shown and takes focus but paints nothing is unreachable
     // in fact: the operator cannot aim at what occupies no pixels.

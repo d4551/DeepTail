@@ -22,7 +22,7 @@ const TS6_RESOLUTIONS = new Set(['node', 'node10', 'classic'])
  * Targets below `esnext`. A face that emits ES5/ES6/ES2020 is a TypeScript 6
  * (or earlier) default this repository does not ship.
  */
-const LEGACY_TARGETS = new Set([
+const SUPERSEDED_TARGETS = new Set([
   'es3',
   'es5',
   'es6',
@@ -45,12 +45,19 @@ const LEGACY_TARGETS = new Set([
 const TS6_FLAGS = ['importsNotUsedAsValues', 'preserveValueImports', 'downlevelIteration'] as const
 
 /**
- * A compilerOptions value as a lowercased string, or empty when it is not one.
+ * The value an option states, when the set names it.
+ *
+ * An option written as anything but a string states no value at all, rather
+ * than standing in as one: a value read in for an option nobody wrote is a
+ * finding reported against a file that does not say it.
  * @param value - the option's JSON value.
- * @returns the string form, lowercased.
+ * @param named - the values the set holds, lowercased.
+ * @returns the stated value, lowercased, or undefined when the set lacks it.
  */
-function optionString(value: Json | undefined): string {
-  return typeof value === 'string' ? value.toLowerCase() : ''
+function statedOneOf(value: Json | undefined, named: ReadonlySet<string>): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const stated = value.toLowerCase()
+  return named.has(stated) ? stated : undefined
 }
 
 /**
@@ -60,16 +67,16 @@ function optionString(value: Json | undefined): string {
  */
 export function compilerFaceOffences(options: { readonly [key: string]: Json }): string[] {
   const offences: string[] = []
-  const moduleValue = optionString(options['module'])
-  if (TS6_MODULES.has(moduleValue)) {
+  const moduleValue = statedOneOf(options.module, TS6_MODULES)
+  if (moduleValue !== undefined) {
     offences.push(`module ${moduleValue} is a TypeScript 6 module system; use esnext with bundler resolution`)
   }
-  const resolution = optionString(options['moduleResolution'])
-  if (TS6_RESOLUTIONS.has(resolution)) {
+  const resolution = statedOneOf(options.moduleResolution, TS6_RESOLUTIONS)
+  if (resolution !== undefined) {
     offences.push(`moduleResolution ${resolution} is a TypeScript 6 resolver; use bundler`)
   }
-  const target = optionString(options['target'])
-  if (LEGACY_TARGETS.has(target)) {
+  const target = statedOneOf(options.target, SUPERSEDED_TARGETS)
+  if (target !== undefined) {
     offences.push(`target ${target} is a TypeScript ≤6 emit face; use esnext`)
   }
   for (const flag of TS6_FLAGS) {
@@ -77,10 +84,10 @@ export function compilerFaceOffences(options: { readonly [key: string]: Json }):
       offences.push(`${flag} is a TypeScript 6 module-interop flag; TypeScript 7 verbatimModuleSyntax replaced it`)
     }
   }
-  if (options['skipLibCheck'] === true) {
+  if (options.skipLibCheck === true) {
     offences.push("skipLibCheck silences a dependency's diagnostics instead of fixing them")
   }
-  if (options['strict'] === false) {
+  if (options.strict === false) {
     offences.push('strict is off; the TypeScript 7 face keeps it on')
   }
   return offences

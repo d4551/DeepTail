@@ -3,7 +3,8 @@
  *
  * Its answers decide whether the injected-source gate reports anything at all,
  * so every binding form is stated here as a case: a name it wrongly thinks is
- * bound is a defect it will never report again.
+ * bound is a defect it will never report again. The property-name shapes live
+ * once, in `free-names-forms.spec.ts`, which holds the rest of the language.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -47,11 +48,8 @@ describe('the binding forms the reader has to know', () => {
     expect(free("import * as N from './x.ts'\nfunction a() { return N.y }")).toEqual([])
   })
 
-  it('reads no reference out of a property name or a label', () => {
-    expect(free('function a(o) { return o.hidden }')).toEqual([])
-    expect(free('function a() { return { hidden: 1 } }')).toEqual([])
+  it('reads no reference out of a label, which names a jump and not a value', () => {
     expect(free('function a(o) { outer: for (;;) { break outer } return o }')).toEqual([])
-    expect(free('class C { hidden() { return 1 } }\nconst a = new C()')).toEqual([])
   })
 
   it('does read a computed property, which is a reference', () => {

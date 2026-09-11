@@ -6,11 +6,10 @@
  * @module @deeptail/host-fleet/tools-direct
  */
 
-import type { SessionId as SessionIdType } from '@deepseek-ai/dsh-session/types'
-import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { FleetLimits } from './limits.ts'
 import { admitSessionId, sendPrompt } from './session-access.ts'
-import type { FleetContext, FleetController, FleetSendResult } from './types.ts'
+import type { FleetContext, FleetController, FleetExecution, FleetSendResult, FleetTool } from './types.ts'
 
 /**
  * Sessions this orchestrator may still create in this process. The budget
@@ -26,11 +25,6 @@ interface SpawnBudget {
   claim(): void
   /** Return a charge whose creation did not happen. */
   refund(): void
-}
-
-/** The owning agent as `sessions_send` reads it: the session it speaks for. */
-interface OwningAgent {
-  readonly session: { readonly id: SessionIdType }
 }
 
 /**
@@ -76,7 +70,7 @@ export function registerSessionsSpawn(ctx: FleetContext, controller: FleetContro
  * @param budget - the per-process creation budget this tool spends.
  * @returns the registry-ready definition.
  */
-function sessionsSpawnTool(controller: FleetController, limits: FleetLimits, budget: SpawnBudget): ToolDefinition {
+function sessionsSpawnTool(controller: FleetController, limits: FleetLimits, budget: SpawnBudget): FleetTool {
   return defineTool({
     name: 'sessions_spawn',
     description:
@@ -142,7 +136,7 @@ export function registerSessionsSend(ctx: FleetContext, controller: FleetControl
  * @param limits - resolved deployment limits: message budget and delivery timeout.
  * @returns the registry-ready definition.
  */
-function sessionsSendTool(controller: FleetController, limits: FleetLimits): ToolDefinition {
+function sessionsSendTool(controller: FleetController, limits: FleetLimits): FleetTool {
   return defineTool({
     name: 'sessions_send',
     description:
@@ -164,7 +158,7 @@ function sessionsSendTool(controller: FleetController, limits: FleetLimits): Too
       },
       render: (_args, value) => [{ type: 'text', text: `Delivered to ${value.sessionId} (${value.mode}).` }],
     },
-    execute: (args, exec) => deliverMessage(controller, limits, args, exec.agent),
+    execute: (args, exec: FleetExecution) => deliverMessage(controller, limits, args, exec.agent),
     presentCall: (args) => ({
       card: 'generic',
       title: `Message ${args.sessionId}`,
@@ -187,7 +181,7 @@ async function deliverMessage(
   controller: FleetController,
   limits: FleetLimits,
   args: { readonly sessionId: string; readonly message: string; readonly mode?: 'queue' | 'steer' },
-  owner: OwningAgent | undefined,
+  owner: FleetExecution['agent'],
 ): Promise<FleetSendResult> {
   const message = args.message.trim()
   if (message === '') throw new Error('sessions_send: message must not be empty')
@@ -215,7 +209,7 @@ export function registerSessionsCancel(ctx: FleetContext, controller: FleetContr
  * @param controller - host session API that owns turn cancellation.
  * @returns the registry-ready definition.
  */
-function sessionsCancelTool(controller: FleetController): ToolDefinition {
+function sessionsCancelTool(controller: FleetController): FleetTool {
   return defineTool({
     name: 'sessions_cancel',
     description: 'Cancel the active turn of another session on this host. Its queued inbox is preserved.',

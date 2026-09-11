@@ -106,7 +106,7 @@ function openControl(session: SessionSummary, t: Translate, onOpen: () => void):
   const running = session.running
   const open = el('button', { className: 'session-open' })
   open.type = 'button'
-  open.dataset['deeptailAction'] = ACTIONS['session.open'].marker
+  open.dataset.deeptailAction = ACTIONS['session.open'].marker
   open.append(
     el('span', {
       className: 'dot',
@@ -140,7 +140,7 @@ function rowActions(session: SessionSummary, t: Translate, handlers: RowHandlers
     aria: { label: t('sessions.messageAria', { title }) },
   })
   message.tabIndex = -1
-  message.dataset['deeptailAction'] = ACTIONS['session.message'].marker
+  message.dataset.deeptailAction = ACTIONS['session.message'].marker
   message.disabled = handlers.busy
   actions.append(message)
 
@@ -149,7 +149,7 @@ function rowActions(session: SessionSummary, t: Translate, handlers: RowHandlers
       aria: { label: t('sessions.stopAria', { title }) },
     })
     stop.tabIndex = -1
-    stop.dataset['deeptailAction'] = ACTIONS['session.cancel'].marker
+    stop.dataset.deeptailAction = ACTIONS['session.cancel'].marker
     stop.disabled = handlers.busy
     actions.append(stop)
   }

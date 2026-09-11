@@ -41,12 +41,10 @@ const GATES: readonly (readonly [string, Gate])[] = [
 async function drive(gate: Gate, name: string, text: string): Promise<{ ok: boolean; text: string }> {
   const root = await mkdtemp(join(tmpdir(), 'gate-declaration-'))
   const file: SourceFile = { label: name, path: join(root, 'held') }
-  try {
-    await writeFile(file.path, text)
-    return await readGate(gate, [file])
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
+  await writeFile(file.path, text)
+  const said = await readGate(gate, [file])
+  await rm(root, { recursive: true, force: true })
+  return said
 }
 
 describe('every gate in the chain', () => {
@@ -137,6 +135,16 @@ describe('the instrumentation gate', () => {
       ok: true,
       text: 'no instrumentation left behind (1 files)\n',
     })
+  })
+
+  it('reads the whole switch, not either half of it', async () => {
+    // Both halves are written in this repository's own sources — the backup
+    // directory a run keeps carries one, and the identifier the instrumenter
+    // numbers carries the other. A gate matching a half alone would refuse the
+    // files that describe a run instead of the files a run rewrote.
+    const clean = { ok: true, text: 'no instrumentation left behind (1 files)\n' }
+    expect(await drive(TREE, 'scripts/probe.ts', "const at = '.stryker-tmp'\n")).toEqual(clean)
+    expect(await drive(TREE, 'scripts/probe.ts', "const at = 'MutAct_9fa48'\n")).toEqual(clean)
   })
 })
 

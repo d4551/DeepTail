@@ -50,3 +50,20 @@ export function deeptailListHosts(script: AnswerTable, state: IpcState): Promise
     script.listError !== undefined && (script.listErrorOn === undefined || script.listErrorOn.includes(state.listReads))
   return fails ? Promise.reject(new Error(script.listError ?? '')) : Promise.resolve(script.hosts ?? [])
 }
+
+/**
+ * Answer one pairing attempt, recording the link the page asked to spend.
+ *
+ * The link itself, not just that pairing was asked for: a case that only sees
+ * the command name cannot tell a composed link from any other.
+ * @param script - the answers this page should give.
+ * @param args - the invoke arguments, which carry the link.
+ * @param state - this page's IPC state.
+ * @returns the host the pairing produced, or the refusal it met.
+ */
+export function deeptailPairHost(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<object> {
+  state.pairedLinks.push(String(args.link ?? ''))
+  return script.pairError === undefined
+    ? Promise.resolve(script.paired ?? {})
+    : Promise.reject(new Error(script.pairError))
+}

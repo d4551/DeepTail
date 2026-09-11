@@ -120,10 +120,10 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
   return {
     async listSessions() {
       const value = await call('session', 'list', {})
-      if (!isWireObject(value) || !Array.isArray(value['items'])) {
+      if (!isWireObject(value) || !Array.isArray(value.items)) {
         throw malformed('session/list', 'no items')
       }
-      return value['items'].filter(isSessionSummary)
+      return value.items.filter(isSessionSummary)
     },
     async prompt(sessionId, text, mode) {
       await call('session', 'prompt', {
@@ -138,10 +138,10 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
     },
     async createSession(input) {
       const value = await call('session', 'create', { ...input })
-      if (!isWireObject(value) || typeof value['sessionId'] !== 'string') {
+      if (!isWireObject(value) || typeof value.sessionId !== 'string') {
         throw malformed('session/create', 'no id')
       }
-      return value['sessionId']
+      return value.sessionId
     },
   }
 }
@@ -182,8 +182,8 @@ async function post(
   })
   if (!response.ok) throw transportFailure(endpoint, response.status)
   const envelope: WireValue = await response.json()
-  if (!isWireObject(envelope) || !isWireObject(envelope['result'])) throw malformed(endpoint, 'no result')
-  return envelope['result']
+  if (!isWireObject(envelope) || !isWireObject(envelope.result)) throw malformed(endpoint, 'no result')
+  return envelope.result
 }
 
 /**
@@ -211,11 +211,11 @@ function transportFailure(endpoint: string, status: number): RemoteError {
  * @returns whatever the method returned.
  */
 function unwrap(result: WireObject, endpoint: string): WireValue | undefined {
-  if (result['ok'] !== true) {
-    const error = isWireObject(result['error']) ? result['error'] : {}
-    const code = typeof error['code'] === 'string' ? error['code'] : 'internal'
-    const message = typeof error['message'] === 'string' ? error['message'] : `${endpoint} failed`
-    throw new RemoteError(code, message, isWireObject(error['details']) ? error['details'] : { endpoint })
+  if (result.ok !== true) {
+    const error = isWireObject(result.error) ? result.error : {}
+    const code = typeof error.code === 'string' ? error.code : 'internal'
+    const message = typeof error.message === 'string' ? error.message : `${endpoint} failed`
+    throw new RemoteError(code, message, isWireObject(error.details) ? error.details : { endpoint })
   }
-  return result['value']
+  return result.value
 }

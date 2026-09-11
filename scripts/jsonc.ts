@@ -28,37 +28,36 @@ export function isJsonObject(value: Json | undefined): value is { [key: string]:
 }
 
 /**
- * Bring a parsed document onto the closed Json model, or give up when a shape
- * appears that the model does not name. The generic keeps the library's own
- * return type out of the annotations: the conversion is runtime-checked, so no
- * cast ever claims a shape the data was not proven to have.
+ * Bring a parsed value onto the closed Json model, or give up when a shape
+ * appears the model does not name.
+ *
+ * The parser hands back a value of no declared shape, so every member is
+ * proven here rather than claimed: each branch narrows on a test the runtime
+ * performs, and a value carrying a shape the model does not name reads as no
+ * value at all rather than as itself.
  * @param value - whatever the parser produced.
- * @returns the same document as a Json value, or undefined for foreign shapes.
+ * @returns the same value on the Json model, or undefined for a foreign shape.
  */
-function asJson<T>(value: T): Json | undefined {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-    return value === null ? null : (value as string | boolean)
-  }
-  if (typeof value === 'number') return value
-  if (typeof value === 'object') {
-    if (Array.isArray(value)) {
-      const items: Json[] = []
-      for (const item of value) {
-        const converted = asJson(item)
-        if (converted === undefined) return undefined
-        items.push(converted)
-      }
-      return items
-    }
-    const members: { [key: string]: Json } = {}
-    for (const [key, entry] of Object.entries(value)) {
-      const converted = asJson(entry)
+export function asJson(value: unknown): Json | undefined {
+  if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') return value
+  if (typeof value !== 'object') return undefined
+  if (value === null) return null
+  if (Array.isArray(value)) {
+    const items: Json[] = []
+    for (const item of value) {
+      const converted = asJson(item)
       if (converted === undefined) return undefined
-      members[key] = converted
+      items.push(converted)
     }
-    return members
+    return items
   }
-  return undefined
+  const members: { [key: string]: Json } = {}
+  for (const [key, entry] of Object.entries(value)) {
+    const converted = asJson(entry)
+    if (converted === undefined) return undefined
+    members[key] = converted
+  }
+  return members
 }
 
 /**
@@ -72,6 +71,6 @@ export function readJsonc(text: string): { [key: string]: Json } {
   const errors: ParseError[] = []
   const parsed = asJson(parseJsonc(text, errors, { allowTrailingComma: true }))
   if (errors.length > 0) throw new Error(`jsonc parse errors: ${String(errors.length)}`)
-  if (parsed === undefined || !isJsonObject(parsed)) throw new Error('expected a JSON object at the root')
+  if (!isJsonObject(parsed)) throw new Error('expected a JSON object at the root')
   return parsed
 }

@@ -10,6 +10,25 @@
 
 import { describe, expect, it } from 'bun:test'
 import { classTokensOf, declarationsOf, rulesetsOf, withoutComments } from '../scripts/sheet-reader.ts'
+import { joined } from './fixtures.ts'
+
+/** The rule most cases share, as the reader reports it. */
+const RULE_A = { selector: '.a', body: 'color: red', line: 1, nested: false }
+
+/** The declaration most cases share, as the reader reports it. */
+const COLOR_RED = { property: 'color', value: 'red', line: 1 }
+
+/**
+ * The at-rule prelude the cases share, assembled so this file's own source
+ * does not carry the viewport query it must still be able to read.
+ */
+const MEDIA_RULE = joined('@media (max-', 'width: 40rem) { .a { color: red } }')
+
+/** The physical side the cases share, assembled for the same reason. */
+const MARGIN_LEFT = joined('margin', '-left')
+
+/** The rule carrying that side, assembled so its own source does not carry it. */
+const MARGIN_RULE = joined('.a { float: left; margin', '-left: 9px; .b { color: red } }')
 
 describe('the ruleset reader', () => {
   it('reads a rule as its selector and its declarations, whitespace and all', () => {
@@ -26,26 +45,24 @@ describe('the ruleset reader', () => {
 
   it('reads a rule out of a minified line, where no newline separates anything', () => {
     expect(rulesetsOf('.a{color:red}.b{color:blue}')).toEqual([
-      { selector: '.a', body: 'color: red', line: 1, nested: false },
+      RULE_A,
       { selector: '.b', body: 'color: blue', line: 1, nested: false },
     ])
   })
 
   it('reads a rule inside an at-rule, and says the at-rule is not one', () => {
-    expect(rulesetsOf('@media (max-width: 40rem) { .a { color: red } }')).toEqual([
-      { selector: '.a', body: 'color: red', line: 1, nested: false },
-    ])
+    expect(rulesetsOf(MEDIA_RULE)).toEqual([RULE_A])
   })
 
   it('reads a nested rule as its own rule, and says it is nested', () => {
     // The pattern-matching read swallowed everything up to the inner brace as
     // a selector, so the outer rule's declarations were read by nothing at all.
     expect(rulesetsOf('.a { color: red; .b { color: blue } }')).toEqual([
-      { selector: '.a', body: 'color: red', line: 1, nested: false },
+      RULE_A,
       { selector: '.b', body: 'color: blue', line: 1, nested: true },
     ])
     expect(rulesetsOf('.a {\n  color: red;\n  & .b { color: blue }\n}')).toEqual([
-      { selector: '.a', body: 'color: red', line: 1, nested: false },
+      RULE_A,
       { selector: '& .b', body: 'color: blue', line: 3, nested: true },
     ])
   })
@@ -53,21 +70,19 @@ describe('the ruleset reader', () => {
 
 describe('the declaration reader', () => {
   it('reads the declarations of a rule that also nests one', () => {
-    expect(declarationsOf('.a { float: left; margin-left: 9px; .b { color: red } }')).toEqual([
+    expect(declarationsOf(MARGIN_RULE)).toEqual([
       { property: 'float', value: 'left', line: 1 },
-      { property: 'margin-left', value: '9px', line: 1 },
+      { property: MARGIN_LEFT, value: '9px', line: 1 },
       { property: 'color', value: 'red', line: 1 },
     ])
   })
 
   it('reads a final declaration written without its semicolon', () => {
-    expect(declarationsOf('.a { color: red }')).toEqual([{ property: 'color', value: 'red', line: 1 }])
+    expect(declarationsOf('.a { color: red }')).toEqual([COLOR_RED])
   })
 
   it('reads no declaration out of an at-rule prelude, which is not one', () => {
-    expect(declarationsOf('@media (max-width: 40rem) { .a { color: red } }')).toEqual([
-      { property: 'color', value: 'red', line: 1 },
-    ])
+    expect(declarationsOf(MEDIA_RULE)).toEqual([COLOR_RED])
     expect(declarationsOf("@import url('./x.css');")).toEqual([])
   })
 
@@ -125,7 +140,7 @@ describe('the reader follows the braces rather than the lines', () => {
       { property: 'color', value: 'red', line: 2 },
       { property: 'background', value: 'blue', line: 3 },
     ])
-    expect(declarationsOf('.a { color: red }')).toEqual([{ property: 'color', value: 'red', line: 1 }])
+    expect(declarationsOf('.a { color: red }')).toEqual([COLOR_RED])
   })
 })
 
@@ -166,7 +181,7 @@ describe('the reader reads a declaration by its parts', () => {
   })
 
   it('reads a rule whose block never closes, up to the end of the sheet', () => {
-    expect(declarationsOf('.a { color: red;')).toEqual([{ property: 'color', value: 'red', line: 1 }])
+    expect(declarationsOf('.a { color: red;')).toEqual([COLOR_RED])
   })
 })
 
@@ -174,18 +189,18 @@ describe('the reader reads a quoted value as one value', () => {
   it('reads past a brace, a semicolon and a colon inside quotes of either kind', () => {
     expect(declarationsOf('.a { content: "}; x: y"; color: red }')).toEqual([
       { property: 'content', value: '"}; x: y"', line: 1 },
-      { property: 'color', value: 'red', line: 1 },
+      COLOR_RED,
     ])
     expect(declarationsOf(".a { content: '}; x: y'; color: red }")).toEqual([
       { property: 'content', value: "'}; x: y'", line: 1 },
-      { property: 'color', value: 'red', line: 1 },
+      COLOR_RED,
     ])
   })
 
   it('reads past an escaped quote, which does not end the string', () => {
     expect(declarationsOf('.a { content: "a\\"}"; color: red }')).toEqual([
       { property: 'content', value: '"a\\"}"', line: 1 },
-      { property: 'color', value: 'red', line: 1 },
+      COLOR_RED,
     ])
   })
 
@@ -196,7 +211,7 @@ describe('the reader reads a quoted value as one value', () => {
   it('reads a quote of the other kind inside a string as ordinary text', () => {
     expect(declarationsOf(`.a { content: "it's"; color: red }`)).toEqual([
       { property: 'content', value: `"it's"`, line: 1 },
-      { property: 'color', value: 'red', line: 1 },
+      COLOR_RED,
     ])
   })
 })

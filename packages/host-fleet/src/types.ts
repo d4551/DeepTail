@@ -9,7 +9,7 @@
 import type { SessionController } from '@deepseek-ai/dsh-api-session-controller'
 import type { InvariantRegistry } from '@deepseek-ai/dsh-invariants'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ToolRuntime } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolRuntime } from '@deepseek-ai/dsh-tools'
 
 /**
  * The session-controller members the fleet tools drive, and all they drive.
@@ -19,6 +19,36 @@ import type { ToolRuntime } from '@deepseek-ai/dsh-tools'
  * reach — no wider, and no conversion across it.
  */
 export type FleetController = Pick<SessionController, 'list' | 'follow' | 'create' | 'prompt' | 'cancel'>
+
+/**
+ * What one fleet tool reads from an execution, and all it reads.
+ *
+ * The registry mints an execution's identity itself — the call ids are branded
+ * and the token is keyed by a symbol the package never exports — so nothing
+ * outside the registry can present a whole `ToolRunContext`, and a suite that
+ * drove one tool by hand had to claim it held one. Naming the two members the
+ * bodies actually reach removes the claim: the registry passes a context that
+ * carries both, and every body below is written against this face, so the
+ * compiler refuses a body that reaches for anything the caller was not
+ * promised.
+ */
+export interface FleetExecution {
+  /** The agent session the call speaks for, absent when nothing owns it. */
+  readonly agent?: { readonly session: { readonly id: SessionId } }
+  /** The caller's cancellation for this invocation. */
+  readonly signal: AbortSignal
+}
+
+/** One fleet tool: the registry's own definition, executed through that face. */
+export type FleetTool = Omit<ToolDefinition, 'execute'> & {
+  /**
+   * Run one accepted call and answer with its canonical value.
+   * @param args - the validated model arguments.
+   * @param exec - the members named above, and nothing else.
+   * @returns the value the tool's output schema declares.
+   */
+  execute(args: unknown, exec: FleetExecution): Promise<unknown>
+}
 
 /**
  * The context members the fleet tools read, and all they read.
@@ -31,7 +61,7 @@ export type FleetController = Pick<SessionController, 'list' | 'follow' | 'creat
  */
 export type FleetContext = {
   readonly sessionController: FleetController
-  readonly tools: Pick<ToolRuntime, 'register'>
+  readonly tools: { readonly register: (definition: FleetTool) => ReturnType<ToolRuntime['register']> }
   readonly effect: (install: () => ReturnType<ToolRuntime['register']>, label: string) => null
 }
 

@@ -11,24 +11,34 @@
 import { describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import type { LocaleId } from '../apps/deeptail/src/browser-locale.ts'
+import { LOCALES } from '../apps/deeptail/src/browser-locale.ts'
 import { DICTIONARIES } from '../apps/deeptail/src/locales.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 
-/** The locales the product ships, the first standing as the key-set reference. */
-function locales(): [LocaleId, ...LocaleId[]] {
-  const [first, ...rest] = Object.keys(DICTIONARIES) as LocaleId[]
-  if (first === undefined) throw new Error('the product ships no dictionary')
-  return [first, ...rest]
-}
+/**
+ * The locales the product declares, the first standing as the key-set
+ * reference.
+ *
+ * Read off the declaration rather than off the dictionaries' own keys, which
+ * `Object.keys` answers with as strings: a string claimed to be a locale is a
+ * dictionary this suite would look up and not find. That the two agree is a
+ * case of its own below, so a locale declared with nothing behind it is
+ * reported rather than passed over.
+ */
+const DECLARED: readonly [LocaleId, ...LocaleId[]] = LOCALES
 
 /** The `{name}` placeholders one sentence carries, in order. */
 function placeholders(value: string): string[] {
   return [...value.matchAll(/\{(\w+)\}/gu)].map((found) => found[1] ?? '')
 }
 
-describe('translations', () => {
+describe('the dictionaries the product ships', () => {
+  it('covers exactly the locales it declares', () => {
+    expect(Object.keys(DICTIONARIES).toSorted()).toEqual([...DECLARED].toSorted())
+  })
+
   it('keeps every dictionary on exactly the same keys', () => {
-    const [first, ...rest] = locales()
+    const [first, ...rest] = DECLARED
     expect(rest.length).toBeGreaterThan(0)
     const reference = Object.keys(DICTIONARIES[first]).toSorted()
     expect(reference.length).toBeGreaterThan(20)
@@ -45,19 +55,26 @@ describe('translations', () => {
     )
     expect(empty).toEqual([])
   })
+})
 
+describe('translations', () => {
   it('fills the same placeholders in every dictionary', () => {
     // A sentence that drops a placeholder in translation renders `{message}`
     // to the reader, or silently loses what it was carrying.
-    const [first, ...rest] = locales()
+    const [first, ...rest] = DECLARED
     const reference = DICTIONARIES[first]
     const drift: string[] = []
     for (const locale of rest) {
-      const dictionary = DICTIONARIES[locale]
-      for (const key of Object.keys(reference) as (keyof typeof reference)[]) {
-        const wanted = placeholders(reference[key])
-        if (JSON.stringify(wanted) !== JSON.stringify(placeholders(dictionary[key])))
-          drift.push(`${locale}:${String(key)}`)
+      const dictionary = new Map(Object.entries(DICTIONARIES[locale]))
+      for (const [key, sentence] of Object.entries(reference)) {
+        const held = dictionary.get(key)
+        // A key a dictionary does not carry is a sentence the reader would see
+        // in another language, not a placeholder mismatch; reading it as empty
+        // would report it only where the reference happened to carry one.
+        if (held === undefined) drift.push(`${locale}:${key} is missing`)
+        else if (JSON.stringify(placeholders(sentence)) !== JSON.stringify(placeholders(held))) {
+          drift.push(`${locale}:${key}`)
+        }
       }
     }
     expect(drift).toEqual([])

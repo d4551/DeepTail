@@ -6,11 +6,11 @@
  * @module @deeptail/host-fleet/tools-observe
  */
 
-import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { FleetLimits } from './limits.ts'
 import { admitSessionId } from './session-access.ts'
 import { recentLines, summarize } from './session-projection.ts'
-import type { FleetContext, FleetController, FleetSessionSummary } from './types.ts'
+import type { FleetContext, FleetController, FleetExecution, FleetSessionSummary, FleetTool } from './types.ts'
 
 /** One listed session as the `sessions_list` renderer reads it. */
 interface ReportedSession {
@@ -37,7 +37,7 @@ export function registerSessionsList(ctx: FleetContext, controller: FleetControl
  * @param limits - resolved deployment limits supplying the default row budget.
  * @returns the registry-ready definition.
  */
-function sessionsListTool(controller: FleetController, limits: FleetLimits): ToolDefinition {
+function sessionsListTool(controller: FleetController, limits: FleetLimits): FleetTool {
   return defineTool({
     name: 'sessions_list',
     description:
@@ -75,7 +75,7 @@ function sessionsListTool(controller: FleetController, limits: FleetLimits): Too
       },
       render: (_args, value) => [{ type: 'text', text: listedSessionsText(value.sessions, value.total) }],
     },
-    execute: (args, exec) => listSessions(controller, limits, args, exec.signal),
+    execute: (args, exec: FleetExecution) => listSessions(controller, limits, args, exec.signal),
     presentCall: (args) => ({
       card: 'generic',
       title: args.runningOnly === true ? 'List running sessions' : 'List sessions',
@@ -152,7 +152,7 @@ export function registerSessionsFollow(ctx: FleetContext, controller: FleetContr
  * @param controller - host session API that owns session follow streams.
  * @returns the registry-ready definition.
  */
-function sessionsFollowTool(controller: FleetController): ToolDefinition {
+function sessionsFollowTool(controller: FleetController): FleetTool {
   return defineTool({
     name: 'sessions_follow',
     description:
@@ -175,7 +175,7 @@ function sessionsFollowTool(controller: FleetController): ToolDefinition {
       },
       render: (_args, value) => [{ type: 'text', text: followedSessionText(value) }],
     },
-    execute: (args, exec) => readSessionSnapshot(controller, args, exec.signal),
+    execute: (args, exec: FleetExecution) => readSessionSnapshot(controller, args, exec.signal),
     presentCall: (args) => ({ card: 'generic', title: `Follow ${args.sessionId}`, kind: 'other' }),
   })
 }

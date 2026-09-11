@@ -191,10 +191,10 @@ export function markupOffences(text: string): MarkupOffence[] {
         found.push({ line, why: 'a second main splits the shell; a document carries one' })
       }
     }
-    for (const child of node.childNodes ?? []) visit(child as Parsed)
-    for (const child of node.content?.childNodes ?? []) visit(child as Parsed)
+    for (const child of node.childNodes ?? []) visit(child)
+    for (const child of node.content?.childNodes ?? []) visit(child)
   }
-  visit(parse(text, { sourceCodeLocationInfo: true }) as Parsed)
+  visit(parse(text, { sourceCodeLocationInfo: true }))
   return found
 }
 

@@ -13,12 +13,23 @@
  * a name is what the filter matches. Nothing else holds that apart, so it is
  * held here.
  *
+ * A filter that selects nothing is the other half of the same problem, and it
+ * is silent: `bun test a b` where `a` names a spec and `b` names nothing exits
+ * zero, having run only `a`. So a renamed spec turns every command that named
+ * it by hand into a command that runs less than it says, and reports the same
+ * green. Every command the repository ships is read for that, the mutation
+ * scopes' included, because they name their suites by hand too.
+ *
+ * The readers themselves are `scripts/test-commands.ts`, so the two suites that
+ * ask what a command runs ask one reader.
+ *
  * @module
  */
 
 import { describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { manifestScripts } from '../scripts/manifest.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
+import { expand, filtersOf, selected, selectsSomething, testCommands } from '../scripts/test-commands.ts'
 
 /** Where the browser suites live, and the suffix that keeps them out of the unit run. */
 const BROWSER_DIRECTORY = 'apps/deeptail/tests/'
@@ -44,33 +55,11 @@ function specs(): { readonly browser: string[]; readonly unit: string[] } {
  * @returns the shell words after `bun test`, flags dropped.
  */
 function unitTestArguments(): string[] {
-  const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
-  const script = manifest.scripts?.['test'] ?? ''
+  const script = manifestScripts().get('test') ?? ''
   const words = script.trim().split(/\s+/u)
   const start = words.indexOf('test')
   if (words[0] !== 'bun' || start === -1) throw new Error(`the test script is not a bun test run: ${script}`)
   return words.slice(start + 1).filter((word) => !word.startsWith('-'))
-}
-
-/**
- * The paths one shell glob expands to, against the files the repository ships.
- *
- * Only `*` is honoured, which is the whole of what the script uses; a pattern
- * carrying anything else expands to nothing here and is refused by name rather
- * than reading as an empty answer.
- * @param pattern - one positional argument from the script.
- * @param files - every spec the repository ships.
- * @returns the paths the shell would hand bun.
- */
-function expand(pattern: string, files: readonly string[]): string[] {
-  if (/[?[\]{}]/u.test(pattern)) throw new Error(`this reader cannot expand ${pattern}`)
-  if (!pattern.includes('*')) return [pattern]
-  const source = `^${pattern
-    .split('*')
-    .map((part) => part.replaceAll(/[.+^$()|\\]/gu, String.raw`\$&`))
-    .join('[^/]*')}$`
-  const matcher = new RegExp(source, 'u')
-  return files.filter((label) => matcher.test(label))
 }
 
 describe('the suites the gate chain runs', () => {
@@ -98,8 +87,72 @@ describe('the suites the gate chain runs', () => {
     const all = [...browser, ...specs().unit]
     const filters = unitTestArguments().flatMap((pattern) => expand(pattern, all))
     expect(filters.length).toBeGreaterThan(0)
-    const selected = browser.filter((label) => filters.some((filter) => label.includes(filter)))
-    expect(selected).toEqual([])
+    const swept = browser.filter((label) => filters.some((filter) => label.includes(filter)))
+    expect(swept).toEqual([])
+  })
+})
+
+describe('the filters each command hands bun', () => {
+  it('hands bun no filter that selects nothing, in any command the repository ships', () => {
+    // A dead filter is silent: bun runs the live ones, exits zero, and the
+    // command reports the same green while running less than it names.
+    const all = repositoryFiles(['.spec.ts']).map((file) => file.label)
+    const dead = testCommands().flatMap(({ where, command }) =>
+      filtersOf(command)
+        .filter((filter) => !selectsSomething(filter, all))
+        .map((filter) => `${where}: ${filter}`),
+    )
+    expect(dead).toEqual([])
+  })
+
+  it('finds a command in every place one is written, rather than reading none', () => {
+    // The case above passes over an empty list, which is what it would read if
+    // either reader stopped finding commands. Both places must answer.
+    const commands = testCommands()
+    expect(commands.filter(({ where }) => where.startsWith('package.json')).length).toBeGreaterThan(0)
+    expect(commands.filter(({ where }) => where.startsWith('stryker.')).length).toBeGreaterThan(0)
+    expect(commands.filter(({ command }) => filtersOf(command).length === 0)).toEqual([])
+  })
+})
+
+describe('the readers that decide what a command runs', () => {
+  it('names a dead filter when it is given one, rather than only ever being green', () => {
+    // The case above has only ever been seen green, which makes it a claim
+    // until the predicate under it is driven against the cheat it must catch.
+    const all = ['tests/pins.spec.ts', 'apps/deeptail/tests/a11y.browser.spec.ts']
+    expect(selectsSomething('tests/pins.spec.ts', all)).toBe(true)
+    expect(selectsSomething('apps/deeptail/tests', all)).toBe(true)
+    expect(selectsSomething('tests/*.spec.ts', all)).toBe(true)
+    // The two shapes a rename leaves behind: a name that matches nothing, and
+    // a glob that expands to nothing. `bun test` runs the live filters beside
+    // either of these and exits zero, which is the silence being refused.
+    expect(selectsSomething('tests/renamed-away.spec.ts', all)).toBe(false)
+    expect(selectsSomething('tests/renamed-*.spec.ts', all)).toBe(false)
+  })
+
+  it('reads the filters of every statement in a command, past its flags', () => {
+    // The build-then-test shape the browser and axe scripts use, with the flag
+    // that takes a value: reading `60000` as a filter, or stopping at the
+    // first statement, would each turn this reader into one that reports on a
+    // command nobody runs.
+    const command = 'bun run --filter @app build && bun test a.spec.ts --timeout 60000 b.spec.ts && echo done'
+    expect(filtersOf(command)).toEqual(['a.spec.ts', 'b.spec.ts'])
+    expect(filtersOf('bun test x.spec.ts && bun test y.spec.ts')).toEqual(['x.spec.ts', 'y.spec.ts'])
+    expect(filtersOf('bun run test:browser')).toEqual([])
+  })
+
+  it('names the specs a filter selects, not merely whether it selects one', () => {
+    // Which suites a filter reaches is what says whether a command runs what
+    // it means to: a filter that reaches a browser suite spends a run on code
+    // no mutant is active in, and a reader that answered only yes or no could
+    // not say which one it reached.
+    const all = ['tests/pins.spec.ts', 'tests/pins-extra.spec.ts', 'apps/deeptail/tests/a11y.browser.spec.ts']
+    expect(selected('tests/pins.spec.ts', all)).toEqual(['tests/pins.spec.ts'])
+    expect(selected('tests/pins', all)).toEqual(['tests/pins.spec.ts', 'tests/pins-extra.spec.ts'])
+    expect(selected('apps/deeptail/tests', all)).toEqual(['apps/deeptail/tests/a11y.browser.spec.ts'])
+    expect(selected('tests/*.spec.ts', all)).toEqual(['tests/pins.spec.ts', 'tests/pins-extra.spec.ts'])
+    expect(selected('tests/renamed-away.spec.ts', all)).toEqual([])
+    expect(selected('tests/renamed-*.spec.ts', all)).toEqual([])
   })
 
   it('reads arguments out of the script rather than assuming them', () => {
@@ -118,11 +171,10 @@ describe('the gates the chain runs', () => {
     // impossible — a suite that reads the whole tree cannot judge a mutation
     // of the modules it reads — so the chain is where they live now, and this
     // is what says so when one falls out of it.
-    const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
-    const scripts = manifest.scripts ?? {}
-    const gates = Object.keys(scripts).filter((name) => name.startsWith('check:'))
+    const scripts = manifestScripts()
+    const gates = [...scripts.keys()].filter((name) => name.startsWith('check:'))
     expect(gates.length).toBeGreaterThan(0)
-    const chain = scripts['validate'] ?? ''
+    const chain = scripts.get('validate') ?? ''
     expect(gates.filter((gate) => !chain.includes(`bun run ${gate}`))).toEqual([])
   })
 
@@ -131,10 +183,8 @@ describe('the gates the chain runs', () => {
     // that module's own fixtures prove: one gate, read twice, never two. That
     // the named module exists is what is checked; what it does is checked
     // where it is driven.
-    const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts?: Record<string, string> }
-    const scripts = manifest.scripts ?? {}
     const shipped = new Set(repositoryFiles(['.ts']).map((file) => file.label))
-    const missing = Object.entries(scripts)
+    const missing = [...manifestScripts()]
       .filter(([name]) => name.startsWith('check:'))
       .flatMap(([name, command]) => {
         const path = /bun\s+(scripts\/[\w-]+\.ts)/u.exec(command)?.[1]

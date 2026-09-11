@@ -4,6 +4,7 @@
  */
 
 import { expect, it } from 'bun:test'
+import { followAnswer, listAnswer } from './answers.ts'
 import { registerTools, run, script } from './controller-double.ts'
 
 it('lists rows newest first, honours the running filter, and refuses a limit of zero', async () => {
@@ -13,15 +14,12 @@ it('lists rows newest first, honours the running filter, and refuses a limit of 
     { sessionId: 's-running', running: true, blank: false, updatedAt: 2 },
   ]
   const tools = registerTools(recorded)
-  const all = (await run(tools, 'sessions_list', {})) as { sessions: { sessionId: string }[]; total: number }
+  const all = listAnswer(await run(tools, 'sessions_list', {}))
   // The fixture is deliberately stored oldest first, so a tool that merely
   // passes the store's order through fails here rather than reading as correct.
   expect(all.sessions.map((row) => row.sessionId)).toEqual(['s-running', 's-idle'])
   expect(all.total).toBe(2)
-  const running = (await run(tools, 'sessions_list', { runningOnly: true })) as {
-    sessions: { sessionId: string }[]
-    total: number
-  }
+  const running = listAnswer(await run(tools, 'sessions_list', { runningOnly: true }))
   expect(running.sessions.map((row) => row.sessionId)).toEqual(['s-running'])
   expect(running.total).toBe(1)
   await expect(run(tools, 'sessions_list', { limit: 0 })).rejects.toThrow('must be a positive number')
@@ -35,10 +33,7 @@ it('caps the listed rows at the limit it was given', async () => {
     blank: false,
     updatedAt: index,
   }))
-  const capped = (await run(registerTools(recorded), 'sessions_list', { limit: 2 })) as {
-    sessions: { sessionId: string }[]
-    total: number
-  }
+  const capped = listAnswer(await run(registerTools(recorded), 'sessions_list', { limit: 2 }))
   // The total reports what the host has; the rows report what was asked for.
   expect([capped.sessions.length, capped.total]).toEqual([2, 4])
   // And they are the two newest. Applying the budget before the ordering would
@@ -54,15 +49,6 @@ it('reads one snapshot from a followed session and leaves no stream behind', asy
       type: 'snapshot',
       cursor: 7,
       hasMore: true,
-      records: [{ type: 'event', event: { type: 'user/message', seq: 1, time: 0, data: { content: [] } } }],
-    },
-  ]
-  recorded.frames = [
-    { type: 'other' },
-    {
-      type: 'snapshot',
-      cursor: 7,
-      hasMore: true,
       records: [
         {
           type: 'event',
@@ -72,13 +58,7 @@ it('reads one snapshot from a followed session and leaves no stream behind', asy
     },
     { type: 'never-read' },
   ]
-  const followed = (await run(registerTools(recorded), 'sessions_follow', { sessionId: 'other' })) as {
-    sessionId: string
-    cursor: number
-    hasMore: boolean
-    records: number
-    recent: string[]
-  }
+  const followed = followAnswer(await run(registerTools(recorded), 'sessions_follow', { sessionId: 'other' }))
   expect([followed.sessionId, followed.cursor, followed.hasMore, followed.records]).toEqual(['other', 7, true, 1])
   // The window the model actually reads, rather than only its size.
   expect(followed.recent).toEqual(['user: ping'])
@@ -165,10 +145,7 @@ it('reads the whole list when the caller sets no budget of their own', async () 
     blank: false,
     updatedAt: index,
   }))
-  const listed = (await run(registerTools(recorded), 'sessions_list', {})) as {
-    sessions: { sessionId: string }[]
-    total: number
-  }
+  const listed = listAnswer(await run(registerTools(recorded), 'sessions_list', {}))
   expect([listed.sessions.length, listed.total]).toEqual([5, 6])
 })
 
@@ -182,4 +159,36 @@ it('reports a host with no sessions as an empty list rather than a failure', asy
   const recorded = script()
   recorded.listed = []
   expect(await run(registerTools(recorded), 'sessions_list', {})).toEqual({ sessions: [], total: 0 })
+})
+
+it('refuses a list answer that is not the shape the rows read', () => {
+  // Every field the assertions read is proven, so a tool that dropped `total`,
+  // renamed `sessions`, or answered with a number where a row belongs is
+  // refused by name rather than read as an empty list.
+  expect(() => listAnswer(null)).toThrow('sessions_list answered with null')
+  expect(() => listAnswer(0)).toThrow('sessions_list answered with 0')
+  expect(() => listAnswer({ total: 1 })).toThrow('sessions_list answered with')
+  expect(() => listAnswer({ sessions: 'none', total: 1 })).toThrow('sessions_list answered with')
+  expect(() => listAnswer({ sessions: [], total: '1' })).toThrow('sessions_list answered with')
+  // One bad row refuses the whole answer, naming the row it refused.
+  expect(() => listAnswer({ sessions: [{ sessionId: 's' }, 7], total: 2 })).toThrow('sessions_list answered with 7')
+})
+
+it('refuses a follow answer that is not the shape the window reads', () => {
+  // An execution can settle with nothing at all, and `undefined` stringifies
+  // to nothing, so the refusal names it through String() rather than printing
+  // the empty string a template literal would. The absent value is carried in
+  // a list so the call reads the value, not a literal in its argument list.
+  const absent: readonly unknown[] = [undefined]
+  expect(() => followAnswer(absent[0])).toThrow('sessions_follow answered with undefined')
+  expect(() => followAnswer({ sessionId: 's', cursor: 1, hasMore: true, records: 0 })).toThrow(
+    'sessions_follow answered with',
+  )
+  expect(() => followAnswer({ sessionId: 's', cursor: 1, hasMore: 'yes', records: 0, recent: [] })).toThrow(
+    'sessions_follow answered with',
+  )
+  // One non-string line refuses the window, naming the line it refused.
+  expect(() => followAnswer({ sessionId: 's', cursor: 1, hasMore: true, records: 1, recent: [3] })).toThrow(
+    'sessions_follow answered with 3',
+  )
 })

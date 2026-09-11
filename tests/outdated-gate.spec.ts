@@ -3,7 +3,9 @@
  *
  * Driven against fixed `bun outdated` output rather than the live registry: a
  * case that resolved real versions would pass or fail on what npm published
- * that morning, which is a test of the internet.
+ * that morning, which is a test of the internet. The program half is driven as
+ * a spawned process in `outdated-gate-program.spec.ts`, and in this process in
+ * `outdated-guard-process.spec.ts`.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -79,6 +81,16 @@ const ALL_WORKSPACES = `bun outdated v1.4.2
 |------------------|---------|--------|--------|----------------|
 | oxlint (dev)     | 1.80.0  | 1.80.0 | 1.81.0 | @deeptail/root |
 |---------------------------------------------------------------|
+`
+
+/** A header the gate can read above a row too short to carry the columns it reads. */
+const SHORT_ROW = `| Package | Current | Update | Latest |
+| knip    | 6.33.0  |
+`
+
+/** A row whose newest column bun left empty, which the comparison passes over. */
+const BLANK_LATEST = `| Package | Current | Update | Latest |
+| knip    | 6.34.0  | 6.34.0 |        |
 `
 
 describe('the outdated gate', () => {
@@ -158,13 +170,8 @@ describe('the outdated gate against a table it cannot read, and against none', (
   })
 
   it('names a table whose rows have too few cells rather than reporting zero packages checked', () => {
-    const short = `bun outdated v1.4.2
-| Package | Current | Update | Latest |
-|---------|---------|--------|--------|
-| knip    | 6.33.0  |
-`
-    expect(tablePrinted(short)).toBe(true)
-    expect(parseOutdated(short)).toEqual([])
+    expect(tablePrinted(SHORT_ROW)).toBe(true)
+    expect(parseOutdated(SHORT_ROW)).toEqual([])
     expect(tablePrinted('bun outdated v1.4.2\n')).toBe(false)
     expect(tablePrinted(ALL_WORKSPACES)).toBe(true)
   })
@@ -179,5 +186,22 @@ describe('the outdated gate against a table it cannot read, and against none', (
     expect(pins.has('playwright')).toBe(true)
     expect(tablePrinted('bun outdated v1.4.2 (744846f84)\n')).toBe(false)
     expect(parseOutdated('bun outdated v1.4.2 (744846f84)\n')).toEqual([])
+  })
+})
+
+describe('the rows the comparison passes over', () => {
+  it('passes over a row whose newest column is blank', () => {
+    // bun leaves the column empty for a package it has nothing to say about.
+    // Read as a version it would be a version nothing can parse, and the gate
+    // would fail on a row bun declined to answer for.
+    expect(behindInstallable(parseOutdated(BLANK_LATEST))).toEqual([])
+  })
+
+  it('does not pass over a row whose newest column says something', () => {
+    // The other half of the same rule: blank is silence, and anything else is
+    // an answer this gate has to judge.
+    expect(behindInstallable([{ name: 'oxlint', current: '1.81.0', latest: 'newest' }])).toEqual([
+      'oxlint reports versions this gate cannot read: 1.81.0 vs newest',
+    ])
   })
 })

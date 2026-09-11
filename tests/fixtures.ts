@@ -1,13 +1,14 @@
 /**
- * Shared fixtures for the gate suites: how a source is assembled, and how its
- * offences are read back.
+ * Shared fixtures for the gate suites: how a source is assembled, how its
+ * offences are read back, and how a ban group is stated once for many fixtures.
  *
  * @module
  */
 
+import { expect } from 'bun:test'
 import { aliases } from '../scripts/aliases.ts'
 import { type Node, parseScript, walk } from '../scripts/ast.ts'
-import * as bans from '../scripts/ban-gate.ts'
+import * as banGate from '../scripts/ban-gate.ts'
 import { constants } from '../scripts/fold.ts'
 import { freeNames } from '../scripts/free-names.ts'
 import type { Names } from '../scripts/rule-helpers.ts'
@@ -69,7 +70,33 @@ export function readsTheName(text: string): boolean {
  * @returns one reason per offence.
  */
 export function banOffences(text: string, label = 'fixture.ts'): string[] {
-  return bans.scanSource(label, text).map((offence) => offence.why)
+  return banGate.scanSource(label, text).map((offence) => offence.why)
+}
+
+/**
+ * The reasons one assembled fixture is rejected by the ban gate.
+ * @param lines - the lines of the source.
+ * @returns the reasons.
+ */
+export function bans(...lines: readonly string[]): string[] {
+  return banOffences(source(...lines))
+}
+
+/**
+ * Every fixture named is refused for the reason its group shares.
+ * @param why - the reason every case in the group is rejected for.
+ * @param groups - one entry per fixture; an entry's lines assemble one source.
+ */
+export function refused(why: string, groups: readonly (readonly string[])[]): void {
+  for (const group of groups) expect(bans(...group)).toEqual([why])
+}
+
+/**
+ * Every fixture named is admitted: the gate reports nothing for it.
+ * @param groups - one entry per fixture; an entry's lines assemble one source.
+ */
+export function admitted(groups: readonly (readonly string[])[]): void {
+  for (const group of groups) expect(bans(...group)).toEqual([])
 }
 
 /**

@@ -8,7 +8,7 @@ describe('the structural walk', () => {
     expect(isNode(outer)).toBe(true)
     // Brackets and `as` do not change the value, so the inner expression is
     // what a rule written about expressions must see.
-    const inner = isNode(outer) ? unwrap(outer['declarations']) : null
+    const inner = isNode(outer) ? unwrap(outer.declarations) : null
     expect(isNode(inner)).toBe(false)
   })
 

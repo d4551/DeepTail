@@ -9,7 +9,7 @@
       "project": ["src/**/*.ts", "tests/**/*.ts"]
     },
     ".": {
-      "entry": ["scripts/*.ts", "tests/*.spec.ts"],
+      "entry": ["scripts/*.ts", "tests/*.spec.ts", "tests/tree/*.spec.ts"],
       "project": ["scripts/**/*.ts", "tests/**/*.ts"]
     }
   }

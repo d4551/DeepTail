@@ -1,12 +1,13 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "commandRunner": {
-    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/entry-gate.spec.ts tests/gate-runner.spec.ts tests/gate-declarations.spec.ts tests/registry-readers.spec.ts tests/pins.spec.ts"
+    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/entry-gate.spec.ts tests/gate-runner.spec.ts tests/gate-declarations.spec.ts tests/registry-readers.spec.ts tests/pins.spec.ts tests/pipeline-guard.spec.ts tests/docs-versions.spec.ts tests/mutation-survivors.spec.ts tests/gen-action-registry.spec.ts tests/pipeline-guard-tree.spec.ts tests/cargo-gate-program.spec.ts tests/outdated-gate-program.spec.ts tests/outdated-guard-process.spec.ts tests/guard-probe.spec.ts tests/captures.spec.ts tests/pipeline-guard-jobs.spec.ts tests/pipeline-guard-actions.spec.ts tests/action-registry.spec.ts tests/action-registry-emit.spec.ts tests/gate-programs.spec.ts tests/mutation-report.spec.ts"
   },
   "mutate": [
     "scripts/action-registry-emit.ts",
     "scripts/action-registry-rust.ts",
     "scripts/action-registry.ts",
+    "scripts/captures.ts",
     "scripts/cargo-freshness.ts",
     "scripts/check-bans.ts",
     "scripts/check-entries.ts",
@@ -15,6 +16,7 @@
     "scripts/check-stylesheets.ts",
     "scripts/check-tree.ts",
     "scripts/compiler-face.ts",
+    "scripts/docs-versions.ts",
     "scripts/entry-gate.ts",
     "scripts/gate-runner.ts",
     "scripts/gen-action-registry.ts",
@@ -22,6 +24,10 @@
     "scripts/mutate-restore.ts",
     "scripts/mutation-survivors.ts",
     "scripts/pins.ts",
+    "scripts/pipeline-guard-gates.ts",
+    "scripts/pipeline-guard-jobs.ts",
+    "scripts/pipeline-guard-rules.ts",
+    "scripts/pipeline-guard.ts",
     "scripts/registry-readers.ts"
   ],
   "coverageAnalysis": "off",

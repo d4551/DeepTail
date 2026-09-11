@@ -5,7 +5,7 @@ description = "DeepTail — monitor and drive DeepSeek Harness sessions on a rem
 authors = ["Brandon Donnelly"]
 license = "MIT"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 
 # The library is what the mobile entry point links against; `main.rs` is the
 # desktop binary and simply calls into it.

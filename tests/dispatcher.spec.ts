@@ -1,10 +1,8 @@
 /**
- * What the dispatcher does with each declared action.
- *
- * The registry's own invariants — that the generated faces match, that every
- * action names a lane and prices a capability — are held in `actions.spec.ts`.
- * This is the other half: one handler per action, the capability spent at the
- * moment of dispatch, and every arm of every outcome named.
+ * What the dispatcher does with each declared action: one handler per action,
+ * the capability spent at the moment of dispatch, and every arm of every
+ * outcome named. The registry's own invariants are held in `actions.spec.ts`,
+ * and the audit and ledger's own hydration in `capabilities.spec.ts`.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -15,8 +13,7 @@ import type { ActionDescriptor, ActionId } from '../apps/deeptail/src/actions/re
 import { ACTION_IDS, ACTION_LIST, ACTIONS, CAPABILITIES } from '../apps/deeptail/src/actions/registry.ts'
 import { createDenialAudit } from '../apps/deeptail/src/capabilities/audit.ts'
 import { createGrantLedger } from '../apps/deeptail/src/capabilities/grants.ts'
-import type { PickerKey, Translate } from '../apps/deeptail/src/locales.ts'
-import { DICTIONARIES } from '../apps/deeptail/src/locales.ts'
+import { DICTIONARIES, type PickerKey, type Translate } from '../apps/deeptail/src/locales.ts'
 import { clock, deviceGrant, hostGrant, snapshot } from './grant-fixture.ts'
 
 /** A translator over the shipped English dictionary, for the assertions. */
@@ -36,18 +33,16 @@ const t: Translate = Object.assign(
 const facts: Preconditions = { hasHosts: true, hostState: 'online', running: true, tailnetStored: true }
 
 /** The calls a dispatcher run made, in order. */
-interface Calls {
-  readonly names: string[]
-}
+type Calls = { readonly names: string[] }
 
 /** A dependency set that records what a handler asked for. */
-function stubDeps(calls: Calls): ActionDeps {
+function recordingDeps(calls: Calls): ActionDeps {
+  // The application's own seams answer with a promise, so the recorders do too —
+  // by returning one rather than by being `async`, which would read as work
+  // that is pending when a push onto an array is all that happens.
   const note = (name: string): void => {
     calls.names.push(name)
   }
-  // The application's own seams answer with a promise, so the stubs do too —
-  // by returning one rather than by being `async`, which would read as work
-  // that is pending when a push onto an array is all that happens.
   const noted = (name: string): Promise<void> => {
     note(name)
     return Promise.resolve()
@@ -102,25 +97,18 @@ const ACTIVATION: { readonly [A in ActionId]: ActionInputs[A] } = {
   'tailnet.forget': undefined,
 }
 
-/**
- * The facts a control is measured against, set so its own precondition holds.
- * @param action - the control's registry entry.
- * @returns the facts.
- */
+/** The facts a control is measured against, set so its own precondition holds. */
 function factsFor(action: ActionDescriptor): Preconditions {
   return { ...facts, hostState: action.availability === 'unauthorized' ? 'unauthorized' : 'online' }
 }
 
 /** A ledger holding one live grant of every declared capability. */
 function fullLedger(): ReturnType<typeof createGrantLedger> {
-  const ledger = createGrantLedger(() => 1_000_000)
-  ledger.hydrate(
-    snapshot(
-      Object.values(CAPABILITIES).map((capability) =>
-        capability.subject === 'host' ? hostGrant(capability.id, 'host-a') : deviceGrant(capability.id),
-      ),
-    ),
+  const grants = Object.values(CAPABILITIES).map((capability) =>
+    capability.subject === 'host' ? hostGrant(capability.id, 'host-a') : deviceGrant(capability.id),
   )
+  const ledger = createGrantLedger(() => 1_000_000)
+  ledger.hydrate(snapshot(grants))
   return ledger
 }
 
@@ -128,7 +116,7 @@ describe('the dispatcher', () => {
   it('runs every action the registry declares', async () => {
     const calls: Calls = { names: [] }
     const audit = createDenialAudit()
-    const dispatcher = createDispatcher(stubDeps(calls), fullLedger(), audit, t)
+    const dispatcher = createDispatcher(recordingDeps(calls), fullLedger(), audit, t)
     // One after another, and deliberately: every action spends from the same
     // ledger and appends to the same call list, so running them at once would
     // measure an order nothing guarantees.
@@ -150,12 +138,8 @@ describe('the dispatcher’s refusals', () => {
   it('refuses an action whose capability was never issued, and records why', async () => {
     const calls: Calls = { names: [] }
     const audit = createDenialAudit()
-    const dispatcher = createDispatcher(
-      stubDeps(calls),
-      createGrantLedger(() => 1_000_000),
-      audit,
-      t,
-    )
+    const empty = createGrantLedger(() => 1_000_000)
+    const dispatcher = createDispatcher(recordingDeps(calls), empty, audit, t)
     const outcome = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
     expect(outcome.kind).toBe('denied')
     expect(calls.names).toEqual([])
@@ -166,12 +150,8 @@ describe('the dispatcher’s refusals', () => {
 
   it('tells the operator which grant was missing, in their language', async () => {
     const calls: Calls = { names: [] }
-    const dispatcher = createDispatcher(
-      stubDeps(calls),
-      createGrantLedger(() => 1_000_000),
-      createDenialAudit(),
-      t,
-    )
+    const empty = createGrantLedger(() => 1_000_000)
+    const dispatcher = createDispatcher(recordingDeps(calls), empty, createDenialAudit(), t)
     const outcome = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
     const copy = outcomeCopy(outcome, t)
     expect(copy).toContain('has not granted you this action')
@@ -180,7 +160,7 @@ describe('the dispatcher’s refusals', () => {
 
   it('refuses a control whose own precondition does not hold', async () => {
     const calls: Calls = { names: [] }
-    const dispatcher = createDispatcher(stubDeps(calls), fullLedger(), createDenialAudit(), t)
+    const dispatcher = createDispatcher(recordingDeps(calls), fullLedger(), createDenialAudit(), t)
     const outcome = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], {
       ...facts,
       running: false,
@@ -194,16 +174,9 @@ describe('the dispatcher’s refusals', () => {
 describe('what the dispatcher hands back', () => {
   it('refuses an empty message before it reaches the host', async () => {
     const calls: Calls = { names: [] }
-    const dispatcher = createDispatcher(stubDeps(calls), fullLedger(), createDenialAudit(), t)
-    const outcome = await dispatcher.dispatch(
-      ACTIONS['compose.send'],
-      {
-        hostId: 'host-a',
-        sessionId: 's-1',
-        text: '   ',
-      },
-      facts,
-    )
+    const dispatcher = createDispatcher(recordingDeps(calls), fullLedger(), createDenialAudit(), t)
+    const blank = { hostId: 'host-a', sessionId: 's-1', text: '   ' }
+    const outcome = await dispatcher.dispatch(ACTIONS['compose.send'], blank, facts)
     expect(outcome.kind).toBe('invalid')
     expect(calls.names).toEqual([])
     expect(outcomeCopy(outcome, t)).toBe(DICTIONARIES.en['chat.messageRequired'])
@@ -211,7 +184,7 @@ describe('what the dispatcher hands back', () => {
 
   it('reports a host failure with the host’s own sentence', async () => {
     const calls: Calls = { names: [] }
-    const failing: ActionDeps = { ...stubDeps(calls), cancel: () => Promise.reject(new Error('agent busy')) }
+    const failing: ActionDeps = { ...recordingDeps(calls), cancel: () => Promise.reject(new Error('agent busy')) }
     const dispatcher = createDispatcher(failing, fullLedger(), createDenialAudit(), t)
     const outcome = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
     expect(outcome.kind === 'invalid' && outcome.reason).toBe('host-refused')
@@ -223,7 +196,7 @@ describe('what the dispatcher hands back', () => {
     const time = clock()
     const ledger = createGrantLedger(time.now)
     ledger.hydrate(snapshot([hostGrant('session.cancel', 'host-a', 1, 1_500_000)]))
-    const dispatcher = createDispatcher(stubDeps(calls), ledger, createDenialAudit(), t)
+    const dispatcher = createDispatcher(recordingDeps(calls), ledger, createDenialAudit(), t)
     const soon = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
     time.advance(600_000)
     const late = await dispatcher.dispatch(ACTIONS['session.cancel'], ACTIVATION['session.cancel'], facts)
@@ -234,12 +207,11 @@ describe('what the dispatcher hands back', () => {
 
 describe('a handler that fails where it stands', () => {
   it('reports a synchronous throw with the host’s own sentence', async () => {
-    // A handler that answers without waiting may throw rather than reject.
-    // Called outside the settle, that throw travelled past the account the
-    // operator is owed and surfaced as an unhandled rejection instead.
+    // A handler that answers without waiting may throw rather than reject; a call
+    // made outside the settle would surface that throw unhandled instead.
     const calls: Calls = { names: [] }
     const failing: ActionDeps = {
-      ...stubDeps(calls),
+      ...recordingDeps(calls),
       openSpawn: () => {
         throw new Error('the dialog would not open')
       },
@@ -248,5 +220,28 @@ describe('a handler that fails where it stands', () => {
     const outcome = await dispatcher.dispatch(ACTIONS['session.spawn'], ACTIVATION['session.spawn'], facts)
     expect(outcome.kind === 'invalid' && outcome.reason).toBe('host-refused')
     expect(outcomeCopy(outcome, t)).toBe('the dialog would not open')
+  })
+})
+
+describe('the copy each outcome is shown with', () => {
+  it('hands an executed outcome its announcement, and says nothing without one', async () => {
+    const calls: Calls = { names: [] }
+    const dispatcher = createDispatcher(recordingDeps(calls), fullLedger(), createDenialAudit(), t)
+    const announced = await dispatcher.dispatch(ACTIONS['spawn.create'], ACTIVATION['spawn.create'], facts)
+    const silent = await dispatcher.dispatch(ACTIONS['drawer.toggle'], ACTIVATION['drawer.toggle'], facts)
+    expect(announced.kind).toBe('executed')
+    expect(silent.kind).toBe('executed')
+    expect(outcomeCopy(announced, t)).toBe('Created a session on Harness.')
+    expect(outcomeCopy(silent, t)).toBeUndefined()
+  })
+
+  it('names what the page is not wired to, in the operator’s language', async () => {
+    const calls: Calls = { names: [] }
+    const unbooted: ActionDeps = { ...recordingDeps(calls), clientBooted: () => false }
+    const dispatcher = createDispatcher(unbooted, fullLedger(), createDenialAudit(), t)
+    const outcome = await dispatcher.dispatch(ACTIONS['client.return'], ACTIVATION['client.return'], facts)
+    expect(outcome.kind === 'unwired' && outcome.reason).toBe('no-booted-client')
+    expect(calls.names).toEqual([])
+    expect(outcomeCopy(outcome, t)).toBe(DICTIONARIES.en['unwired.noClient'])
   })
 })

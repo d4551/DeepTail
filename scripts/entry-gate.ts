@@ -15,7 +15,7 @@
  * @module
  */
 
-import { isNode, type Node, parseScript } from './ast.ts'
+import { fieldOf, memberName, type Node, parseScript } from './ast.ts'
 import type { Offence } from './offence.ts'
 
 /** Statement types that declare something rather than doing something. */
@@ -43,17 +43,8 @@ const DECLARATIONS = new Set([
  */
 function isEntryGuard(node: Node): boolean {
   if (node.type !== 'IfStatement') return false
-  const test = node['test']
-  if (!isNode(test) || test.type !== 'MemberExpression') return false
-  const object = test['object']
-  const property = test['property']
-  return (
-    isNode(object) &&
-    object.type === 'MetaProperty' &&
-    isNode(property) &&
-    property.type === 'Identifier' &&
-    property['name'] === 'main'
-  )
+  const test = node.test
+  return fieldOf(fieldOf(test, 'object'), 'type') === 'MetaProperty' && memberName(test) === 'main'
 }
 
 /**
@@ -73,7 +64,7 @@ export function scanEntry(label: string, text: string): Offence[] {
     if (DECLARATIONS.has(statement.type) || isEntryGuard(statement)) continue
     offences.push({
       label,
-      line: parsed.lineAt(statement['start']),
+      line: parsed.lineAt(statement.start),
       why: 'this runs when the module is imported; put the work behind `if (import.meta.main)`',
     })
   }

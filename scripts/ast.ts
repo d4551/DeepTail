@@ -50,10 +50,14 @@ export interface Parsed {
 
 /**
  * Whether a value is a node the walk should descend into.
- * @param value - any value found on a parent node.
+ *
+ * Takes anything, because the parser's own statements arrive typed by the
+ * parser and every other value arrives off a node: one predicate answers for
+ * both, and neither is claimed to be a node without being read as one.
+ * @param value - any value found on a parent node, or off the parser.
  * @returns true when it carries a node type.
  */
-export function isNode(value: Field | undefined): value is Node {
+export function isNode(value: unknown): value is Node {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -78,6 +82,32 @@ type Holder = Node | Record
  */
 function isHolder(value: Field | undefined): value is Holder {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * The nodes one field holds, when it holds a list of them.
+ *
+ * A field is a list of anything the model admits, so a walk that wants the
+ * child nodes under a key reads them here rather than claiming the list is
+ * one: a member that is not a node is not a child to descend into.
+ * @param value - the node or record to read.
+ * @param key - the field.
+ * @returns the nodes, in the order the field holds them.
+ */
+export function nodesAt(value: Field | undefined, key: string): readonly Node[] {
+  const field = fieldOf(value, key)
+  return Array.isArray(field) ? field.flatMap((item) => (isNode(item) ? [item] : [])) : []
+}
+
+/**
+ * The node one field holds, when it holds one.
+ * @param value - the node or record to read.
+ * @param key - the field.
+ * @returns the node, or undefined.
+ */
+export function nodeAt(value: Field | undefined, key: string): Node | undefined {
+  const field = fieldOf(value, key)
+  return isNode(field) ? field : undefined
 }
 
 /**
@@ -131,32 +161,22 @@ export function unwrap(value: Field | undefined): Field | undefined {
   // Bounded so a tree that somehow refers to itself cannot spin here.
   for (let depth = 0; depth < 32; depth += 1) {
     if (!isNode(inner) || !TRANSPARENT.has(inner.type)) return inner
-    inner = inner['expression']
+    inner = inner.expression
   }
   return inner
 }
 
 /**
  * The property name a member expression reads, when it is written plainly.
- * @param node - the member expression.
+ * @param node - the member expression, or any value found where one may be.
  * @returns the name, or undefined when it is computed or not an identifier.
  */
-export function memberName(node: Node): string | undefined {
-  if (node['computed'] === true) return undefined
-  const property = unwrap(node['property'])
-  return isNode(property) && property.type === 'Identifier' && typeof property['name'] === 'string'
-    ? property['name']
+export function memberName(node: Field | undefined): string | undefined {
+  if (fieldOf(node, 'computed') === true) return undefined
+  const property = unwrap(fieldOf(node, 'property'))
+  return isNode(property) && property.type === 'Identifier' && typeof property.name === 'string'
+    ? property.name
     : undefined
-}
-
-/**
- * Read one of the parser's interface-typed statements as the structural node
- * the gates walk.
- * @param value - the statement, as the parser types it.
- * @returns the same object, as the walk reads it.
- */
-function asNode(value: object): Node {
-  return value as Node
 }
 
 /**
@@ -169,7 +189,9 @@ export function parseScript(label: string, text: string): Parsed {
   const parsed = parseSync(label, text)
   const at = lineReader(text)
   return {
-    body: parsed.program.body.map(asNode),
+    // Read as nodes rather than claimed to be them: the parser types its
+    // statements its own way, and what the gates walk is the structure.
+    body: parsed.program.body.flatMap((statement) => (isNode(statement) ? [statement] : [])),
     comments: parsed.comments,
     errors: parsed.errors,
     lineAt: (offset: Field | undefined) => (typeof offset === 'number' ? at(offset) : 1),

@@ -71,12 +71,12 @@ describe('the stack policy bans', () => {
     // The v3-and-earlier pipeline was configured by a file; the v4-and-later
     // one compiles away inside the build. Either is a pipeline this product
     // retired, and a config file is the shape a reintroduction takes first.
-    const legacy = repositoryFiles(['.js', '.cjs', '.mjs', '.ts', '.json', '.yml', '.yaml', '.toml'])
+    const retired = repositoryFiles(['.js', '.cjs', '.mjs', '.ts', '.json', '.yml', '.yaml', '.toml'])
       .map((file) => file.label)
       .filter((label) =>
         /(?:^|\/)(?:tailwind|postcss|daisyui|purgecss|autoprefixer)\.config\b|\.postcssrc\b/u.test(label),
       )
-    expect(legacy).toEqual([])
+    expect(retired).toEqual([])
   })
 
   it('ships exactly one page, wired to exactly the one module entry', async () => {
@@ -92,7 +92,7 @@ describe('the stack policy bans', () => {
 
   it('runs on a bun at the floor, and pins the manager to exactly what runs', async () => {
     const manifest = readJsonc(await readFile('package.json', 'utf8'))
-    const manager = typeof manifest['packageManager'] === 'string' ? manifest['packageManager'] : ''
+    const manager = typeof manifest.packageManager === 'string' ? manifest.packageManager : ''
     const match = /^bun@(\d+\.\d+\.\d+)$/u.exec(manager)
     if (match === null) throw new Error('package.json must pin the package manager as bun@x.y.z')
     if (match[1] === undefined) throw new Error('the bun pin is unreadable')

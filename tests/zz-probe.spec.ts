@@ -16,7 +16,8 @@
 
 import { describe, expect, it } from 'bun:test'
 import { parseSync } from 'oxc-parser'
-import { type DefaultTreeAdapterTypes, parseFragment } from 'parse5'
+import { parseFragment } from 'parse5'
+import { tagTree } from './markup-tree.ts'
 
 describe('oxc jsx parsing', () => {
   it('emits a jsx attribute node for a string attribute', () => {
@@ -53,27 +54,11 @@ describe('oxc module parsing', () => {
   })
 })
 
-/** One parsed markup node, as parse5 hands it over. */
-type MarkupNode = DefaultTreeAdapterTypes.Node
-
-/**
- * The tag names a fragment parses to, indented by depth.
- * @param node - the node to read.
- * @param depth - how deep it sits.
- * @param out - the lines to append to.
- */
-function tagTree(node: MarkupNode, depth: number, out: string[]): void {
-  if ('tagName' in node) out.push(`${'  '.repeat(depth)}${node.tagName}`)
-  for (const child of 'childNodes' in node ? (node.childNodes as MarkupNode[]) : []) tagTree(child, depth + 1, out)
-}
-
 describe('parse5 nesting', () => {
   // The markup gate cannot reject an activation target nested in its own kind:
   // the HTML parsing algorithm closes the open element when the second start
   // tag arrives, so the tree a parser hands a gate never carries that shape.
   it('closes an open activation target when its own kind opens inside it', () => {
-    const out: string[] = []
-    tagTree(parseFragment('<button>a<button>b</button></button>') as MarkupNode, 0, out)
-    expect(out).toEqual(['  button', '  button'])
+    expect(tagTree(parseFragment('<button>a<button>b</button></button>'))).toEqual(['  button', '  button'])
   })
 })
