@@ -47,7 +47,7 @@ function pinBiome(): void {
   // the ignore file the repository keeps, and one list decides for every
   // checker.
   expect(biome['files']).toBeUndefined()
-  expect(section(biome['vcs'], 'biome.json vcs').useIgnoreFile).toBe(true)
+  expect(section(biome['vcs'], 'biome.json vcs')['useIgnoreFile']).toBe(true)
   expect(biome['overrides']).toBeUndefined()
   const linter = section(biome['linter'], 'biome.json linter')
   const rules = section(linter['rules'], 'biome.json linter.rules')

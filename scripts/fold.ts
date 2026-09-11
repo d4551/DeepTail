@@ -60,9 +60,9 @@ export function staticString(env: Constants, node: Field | undefined): string | 
   if (!isNode(folded)) return undefined
   switch (folded.type) {
     case 'Literal':
-      return typeof folded['value'] === 'string' ? folded.value : undefined
+      return typeof folded['value'] === 'string' ? folded['value'] : undefined
     case 'Identifier':
-      return typeof folded['name'] === 'string' ? (env.get(folded.name) ?? undefined) : undefined
+      return typeof folded['name'] === 'string' ? (env.get(folded['name']) ?? undefined) : undefined
     case 'TemplateLiteral':
       return foldTemplate(env, folded)
     case 'BinaryExpression':
@@ -239,7 +239,7 @@ export function approximateString(env: Constants, node: Field | undefined): stri
       return approximateTemplate(env, read)
     case 'BinaryExpression':
       return read['operator'] === '+'
-        ? `${approximateString(env, read['left']) ?? UNREADABLE}${approximateString(env, read.right) ?? UNREADABLE}`
+        ? `${approximateString(env, read['left']) ?? UNREADABLE}${approximateString(env, read['right']) ?? UNREADABLE}`
         : undefined
     default:
       return undefined

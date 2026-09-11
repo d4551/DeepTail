@@ -98,5 +98,5 @@ export function callsMethod(node: Node, host: string, methods: readonly string[]
  * @returns the string, or undefined.
  */
 export function literalKey(value: Field | undefined): string | undefined {
-  return isNode(value) && value.type === 'Literal' && typeof value['value'] === 'string' ? value.value : undefined
+  return isNode(value) && value.type === 'Literal' && typeof value['value'] === 'string' ? value['value'] : undefined
 }

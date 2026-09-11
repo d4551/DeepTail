@@ -51,7 +51,7 @@ describe('the documented toolchain', () => {
     const readme = await readFile('README.md', 'utf8')
     const section = readme.slice(readme.indexOf('## Toolchain'))
     const manifest = readJsonc(await readFile('package.json', 'utf8'))
-    const manager = typeof manifest['packageManager'] === 'string' ? manifest.packageManager : ''
+    const manager = typeof manifest['packageManager'] === 'string' ? manifest['packageManager'] : ''
     const stated = statedVersions(section)
     // A reader that found nothing would report no drift at all, which is what
     // the toolchain line looked like to every gate before this one.

@@ -207,7 +207,8 @@ it('holds the pane behind the open drawer out of reach', async () => {
   // has a way out, and closing it hands the toggle back.
   await page.keyboard.press('Escape')
   await page.waitForFunction(
-    () => document.activeElement instanceof HTMLElement && document.activeElement.dataset['deeptailAction'] === 'drawer',
+    () =>
+      document.activeElement instanceof HTMLElement && document.activeElement.dataset['deeptailAction'] === 'drawer',
   )
   expect(await page.evaluate(() => document.querySelector('.main')?.matches('[inert]') ?? true)).toBe(false)
   await page.close()

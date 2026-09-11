@@ -77,7 +77,7 @@ const INSPECTORS = new Map<string, (env: Constants, node: Node, report: (node: N
  * @param report - records an offence.
  */
 function inspectMember(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const key = keyOf(env, node['property'], node.computed === true)
+  const key = keyOf(env, node['property'], node['computed'] === true)
   if (key === undefined) return
   const why = STYLE_PROPERTIES.get(key.toLowerCase())
   if (why !== undefined) report(node, why)
@@ -99,7 +99,7 @@ function inspectPattern(env: Constants, node: Node, report: (node: Node, why: st
   if (!Array.isArray(properties)) return
   for (const property of properties) {
     if (!isNode(property) || property.type !== 'Property') continue
-    const key = keyOf(env, property['key'], property.computed === true)
+    const key = keyOf(env, property['key'], property['computed'] === true)
     if (key === undefined) continue
     const why = STYLE_PROPERTIES.get(key.toLowerCase())
     if (why !== undefined) report(property, why)
@@ -118,7 +118,7 @@ function inspectPattern(env: Constants, node: Node, report: (node: Node, why: st
 function inspectJsxAttribute(_env: Constants, node: Node, report: (node: Node, why: string) => void): void {
   const name = node['name']
   if (!isNode(name)) return
-  const written = typeof name['name'] === 'string' ? name.name : undefined
+  const written = typeof name['name'] === 'string' ? name['name'] : undefined
   if (written === undefined) return
   const why = STYLE_PROPERTIES.get(written.toLowerCase())
   if (why !== undefined) report(node, why)

@@ -27,7 +27,7 @@ export function everyDependency(): Map<string, string> {
  */
 export function lockfileNames(): Set<string> {
   const lock = readJsoncSync('bun.lock')
-  const packages = isJsonObject(lock['packages']) ? lock.packages : EMPTY_SECTION
+  const packages = isJsonObject(lock['packages']) ? lock['packages'] : EMPTY_SECTION
   const names = new Set<string>()
   for (const key of Object.keys(packages)) {
     // A key is "name@version" (scoped names carry an extra @ before the
@@ -35,9 +35,9 @@ export function lockfileNames(): Set<string> {
     const at = key.lastIndexOf('@')
     names.add(at > 0 ? key.slice(0, at) : key)
   }
-  const workspaces = isJsonObject(lock['workspaces']) ? lock.workspaces : EMPTY_SECTION
+  const workspaces = isJsonObject(lock['workspaces']) ? lock['workspaces'] : EMPTY_SECTION
   for (const entry of Object.values(workspaces)) {
-    if (isJsonObject(entry) && typeof entry['name'] === 'string') names.add(entry.name)
+    if (isJsonObject(entry) && typeof entry['name'] === 'string') names.add(entry['name'])
   }
   return names
 }

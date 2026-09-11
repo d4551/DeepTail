@@ -122,7 +122,7 @@ function floorDrift(declared: ReadonlyMap<string, string>): string[] {
  */
 function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
   const lock = readJsoncSync('bun.lock')
-  const packages = isJsonObject(lock['packages']) ? lock.packages : EMPTY_SECTION
+  const packages = isJsonObject(lock['packages']) ? lock['packages'] : EMPTY_SECTION
   const resolved = new Map<string, string[]>()
   for (const [name, entry] of Object.entries(packages)) {
     // Each package is a tuple whose first element is "name@version".
@@ -135,7 +135,7 @@ function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
   }
   // Workspace members are versioned by their own manifest, mirrored in the
   // lock's workspaces section rather than resolved as registry packages.
-  const workspaces = isJsonObject(lock['workspaces']) ? lock.workspaces : EMPTY_SECTION
+  const workspaces = isJsonObject(lock['workspaces']) ? lock['workspaces'] : EMPTY_SECTION
   for (const entry of Object.values(workspaces)) {
     if (!isJsonObject(entry)) continue
     const name = entry['name']
@@ -196,8 +196,8 @@ describe('stack floors', () => {
 
   it('keeps every linter category enabled', async () => {
     const config = readJsonc(await readFile('.oxlintrc.json', 'utf8'))
-    const categories = isJsonObject(config['categories']) ? config.categories : EMPTY_SECTION
-    const rules = isJsonObject(config['rules']) ? config.rules : EMPTY_SECTION
+    const categories = isJsonObject(config['categories']) ? config['categories'] : EMPTY_SECTION
+    const rules = isJsonObject(config['rules']) ? config['rules'] : EMPTY_SECTION
     for (const category of ['correctness', 'suspicious', 'perf', 'pedantic']) {
       expect(categories[category]).toBe('error')
     }

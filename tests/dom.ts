@@ -31,6 +31,12 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator'
  */
 const INSTALLED_KEY = 'deeptailDocumentInstalled'
 
+declare global {
+  // A global record is declared `var`: that is the one spelling ambient
+  // global augmentation accepts, and it types the key the check below reads.
+  var deeptailDocumentInstalled: boolean | undefined
+}
+
 if (globalThis[INSTALLED_KEY] !== true) {
   GlobalRegistrator.register()
   globalThis[INSTALLED_KEY] = true

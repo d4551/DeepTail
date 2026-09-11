@@ -92,7 +92,7 @@ describe('the stack policy bans', () => {
 
   it('runs on a bun at the floor, and pins the manager to exactly what runs', async () => {
     const manifest = readJsonc(await readFile('package.json', 'utf8'))
-    const manager = typeof manifest['packageManager'] === 'string' ? manifest.packageManager : ''
+    const manager = typeof manifest['packageManager'] === 'string' ? manifest['packageManager'] : ''
     const match = /^bun@(\d+\.\d+\.\d+)$/u.exec(manager)
     if (match === null) throw new Error('package.json must pin the package manager as bun@x.y.z')
     if (match[1] === undefined) throw new Error('the bun pin is unreadable')

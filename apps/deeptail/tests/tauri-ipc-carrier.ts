@@ -61,7 +61,7 @@ function readJson(text: string): Sent {
 function isChannel(value: Invoked): value is ScriptChannel {
   if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) return false
   if (!('onmessage' in value)) return true
-  return value['onmessage'] === undefined || typeof value.onmessage === 'function'
+  return value['onmessage'] === undefined || typeof value['onmessage'] === 'function'
 }
 
 /**
@@ -78,7 +78,7 @@ function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>,
   const envelope = readJson(textAt(request, 'body'))
   const payload = envelope['payload']
   const sent = isRecord(payload) ? payload['args'] : undefined
-  const host = typeof args['host'] === 'string' ? args.host : ''
+  const host = typeof args['host'] === 'string' ? args['host'] : ''
   state.recorded.push({ host, endpoint, args: isRecord(sent) ? sent : {} })
   const scoped = `${host}:${endpoint}`
   if ((script.remotePending ?? []).some((key) => key === scoped || key === endpoint)) {
@@ -103,7 +103,7 @@ function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>,
     headers: [['content-type', 'application/json']],
     body: JSON.stringify({
       type: 'server-response',
-      rpcId: typeof envelope['rpcId'] === 'string' ? envelope.rpcId : '0',
+      rpcId: typeof envelope['rpcId'] === 'string' ? envelope['rpcId'] : '0',
       result,
     }),
   })
@@ -117,7 +117,7 @@ function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>,
  * @returns null once opened, or a promise that never settles.
  */
 function deeptailOpenMux(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<null> {
-  const host = typeof args['host'] === 'string' ? args.host : ''
+  const host = typeof args['host'] === 'string' ? args['host'] : ''
   const channel = args['channel']
   if (!isChannel(channel) || !(script.muxHosts ?? []).includes(host)) {
     // No socket for this host: the deferred is deliberately never settled,
@@ -141,9 +141,9 @@ function deeptailOpenMux(script: AnswerTable, args: Record<string, object>, stat
  * @returns null.
  */
 function deeptailSendMux(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<null> {
-  const host = typeof args['host'] === 'string' ? args.host : ''
+  const host = typeof args['host'] === 'string' ? args['host'] : ''
   const channel = state.channels.get(host)
-  const frame = readJson(typeof args['data'] === 'string' ? args.data : '{}')
+  const frame = readJson(typeof args['data'] === 'string' ? args['data'] : '{}')
   const streamId = frame['streamId']
   if (channel === undefined || frame['type'] !== 'open' || typeof streamId !== 'string') {
     return Promise.resolve(null)

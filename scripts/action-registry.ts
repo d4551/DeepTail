@@ -137,7 +137,7 @@ function readCapability(value: Json, where: string): CapabilityRow {
 function readPlacement(value: Json, where: string): PlacementRow {
   const row = asObject(value, where)
   refuseUnknownKeys(row, where, KEYS.placement)
-  return { id: asString(row['id'], `${where}.id`), surface: asString(row.surface, `${where}.surface`) }
+  return { id: asString(row['id'], `${where}.id`), surface: asString(row['surface'], `${where}.surface`) }
 }
 
 /**

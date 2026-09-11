@@ -31,7 +31,7 @@ function folded(source: string): string | undefined {
  */
 function read(source: string): string | undefined {
   const subject = parsedBody(source)
-    .flatMap((statement) => (Array.isArray(statement['declarations']) ? statement.declarations : []))
+    .flatMap((statement) => (Array.isArray(statement['declarations']) ? statement['declarations'] : []))
     .find((declarator) => nameOf(declarator) === 'subject')
   return staticString(namesOf(source).constants, fieldOf(subject, 'init'))
 }

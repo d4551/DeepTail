@@ -213,7 +213,7 @@ export function freeNames(label: string, text: string): string[] {
   const free = new Set<string>()
   const visit = (node: Node, parent: Node | undefined, key: string, scope: Scope): void => {
     if (node.type === 'Identifier' && typeof node['name'] === 'string') {
-      if (isReference(parent, key) && !bound(scope, node['name'])) free.add(node.name)
+      if (isReference(parent, key) && !bound(scope, node['name'])) free.add(node['name'])
       return
     }
     const inner = scopeFor(node, scope)

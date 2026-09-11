@@ -92,7 +92,7 @@ export const BANNED: readonly Rule[] = [
       node.type === 'TSModuleDeclaration' &&
       isNode(node['id']) &&
       node['id'].type === 'Identifier' &&
-      node['id'].name !== 'global',
+      node['id']['name'] !== 'global',
     why: 'a namespace is a TypeScript 6 module system; use ES module exports',
   },
   {
@@ -187,7 +187,7 @@ function mergesKey(merged: Field | undefined, wanted: readonly string[], names: 
     const key =
       property_['computed'] === true
         ? staticString(names.constants, property_['key'])
-        : (identifier(property_['key'], names) ?? literalKey(property_.key))
+        : (identifier(property_['key'], names) ?? literalKey(property_['key']))
     return key !== undefined && wanted.includes(key)
   })
 }
@@ -250,6 +250,6 @@ function expandoPrototype(node: Node, names: Names): boolean {
 function namesPrototype(node: Node, names: Names): boolean {
   const name = '__proto__'
   if (node.type === 'MemberExpression') return property(node, names) === name || literalKey(node['property']) === name
-  if (node.type === 'Property') return identifier(node['key'], names) === name || literalKey(node.key) === name
+  if (node.type === 'Property') return identifier(node['key'], names) === name || literalKey(node['key']) === name
   return false
 }

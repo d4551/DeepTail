@@ -42,17 +42,6 @@ async function openedSheet(
   return page
 }
 
-/**
- * The page's live region, which every outcome the sheet tells is written into.
- * @param page - the page showing the shell.
- * @returns the region's locator.
- */
-function liveRegion(page: Awaited<ReturnType<Harness['open']>>): ReturnType<Harness['open']> extends never
-  ? never
-  : ReturnType<Awaited<ReturnType<Harness['open']>>['locator']> {
-  return page.locator('.main > [role="status"]')
-}
-
 it('opens with the operator in the draft field, named by its visible label', async () => {
   const page = await openedSheet(harness)
   // The sheet asks for one thing, so that is where focus lands rather than on
@@ -77,9 +66,7 @@ it('opens with the operator in the draft field, named by its visible label', asy
 it('refuses an empty draft without reaching the host', async () => {
   const page = await openedSheet(harness)
   await page.locator('[data-deeptail-action="compose-send"]').click()
-  expect(await page.locator('[data-deeptail-state="compose-error"]').textContent()).toContain(
-    'Type something to send.',
-  )
+  expect(await page.locator('[data-deeptail-state="compose-error"]').textContent()).toContain('Type something to send.')
   // The refusal is about this field, so the field says so and takes focus back.
   expect(await page.locator('[data-deeptail-field="message"]').getAttribute('aria-invalid')).toBe('true')
   expect(await page.evaluate(() => document.activeElement instanceof HTMLTextAreaElement)).toBe(true)

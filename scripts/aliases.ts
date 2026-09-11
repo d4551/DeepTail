@@ -52,8 +52,8 @@ function recordConstAliases(node: Node, into: Map<string, string>): void {
     const id = unwrap(declaration['id'])
     const init = unwrap(declaration['init'])
     if (!isNode(id) || id.type !== 'Identifier' || !isNode(init) || init.type !== 'Identifier') continue
-    if (typeof id['name'] !== 'string' || typeof init.name !== 'string') continue
-    into.set(id['name'], init.name)
+    if (typeof id['name'] !== 'string' || typeof init['name'] !== 'string') continue
+    into.set(id['name'], init['name'])
   }
 }
 
@@ -66,7 +66,7 @@ function recordImportAlias(node: Node, into: Map<string, string>): void {
   const imported = node['imported']
   const local = node['local']
   if (!isNode(imported) || !isNode(local)) return
-  const from = imported.type === 'Identifier' ? imported['name'] : imported.value
-  if (typeof from !== 'string' || typeof local['name'] !== 'string' || local.name === from) return
+  const from = imported.type === 'Identifier' ? imported['name'] : imported['value']
+  if (typeof from !== 'string' || typeof local['name'] !== 'string' || local['name'] === from) return
   into.set(local['name'], from)
 }

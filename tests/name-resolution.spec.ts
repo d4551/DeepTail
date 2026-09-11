@@ -182,7 +182,9 @@ describe('the structural read', () => {
     // The walk is bounded: a tree nested one deeper than the cap comes back
     // as the node it stopped on, which a rule reads as opaque, and a tree
     // nested exactly to the cap comes back as the value beneath.
-    const capped = unwrap(nodeOfType(`const a = ${'('.repeat(33)}document${')'.repeat(33)}`, 'VariableDeclarator')['init'])
+    const capped = unwrap(
+      nodeOfType(`const a = ${'('.repeat(33)}document${')'.repeat(33)}`, 'VariableDeclarator')['init'],
+    )
     expect(isNode(capped) && capped.type).toBe('ParenthesizedExpression')
     const beneath = unwrap(
       nodeOfType(`const a = ${'('.repeat(32)}document${')'.repeat(32)}`, 'VariableDeclarator')['init'],
@@ -246,7 +248,7 @@ describe('the structural walk', () => {
 
   it('reads the line an offset falls on, and the first line for a field that is not one', () => {
     const parsed = parseScript('fixture.ts', 'const a = 1\nconst b = 2')
-    expect(parsed.lineAt(parsed.body[1]?['start'])).toBe(2)
+    expect(parsed.lineAt(parsed.body[1]?.['start'])).toBe(2)
     expect(parsed.lineAt(null)).toBe(1)
   })
 })

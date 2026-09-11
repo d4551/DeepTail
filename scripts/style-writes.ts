@@ -56,8 +56,8 @@ export function keyOf(env: Constants, holder: Field | undefined, computed: boole
   const node = unwrap(holder)
   if (!isNode(node)) return undefined
   if (!computed) {
-    if (node.type === 'Identifier' && typeof node['name'] === 'string') return node.name
-    if (node.type === 'Literal' && typeof node['value'] === 'string') return node.value
+    if (node.type === 'Identifier' && typeof node['name'] === 'string') return node['name']
+    if (node.type === 'Literal' && typeof node['value'] === 'string') return node['value']
     return undefined
   }
   return staticString(env, node)
@@ -77,7 +77,7 @@ export function inspectCall(env: Constants, node: Node, report: (node: Node, why
   // plainly written form let one pair of brackets step past every rule below.
   const method = memberName(callee) ?? staticString(env, callee['property'])
   if (method === undefined) return
-  const args = Array.isArray(node['arguments']) ? node.arguments : []
+  const args = Array.isArray(node['arguments']) ? node['arguments'] : []
   const opaque = OPAQUE_ATTRIBUTE_CALLS.get(method)
   if (opaque !== undefined) {
     report(node, opaque)
@@ -115,7 +115,7 @@ function inspectMergedKeys(env: Constants, merged: Field | undefined, report: (n
   if (!Array.isArray(properties)) return
   for (const property of properties) {
     if (!isNode(property) || property.type !== 'Property') continue
-    const key = keyOf(env, property['key'], property.computed === true)
+    const key = keyOf(env, property['key'], property['computed'] === true)
     const why = key === undefined ? undefined : STYLE_PROPERTIES.get(key.toLowerCase())
     if (why !== undefined) report(property, why)
   }

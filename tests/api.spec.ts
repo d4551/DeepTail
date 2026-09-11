@@ -166,7 +166,7 @@ describe('directing a session', () => {
     const api = createHostApi(hooks)
     await api.prompt('s-1', 'first', 'queue')
     await api.prompt('s-1', 'second', 'steer')
-    expect(sent[0]?.body.payload.args['requestId']).not.toBe(sent[1]?.body.payload.args.requestId)
+    expect(sent[0]?.body.payload.args['requestId']).not.toBe(sent[1]?.body.payload.args['requestId'])
   })
 
   it('sends a cancellation naming the session alone', async () => {
