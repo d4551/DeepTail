@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, it } from 'bun:test'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
-import { auditShellAtEachWidth, expectNoViolationsAtEachWidth } from './surfaces.ts'
+import { auditShellAtEachWidth, expectNoViolationsAtEachWidth, openPairingForm } from './surfaces.ts'
 
 let harness: Harness
 
@@ -45,9 +45,7 @@ it('has no WCAG violations on a shell-error at every designed width, in both pal
 
 it('has no WCAG violations on a pairing refusal at every designed width, in both palettes', async () => {
   await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await harness.open({ hosts: [] }, view)
-    await page.waitForSelector('[data-deeptail-picker]')
-    await page.getByRole('button', { name: 'Pair a host' }).click()
+    const page = await openPairingForm(harness, view)
     await page.locator('[data-deeptail-field="link"]').fill('not a link')
     await page.locator('[data-deeptail-action="pair-submit"]').click()
     await page.locator('[data-deeptail-state="pair-error"]').waitFor({ state: 'visible' })

@@ -253,6 +253,52 @@ describe('the stylesheet gate reads selectors by reach', () => {
     expect(sheetOffences('.host-group > * + * { color: currentcolor; }')).toEqual([])
     expect(sheetOffences('.shell[data-state="open"] .sidebar { color: currentcolor; }')).toEqual([])
   })
+
+  it('the boundary: three compounds are allowed and four are not', () => {
+    expect(sheetOffences('.a .b .c { color: currentcolor; }')).toEqual([])
+    expect(sheetOffences('.a > .b ~ .c { color: currentcolor; }')).toEqual([])
+    expect(sheetOffences('.a .b .c .d { color: currentcolor; }')).not.toEqual([])
+  })
+
+  it('every combinator the grammar offers, however it is spaced', () => {
+    expect(sheetOffences('.a>.b>.c>.d { color: currentcolor; }')).toEqual([
+      '.a>.b>.c>.d chains past 3 compounds; scope the rule by class instead of structure',
+    ])
+    expect(sheetOffences('.a~.b~.c~.d { color: currentcolor; }')).toEqual([
+      '.a~.b~.c~.d chains past 3 compounds; scope the rule by class instead of structure',
+    ])
+    expect(sheetOffences('.a  .b\n.c\t.d { color: currentcolor; }')).toEqual([
+      '.a .b .c .d chains past 3 compounds; scope the rule by class instead of structure',
+    ])
+  })
+
+  it('a compound count that reads no empty compound out of the edges', () => {
+    // Leading, trailing and doubled separators leave empty strings behind the
+    // split; none of them is a compound, and none may push a selector over.
+    expect(sheetOffences('  .a   .b   .c   { color: currentcolor; }')).toEqual([])
+    expect(sheetOffences('.a > .b + .c { color: currentcolor; }')).toEqual([])
+  })
+
+  it('every over-deep selector in a list, each named as written', () => {
+    expect(sheetOffences('.a .b .c .d, .e .f .g .h { color: currentcolor; }')).toEqual([
+      '.a .b .c .d chains past 3 compounds; scope the rule by class instead of structure',
+      '.e .f .g .h chains past 3 compounds; scope the rule by class instead of structure',
+    ])
+  })
+
+  it('the line the over-deep rule opens on, not the line it ends on', () => {
+    const offences = scanSheet(
+      'apps/deeptail/src/styles/shell.css',
+      '.a { color: currentcolor; }\n\n.w .x .y .z { color: currentcolor; }',
+    )
+    expect(offences).toEqual([
+      {
+        label: 'apps/deeptail/src/styles/shell.css',
+        line: 3,
+        why: '.w .x .y .z chains past 3 compounds; scope the rule by class instead of structure',
+      },
+    ])
+  })
 })
 
 describe('the stylesheet gate rejects a DRY or grid hole', () => {

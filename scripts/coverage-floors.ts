@@ -29,7 +29,7 @@ export const FLOORS: Readonly<Record<string, number>> = {
   'apps/deeptail/src/actions/registry.ts': 100,
   'apps/deeptail/src/api.ts': 100,
   'apps/deeptail/src/browser-locale.ts': 100,
-  'apps/deeptail/src/capabilities/audit.ts': 83.33,
+  'apps/deeptail/src/capabilities/audit.ts': 100,
   'apps/deeptail/src/capabilities/grants.ts': 98.06,
   'apps/deeptail/src/fleet-pairing.ts': 100,
   'apps/deeptail/src/fleet-tailnet.ts': 100,

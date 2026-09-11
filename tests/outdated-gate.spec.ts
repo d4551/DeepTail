@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'bun:test'
 import { behindInstallable, OUTDATED_COMMAND, parseOutdated, tablePrinted } from '../scripts/check-outdated.ts'
 import { declaredPins } from '../scripts/pins.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**
  * A table with one package at the newest and two behind.
@@ -176,17 +177,21 @@ describe('the outdated gate against a table it cannot read, and against none', (
     expect(tablePrinted(ALL_WORKSPACES)).toBe(true)
   })
 
-  it('counts declared pins, so an empty bun table is currency not a miss', () => {
-    // Live bun outdated --filter "*" prints only a version line when nothing
-    // is behind. That is empty-by-currency. Reporting "0 checked" would be a
-    // parse miss dressed as success: the manifests still declare pins.
-    const pins = declaredPins()
-    expect(pins.size).toBeGreaterThan(20)
-    expect(pins.has('typescript')).toBe(true)
-    expect(pins.has('playwright')).toBe(true)
-    expect(tablePrinted('bun outdated v1.4.2 (744846f84)\n')).toBe(false)
-    expect(parseOutdated('bun outdated v1.4.2 (744846f84)\n')).toEqual([])
-  })
+  it(
+    'counts declared pins, so an empty bun table is currency not a miss',
+    () => {
+      // Live bun outdated --filter "*" prints only a version line when nothing
+      // is behind. That is empty-by-currency. Reporting "0 checked" would be a
+      // parse miss dressed as success: the manifests still declare pins.
+      const pins = declaredPins()
+      expect(pins.size).toBeGreaterThan(20)
+      expect(pins.has('typescript')).toBe(true)
+      expect(pins.has('playwright')).toBe(true)
+      expect(tablePrinted('bun outdated v1.4.2 (744846f84)\n')).toBe(false)
+      expect(parseOutdated('bun outdated v1.4.2 (744846f84)\n')).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })
 
 describe('the rows the comparison passes over', () => {

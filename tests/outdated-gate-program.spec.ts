@@ -21,6 +21,7 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { outdatedReport, parseOutdated, rowOf, tablePrinted } from '../scripts/check-outdated.ts'
 import { importRunsNothing, runGateProgram, suiteRoot } from './gate-program.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /** The program the merge chain runs, by absolute path. */
 const GATE = new URL('../scripts/check-outdated.ts', import.meta.url).pathname
@@ -180,27 +181,39 @@ describe('what the gate reports for one table', () => {
 })
 
 describe('the gate as the program the merge chain runs', () => {
-  it('reads what bun printed and says every pin is current', async () => {
-    const run = await runGate('')
-    expect([run.code, run.err]).toEqual([0, ''])
-    expect(run.out).toContain('every dependency is at the newest version this workspace can install')
-  })
+  it(
+    'reads what bun printed and says every pin is current',
+    async () => {
+      const run = await runGate('')
+      expect([run.code, run.err]).toEqual([0, ''])
+      expect(run.out).toContain('every dependency is at the newest version this workspace can install')
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('names the pins behind an installable version, and fails the gate', async () => {
-    const run = await runGate(BEHIND)
-    expect(run.code).toBe(1)
-    expect(run.err).toContain('oxlint is at 1.81.0 and 1.82.0 is installable now')
-    expect(run.out).toBe('')
-  })
+  it(
+    'names the pins behind an installable version, and fails the gate',
+    async () => {
+      const run = await runGate(BEHIND)
+      expect(run.code).toBe(1)
+      expect(run.err).toContain('oxlint is at 1.81.0 and 1.82.0 is installable now')
+      expect(run.out).toBe('')
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('fails, and says what bun said, when bun itself fails', async () => {
-    // A gate that read a failed run's empty table would call every pin current
-    // on the strength of bun not having answered.
-    const run = await runGate('error: no lockfile', 1)
-    expect(run.code).toBe(1)
-    expect(run.err).toContain('check-outdated: bun outdated exited 1')
-    expect(run.out).toBe('')
-  })
+  it(
+    'fails, and says what bun said, when bun itself fails',
+    async () => {
+      // A gate that read a failed run's empty table would call every pin current
+      // on the strength of bun not having answered.
+      const run = await runGate('error: no lockfile', 1)
+      expect(run.code).toBe(1)
+      expect(run.err).toContain('check-outdated: bun outdated exited 1')
+      expect(run.out).toBe('')
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
   it('runs nothing when it is imported rather than run', async () => {
     await importRunsNothing(GATE, 'outdated-gate-')

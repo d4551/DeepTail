@@ -14,6 +14,7 @@ import {
   describeViolations,
   expectNoViolations,
   expectNoViolationsAtEachWidth,
+  openPairingForm,
   openShell,
 } from './surfaces.ts'
 
@@ -204,13 +205,7 @@ it('has no WCAG violations in the compose sheet at mobile, tablet and desktop, i
 }, 180_000)
 
 it('has no WCAG violations on the pairing form at mobile, tablet and desktop, in both palettes', async () => {
-  await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await harness.open({ hosts: [] }, view)
-    await page.waitForSelector('[data-deeptail-picker]')
-    await page.getByRole('button', { name: 'Pair a host' }).click()
-    await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
-    return page
-  })
+  await expectNoViolationsAtEachWidth(harness, async (view) => openPairingForm(harness, view))
 }, 180_000)
 
 it('has no WCAG violations on the picker error at mobile, tablet and desktop, in both palettes', async () => {

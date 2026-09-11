@@ -58,24 +58,17 @@ function auditView(viewport: Viewport, dark: boolean): AuditView {
  * @param page - the page just opened.
  * @param view - the width and height to realize.
  */
-export async function realizeView(page: Page, view: AuditView): Promise<void> {
+export async function realizeView(page: Page, view: Pick<AuditView, 'width' | 'height'>): Promise<void> {
   await page.setViewportSize({ width: view.width, height: view.height })
   await page.evaluate(async () => {
     await document.fonts.ready
     await Promise.allSettled([...document.getAnimations()].map((animation) => animation.finished))
-    await page.evaluate()
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        resolve()
+      })
+    })
   })
-}
-
-/**
- * Audit one page and describe every violation it carries.
- * @param harness - the suite's browser harness.
- * @param page - the page under audit.
- * @returns an empty string when the page is clean, otherwise one line per
- * violation, each naming the rule, the nodes and the fix axe suggests.
- */
-export async function auditLines(harness: Harness, page: Page): Promise<string> {
-  return describeViolations(await harness.audit(page))
 }
 
 /**
@@ -93,9 +86,7 @@ export async function expectNoViolations(harness: Harness, page: Page): Promise<
  * @returns the report, empty when nothing was found.
  */
 export function describeViolations(violations: readonly Violation[]): string {
-  return violations
-    .map(({ id, nodes }) => `${id}: ${nodes.map((node) => node.target.join(' ')).join(', ')}`)
-    .join('\n')
+  return violations.map(({ id, nodes }) => `${id}: ${nodes.join(', ')}`).join('\n')
 }
 
 /**

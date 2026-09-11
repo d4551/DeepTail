@@ -37,6 +37,7 @@
     "mutate:sheets": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.sheets.json",
     "mutate:tools": "trap 'bun scripts/mutate-restore.ts' EXIT INT TERM; stryker run stryker.tools.json",
     "mutate-restore": "bun scripts/mutate-restore.ts",
+    "mutants": "bun scripts/mutation-survivors.ts",
     "tauri": "tauri",
     "test": "bun test packages/host-fleet/tests/*.spec.ts tests/*.spec.ts tests/tree/*.spec.ts",
     "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests --timeout 60000",

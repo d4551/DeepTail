@@ -14,6 +14,7 @@ import { readFile } from 'node:fs/promises'
 import { documentationDrift, statedVersions, statesPin } from '../scripts/docs-versions.ts'
 import { readJsonc } from '../scripts/jsonc.ts'
 import { everyDependency } from './manifests.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /** Every tool the toolchain line names, at the versions a manifest pins them to. */
 const DECLARED = new Map([
@@ -47,17 +48,21 @@ describe('the versions a line states', () => {
 })
 
 describe('the documented toolchain', () => {
-  it('documents the toolchain it installs, at the version it installs', async () => {
-    const readme = await readFile('README.md', 'utf8')
-    const section = readme.slice(readme.indexOf('## Toolchain'))
-    const manifest = readJsonc(await readFile('package.json', 'utf8'))
-    const manager = typeof manifest['packageManager'] === 'string' ? manifest['packageManager'] : ''
-    const stated = statedVersions(section)
-    // A reader that found nothing would report no drift at all, which is what
-    // the toolchain line looked like to every gate before this one.
-    expect(stated.size).toBeGreaterThan(0)
-    expect(documentationDrift(stated, await everyDependency(), manager)).toEqual([])
-  })
+  it(
+    'documents the toolchain it installs, at the version it installs',
+    async () => {
+      const readme = await readFile('README.md', 'utf8')
+      const section = readme.slice(readme.indexOf('## Toolchain'))
+      const manifest = readJsonc(await readFile('package.json', 'utf8'))
+      const manager = typeof manifest['packageManager'] === 'string' ? manifest['packageManager'] : ''
+      const stated = statedVersions(section)
+      // A reader that found nothing would report no drift at all, which is what
+      // the toolchain line looked like to every gate before this one.
+      expect(stated.size).toBeGreaterThan(0)
+      expect(documentationDrift(stated, await everyDependency(), manager)).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
   it('names a documented version that has drifted, rather than only ever being green', () => {
     // Driven against the exact drift that shipped: a line stating the version

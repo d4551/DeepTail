@@ -58,6 +58,45 @@ describe('the breakpoint reader', () => {
   })
 })
 
+describe('the duplicate-ruleset reader', () => {
+  it('reports nothing while every rule is distinct', () => {
+    expect(duplicateRulesets('a.css', '.a { color: red }\n.b { color: blue }')).toEqual([])
+  })
+
+  it('reports the second copy of a rule declared twice, citing the first line', () => {
+    expect(duplicateRulesets('a.css', '.a { color: red }\n.b { color: blue }\n.a { color: red }')).toEqual([
+      {
+        label: 'a.css',
+        line: 3,
+        why: 'duplicate-ruleset: .a is declared more than once (first at line 1)',
+      },
+    ])
+  })
+
+  it('reports every copy past the first, each citing the same first line', () => {
+    expect(duplicateRulesets('a.css', '.a { color: red }\n.a { color: red }\n.a { color: red }')).toEqual([
+      {
+        label: 'a.css',
+        line: 2,
+        why: 'duplicate-ruleset: .a is declared more than once (first at line 1)',
+      },
+      {
+        label: 'a.css',
+        line: 3,
+        why: 'duplicate-ruleset: .a is declared more than once (first at line 1)',
+      },
+    ])
+  })
+
+  it('treats rules that differ in any part as distinct', () => {
+    // A different declaration value, a different selector, and a compound
+    // selector are three different decisions, however much they overlap.
+    expect(
+      duplicateRulesets('a.css', '.a { color: red }\n.a { color: blue }\n.b { color: red }\n.a, .b { color: red }'),
+    ).toEqual([])
+  })
+})
+
 describe('the sheets the product ships', () => {
   it(
     'write every length through the scale',
