@@ -58,54 +58,44 @@ function auditView(viewport: Viewport, dark: boolean): AuditView {
  * @param page - the page just opened.
  * @param view - the width and height to realize.
  */
-export async function realizeView(page: Page, view: { width: number; height: number }): Promise<void> {
-  const size = page.viewportSize()
-  if (size?.width !== view.width || size.height !== view.height) {
-    await page.setViewportSize({ width: view.width, height: view.height })
-  }
-  expect([page.viewportSize()?.width, page.viewportSize()?.height]).toEqual([view.width, view.height])
-  await settleAnimations(page)
-}
-
-/**
- * Wait until nothing on the page is still moving.
- *
- * A cancelled animation settles as a rejection, which is an animation that has
- * stopped just as surely as a finished one, so both are awaited together.
- * @param page - the page to settle.
- */
-async function settleAnimations(page: Page): Promise<void> {
+export async function realizeView(page: Page, view: AuditView): Promise<void> {
+  await page.setViewportSize({ width: view.width, height: view.height })
   await page.evaluate(async () => {
-    const running = document
-      .getAnimations()
-      .filter((animation) => animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY)
-    await Promise.allSettled(running.map((animation) => animation.finished))
-    await new Promise((paint) => {
-      requestAnimationFrame(() => paint(null))
-    })
+    await document.fonts.ready
+    await Promise.allSettled([...document.getAnimations()].map((animation) => animation.finished))
+    await page.evaluate()
   })
 }
 
 /**
- * Render a violation set as a failure message a reader can act on.
- * @param violations - what axe reported.
- * @returns one line per offending node.
+ * Audit one page and describe every violation it carries.
+ * @param harness - the suite's browser harness.
+ * @param page - the page under audit.
+ * @returns an empty string when the page is clean, otherwise one line per
+ * violation, each naming the rule, the nodes and the fix axe suggests.
  */
-export function describeViolations(violations: readonly Violation[]): string {
-  return violations
-    .map(
-      (violation) => `${violation.id} (${violation.impact}): ${violation.help}\n    ${violation.nodes.join('\n    ')}`,
-    )
-    .join('\n  ')
+export async function auditLines(harness: Harness, page: Page): Promise<string> {
+  return describeViolations(await harness.audit(page))
 }
 
 /**
- * Audit the page as it stands and refuse any violation.
- * @param harness - the suite's browser harness, which owns the axe builder.
- * @param page - the page to audit, left open for the caller to dismiss.
+ * Expect one page to carry no WCAG violation.
+ * @param harness - the suite's browser harness.
+ * @param page - the page under audit.
  */
 export async function expectNoViolations(harness: Harness, page: Page): Promise<void> {
   expect(describeViolations(await harness.audit(page))).toBe('')
+}
+
+/**
+ * Describe every violation an audit found, one line each, or nothing.
+ * @param violations - the violations axe reported.
+ * @returns the report, empty when nothing was found.
+ */
+export function describeViolations(violations: readonly Violation[]): string {
+  return violations
+    .map(({ id, nodes }) => `${id}: ${nodes.map((node) => node.target.join(' ')).join(', ')}`)
+    .join('\n')
 }
 
 /**
@@ -115,6 +105,24 @@ export async function expectNoViolations(harness: Harness, page: Page): Promise<
 export async function openDrawerIfPresent(page: Page): Promise<void> {
   const drawer = page.locator('[data-deeptail-action="drawer"]')
   if (await drawer.isVisible()) await drawer.click()
+}
+
+/**
+ * Open the empty picker and drive it to its pairing form.
+ *
+ * The a11y suite audits this page and the error suite drives its refusal off
+ * it, so the choreography is stated once here and neither suite can drift on
+ * how the form is reached.
+ * @param harness - the suite's browser harness.
+ * @param view - the viewport and palette the case is measured under.
+ * @returns the page, showing the pairing form.
+ */
+export async function openPairingForm(harness: Harness, view: AuditView): Promise<Page> {
+  const page = await harness.open({ hosts: [] }, view)
+  await page.waitForSelector('[data-deeptail-picker]')
+  await page.getByRole('button', { name: 'Pair a host' }).click()
+  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+  return page
 }
 
 /**
