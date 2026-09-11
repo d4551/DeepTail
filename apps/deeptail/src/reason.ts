@@ -10,6 +10,7 @@
 
 import { FORBIDDEN, PROTOCOL, RemoteError, TRANSPORT, UNAUTHORIZED } from './api.ts'
 import type { PickerKey, Translate } from './locales.ts'
+import { numberFieldOf, stringFieldOf } from './wire.ts'
 
 /**
  * The message a failure should be reported with.
@@ -53,9 +54,9 @@ export function describeFailure<T>(reason: T, t: Translate): string {
   const key = TRANSPORT_KEYS[reason.code]
   if (key === undefined) return reason.message
   return t(key, {
-    endpoint: typeof reason.details.endpoint === 'string' ? reason.details.endpoint : '',
-    status: typeof reason.details.status === 'number' ? reason.details.status : '',
-    detail: typeof reason.details.detail === 'string' ? reason.details.detail : reason.message,
+    endpoint: stringFieldOf(reason.details, 'endpoint') ?? '',
+    status: numberFieldOf(reason.details, 'status') ?? '',
+    detail: stringFieldOf(reason.details, 'detail') ?? reason.message,
   })
 }
 

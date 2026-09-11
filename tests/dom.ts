@@ -18,7 +18,23 @@
 
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 
-GlobalRegistrator.register()
+/**
+ * The record that this process already has a document.
+ *
+ * Bun re-evaluates a suite's module graph per test file while keeping one
+ * global object, so a registration that ran at import time would run again
+ * for the next suite that imports this module — and the registrator refuses
+ * a second registration. The record lives on the global object the
+ * registrator itself writes to, because that is the only state that survives
+ * the re-evaluation; it books this module's own work, it detects nothing
+ * about the platform.
+ */
+const INSTALLED_KEY = 'deeptailDocumentInstalled'
+
+if (globalThis[INSTALLED_KEY] !== true) {
+  GlobalRegistrator.register()
+  globalThis[INSTALLED_KEY] = true
+}
 
 /**
  * Empty the document between cases, so nothing one built is read by the next.
@@ -26,5 +42,5 @@ GlobalRegistrator.register()
 export function resetDocument(): void {
   document.body.replaceChildren()
   document.head.replaceChildren()
-  delete document.body.dataset.dsDarkTheme
+  delete document.body.dataset['dsDarkTheme']
 }

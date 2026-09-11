@@ -118,7 +118,7 @@ describe('the controls the connect form lays out', () => {
   it('marks itself for the suites and keeps the browser’s own bubbles off', () => {
     const { ctx } = contextDouble(OPEN)
     const form = formOf(tailnetConnectView(ctx))
-    expect(form.dataset.deeptailView).toBe('tailnet-connect')
+    expect(form.dataset['deeptailView']).toBe('tailnet-connect')
     expect(form.noValidate).toBe(true)
   })
 

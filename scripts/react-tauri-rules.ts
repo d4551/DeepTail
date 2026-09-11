@@ -40,10 +40,10 @@ const TAURI_V1_PATHS = [
  */
 function stringRef(node: Node): boolean {
   if (node.type !== 'JSXAttribute') return false
-  const name = node.name
-  if (!isNode(name) || name.type !== 'JSXIdentifier' || name.name !== 'ref') return false
-  const value = node.value
-  return isNode(value) && value.type === 'Literal' && typeof value.value === 'string'
+  const name = node['name']
+  if (!isNode(name) || name.type !== 'JSXIdentifier' || name['name'] !== 'ref') return false
+  const value = node['value']
+  return isNode(value) && value.type === 'Literal' && typeof value['value'] === 'string'
 }
 
 /**
@@ -53,9 +53,9 @@ function stringRef(node: Node): boolean {
  */
 function v1TauriImport(node: Node): boolean {
   if (node.type !== 'ImportDeclaration') return false
-  const source = node.source
+  const source = node['source']
   if (!isNode(source) || source.type !== 'Literal') return false
-  const path = source.value
+  const path = source['value']
   if (typeof path !== 'string') return false
   return TAURI_V1_PATHS.some((entry) => path === entry || path.startsWith(`${entry}/`))
 }

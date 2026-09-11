@@ -6,7 +6,7 @@
  * @module
  */
 
-import { isWireObject, type JsonValue, type WireObject, type WireValue } from './wire.ts'
+import { fieldOf, isWireObject, type JsonValue, stringFieldOf, type WireValue } from './wire.ts'
 
 /** One row of the boot table, as the host serves it. */
 export type IndexInjection =
@@ -44,17 +44,6 @@ function placementOf(value: WireValue): Placement | undefined {
 }
 
 /**
- * The text a row carries under one key, when it carries text there.
- * @param row - the row.
- * @param key - the field.
- * @returns the text, or undefined.
- */
-function textAt(row: WireObject, key: string): string | undefined {
-  const value = row[key]
-  return typeof value === 'string' ? value : undefined
-}
-
-/**
  * Read one row of the boot table.
  *
  * The table is a contract with a host that may be ahead of this client, so a
@@ -66,15 +55,15 @@ function textAt(row: WireObject, key: string): string | undefined {
  */
 function readInjection(value: WireValue): IndexInjection | undefined {
   if (!isWireObject(value)) return undefined
-  const kind = value.kind
-  const placement = placementOf(value.placement)
-  const name = textAt(value, 'name')
-  const text = textAt(value, 'text')
-  const src = textAt(value, 'src')
-  const html = textAt(value, 'html')
+  const kind = stringFieldOf(value, 'kind')
+  const placement = placementOf(stringFieldOf(value, 'placement'))
+  const name = stringFieldOf(value, 'name')
+  const text = stringFieldOf(value, 'text')
+  const src = stringFieldOf(value, 'src')
+  const html = stringFieldOf(value, 'html')
   // A row that names a global and carries no value carries JSON's own
   // no-value, which is what the page then holds under that name.
-  if (kind === 'global' && name !== undefined) return { kind, name, value: value.value ?? null }
+  if (kind === 'global' && name !== undefined) return { kind, name, value: fieldOf(value, 'value') ?? null }
   if (kind === 'script' && placement !== undefined && text !== undefined) return { kind, placement, text }
   if (kind === 'script-src' && placement !== undefined && src !== undefined) return { kind, placement, src }
   if (kind === 'script-preload' && src !== undefined) return { kind, src }

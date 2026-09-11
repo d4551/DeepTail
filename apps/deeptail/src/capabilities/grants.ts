@@ -18,7 +18,7 @@
  */
 
 import { CAPABILITIES, type CapabilityId, isCapabilityId } from '../actions/registry.ts'
-import { isWireObject, type WireObject, type WireValue } from '../wire.ts'
+import { arrayFieldOf, isWireObject, numberFieldOf, stringFieldOf, type WireValue } from '../wire.ts'
 
 /** The identity a grant belongs to: one host, or this device as a whole. */
 export type GrantSubject = { readonly kind: 'device' } | { readonly kind: 'host'; readonly hostId: string }
@@ -113,19 +113,19 @@ function keyOf(capability: CapabilityId, subject: GrantSubject): string {
  */
 function readGrant<T>(value: T | WireValue): Grant | undefined {
   if (!isWireObject(value)) return undefined
-  const row: WireObject = value
-  const capability = row.capability
-  const revision = row.revision
-  const expiresAt = row.expiresAt
-  if (typeof capability !== 'string' || !isCapabilityId(capability)) return undefined
-  if (typeof revision !== 'number' || !Number.isInteger(revision) || revision < 0) return undefined
-  if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) return undefined
+  const capability = stringFieldOf(value, 'capability')
+  const revision = numberFieldOf(value, 'revision')
+  const expiresAt = numberFieldOf(value, 'expiresAt')
+  const subject = stringFieldOf(value, 'subject')
+  if (capability === undefined || !isCapabilityId(capability)) return undefined
+  if (revision === undefined || !Number.isInteger(revision) || revision < 0) return undefined
+  if (expiresAt === undefined || !Number.isFinite(expiresAt)) return undefined
   const declared = CAPABILITIES[capability]
   if (declared.subject === 'host') {
-    if (typeof row.subject !== 'string' || row.subject === '') return undefined
-    return { capability, subject: { kind: 'host', hostId: row.subject }, revision, expiresAt }
+    if (subject === undefined || subject === '') return undefined
+    return { capability, subject: { kind: 'host', hostId: subject }, revision, expiresAt }
   }
-  if (row.subject !== 'device') return undefined
+  if (subject !== 'device') return undefined
   return { capability, subject: { kind: 'device' }, revision, expiresAt }
 }
 
@@ -141,19 +141,20 @@ function readSnapshot<T>(
   raw: T | WireValue,
 ): { readonly context: string; readonly grants: readonly Grant[] } | 'malformed-hydration' | 'not-issued-natively' {
   if (!isWireObject(raw)) return 'malformed-hydration'
-  const snapshot: WireObject = raw
-  if (typeof snapshot.issuer !== 'string' || typeof snapshot.context !== 'string' || snapshot.context === '') {
+  const issuer = stringFieldOf(raw, 'issuer')
+  const context = stringFieldOf(raw, 'context')
+  const carried = arrayFieldOf(raw, 'grants')
+  if (issuer === undefined || context === undefined || context === '' || carried === undefined) {
     return 'malformed-hydration'
   }
-  if (!Array.isArray(snapshot.grants)) return 'malformed-hydration'
-  if (snapshot.issuer !== 'native') return 'not-issued-natively'
-  const read = snapshot.grants.map((grant) => readGrant(grant))
+  if (issuer !== 'native') return 'not-issued-natively'
+  const read = carried.map((grant) => readGrant(grant))
   const grants: Grant[] = []
   for (const grant of read) {
     if (grant === undefined) return 'malformed-hydration'
     grants.push(grant)
   }
-  return { context: snapshot.context, grants }
+  return { context, grants }
 }
 
 /**

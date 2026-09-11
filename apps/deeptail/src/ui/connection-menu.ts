@@ -10,6 +10,7 @@
 
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
+import { DATA } from '../markers.ts'
 import { createMenuToggle, type MenuToggle } from './connection-menu-dismiss.ts'
 import { heldMenuFocus, restoreMenuFocus } from './connection-menu-focus.ts'
 import { buildConnectionMenu } from './connection-menu-panel.ts'
@@ -49,7 +50,7 @@ export function mountConnectionMenu(
   t: Translate,
 ): ConnectionMenuHandle {
   const root = el('div', { className: 'connection' })
-  const trigger = el('button', { className: 'connection-trigger', data: { deeptailConnection: 'trigger' } })
+  const trigger = el('button', { className: 'connection-trigger', data: { [DATA.connection]: 'trigger' } })
   trigger.type = 'button'
   setAria(trigger, { haspopup: 'menu', expanded: 'false' })
 

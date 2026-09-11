@@ -37,7 +37,7 @@ export function scanScript(label: string, text: string): Offence[] {
   const parsed = parseScript(label, text)
   const offences: Offence[] = []
   const report = (node: Node, why: string): void => {
-    offences.push({ label, line: parsed.lineAt(node.start), why })
+    offences.push({ label, line: parsed.lineAt(node['start']), why })
   }
   for (const error of parsed.errors) {
     offences.push({ label, line: 1, why: `this file does not parse, so it cannot be checked: ${error.message}` })
@@ -77,7 +77,7 @@ const INSPECTORS = new Map<string, (env: Constants, node: Node, report: (node: N
  * @param report - records an offence.
  */
 function inspectMember(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const key = keyOf(env, node.property, node.computed === true)
+  const key = keyOf(env, node['property'], node.computed === true)
   if (key === undefined) return
   const why = STYLE_PROPERTIES.get(key.toLowerCase())
   if (why !== undefined) report(node, why)
@@ -95,11 +95,11 @@ function inspectMember(env: Constants, node: Node, report: (node: Node, why: str
  * @param report - records an offence.
  */
 function inspectPattern(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const properties = node.properties
+  const properties = node['properties']
   if (!Array.isArray(properties)) return
   for (const property of properties) {
     if (!isNode(property) || property.type !== 'Property') continue
-    const key = keyOf(env, property.key, property.computed === true)
+    const key = keyOf(env, property['key'], property.computed === true)
     if (key === undefined) continue
     const why = STYLE_PROPERTIES.get(key.toLowerCase())
     if (why !== undefined) report(property, why)
@@ -116,9 +116,9 @@ function inspectPattern(env: Constants, node: Node, report: (node: Node, why: st
  * @param report - records an offence.
  */
 function inspectJsxAttribute(_env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const name = node.name
+  const name = node['name']
   if (!isNode(name)) return
-  const written = typeof name.name === 'string' ? name.name : undefined
+  const written = typeof name['name'] === 'string' ? name.name : undefined
   if (written === undefined) return
   const why = STYLE_PROPERTIES.get(written.toLowerCase())
   if (why !== undefined) report(node, why)

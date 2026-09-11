@@ -5,7 +5,7 @@
  * @module
  */
 
-import { isWireObject, type WireValue } from './wire.ts'
+import { isWireObject, stringFieldOf, type WireValue } from './wire.ts'
 
 /** One paired harness host. */
 export interface HostRecord {
@@ -29,8 +29,8 @@ export interface HostRecord {
 export function isHostRecord(value: HostRecord | WireValue): value is HostRecord {
   return (
     isWireObject(value) &&
-    typeof value.id === 'string' &&
-    typeof value.label === 'string' &&
-    typeof value.origin === 'string'
+    stringFieldOf(value, 'id') !== undefined &&
+    stringFieldOf(value, 'label') !== undefined &&
+    stringFieldOf(value, 'origin') !== undefined
   )
 }

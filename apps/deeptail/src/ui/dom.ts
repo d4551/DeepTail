@@ -9,6 +9,7 @@
  */
 
 import type { ActionMarker } from '../actions/registry.ts'
+import { DATA } from '../markers.ts'
 
 /** Releases what its caller mounted: closes a subscription or drops a listener. */
 export type Disposer = () => void
@@ -173,7 +174,7 @@ export function formActions(options: FormActionOptions): HTMLElement {
   const submit = el('button', { className: 'button button-primary', text: options.submitText })
   submit.type = 'submit'
   submit.disabled = options.busy
-  submit.dataset.deeptailAction = options.submitAction
+  submit.dataset[DATA.action] = options.submitAction
   const actions = el('div', { className: 'actions' })
   actions.append(cancel, submit)
   return actions

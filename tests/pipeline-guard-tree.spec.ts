@@ -38,7 +38,7 @@ const SHIPPED = readManifest(new URL('../package.json', import.meta.url).pathnam
  * would otherwise read as a pin of no characters.
  */
 function shippedPin(): string {
-  const pin = SHIPPED.packageManager
+  const pin = SHIPPED['packageManager']
   if (typeof pin !== 'string') throw new Error('this repository declares no packageManager pin')
   return pin
 }

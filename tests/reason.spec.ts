@@ -18,8 +18,9 @@ import { describeFailure, messageOf, reportSettled, settle } from '../apps/deept
 /** The copy source every case reads through. */
 const t = createTranslate('en')
 
-/** A rejection that settles on the next turn, as a real one does. */
-function rejected<T>(reason: T): Promise<never> {
+/** A rejection that settles on the next turn, as a real one does. Called with
+ * no value it is the rejection a bare `Promise.reject()` carries. */
+function rejected<T = void>(reason?: T): Promise<never> {
   return Promise.reject(reason)
 }
 
@@ -29,13 +30,15 @@ describe('the raw message of a rejection', () => {
     expect(messageOf(new RemoteError('session-not-found', 'no such session'))).toBe('no such session')
   })
 
-  it('reads anything else as its text, rather than as nothing', () => {
+  it('reads anything else as its text, rather than as nothing', async () => {
     // A rejection can carry any value at all, and a reader that answered only
-    // for errors would report an empty line for the rest.
+    // for errors would report an empty line for the rest. A rejection carrying
+    // no value at all is the case a bare Promise.reject() produces, so it is
+    // read through the same settle path a surface waits on.
     expect(messageOf('a bare string')).toBe('a bare string')
     expect(messageOf(404)).toBe('404')
     expect(messageOf(null)).toBe('null')
-    expect(messageOf(undefined)).toBe('undefined')
+    expect(await settle(rejected(), t)).toEqual({ ok: false, message: 'undefined' })
   })
 })
 

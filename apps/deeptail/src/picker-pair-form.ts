@@ -11,6 +11,7 @@
 import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
+import { DATA, dataSelector } from './markers.ts'
 import type { PickerContext } from './picker-views.ts'
 import { draftField, el, formActions, setAria } from './ui/dom.ts'
 import { errorStrip, showFailure } from './ui/states.ts'
@@ -87,12 +88,12 @@ function pairFields(t: Translate, current: PairingState, draft: EditableDraft): 
   // stops the submit before the form's own `role="alert"` strip ever fills.
   link.type = 'url'
   link.placeholder = t('pair.linkPlaceholder')
-  link.dataset.deeptailField = 'link'
+  link.dataset[DATA.field] = 'link'
 
   const name = el('input', { className: 'input' })
   name.type = 'text'
   name.placeholder = t('pair.namePlaceholder')
-  name.dataset.deeptailField = 'name'
+  name.dataset[DATA.field] = 'name'
 
   return [
     draftField(t('pair.linkLabel'), link, current.draft.link, (value) => {
@@ -121,12 +122,12 @@ function tokenFields(t: Translate, current: PairingState, draft: EditableDraft):
   token.autocomplete = 'off'
   token.spellcheck = false
   token.placeholder = t('tailnet.tokenPlaceholder')
-  token.dataset.deeptailField = 'link'
+  token.dataset[DATA.field] = 'link'
 
   const name = el('input', { className: 'input' })
   name.type = 'text'
   name.placeholder = t('pair.namePlaceholder')
-  name.dataset.deeptailField = 'name'
+  name.dataset[DATA.field] = 'name'
 
   return [
     draftField(t('tailnet.tokenLabel', { label: current.draft.label }), token, current.draft.link, (value) => {
@@ -177,7 +178,7 @@ export function pairView(ctx: PairContext): HTMLElement[] {
     showFailure(strip, current.error)
     // Named only while the strip is on the page: a reference to an element
     // that is not there is a promise to a reader that cannot be kept.
-    const link = form.querySelector<HTMLInputElement>('[data-deeptail-field="link"]')
+    const link = form.querySelector<HTMLInputElement>(dataSelector('field', 'link'))
     if (link !== null) setAria(link, { invalid: 'true', describedby: PAIR_ERROR_ID })
   }
   form.append(

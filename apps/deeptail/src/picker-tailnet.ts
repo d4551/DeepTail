@@ -11,6 +11,7 @@
 import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
+import { DATA, dataSelector } from './markers.ts'
 import type { PickerContext } from './picker-views.ts'
 import type { TailnetCredential } from './tailscale.ts'
 import { draftField, el, formActions, setAria } from './ui/dom.ts'
@@ -110,7 +111,7 @@ function secretInput(
   input.autocomplete = 'off'
   input.spellcheck = false
   input.placeholder = t(placeholderKey)
-  input.dataset.deeptailField = field
+  input.dataset[DATA.field] = field
   return input
 }
 
@@ -140,7 +141,7 @@ function kindChoice(ctx: ConnectContext, draft: EditableTailnetDraft): HTMLEleme
     radio.value = option.kind
     radio.checked = draft.kind === option.kind
     radio.disabled = current.busy
-    radio.dataset.deeptailField = `kind-${option.kind}`
+    radio.dataset[DATA.field] = `kind-${option.kind}`
     radio.addEventListener('change', () => {
       if (!radio.checked) return
       ctx.switchKind(current.hosts, { ...draft, kind: option.kind })
@@ -176,7 +177,7 @@ function credentialFields(ctx: ConnectContext, draft: EditableTailnetDraft): HTM
   id.autocomplete = 'off'
   id.spellcheck = false
   id.placeholder = t('tailnet.clientIdPlaceholder')
-  id.dataset.deeptailField = 'client-id'
+  id.dataset[DATA.field] = 'client-id'
   return [
     draftField(t('tailnet.clientIdLabel'), id, current.draft.clientId, (value) => {
       draft.clientId = value
@@ -204,7 +205,7 @@ function tailnetNameField(ctx: ConnectContext, draft: EditableTailnetDraft): HTM
   tailnet.autocomplete = 'off'
   tailnet.spellcheck = false
   tailnet.placeholder = ctx.t('tailnet.tailnetPlaceholder')
-  tailnet.dataset.deeptailField = 'tailnet'
+  tailnet.dataset[DATA.field] = 'tailnet'
   return draftField(ctx.t('tailnet.tailnetLabel'), tailnet, ctx.current.draft.tailnet, (value) => {
     draft.tailnet = value
   })
@@ -228,7 +229,7 @@ function reportRefusal(form: HTMLElement, message: string): void {
   form.append(strip)
   showFailure(strip, message)
   const first = form.querySelector<HTMLInputElement>(
-    '[data-deeptail-field="api-key"], [data-deeptail-field="client-id"]',
+    `${dataSelector('field', 'api-key')}, ${dataSelector('field', 'client-id')}`,
   )
   if (first !== null) setAria(first, { invalid: 'true', describedby: TAILNET_ERROR_ID })
 }
@@ -247,7 +248,7 @@ export function tailnetConnectView(ctx: ConnectContext): HTMLElement[] {
   // pairing form turns it off: a native bubble is untranslated and stops the
   // submit before this form's own strip is ever filled.
   form.noValidate = true
-  form.dataset.deeptailView = 'tailnet-connect'
+  form.dataset[DATA.view] = 'tailnet-connect'
   form.append(
     el('h2', { className: 'lede', text: t('tailnet.connectTitle') }),
     el('p', { className: 'lede', text: t('tailnet.connectLede') }),

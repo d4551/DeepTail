@@ -61,15 +61,15 @@ const REPLACEMENT_WIDTH = 90
  */
 function readMutant(value: Json): Mutant | undefined {
   if (!isJsonObject(value)) return undefined
-  const location = value.location
-  const start = isJsonObject(location) ? location.start : undefined
-  const line = isJsonObject(start) ? start.line : undefined
-  const column = isJsonObject(start) ? start.column : undefined
-  const mutatorName = value.mutatorName
-  const status = value.status
+  const location = value['location']
+  const start = isJsonObject(location) ? location['start'] : undefined
+  const line = isJsonObject(start) ? start['line'] : undefined
+  const column = isJsonObject(start) ? start['column'] : undefined
+  const mutatorName = value['mutatorName']
+  const status = value['status']
   if (typeof mutatorName !== 'string' || typeof status !== 'string') return undefined
   if (typeof line !== 'number' || typeof column !== 'number') return undefined
-  const replacement = value.replacement
+  const replacement = value['replacement']
   const read = { mutatorName, status, location: { start: { line, column } } }
   return typeof replacement === 'string' ? { ...read, replacement } : read
 }
@@ -80,7 +80,7 @@ function readMutant(value: Json): Mutant | undefined {
  * @returns the mutants it holds, in the order it holds them.
  */
 function readMutants(value: Json | undefined): Mutant[] {
-  const mutants = isJsonObject(value) ? value.mutants : undefined
+  const mutants = isJsonObject(value) ? value['mutants'] : undefined
   if (!Array.isArray(mutants)) return []
   return mutants.flatMap((entry) => {
     const mutant = readMutant(entry)
@@ -95,7 +95,7 @@ function readMutants(value: Json | undefined): Mutant[] {
  * @throws Error when the document names no files at all.
  */
 export function readReport(text: string): Report {
-  const files = readJsonc(text).files
+  const files = readJsonc(text)['files']
   if (!isJsonObject(files)) throw new Error('mutation report: the document names no files')
   const read: Record<string, { readonly mutants: readonly Mutant[] }> = {}
   for (const [file, held] of Object.entries(files)) read[file] = { mutants: readMutants(held) }

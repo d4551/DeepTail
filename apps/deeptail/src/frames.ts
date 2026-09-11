@@ -10,6 +10,7 @@
  */
 
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import { arrayFieldOf, fieldOf, isWireObject, objectFieldOf, stringFieldOf } from './wire.ts'
 
 /** The Gateway's reserved logical stream carrying forwarded host events. */
 const EVENT_STREAM_ENDPOINT = '$events'
@@ -37,9 +38,6 @@ export type FrameOutcome =
 
 /** A frame carrying nothing the connection can act on. */
 const IGNORE: FrameOutcome = { kind: 'ignore' }
-
-/** A parsed JSON object with string keys. */
-type JsonObject = { readonly [key: string]: JsonValue }
 
 /**
  * The frame that opens the event stream.
@@ -144,38 +142,31 @@ function parseServerMessage(text: string, streamId: string): Promise<ServerMessa
  * @returns the frame, or null when it is not one of this stream's.
  */
 function projectServerMessage(value: JsonValue, streamId: string): ServerMessage | null {
-  if (!isRecord(value) || value.streamId !== streamId) return null
-  const type = value.type
+  if (!isWireObject(value) || stringFieldOf(value, 'streamId') !== streamId) return null
+  const type = stringFieldOf(value, 'type')
   if (type === 'item') {
-    return value.value === undefined ? { type, streamId } : { type, streamId, value: value.value }
+    const carried = fieldOf(value, 'value')
+    return carried === undefined ? { type, streamId } : { type, streamId, value: carried }
   }
   if (type === 'end') return { type, streamId }
   if (type === 'error') {
-    const error = value.error
-    return {
-      type,
-      streamId,
-      error: isRecord(error) && typeof error.message === 'string' ? { message: error.message } : {},
-    }
+    const error = objectFieldOf(value, 'error')
+    const message = error === undefined ? undefined : stringFieldOf(error, 'message')
+    return { type, streamId, error: message === undefined ? {} : { message } }
   }
   return null
 }
 
 /** Whether an opening item is the host's ready frame. */
 function isReadyFrame(value: JsonValue | undefined): boolean {
-  return isRecord(value) && value.type === 'ready'
+  return isWireObject(value) && stringFieldOf(value, 'type') === 'ready'
 }
 
 /** Project one downlink frame onto a forwarded host event. */
 function toHostEvent(value: JsonValue | undefined): HostEvent | undefined {
-  if (!isRecord(value) || value.type !== 'emit') return undefined
-  const event = value.event
-  const args = value.args
-  if (typeof event !== 'string' || !Array.isArray(args)) return undefined
+  if (!isWireObject(value) || stringFieldOf(value, 'type') !== 'emit') return undefined
+  const event = stringFieldOf(value, 'event')
+  const args = arrayFieldOf(value, 'args')
+  if (event === undefined || args === undefined) return undefined
   return { event, args }
-}
-
-/** Whether a value is a plain object with string keys. */
-function isRecord(value: JsonValue | undefined): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

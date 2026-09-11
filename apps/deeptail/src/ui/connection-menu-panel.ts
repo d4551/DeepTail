@@ -13,6 +13,7 @@ import type { ActionMarker } from '../actions/registry.ts'
 import { ACTIONS } from '../actions/registry.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
+import { DATA } from '../markers.ts'
 import type { ConnectionPorts } from './connection-menu.ts'
 import { button, el, screenReaderText } from './dom.ts'
 import { bindRovingFocus } from './roving.ts'
@@ -80,7 +81,7 @@ function appendHostRow(items: HTMLElement, host: HostRecord, options: MenuPanelO
     className: 'menu-item menu-choice',
     role: 'menuitemradio',
     aria: { checked: host.id === activeHostId ? 'true' : 'false' },
-    data: { deeptailHost: host.id, deeptailAction: ACTIONS['connection.select'].marker },
+    data: { [DATA.host]: host.id, [DATA.action]: ACTIONS['connection.select'].marker },
   })
   item.type = 'button'
   item.append(
@@ -114,7 +115,7 @@ function repairItem(hostId: string, options: MenuPanelOptions): HTMLButtonElemen
     },
     { role: 'menuitem' },
   )
-  repair.dataset.deeptailAction = ACTIONS['connection.repair'].marker
+  repair.dataset[DATA.action] = ACTIONS['connection.repair'].marker
   return repair
 }
 
@@ -153,6 +154,6 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
  */
 function menuItem(className: string, text: string, marker: ActionMarker, onClick: () => void): HTMLButtonElement {
   const item = button(className, text, onClick, { role: 'menuitem' })
-  item.dataset.deeptailAction = marker
+  item.dataset[DATA.action] = marker
   return item
 }

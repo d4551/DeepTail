@@ -17,6 +17,7 @@
 import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
+import { DATA } from './markers.ts'
 import { el, screenReaderText } from './ui/dom.ts'
 import { bindRovingFocus } from './ui/roving.ts'
 import { type HostState, hostStateLabel } from './ui/states.ts'
@@ -59,7 +60,7 @@ export function emptyView(t: Translate, onPair: () => void, onTailnet: () => voi
     className: 'status',
     text: t('status.empty'),
     role: 'status',
-    data: { deeptailState: 'empty' },
+    data: { [DATA.state]: 'empty' },
   })
   const lede = el('p', { className: 'lede', text: t('empty.lede') })
   const add = el('button', { className: 'button button-primary', text: t('action.pair') })
@@ -67,7 +68,7 @@ export function emptyView(t: Translate, onPair: () => void, onTailnet: () => voi
   add.addEventListener('click', onPair)
   const tailnet = el('button', { className: 'button button-outline', text: t('tailnet.action') })
   tailnet.type = 'button'
-  tailnet.dataset.deeptailAction = ACTIONS['picker.tailnet'].marker
+  tailnet.dataset[DATA.action] = ACTIONS['picker.tailnet'].marker
   tailnet.addEventListener('click', onTailnet)
   const actions = el('div', { className: 'actions' })
   actions.append(add, tailnet)
@@ -89,7 +90,7 @@ function hostRow(
   const seat = el('div', { className: 'list-seat', role: 'listitem' })
   const row = el('button', { className: 'row' })
   row.type = 'button'
-  row.dataset.deeptailHost = host.id
+  row.dataset[DATA.host] = host.id
 
   const reachability = ctx.states.get(host.id) ?? 'unknown'
   const dot = el('span', { className: 'dot', aria: { hidden: 'true' }, data: { state: reachability } })
@@ -121,7 +122,7 @@ export function listView(ctx: ListContext): HTMLElement[] {
     className: 'list',
     role: 'list',
     aria: { label: ctx.t('picker.aria') },
-    data: { deeptailState: 'ready' },
+    data: { [DATA.state]: 'ready' },
   })
 
   const rows: HTMLButtonElement[] = []
@@ -139,7 +140,7 @@ export function listView(ctx: ListContext): HTMLElement[] {
   })
   const tailnet = el('button', { className: 'button button-outline', text: ctx.t('tailnet.action') })
   tailnet.type = 'button'
-  tailnet.dataset.deeptailAction = ACTIONS['picker.tailnet'].marker
+  tailnet.dataset[DATA.action] = ACTIONS['picker.tailnet'].marker
   tailnet.addEventListener('click', () => {
     ctx.startTailnet(ctx.hosts)
   })

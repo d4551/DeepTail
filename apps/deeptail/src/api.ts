@@ -9,7 +9,15 @@
  */
 
 import type { CarrierHooks } from './transport.ts'
-import { isSessionSummary, isWireObject, type WireObject, type WireValue } from './wire.ts'
+import {
+  arrayFieldOf,
+  isSessionSummary,
+  isWireObject,
+  objectFieldOf,
+  stringFieldOf,
+  type WireObject,
+  type WireValue,
+} from './wire.ts'
 
 /** The failure code a revoked or expired device token arrives with. */
 export const UNAUTHORIZED = 'unauthorized'
@@ -120,10 +128,11 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
   return {
     async listSessions() {
       const value = await call('session', 'list', {})
-      if (!isWireObject(value) || !Array.isArray(value.items)) {
+      const items = isWireObject(value) ? arrayFieldOf(value, 'items') : undefined
+      if (items === undefined) {
         throw malformed('session/list', 'no items')
       }
-      return value.items.filter(isSessionSummary)
+      return items.filter(isSessionSummary)
     },
     async prompt(sessionId, text, mode) {
       await call('session', 'prompt', {
@@ -138,10 +147,11 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
     },
     async createSession(input) {
       const value = await call('session', 'create', { ...input })
-      if (!isWireObject(value) || typeof value.sessionId !== 'string') {
+      const sessionId = isWireObject(value) ? stringFieldOf(value, 'sessionId') : undefined
+      if (sessionId === undefined) {
         throw malformed('session/create', 'no id')
       }
-      return value.sessionId
+      return sessionId
     },
   }
 }
@@ -182,8 +192,9 @@ async function post(
   })
   if (!response.ok) throw transportFailure(endpoint, response.status)
   const envelope: WireValue = await response.json()
-  if (!isWireObject(envelope) || !isWireObject(envelope.result)) throw malformed(endpoint, 'no result')
-  return envelope.result
+  const result = isWireObject(envelope) ? objectFieldOf(envelope, 'result') : undefined
+  if (result === undefined) throw malformed(endpoint, 'no result')
+  return result
 }
 
 /**
@@ -211,11 +222,11 @@ function transportFailure(endpoint: string, status: number): RemoteError {
  * @returns whatever the method returned.
  */
 function unwrap(result: WireObject, endpoint: string): WireValue | undefined {
-  if (result.ok !== true) {
-    const error = isWireObject(result.error) ? result.error : {}
-    const code = typeof error.code === 'string' ? error.code : 'internal'
-    const message = typeof error.message === 'string' ? error.message : `${endpoint} failed`
-    throw new RemoteError(code, message, isWireObject(error.details) ? error.details : { endpoint })
+  if (result['ok'] !== true) {
+    const error = objectFieldOf(result, 'error') ?? {}
+    const code = stringFieldOf(error, 'code') ?? 'internal'
+    const message = stringFieldOf(error, 'message') ?? `${endpoint} failed`
+    throw new RemoteError(code, message, objectFieldOf(error, 'details') ?? { endpoint })
   }
-  return result.value
+  return result['value']
 }

@@ -84,7 +84,7 @@ describe('the width every generated line is held to', () => {
     // Two numbers in two files. A generated file wider than the formatter
     // wants is one the formatter rewrites, and the lint gate then reports a
     // file nobody may edit as needing an edit.
-    const formatter = readJsonc(await Bun.file(`${ROOT}biome.json`).text()).formatter
+    const formatter = readJsonc(await Bun.file(`${ROOT}biome.json`).text())['formatter']
     expect(formatter).toEqual({ indentStyle: 'space', indentWidth: 2, lineWidth: LINE_WIDTH })
   })
 

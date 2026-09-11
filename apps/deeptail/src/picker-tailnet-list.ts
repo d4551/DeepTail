@@ -12,6 +12,7 @@
 import { ACTIONS } from './actions/registry.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
+import { DATA } from './markers.ts'
 import type { PickerContext } from './picker-views.ts'
 import type { TailnetHost } from './tailscale.ts'
 import { el } from './ui/dom.ts'
@@ -64,7 +65,7 @@ function deviceRow(ctx: ListContext, device: TailnetHost): HTMLElement {
   const paired = current.hosts.find((host) => host.origin === device.origin)
   const row = el('button', { className: 'row' })
   row.type = 'button'
-  row.dataset.deeptailTailnetDevice = device.id
+  row.dataset[DATA.tailnetDevice] = device.id
   // An unapproved machine is listed because its absence would read as a
   // missing machine, and disabled because pairing it cannot succeed until an
   // admin approves it.
@@ -103,7 +104,7 @@ export function tailnetListView(ctx: ListContext): HTMLElement[] {
       className: 'list',
       role: 'list',
       aria: { label: t('tailnet.listAria') },
-      data: { deeptailState: 'tailnet' },
+      data: { [DATA.state]: 'tailnet' },
     })
     const rows: HTMLElement[] = []
     for (const device of current.devices) {
@@ -126,7 +127,7 @@ export function tailnetListView(ctx: ListContext): HTMLElement[] {
   })
   const disconnect = el('button', { className: 'button button-outline', text: t('tailnet.disconnect') })
   disconnect.type = 'button'
-  disconnect.dataset.deeptailAction = ACTIONS['tailnet.forget'].marker
+  disconnect.dataset[DATA.action] = ACTIONS['tailnet.forget'].marker
   disconnect.addEventListener('click', () => {
     ctx.forget(current.hosts)
   })

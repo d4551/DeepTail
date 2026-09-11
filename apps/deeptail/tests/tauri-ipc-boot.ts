@@ -45,7 +45,7 @@ export function deeptailLoadBundle(
   args: Record<string, object>,
   state: IpcState,
 ): Promise<string | null> {
-  const path = String(args.path ?? '')
+  const path = String(args['path'] ?? '')
   state.bundlePaths.push(path)
   const failure = script.bundleErrors?.[path]
   if (failure !== undefined) return Promise.reject(new Error(failure))

@@ -11,6 +11,7 @@
 
 import type { HostRecord } from './host.ts'
 import type { PickerKey } from './locales.ts'
+import { DATA } from './markers.ts'
 import { type PairDraft, type PairingState, pairView } from './picker-pair-form.ts'
 import { type TailnetConnectState, type TailnetDraft, tailnetConnectView } from './picker-tailnet.ts'
 import { type TailnetListState, tailnetListView } from './picker-tailnet-list.ts'
@@ -75,7 +76,7 @@ export interface PickerFrame {
  */
 export function mountPickerFrame(container: HTMLElement): PickerFrame {
   const root = el('main', { className: 'picker' })
-  root.dataset.deeptailPicker = ''
+  root.dataset[DATA.picker] = ''
   const card = el('div', { className: 'card' })
   root.append(card)
   container.replaceChildren(root)

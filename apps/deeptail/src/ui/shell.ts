@@ -9,6 +9,7 @@ import { ACTIONS } from '../actions/registry.ts'
 import { createHostApi, type HostApi } from '../api.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
+import { DATA } from '../markers.ts'
 import { reportSettled } from '../reason.ts'
 import { createFleetStore, type FleetState, type FleetStore } from '../store.ts'
 import { type HostEvent, subscribeRoster } from '../stream.ts'
@@ -168,7 +169,7 @@ function newSessionButton(ports: SpawnPorts, t: Translate, announce: (text: stri
   const spawn = button('new-session', t('shell.newSession'), () => {
     openNewSession(ports, t, announce)
   })
-  spawn.dataset.deeptailAction = ACTIONS['session.spawn'].marker
+  spawn.dataset[DATA.action] = ACTIONS['session.spawn'].marker
   spawn.disabled = ports.hosts.length === 0
   return spawn
 }
@@ -231,7 +232,7 @@ function handOff(host: HostRecord, sessionId: string, ports: ShellPorts, frame: 
   frame.body.replaceChildren(el('div', { className: 'placeholder', text: t('shell.opening', { label: host.label }) }))
   reportSettled(ports.open(host, sessionId), t, (message) => {
     const failure = el('div', { className: 'error', text: message, role: 'alert' })
-    failure.dataset.deeptailState = 'open-error'
+    failure.dataset[DATA.state] = 'open-error'
     frame.body.replaceChildren(failure)
   })
 }

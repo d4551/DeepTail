@@ -20,6 +20,7 @@ import { renderHostPicker } from './fleet.ts'
 import type { HostRecord } from './host.ts'
 import { followAppLifecycle } from './lifecycle.ts'
 import { createTranslate } from './locales.ts'
+import { DATA } from './markers.ts'
 import { messageOf } from './reason.ts'
 import { applyTheme } from './theme.ts'
 import { type CarrierHooks, createCarrier } from './transport.ts'
@@ -193,9 +194,14 @@ function runToBootNotice<T>(work: Promise<T>): void {
  * @param message - the failure, in the operator's language.
  */
 function showBootNotice(message: string): void {
-  const strip = el('div', { className: 'error', role: 'alert', text: message, data: { deeptailState: 'boot-error' } })
+  const strip = el('div', {
+    className: 'error',
+    role: 'alert',
+    text: message,
+    data: { [DATA.state]: 'boot-error' },
+  })
   const retry = button('retry', t('action.retry'), () => runToBootNotice(start()))
-  retry.dataset.deeptailAction = ACTIONS['boot.retry'].marker
+  retry.dataset[DATA.action] = ACTIONS['boot.retry'].marker
   strip.append(retry)
   container.replaceChildren(strip)
 }
@@ -211,9 +217,9 @@ function showReturnBar(): void {
   const back = button('button button-outline return-button', t('shell.backToFleet'), () =>
     runToBootNotice(returnToFleet()),
   )
-  back.dataset.deeptailAction = ACTIONS['client.return'].marker
+  back.dataset[DATA.action] = ACTIONS['client.return'].marker
   bar.append(back)
-  bar.dataset.deeptailReturn = ''
+  bar.dataset[DATA.return] = ''
   document.body.append(bar)
   returnBar = bar
 }

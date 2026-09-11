@@ -12,6 +12,7 @@
  * @module
  */
 
+import { DATA } from '../markers.ts'
 import { type Disposer, el } from './dom.ts'
 
 /** The id the open dialog's heading carries, which names the dialog. */
@@ -58,7 +59,7 @@ function buildDialogFrame(title: string): DialogFrame {
     className: 'modal-dialog',
     role: 'dialog',
     aria: { modal: 'true', labelledby: HEADING_ID },
-    data: { deeptailDialog: '' },
+    data: { [DATA.dialog]: '' },
   })
   // Named by the heading it already shows, rather than by a label repeating it:
   // one dialog is open at a time, so the id is fixed.

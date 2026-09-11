@@ -9,6 +9,7 @@
  */
 
 import { ACTIONS } from '../actions/registry.ts'
+import { DATA, dataSelector } from '../markers.ts'
 
 /** Where focus sits inside the roster, in terms that survive a rebuild. */
 interface FocusedControl {
@@ -24,13 +25,13 @@ interface FocusedControl {
 export function focusedControl(root: HTMLElement): FocusedControl | undefined {
   const active = document.activeElement
   if (!(active instanceof HTMLElement) || !root.contains(active)) return undefined
-  const row = active.closest<HTMLElement>('[data-deeptail-session]')
-  const session = row?.dataset.deeptailSession
+  const row = active.closest<HTMLElement>(dataSelector('session'))
+  const session = row?.dataset[DATA.session]
   if (session === undefined) return undefined
   // Every control in a row carries its registry marker, the open control
   // included, so the sentinel this used to invent for it is gone: a marker off
   // the union is what the restore below looks up, not a word chosen here.
-  return { session, action: active.dataset.deeptailAction ?? ACTIONS['session.open'].marker }
+  return { session, action: active.dataset[DATA.action] ?? ACTIONS['session.open'].marker }
 }
 
 /**
@@ -43,7 +44,7 @@ export function focusedControl(root: HTMLElement): FocusedControl | undefined {
  */
 export function restoreFocus(root: HTMLElement, focused: FocusedControl | undefined): void {
   if (focused === undefined) return
-  const row = root.querySelector<HTMLElement>(`[data-deeptail-session="${CSS.escape(focused.session)}"]`)
+  const row = root.querySelector<HTMLElement>(dataSelector('session', CSS.escape(focused.session)))
   if (row === null) return
   const stop = row.querySelector<HTMLButtonElement>('.session-open')
   if (stop === null) return
@@ -56,7 +57,7 @@ export function restoreFocus(root: HTMLElement, focused: FocusedControl | undefi
   // open control is what reveals them.
   stop.focus()
   if (focused.action === ACTIONS['session.open'].marker) return
-  const target = row.querySelector<HTMLButtonElement>(`[data-deeptail-action="${CSS.escape(focused.action)}"]`)
+  const target = row.querySelector<HTMLButtonElement>(dataSelector('action', CSS.escape(focused.action)))
   if (target === null) return
   target.focus()
 }

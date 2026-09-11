@@ -57,7 +57,7 @@ const CANONICAL: readonly (readonly [string, string | boolean])[] = [
  */
 async function compilerOptionsOf(path: string): Promise<{ [key: string]: Json }> {
   const document = readJsonc(await Bun.file(path).text())
-  const options = document.compilerOptions
+  const options = document['compilerOptions']
   if (options === undefined) return EMPTY_SECTION
   if (!isJsonObject(options)) throw new Error(`${path}: compilerOptions is not an object`)
   return options
@@ -96,9 +96,9 @@ describe('the canonical TypeScript 7 compiler face', () => {
     const options = await compilerOptionsOf(BASE)
     // The base declares an empty set and each project adds exactly what it
     // imports, so no project compiles against a global it never asked for.
-    expect(options.types ?? []).toEqual([])
+    expect(options['types'] ?? []).toEqual([])
     const projects = ['apps/deeptail/tsconfig.json', 'tsconfig.tools.json']
-    const faces = await Promise.all(projects.map(async (path) => (await compilerOptionsOf(path)).types))
+    const faces = await Promise.all(projects.map(async (path) => (await compilerOptionsOf(path))['types']))
     expect(faces.map((types) => Array.isArray(types) && types.length > 0)).toEqual([true, true])
   })
 

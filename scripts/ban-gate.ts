@@ -126,7 +126,7 @@ export function scanScript(label: string, text: string): Offence[] {
   const names: Names = { aliases: aliases(parsed.body), constants: constants(parsed.body) }
   walk(parsed.body, (node) => {
     for (const { holds, why } of BANNED) {
-      if (holds(node, names)) offences.push({ label, line: parsed.lineAt(node.start), why })
+      if (holds(node, names)) offences.push({ label, line: parsed.lineAt(node['start']), why })
     }
   })
   return offences

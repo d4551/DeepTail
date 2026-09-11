@@ -16,7 +16,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { answered, type Invoke, isBoolean, isNothing, listOf } from './native-call.ts'
-import { isWireObject, type WireValue } from './wire.ts'
+import { arrayFieldOf, booleanFieldOf, isWireObject, stringFieldOf, type WireValue } from './wire.ts'
 
 /** How a tailnet is listed: an API key, or an OAuth client that mints tokens. */
 export type TailnetCredential =
@@ -88,15 +88,14 @@ export function nativeTailnetPorts(call: Invoke = invoke): TailnetPorts {
 function isTailnetHost(value: TailnetHost | WireValue): value is TailnetHost {
   return (
     isWireObject(value) &&
-    typeof value.id === 'string' &&
-    typeof value.label === 'string' &&
-    typeof value.origin === 'string' &&
-    typeof value.os === 'string' &&
-    typeof value.lastSeen === 'string' &&
-    Array.isArray(value.tags) &&
-    value.tags.every((tag) => typeof tag === 'string') &&
-    typeof value.authorized === 'boolean' &&
-    typeof value.paired === 'boolean'
+    stringFieldOf(value, 'id') !== undefined &&
+    stringFieldOf(value, 'label') !== undefined &&
+    stringFieldOf(value, 'origin') !== undefined &&
+    stringFieldOf(value, 'os') !== undefined &&
+    stringFieldOf(value, 'lastSeen') !== undefined &&
+    arrayFieldOf(value, 'tags')?.every((tag) => typeof tag === 'string') === true &&
+    booleanFieldOf(value, 'authorized') !== undefined &&
+    booleanFieldOf(value, 'paired') !== undefined
   )
 }
 

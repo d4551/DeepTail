@@ -160,7 +160,7 @@ it('dismisses the menu when a pointer lands outside it, without taking focus bac
   expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
   expect(
     await page.evaluate(() =>
-      document.activeElement instanceof HTMLElement ? document.activeElement.dataset.deeptailConnection : undefined,
+      document.activeElement instanceof HTMLElement ? document.activeElement.dataset['deeptailConnection'] : undefined,
     ),
   ).not.toBe('trigger')
   await page.close()
@@ -177,7 +177,7 @@ it('hands focus back to the trigger when the operator dismisses from inside', as
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
   expect(
     await page.evaluate(() =>
-      document.activeElement instanceof HTMLElement ? document.activeElement.dataset.deeptailConnection : undefined,
+      document.activeElement instanceof HTMLElement ? document.activeElement.dataset['deeptailConnection'] : undefined,
     ),
   ).toBe('trigger')
   await page.close()
@@ -207,7 +207,7 @@ it('holds the pane behind the open drawer out of reach', async () => {
   // has a way out, and closing it hands the toggle back.
   await page.keyboard.press('Escape')
   await page.waitForFunction(
-    () => document.activeElement instanceof HTMLElement && document.activeElement.dataset.deeptailAction === 'drawer',
+    () => document.activeElement instanceof HTMLElement && document.activeElement.dataset['deeptailAction'] === 'drawer',
   )
   expect(await page.evaluate(() => document.querySelector('.main')?.matches('[inert]') ?? true)).toBe(false)
   await page.close()

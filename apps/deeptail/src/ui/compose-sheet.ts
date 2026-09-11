@@ -11,6 +11,7 @@
 import { ACTIONS } from '../actions/registry.ts'
 import type { HostApi } from '../api.ts'
 import type { Translate } from '../locales.ts'
+import { DATA } from '../markers.ts'
 import { describeFailure } from '../reason.ts'
 import { button, el, labelledField, setAria } from './dom.ts'
 import { type Dialog, openDialog } from './modal.ts'
@@ -94,8 +95,8 @@ function buildComposeActions(t: Translate, dismiss: () => void, submit: (mode: P
   const send = button('button button-primary', t('chat.send'), () => {
     submit('queue')
   })
-  send.dataset.deeptailAction = ACTIONS['compose.send'].marker
-  steer.dataset.deeptailAction = ACTIONS['compose.steer'].marker
+  send.dataset[DATA.action] = ACTIONS['compose.send'].marker
+  steer.dataset[DATA.action] = ACTIONS['compose.steer'].marker
   return { cancel, steer, send }
 }
 
