@@ -49,7 +49,7 @@ function controllerDouble(recorded: Admitted[]): FleetController {
  * @param mode - how the prompt is admitted.
  * @returns the delivery's answer.
  */
-async function delivered(recorded: Admitted[], mode: 'queue' | 'steer'): Promise<FleetSendResult> {
+function delivered(recorded: Admitted[], mode: 'queue' | 'steer'): Promise<FleetSendResult> {
   return sendPrompt(
     controllerDouble(recorded),
     { sessionId: admitSessionId('s-1', 'sessions_send'), text: 'hello', mode },

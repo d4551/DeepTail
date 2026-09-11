@@ -160,3 +160,35 @@ it('reports a host with no sessions as an empty list rather than a failure', asy
   recorded.listed = []
   expect(await run(registerTools(recorded), 'sessions_list', {})).toEqual({ sessions: [], total: 0 })
 })
+
+it('refuses a list answer that is not the shape the rows read', () => {
+  // Every field the assertions read is proven, so a tool that dropped `total`,
+  // renamed `sessions`, or answered with a number where a row belongs is
+  // refused by name rather than read as an empty list.
+  expect(() => listAnswer(null)).toThrow('sessions_list answered with null')
+  expect(() => listAnswer(0)).toThrow('sessions_list answered with 0')
+  expect(() => listAnswer({ total: 1 })).toThrow('sessions_list answered with')
+  expect(() => listAnswer({ sessions: 'none', total: 1 })).toThrow('sessions_list answered with')
+  expect(() => listAnswer({ sessions: [], total: '1' })).toThrow('sessions_list answered with')
+  // One bad row refuses the whole answer, naming the row it refused.
+  expect(() => listAnswer({ sessions: [{ sessionId: 's' }, 7], total: 2 })).toThrow('sessions_list answered with 7')
+})
+
+it('refuses a follow answer that is not the shape the window reads', () => {
+  // An execution can settle with nothing at all, and `undefined` stringifies
+  // to nothing, so the refusal names it through String() rather than printing
+  // the empty string a template literal would. The absent value is carried in
+  // a list so the call reads the value, not a literal in its argument list.
+  const absent: readonly unknown[] = [undefined]
+  expect(() => followAnswer(absent[0])).toThrow('sessions_follow answered with undefined')
+  expect(() => followAnswer({ sessionId: 's', cursor: 1, hasMore: true, records: 0 })).toThrow(
+    'sessions_follow answered with',
+  )
+  expect(() => followAnswer({ sessionId: 's', cursor: 1, hasMore: 'yes', records: 0, recent: [] })).toThrow(
+    'sessions_follow answered with',
+  )
+  // One non-string line refuses the window, naming the line it refused.
+  expect(() => followAnswer({ sessionId: 's', cursor: 1, hasMore: true, records: 1, recent: [3] })).toThrow(
+    'sessions_follow answered with 3',
+  )
+})

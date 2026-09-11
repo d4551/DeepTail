@@ -201,6 +201,13 @@ describe('what the program tells a reader', () => {
     await expect(readFile(`${root}${SOURCES.typescript}`, 'utf8')).rejects.toThrow()
   })
 
+  it('refuses the argument in-process too, before it reads a tree at all', async () => {
+    // The refusal is decided before the registry is read: the function answers
+    // 2 with no tree named at all, which is the decision the program above
+    // reports on the error stream.
+    expect(await main(['--chekc'])).toBe(2)
+  })
+
   it('names every argument it refused, apart from each other', async () => {
     // More than one at a time is the ordinary case for a mistyped command, and
     // a list run together is a message a reader cannot act on.

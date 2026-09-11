@@ -178,6 +178,20 @@ describe('the structural read', () => {
     expect(unwrap(null)).toBeNull()
   })
 
+  it('stops at the cap rather than spinning on a tree nested deeper than it', () => {
+    // The walk is bounded: a tree nested one deeper than the cap comes back
+    // as the node it stopped on, which a rule reads as opaque, and a tree
+    // nested exactly to the cap comes back as the value beneath.
+    const capped = unwrap(
+      nodeOfType(`const a = ${'('.repeat(33)}document${')'.repeat(33)}`, 'VariableDeclarator')['init'],
+    )
+    expect(isNode(capped) && capped.type).toBe('ParenthesizedExpression')
+    const beneath = unwrap(
+      nodeOfType(`const a = ${'('.repeat(32)}document${')'.repeat(32)}`, 'VariableDeclarator')['init'],
+    )
+    expect(isNode(beneath) && beneath.type).toBe('Identifier')
+  })
+
   it('reads a member name written plainly, and none written through brackets', () => {
     expect(memberName(nodeOfType('a.b', 'MemberExpression'))).toBe('b')
     expect(memberName(nodeOfType('a["b"]', 'MemberExpression'))).toBeUndefined()

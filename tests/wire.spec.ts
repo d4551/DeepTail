@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { isSessionSummary, isWireObject } from '../apps/deeptail/src/wire.ts'
+import { isSessionSummary, isWireObject, type WireValue } from '../apps/deeptail/src/wire.ts'
 
 describe('whether a value names a serialised object', () => {
   it('admits an object, by whatever name it arrived', () => {

@@ -1,0 +1,135 @@
+/**
+ * The floors the coverage gate holds the unit chain to, pinned at what the
+ * chain measured.
+ *
+ * Every entry is the value a full run of the unit chain printed for that file.
+ * Raising a floor is the record of an improvement; lowering one is the defect
+ * the gate exists to refuse. The low entries are stated, not excused: the
+ * carrier's network half and the page-contract helpers are driven by the
+ * browser suites, and a gate program's own section is driven at process level
+ * by its program spec — the unit chain's table is what the gate holds, and the
+ * browser chain has its own.
+ *
+ * @module
+ */
+
+/**
+ * The line coverage each measured file is held to.
+ *
+ * A file the chain measures with no entry here is an offence, and so is an
+ * entry for a file the chain no longer reaches: nothing joins without a floor,
+ * and nothing stays behind as decoration.
+ */
+export const FLOORS: Readonly<Record<string, number>> = {
+  'apps/deeptail/src/actions/action-table.ts': 100,
+  'apps/deeptail/src/actions/capabilities.ts': 100,
+  'apps/deeptail/src/actions/dispatch.ts': 100,
+  'apps/deeptail/src/actions/handlers.ts': 100,
+  'apps/deeptail/src/actions/outcomes.ts': 92.31,
+  'apps/deeptail/src/actions/registry.ts': 100,
+  'apps/deeptail/src/api.ts': 100,
+  'apps/deeptail/src/browser-locale.ts': 100,
+  'apps/deeptail/src/capabilities/audit.ts': 83.33,
+  'apps/deeptail/src/capabilities/grants.ts': 98.06,
+  'apps/deeptail/src/fleet-pairing.ts': 100,
+  'apps/deeptail/src/fleet-tailnet.ts': 100,
+  'apps/deeptail/src/frames.ts': 100,
+  'apps/deeptail/src/host.ts': 100,
+  'apps/deeptail/src/locales.ts': 100,
+  'apps/deeptail/src/native-call.ts': 100,
+  'apps/deeptail/src/picker-ports.ts': 100,
+  'apps/deeptail/src/picker-tailnet.ts': 98.51,
+  'apps/deeptail/src/reason.ts': 100,
+  'apps/deeptail/src/roster.ts': 100,
+  'apps/deeptail/src/socket-state.ts': 100,
+  'apps/deeptail/src/store.ts': 100,
+  'apps/deeptail/src/stream.ts': 100,
+  'apps/deeptail/src/tailscale.ts': 100,
+  'apps/deeptail/src/transport.ts': 28.78,
+  'apps/deeptail/src/ui/dom.ts': 100,
+  'apps/deeptail/src/ui/roving.ts': 100,
+  'apps/deeptail/src/ui/states.ts': 100,
+  'apps/deeptail/src/wire.ts': 100,
+  'apps/deeptail/tests/structure-layout.ts': 5.56,
+  'apps/deeptail/tests/structure-pointer.ts': 4.05,
+  'apps/deeptail/tests/structure-report.ts': 0,
+  'apps/deeptail/tests/structure-shell.ts': 8.82,
+  'apps/deeptail/tests/structure-vocabulary.ts': 23.08,
+  'apps/deeptail/tests/structure.ts': 30.82,
+  'packages/host-fleet/src/index.ts': 100,
+  'packages/host-fleet/src/invariant.ts': 100,
+  'packages/host-fleet/src/limits.ts': 100,
+  'packages/host-fleet/src/session-access.ts': 100,
+  'packages/host-fleet/src/session-projection.ts': 100,
+  'packages/host-fleet/src/tools-direct.ts': 100,
+  'packages/host-fleet/src/tools-observe.ts': 100,
+  'packages/host-fleet/src/tools.ts': 100,
+  'packages/host-fleet/tests/answers.ts': 88.24,
+  'packages/host-fleet/tests/controller-double.ts': 98.28,
+  'scripts/action-registry-emit.ts': 100,
+  'scripts/action-registry-rust.ts': 100,
+  'scripts/action-registry.ts': 100,
+  'scripts/aliases.ts': 100,
+  'scripts/ast.ts': 98.31,
+  'scripts/ban-gate.ts': 95.24,
+  'scripts/ban-rules.ts': 100,
+  'scripts/captures.ts': 100,
+  'scripts/cargo-freshness.ts': 76.92,
+  'scripts/check-bans.ts': 100,
+  'scripts/check-coverage.ts': 78.41,
+  'scripts/check-entries.ts': 100,
+  'scripts/check-no-inline-styles.ts': 100,
+  'scripts/check-outdated.ts': 87.14,
+  'scripts/check-stylesheets.ts': 100,
+  'scripts/check-tree.ts': 100,
+  'scripts/colour-gate.ts': 100,
+  'scripts/compiler-face.ts': 100,
+  'scripts/coverage-floors.ts': 100,
+  'scripts/debt-names.ts': 100,
+  'scripts/docs-versions.ts': 100,
+  'scripts/entry-gate.ts': 100,
+  'scripts/extensions.ts': 100,
+  'scripts/focus-ring-gate.ts': 100,
+  'scripts/fold.ts': 100,
+  'scripts/free-names.ts': 100,
+  'scripts/gate-runner.ts': 91.67,
+  'scripts/gen-action-registry.ts': 97.26,
+  'scripts/jsonc.ts': 100,
+  'scripts/lines.ts': 100,
+  'scripts/manifest.ts': 100,
+  'scripts/markup-attributes.ts': 100,
+  'scripts/markup-gate.ts': 100,
+  'scripts/markup-vocabulary.ts': 100,
+  'scripts/mutation-survivors.ts': 94.55,
+  'scripts/pins.ts': 100,
+  'scripts/pipeline-guard-gates.ts': 100,
+  'scripts/pipeline-guard-jobs.ts': 100,
+  'scripts/pipeline-guard-rules.ts': 100,
+  'scripts/pipeline-guard.ts': 83.87,
+  'scripts/react-tauri-rules.ts': 100,
+  'scripts/registry-readers.ts': 100,
+  'scripts/rule-helpers.ts': 100,
+  'scripts/rust-attributes.ts': 100,
+  'scripts/sheet-declarations.ts': 100,
+  'scripts/sheet-depth.ts': 100,
+  'scripts/sheet-duplicates.ts': 100,
+  'scripts/sheet-gate.ts': 100,
+  'scripts/sheet-imports.ts': 100,
+  'scripts/sheet-reader.ts': 100,
+  'scripts/source-tree.ts': 100,
+  'scripts/stryker-config.ts': 100,
+  'scripts/style-gate.ts': 100,
+  'scripts/style-writes.ts': 100,
+  'scripts/test-commands.ts': 100,
+  'tests/dom.ts': 100,
+  'tests/fixtures.ts': 100,
+  'tests/grant-fixture.ts': 100,
+  'tests/jsonc-io.ts': 100,
+  'tests/manifests.ts': 100,
+  'tests/markup-tree.ts': 100,
+  'tests/structure-double.ts': 100,
+  'tests/transport-double.ts': 100,
+}
+
+/** The line coverage the whole chain is held to, pinned the same way. */
+export const OVERALL_FLOOR = 93.1

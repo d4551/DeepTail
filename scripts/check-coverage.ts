@@ -5,9 +5,10 @@
  * dropped from the unit command, or a module a rename detached from every
  * suite, moved the table and moved nothing else. This runs the same suites the
  * unit command names, reads the table bun prints, and holds every file it
- * measured to a floor pinned here — at the value the chain measured, so a
- * regression fails by name and an improvement has to be restated here, the
- * same hold `tests/stack.spec.ts` puts on the toolchain pins.
+ * measured to a floor pinned in `coverage-floors.ts` — at the value the chain
+ * measured, so a regression fails by name and an improvement has to be
+ * restated there, the same hold `tests/stack.spec.ts` puts on the toolchain
+ * pins.
  *
  * A file the chain measures with no floor stated is an offence, and so is a
  * floor stated for a file the chain no longer reaches: nothing joins without a
@@ -18,6 +19,7 @@
 
 import { readFile } from 'node:fs/promises'
 import { allThree } from './captures.ts'
+import { FLOORS, OVERALL_FLOOR } from './coverage-floors.ts'
 
 /**
  * The directories the unit command names, and the pattern each is scanned
@@ -38,12 +40,13 @@ const SUITE_GLOBS: readonly (readonly [directory: string, pattern: string])[] = 
  * @returns the files, in path order, so a run reads the same twice.
  */
 export async function suiteFiles(): Promise<readonly string[]> {
-  const found: string[] = []
-  for (const [directory, pattern] of SUITE_GLOBS) {
-    const glob = new Bun.Glob(pattern)
-    for await (const path of glob.scan({ cwd: directory, onlyFiles: true })) found.push(`${directory}/${path}`)
-  }
-  return found.toSorted()
+  const scans = await Promise.all(
+    SUITE_GLOBS.map(async ([directory, pattern]) => {
+      const paths = await Array.fromAsync(new Bun.Glob(pattern).scan({ cwd: directory, onlyFiles: true }))
+      return paths.map((path) => `${directory}/${path}`)
+    }),
+  )
+  return scans.flat().toSorted()
 }
 
 /** One file's row of the table bun prints. */
@@ -76,129 +79,6 @@ export function coverageRows(output: string): readonly CoverageRow[] {
   }
   return rows
 }
-
-/**
- * The line coverage each measured file is held to, pinned at what the chain
- * measured.
- *
- * Every entry is the value a full run of the unit chain printed for that file.
- * Raising a floor is the record of an improvement; lowering one is the defect
- * this gate exists to refuse. The low entries are stated, not excused: the
- * carrier's network half and the page-contract helpers are driven by the
- * browser suites, and a gate program's own section is driven at process level
- * by its program spec — the unit chain's table is what this gate holds, and
- * the browser chain has its own.
- */
-export const FLOORS: Readonly<Record<string, number>> = {
-  'apps/deeptail/src/actions/action-table.ts': 100,
-  'apps/deeptail/src/actions/capabilities.ts': 100,
-  'apps/deeptail/src/actions/dispatch.ts': 100,
-  'apps/deeptail/src/actions/handlers.ts': 100,
-  'apps/deeptail/src/actions/outcomes.ts': 92.31,
-  'apps/deeptail/src/actions/registry.ts': 100,
-  'apps/deeptail/src/api.ts': 100,
-  'apps/deeptail/src/browser-locale.ts': 100,
-  'apps/deeptail/src/capabilities/audit.ts': 83.33,
-  'apps/deeptail/src/capabilities/grants.ts': 98.06,
-  'apps/deeptail/src/fleet-pairing.ts': 100,
-  'apps/deeptail/src/fleet-tailnet.ts': 100,
-  'apps/deeptail/src/frames.ts': 100,
-  'apps/deeptail/src/host.ts': 100,
-  'apps/deeptail/src/locales.ts': 100,
-  'apps/deeptail/src/native-call.ts': 100,
-  'apps/deeptail/src/picker-ports.ts': 100,
-  'apps/deeptail/src/picker-tailnet.ts': 98.51,
-  'apps/deeptail/src/reason.ts': 100,
-  'apps/deeptail/src/roster.ts': 100,
-  'apps/deeptail/src/socket-state.ts': 100,
-  'apps/deeptail/src/store.ts': 100,
-  'apps/deeptail/src/stream.ts': 100,
-  'apps/deeptail/src/tailscale.ts': 100,
-  'apps/deeptail/src/transport.ts': 28.78,
-  'apps/deeptail/src/ui/dom.ts': 100,
-  'apps/deeptail/src/ui/roving.ts': 100,
-  'apps/deeptail/src/ui/states.ts': 100,
-  'apps/deeptail/src/wire.ts': 100,
-  'apps/deeptail/tests/structure-layout.ts': 5.56,
-  'apps/deeptail/tests/structure-pointer.ts': 4.05,
-  'apps/deeptail/tests/structure-report.ts': 0,
-  'apps/deeptail/tests/structure-shell.ts': 8.82,
-  'apps/deeptail/tests/structure-vocabulary.ts': 23.08,
-  'apps/deeptail/tests/structure.ts': 30.82,
-  'packages/host-fleet/src/index.ts': 100,
-  'packages/host-fleet/src/invariant.ts': 100,
-  'packages/host-fleet/src/limits.ts': 100,
-  'packages/host-fleet/src/session-access.ts': 100,
-  'packages/host-fleet/src/session-projection.ts': 100,
-  'packages/host-fleet/src/tools-direct.ts': 100,
-  'packages/host-fleet/src/tools-observe.ts': 100,
-  'packages/host-fleet/src/tools.ts': 100,
-  'packages/host-fleet/tests/answers.ts': 88.24,
-  'packages/host-fleet/tests/controller-double.ts': 98.28,
-  'scripts/action-registry-emit.ts': 100,
-  'scripts/action-registry-rust.ts': 100,
-  'scripts/action-registry.ts': 100,
-  'scripts/aliases.ts': 100,
-  'scripts/ast.ts': 98.31,
-  'scripts/ban-gate.ts': 95.24,
-  'scripts/ban-rules.ts': 100,
-  'scripts/captures.ts': 100,
-  'scripts/cargo-freshness.ts': 76.92,
-  'scripts/check-bans.ts': 100,
-  'scripts/check-coverage.ts': 78.41,
-  'scripts/check-entries.ts': 100,
-  'scripts/check-no-inline-styles.ts': 100,
-  'scripts/check-outdated.ts': 87.14,
-  'scripts/check-stylesheets.ts': 100,
-  'scripts/check-tree.ts': 100,
-  'scripts/colour-gate.ts': 100,
-  'scripts/compiler-face.ts': 100,
-  'scripts/debt-names.ts': 100,
-  'scripts/docs-versions.ts': 100,
-  'scripts/entry-gate.ts': 100,
-  'scripts/extensions.ts': 100,
-  'scripts/focus-ring-gate.ts': 100,
-  'scripts/fold.ts': 100,
-  'scripts/free-names.ts': 100,
-  'scripts/gate-runner.ts': 91.67,
-  'scripts/gen-action-registry.ts': 97.26,
-  'scripts/jsonc.ts': 100,
-  'scripts/lines.ts': 100,
-  'scripts/manifest.ts': 100,
-  'scripts/markup-attributes.ts': 100,
-  'scripts/markup-gate.ts': 100,
-  'scripts/markup-vocabulary.ts': 100,
-  'scripts/mutation-survivors.ts': 94.55,
-  'scripts/pins.ts': 100,
-  'scripts/pipeline-guard-gates.ts': 100,
-  'scripts/pipeline-guard-jobs.ts': 100,
-  'scripts/pipeline-guard-rules.ts': 100,
-  'scripts/pipeline-guard.ts': 83.87,
-  'scripts/react-tauri-rules.ts': 100,
-  'scripts/registry-readers.ts': 100,
-  'scripts/rule-helpers.ts': 100,
-  'scripts/rust-attributes.ts': 100,
-  'scripts/sheet-declarations.ts': 100,
-  'scripts/sheet-depth.ts': 100,
-  'scripts/sheet-duplicates.ts': 100,
-  'scripts/sheet-gate.ts': 100,
-  'scripts/sheet-imports.ts': 100,
-  'scripts/sheet-reader.ts': 100,
-  'scripts/source-tree.ts': 100,
-  'scripts/stryker-config.ts': 100,
-  'scripts/style-gate.ts': 100,
-  'scripts/style-writes.ts': 100,
-  'scripts/test-commands.ts': 100,
-  'tests/dom.ts': 100,
-  'tests/fixtures.ts': 100,
-  'tests/grant-fixture.ts': 100,
-  'tests/jsonc-io.ts': 100,
-  'tests/manifests.ts': 100,
-  'tests/markup-tree.ts': 100,
-}
-
-/** The line coverage the whole chain is held to, pinned the same way. */
-export const OVERALL_FLOOR = 93.1
 
 /** What the gate tells a reader, a shell, and each of the two streams. */
 export interface CoverageOutcome {
@@ -272,14 +152,7 @@ export function coverageReport(
 // otherwise run the whole gate as a side effect of the import.
 if (import.meta.main) {
   const [table] = Bun.argv.slice(2)
-  if (table !== undefined) {
-    // A table handed in by path: the suite drives the report off a captured
-    // run, so the decision is reachable without re-running the chain.
-    const report = coverageReport(await readFile(table, 'utf8'))
-    process.stdout.write(report.out)
-    process.stderr.write(report.err)
-    process.exitCode = report.code
-  } else {
+  if (table === undefined) {
     const run = Bun.spawnSync(['bun', 'test', '--coverage', ...(await suiteFiles())], {
       stdout: 'pipe',
       stderr: 'pipe',
@@ -296,5 +169,12 @@ if (import.meta.main) {
       process.stderr.write(`check-coverage: the unit chain exited ${String(run.exitCode)}\n${run.stderr.toString()}`)
       process.exitCode = 1
     }
+  } else {
+    // A table handed in by path: the suite drives the report off a captured
+    // run, so the decision is reachable without re-running the chain.
+    const report = coverageReport(await readFile(table, 'utf8'))
+    process.stdout.write(report.out)
+    process.stderr.write(report.err)
+    process.exitCode = report.code
   }
 }

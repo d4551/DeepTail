@@ -4,8 +4,11 @@
  */
 
 import { expect, it } from 'bun:test'
+import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import { answeredMembers, sendAnswer, spawnAnswer } from './answers.ts'
-import { registerTools, run, script } from './controller-double.ts'
+import { refusingController, registerTools, run, script } from './controller-double.ts'
 
 it('registers every fleet tool', () => {
   expect([...registerTools(script()).keys()].toSorted((a, b) => a.localeCompare(b))).toEqual([
@@ -162,4 +165,40 @@ it('reports the preset the host composed, and omits it when the host names none'
   const spawned = await run(registerTools(silent), 'sessions_spawn', { task: 'go' })
   expect(spawned).toEqual({ sessionId: 's-1' })
   expect(answeredMembers('sessions_spawn', spawned)).toEqual(['sessionId'])
+})
+
+it('refuses a send or spawn answer that is not the shape the caller reads', () => {
+  // Every field the assertions read is proven, so a tool that dropped
+  // `requestId` or answered with a number where an id belongs is refused by
+  // name rather than read as the declared shape.
+  expect(() => sendAnswer(42)).toThrow('sessions_send answered with 42')
+  expect(() => sendAnswer({ sessionId: 's', mode: 'queue' })).toThrow('sessions_send answered with')
+  expect(() => spawnAnswer(null)).toThrow('sessions_spawn answered with null')
+  expect(() => spawnAnswer({ sessionId: 7 })).toThrow('sessions_spawn answered with')
+})
+
+it('refuses a member read of an answer that is not an object', () => {
+  expect(() => answeredMembers('sessions_spawn', null)).toThrow('sessions_spawn answered with null')
+  expect(() => answeredMembers('sessions_spawn', 'gone')).toThrow('sessions_spawn answered with "gone"')
+})
+
+it('refuses every surface a suite has not scripted a drive through', () => {
+  const controller = refusingController()
+  const refusal = 'controller double: this surface is not scripted for this test'
+  const signal = new AbortController().signal
+  expect(() => controller.list({}, signal)).toThrow(refusal)
+  expect(() => controller.follow({ address: { kind: 'session', sessionId: SessionId('s') } }, signal)).toThrow(refusal)
+  expect(() => controller.create({})).toThrow(refusal)
+  expect(() =>
+    controller.prompt(
+      {
+        requestId: brandString<SessionRequestId>(crypto.randomUUID()),
+        sessionId: SessionId('s'),
+        mode: 'queue',
+        content: [],
+      },
+      signal,
+    ),
+  ).toThrow(refusal)
+  expect(() => controller.cancel({ sessionId: SessionId('s') })).toThrow(refusal)
 })

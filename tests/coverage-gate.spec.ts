@@ -14,7 +14,8 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { coverageReport, coverageRows, FLOORS, OVERALL, OVERALL_FLOOR, suiteFiles } from '../scripts/check-coverage.ts'
+import { coverageReport, coverageRows, OVERALL, suiteFiles } from '../scripts/check-coverage.ts'
+import { FLOORS, OVERALL_FLOOR } from '../scripts/coverage-floors.ts'
 
 /** Where the program is run against a table of its own. */
 const PROGRAM = new URL('../scripts/check-coverage.ts', import.meta.url).pathname

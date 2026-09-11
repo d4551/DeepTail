@@ -114,7 +114,7 @@ describe('whether a draft carries every value its kind needs', () => {
   })
 })
 
-describe('the connect form', () => {
+describe('the controls the connect form lays out', () => {
   it('marks itself for the suites and keeps the browser’s own bubbles off', () => {
     const { ctx } = contextDouble(OPEN)
     const form = formOf(tailnetConnectView(ctx))
@@ -131,16 +131,6 @@ describe('the connect form', () => {
     expect(radios[0]?.checked).toBe(true)
     expect(radios[1]?.value).toBe('oauthClient')
     expect(radios[1]?.checked).toBe(false)
-  })
-
-  it('switches kind when the other radio is chosen', () => {
-    const { ctx, actions } = contextDouble(OPEN)
-    const form = formOf(tailnetConnectView(ctx))
-    const oauth = fieldOf(form, 'kind-oauthClient')
-    oauth.checked = true
-    oauth.dispatchEvent(new Event('change'))
-    expect(actions.switched.length).toBe(1)
-    expect(actions.switched[0]?.kind).toBe('oauthClient')
   })
 
   it('carries one password field for an API key, seeded from the draft', () => {
@@ -161,6 +151,24 @@ describe('the connect form', () => {
     expect(form.querySelector('[data-deeptail-field="api-key"]')).toBeNull()
   })
 
+  it('carries the optional tailnet name, seeded from the draft', () => {
+    const { ctx } = contextDouble({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, tailnet: 'example.ts.net' } })
+    const form = formOf(tailnetConnectView(ctx))
+    expect(fieldOf(form, 'tailnet').value).toBe('example.ts.net')
+  })
+})
+
+describe('what the connect form does', () => {
+  it('switches kind when the other radio is chosen', () => {
+    const { ctx, actions } = contextDouble(OPEN)
+    const form = formOf(tailnetConnectView(ctx))
+    const oauth = fieldOf(form, 'kind-oauthClient')
+    oauth.checked = true
+    oauth.dispatchEvent(new Event('change'))
+    expect(actions.switched.length).toBe(1)
+    expect(actions.switched[0]?.kind).toBe('oauthClient')
+  })
+
   it('writes each keystroke into the draft the submit receives', () => {
     const { ctx, actions } = contextDouble(OPEN)
     const form = formOf(tailnetConnectView(ctx))
@@ -172,20 +180,33 @@ describe('the connect form', () => {
     expect(actions.submitted[0]?.key).toBe('tskey-2')
   })
 
-  it('carries the optional tailnet name, seeded and written back the same way', () => {
-    const { ctx, actions } = contextDouble({
-      ...OPEN,
-      draft: { ...EMPTY_TAILNET_DRAFT, tailnet: 'example.ts.net' },
-    })
+  it('writes both OAuth halves into the draft the submit receives', () => {
+    const { ctx, actions } = contextDouble({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, kind: 'oauthClient' } })
+    const form = formOf(tailnetConnectView(ctx))
+    const id = fieldOf(form, 'client-id')
+    id.value = 'client-9'
+    id.dispatchEvent(new Event('input'))
+    const secret = fieldOf(form, 'client-secret')
+    secret.value = 'secret-9'
+    secret.dispatchEvent(new Event('input'))
+    form.dispatchEvent(new Event('submit'))
+    expect(actions.submitted.length).toBe(1)
+    expect(actions.submitted[0]?.clientId).toBe('client-9')
+    expect(actions.submitted[0]?.clientSecret).toBe('secret-9')
+  })
+
+  it('writes the tailnet name back the same way', () => {
+    const { ctx, actions } = contextDouble(OPEN)
     const form = formOf(tailnetConnectView(ctx))
     const tailnet = fieldOf(form, 'tailnet')
-    expect(tailnet.value).toBe('example.ts.net')
     tailnet.value = 'other.ts.net'
     tailnet.dispatchEvent(new Event('input'))
     form.dispatchEvent(new Event('submit'))
     expect(actions.submitted[0]?.tailnet).toBe('other.ts.net')
   })
+})
 
+describe('the form’s edges', () => {
   it('submits through the form’s own event, which Enter in a field also fires', () => {
     const { ctx, actions } = contextDouble(OPEN)
     const form = formOf(tailnetConnectView(ctx))
