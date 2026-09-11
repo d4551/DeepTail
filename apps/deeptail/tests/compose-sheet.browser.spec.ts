@@ -23,15 +23,15 @@ afterAll(async () => {
 
 /**
  * Open the compose sheet for the running session.
- * @param harness - the suite's browser harness.
+ * @param suite - the suite's browser harness.
  * @param extra - answer-table overrides for the case.
  * @returns the page showing the open sheet.
  */
 async function openedSheet(
-  harness: Harness,
+  suite: Harness,
   extra: Parameters<typeof oneHost>[0] = {},
 ): Promise<Awaited<ReturnType<Harness['open']>>> {
-  const page = await harness.open(oneHost(extra))
+  const page = await suite.open(oneHost(extra))
   await page.waitForSelector('[data-deeptail-shell]')
   // The row actions ride behind a hover on a fine pointer, so the pointer is
   // what reveals them here; the keyboard route into the sheet is the row

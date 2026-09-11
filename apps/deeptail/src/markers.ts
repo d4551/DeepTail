@@ -54,6 +54,6 @@ export type DataKey = keyof typeof DATA
  * @returns the selector.
  */
 export function dataSelector(key: DataKey, value?: string): string {
-  const attribute = `data-${DATA[key].replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`)}`
+  const attribute = `data-${DATA[key].replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`)}`
   return value === undefined ? `[${attribute}]` : `[${attribute}="${value}"]`
 }

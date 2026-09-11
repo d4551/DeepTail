@@ -99,6 +99,34 @@ export interface HostApi {
 }
 
 /**
+ * The session rows a list reply carries, refusing a reply that names none.
+ * @param endpoint - the endpoint the reply came from.
+ * @param value - the reply's result.
+ * @returns the rows.
+ */
+function sessionRows(endpoint: string, value: WireValue | undefined): readonly SessionSummary[] {
+  const items = isWireObject(value) ? arrayFieldOf(value, 'items') : undefined
+  if (items === undefined) {
+    throw malformed(endpoint, 'no items')
+  }
+  return items.filter((item) => isSessionSummary(item))
+}
+
+/**
+ * The session id a create reply names, refusing a reply that names none.
+ * @param endpoint - the endpoint the reply came from.
+ * @param value - the reply's result.
+ * @returns the id.
+ */
+function createdSessionId(endpoint: string, value: WireValue | undefined): string {
+  const sessionId = isWireObject(value) ? stringFieldOf(value, 'sessionId') : undefined
+  if (sessionId === undefined) {
+    throw malformed(endpoint, 'no id')
+  }
+  return sessionId
+}
+
+/**
  * Build a host API over a carrier.
  * @param carrier - the transport reaching one paired host.
  * @returns the callable Remote surface.
@@ -127,12 +155,7 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
 
   return {
     async listSessions() {
-      const value = await call('session', 'list', {})
-      const items = isWireObject(value) ? arrayFieldOf(value, 'items') : undefined
-      if (items === undefined) {
-        throw malformed('session/list', 'no items')
-      }
-      return items.filter(isSessionSummary)
+      return sessionRows('session/list', await call('session', 'list', {}))
     },
     async prompt(sessionId, text, mode) {
       await call('session', 'prompt', {
@@ -146,12 +169,7 @@ export function createHostApi(carrier: CarrierHooks): HostApi {
       await call('session', 'cancel', { sessionId })
     },
     async createSession(input) {
-      const value = await call('session', 'create', { ...input })
-      const sessionId = isWireObject(value) ? stringFieldOf(value, 'sessionId') : undefined
-      if (sessionId === undefined) {
-        throw malformed('session/create', 'no id')
-      }
-      return sessionId
+      return createdSessionId('session/create', await call('session', 'create', { ...input }))
     },
   }
 }
