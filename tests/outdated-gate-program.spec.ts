@@ -10,26 +10,20 @@
  *
  * `bun outdated` is substituted, and only it: a program on the path that prints
  * what bun prints. Above that boundary this is the shipped gate, run as a
- * process, reading a table it did not write.
+ * process, reading a table it did not write. The process plumbing — the made
+ * tree, the spawn, the two streams — is the one the gate-program suites share.
  *
  * @module
  */
 
-import { afterEach, describe, expect, it } from 'bun:test'
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { describe, expect, it } from 'bun:test'
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { outdatedReport, parseOutdated, rowOf, tablePrinted } from '../scripts/check-outdated.ts'
+import { importRunsNothing, runGateProgram, suiteRoot } from './gate-program.ts'
 
 /** The program the merge chain runs, by absolute path. */
 const GATE = new URL('../scripts/check-outdated.ts', import.meta.url).pathname
-
-/** Directories this suite made, removed when it ends. */
-const made: string[] = []
-
-afterEach(async () => {
-  await Promise.all(made.splice(0).map(async (root) => await rm(root, { recursive: true, force: true })))
-})
 
 /** A table bun prints when one package is behind. */
 const BEHIND = [
@@ -59,8 +53,7 @@ async function runGate(
   code = 0,
   manifest = '{ "devDependencies": { "oxlint": "1.81.0" } }',
 ): Promise<Run> {
-  const root = await mkdtemp(join(tmpdir(), 'outdated-gate-'))
-  made.push(root)
+  const root = await suiteRoot('outdated-gate-')
   await writeFile(join(root, 'package.json'), manifest)
   // The pins are read through `git ls-files`, so the tree has to be one.
   Bun.spawnSync(['git', 'init', '--quiet'], { cwd: root })
@@ -69,15 +62,7 @@ async function runGate(
   const script = ['#!/bin/sh', `cat <<'TABLE'`, table, 'TABLE', `exit ${String(code)}`, ''].join('\n')
   await writeFile(join(bin, 'bun'), script)
   await chmod(join(bin, 'bun'), 0o755)
-  const run = Bun.spawn([process.execPath, GATE], {
-    cwd: root,
-    env: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-  const out = await new Response(run.stdout).text()
-  const err = await new Response(run.stderr).text()
-  return { out, err, code: await run.exited }
+  return await runGateProgram(GATE, root, bin)
 }
 
 describe('the line a row is read out of', () => {
@@ -218,10 +203,6 @@ describe('the gate as the program the merge chain runs', () => {
   })
 
   it('runs nothing when it is imported rather than run', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'outdated-gate-'))
-    made.push(root)
-    const source = `await import(${JSON.stringify(GATE)})\nprocess.stdout.write('imported')\n`
-    const run = Bun.spawn([process.execPath, '-e', source], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
-    expect([await run.exited, await new Response(run.stdout).text()]).toEqual([0, 'imported'])
+    await importRunsNothing(GATE, 'outdated-gate-')
   })
 })

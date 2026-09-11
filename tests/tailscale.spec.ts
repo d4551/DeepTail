@@ -9,41 +9,20 @@
 
 import { describe, expect, it } from 'bun:test'
 import { PROTOCOL, RemoteError } from '../apps/deeptail/src/api.ts'
-import type { Invoke } from '../apps/deeptail/src/native-call.ts'
 import { nativeTailnetPorts, type TailnetHost, tailnetPairingLink } from '../apps/deeptail/src/tailscale.ts'
 import type { JsonValue, WireValue } from '../apps/deeptail/src/wire.ts'
+import { recorder } from './invoke-double.ts'
 
 /** One machine, as the native side sends one. */
 const MACHINE: TailnetHost = {
   id: 'd1',
-  label: 'box',
+  label: 'Box',
   origin: 'https://box.ts.net',
   os: 'linux',
   lastSeen: '2026-09-08T10:00:00Z',
   tags: ['tag:server'],
   authorized: true,
   paired: false,
-}
-
-/** What one native call was asked. */
-interface Asked {
-  readonly command: string
-  readonly args?: Parameters<Invoke>[1]
-}
-
-/**
- * A native call that records what it was asked and answers as told.
- * @param answers - one answer per call, in order.
- * @returns the call and the record of what it was asked.
- */
-function recorder(answers: readonly WireValue[]): { call: Invoke; asked: Asked[] } {
-  const asked: Asked[] = []
-  const queued = [...answers]
-  const call: Invoke = (command, args) => {
-    asked.push(args === undefined ? { command } : { command, args })
-    return Promise.resolve(queued.shift())
-  }
-  return { call, asked }
 }
 
 describe('the pairing link for a tailnet machine', () => {

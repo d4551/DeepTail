@@ -9,34 +9,30 @@
  *
  * Cargo is substituted, and only cargo: a program on the path that prints what
  * cargo prints. Above that boundary this is the shipped gate, run as a process,
- * reading a report it did not write.
+ * reading a report it did not write. The process plumbing — the made tree, the
+ * spawn, the two streams — is the one the gate-program suites share.
  *
  * @module
  */
 
-import { afterEach, describe, expect, it } from 'bun:test'
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { describe, expect, it } from 'bun:test'
+import { chmod, mkdir, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { CRATE_DIRECTORY, freshnessReport } from '../scripts/cargo-freshness.ts'
+import { importRunsNothing, runGateProgram, suiteRoot } from './gate-program.ts'
 
 /** The program the merge chain runs, by absolute path. */
 const GATE = new URL('../scripts/cargo-freshness.ts', import.meta.url).pathname
 
-/** Directories this suite made, removed when it ends. */
-const made: string[] = []
-
-afterEach(async () => {
-  await Promise.all(made.splice(0).map(async (root) => await rm(root, { recursive: true, force: true })))
-})
-
-/** What one run of the gate told the two streams and the shell. */
+/** What one run of the gate told the two streams and the shell, and where it ran. */
 interface Run {
   readonly out: string
   readonly err: string
   readonly code: number
   /** The directory the substituted cargo was run in. */
   readonly ran: string
+  /** The made root the gate ran inside. */
+  readonly root: string
 }
 
 /**
@@ -46,11 +42,10 @@ interface Run {
  * writes it, so what the gate reads is shaped the way cargo shapes it.
  * @param report - what the substituted cargo prints to its error stream.
  * @param code - what the substituted cargo exits with.
- * @returns what the gate printed and exited with.
+ * @returns what the gate printed and exited with, and where cargo ran.
  */
 async function runGate(report: string, code = 0, onStdout = ''): Promise<Run> {
-  const root = await mkdtemp(join(tmpdir(), 'cargo-gate-'))
-  made.push(root)
+  const root = await suiteRoot('cargo-gate-')
   // The crate directory the gate changes into has to exist, or the spawn fails
   // before cargo is ever reached.
   await mkdir(join(root, CRATE_DIRECTORY), { recursive: true })
@@ -73,22 +68,14 @@ async function runGate(report: string, code = 0, onStdout = ''): Promise<Run> {
   ].join('\n')
   await writeFile(join(bin, 'cargo'), script)
   await chmod(join(bin, 'cargo'), 0o755)
-  const run = Bun.spawn([process.execPath, GATE], {
-    cwd: root,
-    env: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-  const out = await new Response(run.stdout).text()
-  const err = await new Response(run.stderr).text()
-  const exited = await run.exited
+  const run = await runGateProgram(GATE, root, bin)
   const ran = await Bun.file(where)
     .text()
     .then(
       (text) => text.trim(),
       () => '',
     )
-  return { out, err, code: exited, ran }
+  return { ...run, ran, root }
 }
 
 /** A report in which cargo would move two crates. */
@@ -172,14 +159,20 @@ describe('what the gate asks cargo, and where', () => {
     expect(run.err).toContain('cc 1.4.4 -> 1.4.5')
   })
 
-  it('asks cargo inside the crate whose lockfile it is reading', async () => {
+  it('asks cargo inside the crate directory it declares, and nowhere else', async () => {
     // Run anywhere else, cargo answers about another lockfile or none at all,
-    // and the gate reports on a crate it was not pointed at. The path is
-    // written out rather than read through the constant, so a constant emptied
-    // of its value cannot agree with itself here.
+    // and the gate reports on a crate it was not pointed at. The directory the
+    // gate ran in is the one this suite made for the crate, read through the
+    // filesystem's own answer for the path, because the shell prints where it
+    // stands by the physical route and the made root is reached by a symlinked
+    // one. It is not the root itself: a constant emptied of its value would
+    // leave the gate asking cargo in the very directory it was spawned in,
+    // where no crate lives. That the constant names the real crate is what the
+    // shipped gate proves on the real tree, where cargo answers about a
+    // lockfile or fails.
     const run = await runGate('    Updating crates.io index')
-    expect(run.ran.endsWith('/apps/deeptail/src-tauri')).toBe(true)
-    expect(CRATE_DIRECTORY).toBe('apps/deeptail/src-tauri')
+    expect(run.ran).toBe(await realpath(join(run.root, CRATE_DIRECTORY)))
+    expect(run.ran).not.toBe(await realpath(run.root))
   })
 
   it('fails, and says what cargo said, when cargo itself fails', async () => {
@@ -193,10 +186,6 @@ describe('what the gate asks cargo, and where', () => {
   })
 
   it('runs nothing when it is imported rather than run', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'cargo-gate-'))
-    made.push(root)
-    const source = `await import(${JSON.stringify(GATE)})\nprocess.stdout.write('imported')\n`
-    const run = Bun.spawn([process.execPath, '-e', source], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
-    expect([await run.exited, await new Response(run.stdout).text()]).toEqual([0, 'imported'])
+    await importRunsNothing(GATE, 'cargo-gate-')
   })
 })
