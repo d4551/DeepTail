@@ -88,15 +88,15 @@ export function nativeTailnetPorts(call: Invoke = invoke): TailnetPorts {
 function isTailnetHost(value: TailnetHost | WireValue): value is TailnetHost {
   return (
     isWireObject(value) &&
-    typeof value['id'] === 'string' &&
-    typeof value['label'] === 'string' &&
-    typeof value['origin'] === 'string' &&
-    typeof value['os'] === 'string' &&
-    typeof value['lastSeen'] === 'string' &&
-    Array.isArray(value['tags']) &&
-    value['tags'].every((tag) => typeof tag === 'string') &&
-    typeof value['authorized'] === 'boolean' &&
-    typeof value['paired'] === 'boolean'
+    typeof value.id === 'string' &&
+    typeof value.label === 'string' &&
+    typeof value.origin === 'string' &&
+    typeof value.os === 'string' &&
+    typeof value.lastSeen === 'string' &&
+    Array.isArray(value.tags) &&
+    value.tags.every((tag) => typeof tag === 'string') &&
+    typeof value.authorized === 'boolean' &&
+    typeof value.paired === 'boolean'
   )
 }
 

@@ -66,15 +66,15 @@ function textAt(row: WireObject, key: string): string | undefined {
  */
 function readInjection(value: WireValue): IndexInjection | undefined {
   if (!isWireObject(value)) return undefined
-  const kind = value['kind']
-  const placement = placementOf(value['placement'])
+  const kind = value.kind
+  const placement = placementOf(value.placement)
   const name = textAt(value, 'name')
   const text = textAt(value, 'text')
   const src = textAt(value, 'src')
   const html = textAt(value, 'html')
   // A row that names a global and carries no value carries JSON's own
   // no-value, which is what the page then holds under that name.
-  if (kind === 'global' && name !== undefined) return { kind, name, value: value['value'] ?? null }
+  if (kind === 'global' && name !== undefined) return { kind, name, value: value.value ?? null }
   if (kind === 'script' && placement !== undefined && text !== undefined) return { kind, placement, text }
   if (kind === 'script-src' && placement !== undefined && src !== undefined) return { kind, placement, src }
   if (kind === 'script-preload' && src !== undefined) return { kind, src }

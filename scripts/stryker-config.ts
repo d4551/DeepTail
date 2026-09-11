@@ -101,8 +101,8 @@ function stringsAt(held: { [key: string]: Json }, key: string): readonly string[
  * @returns the scope.
  */
 export function readScopeConfig(label: string, document: { [key: string]: Json }): ScopeConfig {
-  const runner = document['commandRunner']
-  const thresholds = document['thresholds']
+  const runner = document.commandRunner
+  const thresholds = document.thresholds
   const scores = isJsonObject(thresholds) ? thresholds : {}
   return {
     label,

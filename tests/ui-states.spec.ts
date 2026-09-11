@@ -32,7 +32,7 @@ describe('a row announcing that something is loading', () => {
   it('is a status, carrying the spinner and the localized message', () => {
     const row = loadingRow(t, 'status.loading')
     expect(row.getAttribute('role')).toBe('status')
-    expect(row.dataset['deeptailState']).toBe('loading')
+    expect(row.dataset.deeptailState).toBe('loading')
     expect(row.querySelector('.spinner')).not.toBeNull()
     expect(row.querySelector('.status')?.textContent).toBe(DICTIONARIES.en['status.loading'])
   })
@@ -48,7 +48,7 @@ describe('a row announcing that a settled read found nothing', () => {
   it('is a status carrying the already-localized message', () => {
     const row = emptyRow('no paired hosts')
     expect(row.getAttribute('role')).toBe('status')
-    expect(row.dataset['deeptailState']).toBe('empty')
+    expect(row.dataset.deeptailState).toBe('empty')
     expect(row.textContent).toBe('no paired hosts')
   })
 })
@@ -60,7 +60,7 @@ describe('a failed read, carrying the retry that clears it', () => {
       retried += 1
     })
     expect(strip.getAttribute('role')).toBe('alert')
-    expect(strip.dataset['deeptailState']).toBe('error')
+    expect(strip.dataset.deeptailState).toBe('error')
     expect(strip.textContent?.startsWith('the host did not answer')).toBe(true)
     expect(retried).toBe(0)
   })
@@ -92,7 +92,7 @@ describe('a strip one surface writes its refusals into', () => {
     const strip = errorStrip('pair-error')
     expect(strip.hidden).toBe(true)
     expect(strip.getAttribute('role')).toBe('alert')
-    expect(strip.dataset['deeptailState']).toBe('pair-error')
+    expect(strip.dataset.deeptailState).toBe('pair-error')
   })
 
   it('waits for a pause when the surface asked it to', () => {

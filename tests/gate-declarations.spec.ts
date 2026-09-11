@@ -41,12 +41,10 @@ const GATES: readonly (readonly [string, Gate])[] = [
 async function drive(gate: Gate, name: string, text: string): Promise<{ ok: boolean; text: string }> {
   const root = await mkdtemp(join(tmpdir(), 'gate-declaration-'))
   const file: SourceFile = { label: name, path: join(root, 'held') }
-  try {
-    await writeFile(file.path, text)
-    return await readGate(gate, [file])
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
+  await writeFile(file.path, text)
+  const said = await readGate(gate, [file])
+  await rm(root, { recursive: true, force: true })
+  return said
 }
 
 describe('every gate in the chain', () => {

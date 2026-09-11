@@ -23,12 +23,10 @@ import { repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
 async function pinsOf(manifest: string): Promise<Map<string, string>> {
   const root = await mkdtemp(join(tmpdir(), 'pins-'))
   const file: SourceFile = { label: 'package.json', path: join(root, 'package.json') }
-  try {
-    await writeFile(file.path, manifest)
-    return declaredPins([file])
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
+  await writeFile(file.path, manifest)
+  const pins = declaredPins([file])
+  await rm(root, { recursive: true, force: true })
+  return pins
 }
 
 describe('the declared pins', () => {

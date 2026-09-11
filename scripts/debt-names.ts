@@ -114,21 +114,21 @@ function boundNames(target: Field | undefined): string[] {
   const node = unwrap(target)
   if (!isNode(node)) return []
   if (node.type === 'Identifier') {
-    const name = node['name']
+    const name = node.name
     return typeof name === 'string' ? [name] : []
   }
-  if (node.type === 'AssignmentPattern') return boundNames(node['left'])
-  if (node.type === 'RestElement') return boundNames(node['argument'])
+  if (node.type === 'AssignmentPattern') return boundNames(node.left)
+  if (node.type === 'RestElement') return boundNames(node.argument)
   if (node.type === 'ArrayPattern') {
-    const elements = node['elements']
+    const elements = node.elements
     return Array.isArray(elements) ? elements.flatMap((element) => boundNames(element)) : []
   }
   if (node.type !== 'ObjectPattern') return []
-  const properties = node['properties']
+  const properties = node.properties
   if (!Array.isArray(properties)) return []
   return properties.flatMap((property_) => {
     if (!isNode(property_)) return []
-    return boundNames(property_.type === 'Property' ? property_['value'] : property_)
+    return boundNames(property_.type === 'Property' ? property_.value : property_)
   })
 }
 
@@ -145,9 +145,9 @@ function boundNames(target: Field | undefined): string[] {
 export function namesDebt(node: Node): boolean {
   const named: string[] = []
   const field = NAMED.get(node.type)
-  if (field !== undefined && node['computed'] !== true) named.push(...boundNames(node[field]))
+  if (field !== undefined && node.computed !== true) named.push(...boundNames(node[field]))
   if (PARAMETERISED.has(node.type)) {
-    const params = node['params']
+    const params = node.params
     if (Array.isArray(params)) named.push(...params.flatMap((param) => boundNames(param)))
   }
   if (node.type === 'ObjectExpression') named.push(...literalMembers(node))
@@ -165,10 +165,10 @@ export function namesDebt(node: Node): boolean {
  * @returns the member names it writes.
  */
 function literalMembers(node: Node): string[] {
-  const properties = node['properties']
+  const properties = node.properties
   if (!Array.isArray(properties)) return []
   return properties.flatMap((property_) => {
-    if (!isNode(property_) || property_.type !== 'Property' || property_['computed'] === true) return []
-    return boundNames(property_['key'])
+    if (!isNode(property_) || property_.type !== 'Property' || property_.computed === true) return []
+    return boundNames(property_.key)
   })
 }

@@ -35,8 +35,7 @@ describe('the raw message of a rejection', () => {
     expect(messageOf('a bare string')).toBe('a bare string')
     expect(messageOf(404)).toBe('404')
     expect(messageOf(null)).toBe('null')
-    const absent: undefined = undefined
-    expect(messageOf(absent)).toBe('undefined')
+    expect(messageOf(undefined)).toBe('undefined')
   })
 })
 

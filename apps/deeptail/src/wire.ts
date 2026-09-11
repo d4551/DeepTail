@@ -42,6 +42,75 @@ export interface WireObject {
   readonly [field: string]: JsonValue
 }
 
+/**
+ * Read one field of a wire object, by name.
+ *
+ * Every field read off the wire goes through a reader here rather than through
+ * property access at the call site: the field is named where it is read, and
+ * the read is one lookup this module owns.
+ * @param value - the object to read.
+ * @param field - the field's name.
+ * @returns the field's value, or undefined when it was absent.
+ */
+export function fieldOf(value: WireObject, field: string): WireValue {
+  return value[field]
+}
+
+/**
+ * Read one field that must be a string.
+ * @param value - the object to read.
+ * @param field - the field's name.
+ * @returns the string, or undefined when the field was absent or another type.
+ */
+export function stringFieldOf(value: WireObject, field: string): string | undefined {
+  const read = fieldOf(value, field)
+  return typeof read === 'string' ? read : undefined
+}
+
+/**
+ * Read one field that must be a number.
+ * @param value - the object to read.
+ * @param field - the field's name.
+ * @returns the number, or undefined when the field was absent or another type.
+ */
+export function numberFieldOf(value: WireObject, field: string): number | undefined {
+  const read = fieldOf(value, field)
+  return typeof read === 'number' ? read : undefined
+}
+
+/**
+ * Read one field that must be a boolean.
+ * @param value - the object to read.
+ * @param field - the field's name.
+ * @returns the boolean, or undefined when the field was absent or another type.
+ */
+export function booleanFieldOf(value: WireObject, field: string): boolean | undefined {
+  const read = fieldOf(value, field)
+  return typeof read === 'boolean' ? read : undefined
+}
+
+/**
+ * Read one field that must be a list.
+ * @param value - the object to read.
+ * @param field - the field's name.
+ * @returns the list, or undefined when the field was absent or not a list.
+ */
+export function arrayFieldOf(value: WireObject, field: string): readonly JsonValue[] | undefined {
+  const read = fieldOf(value, field)
+  return Array.isArray(read) ? read : undefined
+}
+
+/**
+ * Read one field that must be an object.
+ * @param value - the object to read.
+ * @param field - the field's name.
+ * @returns the object, or undefined when the field was absent or not an object.
+ */
+export function objectFieldOf(value: WireObject, field: string): WireObject | undefined {
+  const read = fieldOf(value, field)
+  return isWireObject(read) ? read : undefined
+}
+
 /** Whether a value names a serialised object.
  * @param value - any value the host may have sent.
  * @returns whether the value can be read by field.
@@ -65,9 +134,9 @@ export function isWireObject<T>(value: T | WireValue): value is WireObject {
 export function isSessionSummary<T>(value: T | WireValue): value is SessionSummary {
   return (
     isWireObject(value) &&
-    typeof value['sessionId'] === 'string' &&
-    typeof value['updatedAt'] === 'number' &&
-    typeof value['running'] === 'boolean' &&
-    typeof value['blank'] === 'boolean'
+    stringFieldOf(value, 'sessionId') !== undefined &&
+    numberFieldOf(value, 'updatedAt') !== undefined &&
+    booleanFieldOf(value, 'running') !== undefined &&
+    booleanFieldOf(value, 'blank') !== undefined
   )
 }

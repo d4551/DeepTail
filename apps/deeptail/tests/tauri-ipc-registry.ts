@@ -62,7 +62,7 @@ export function deeptailListHosts(script: AnswerTable, state: IpcState): Promise
  * @returns the host the pairing produced, or the refusal it met.
  */
 export function deeptailPairHost(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<object> {
-  state.pairedLinks.push(String(args['link'] ?? ''))
+  state.pairedLinks.push(String(args.link ?? ''))
   return script.pairError === undefined
     ? Promise.resolve(script.paired ?? {})
     : Promise.reject(new Error(script.pairError))

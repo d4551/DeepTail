@@ -107,7 +107,7 @@ export function decideFrame(message: ServerMessage, ready: boolean): FrameOutcom
       return forwarded === undefined ? IGNORE : { kind: 'event', event: forwarded }
     }
     case 'error':
-      return { kind: 'lost', reason: message.error['message'] ?? 'event stream failed' }
+      return { kind: 'lost', reason: message.error.message ?? 'event stream failed' }
     case 'end':
       return { kind: 'lost', reason: 'event stream ended' }
   }
@@ -144,18 +144,18 @@ function parseServerMessage(text: string, streamId: string): Promise<ServerMessa
  * @returns the frame, or null when it is not one of this stream's.
  */
 function projectServerMessage(value: JsonValue, streamId: string): ServerMessage | null {
-  if (!isRecord(value) || value['streamId'] !== streamId) return null
-  const type = value['type']
+  if (!isRecord(value) || value.streamId !== streamId) return null
+  const type = value.type
   if (type === 'item') {
-    return value['value'] === undefined ? { type, streamId } : { type, streamId, value: value['value'] }
+    return value.value === undefined ? { type, streamId } : { type, streamId, value: value.value }
   }
   if (type === 'end') return { type, streamId }
   if (type === 'error') {
-    const error = value['error']
+    const error = value.error
     return {
       type,
       streamId,
-      error: isRecord(error) && typeof error['message'] === 'string' ? { message: error['message'] } : {},
+      error: isRecord(error) && typeof error.message === 'string' ? { message: error.message } : {},
     }
   }
   return null
@@ -163,14 +163,14 @@ function projectServerMessage(value: JsonValue, streamId: string): ServerMessage
 
 /** Whether an opening item is the host's ready frame. */
 function isReadyFrame(value: JsonValue | undefined): boolean {
-  return isRecord(value) && value['type'] === 'ready'
+  return isRecord(value) && value.type === 'ready'
 }
 
 /** Project one downlink frame onto a forwarded host event. */
 function toHostEvent(value: JsonValue | undefined): HostEvent | undefined {
-  if (!isRecord(value) || value['type'] !== 'emit') return undefined
-  const event = value['event']
-  const args = value['args']
+  if (!isRecord(value) || value.type !== 'emit') return undefined
+  const event = value.event
+  const args = value.args
   if (typeof event !== 'string' || !Array.isArray(args)) return undefined
   return { event, args }
 }

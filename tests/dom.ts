@@ -26,5 +26,5 @@ GlobalRegistrator.register()
 export function resetDocument(): void {
   document.body.replaceChildren()
   document.head.replaceChildren()
-  delete document.body.dataset['dsDarkTheme']
+  delete document.body.dataset.dsDarkTheme
 }

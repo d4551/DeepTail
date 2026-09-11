@@ -24,12 +24,10 @@ import { manifestScripts, readManifest, sectionOf } from '../scripts/manifest.ts
 async function scriptsOf(text: string): Promise<[string, string][]> {
   const root = await mkdtemp(join(tmpdir(), 'manifest-'))
   const path = join(root, 'package.json')
-  try {
-    await writeFile(path, text)
-    return [...sectionOf(readManifest(path), 'scripts')]
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
+  await writeFile(path, text)
+  const scripts = [...sectionOf(readManifest(path), 'scripts')]
+  await rm(root, { recursive: true, force: true })
+  return scripts
 }
 
 describe('one section of a manifest', () => {

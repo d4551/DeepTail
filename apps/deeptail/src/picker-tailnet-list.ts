@@ -64,7 +64,7 @@ function deviceRow(ctx: ListContext, device: TailnetHost): HTMLElement {
   const paired = current.hosts.find((host) => host.origin === device.origin)
   const row = el('button', { className: 'row' })
   row.type = 'button'
-  row.dataset['deeptailTailnetDevice'] = device.id
+  row.dataset.deeptailTailnetDevice = device.id
   // An unapproved machine is listed because its absence would read as a
   // missing machine, and disabled because pairing it cannot succeed until an
   // admin approves it.
@@ -126,7 +126,7 @@ export function tailnetListView(ctx: ListContext): HTMLElement[] {
   })
   const disconnect = el('button', { className: 'button button-outline', text: t('tailnet.disconnect') })
   disconnect.type = 'button'
-  disconnect.dataset['deeptailAction'] = ACTIONS['tailnet.forget'].marker
+  disconnect.dataset.deeptailAction = ACTIONS['tailnet.forget'].marker
   disconnect.addEventListener('click', () => {
     ctx.forget(current.hosts)
   })

@@ -33,6 +33,6 @@ export function collector(): { readonly findings: StructureFinding[]; readonly a
  */
 export function surface(tag: string): HTMLElement {
   const node = document.createElement(tag)
-  node.dataset['structureScope'] = ''
+  node.dataset.structureScope = ''
   return node
 }

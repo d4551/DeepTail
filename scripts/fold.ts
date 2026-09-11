@@ -28,17 +28,17 @@ export function constants(program: readonly Node[]): Constants {
   const found = new Map<string, string | null>()
   const empty: Constants = new Map()
   walk(program, (node) => {
-    if (node.type !== 'VariableDeclaration' || node['kind'] !== 'const') return
-    const declarations = node['declarations']
+    if (node.type !== 'VariableDeclaration' || node.kind !== 'const') return
+    const declarations = node.declarations
     if (!Array.isArray(declarations)) return
     for (const declaration of declarations) {
       if (!isNode(declaration)) continue
-      const id = unwrap(declaration['id'])
-      if (!isNode(id) || id.type !== 'Identifier' || typeof id['name'] !== 'string') continue
-      const value = staticString(empty, declaration['init'])
+      const id = unwrap(declaration.id)
+      if (!isNode(id) || id.type !== 'Identifier' || typeof id.name !== 'string') continue
+      const value = staticString(empty, declaration.init)
       if (value === undefined) continue
-      const seen = found.get(id['name'])
-      found.set(id['name'], seen === undefined || seen === value ? value : null)
+      const seen = found.get(id.name)
+      found.set(id.name, seen === undefined || seen === value ? value : null)
     }
   })
   return found
@@ -60,9 +60,9 @@ export function staticString(env: Constants, node: Field | undefined): string | 
   if (!isNode(folded)) return undefined
   switch (folded.type) {
     case 'Literal':
-      return typeof folded['value'] === 'string' ? folded['value'] : undefined
+      return typeof folded.value === 'string' ? folded.value : undefined
     case 'Identifier':
-      return typeof folded['name'] === 'string' ? (env.get(folded['name']) ?? undefined) : undefined
+      return typeof folded.name === 'string' ? (env.get(folded.name) ?? undefined) : undefined
     case 'TemplateLiteral':
       return foldTemplate(env, folded)
     case 'BinaryExpression':
@@ -82,8 +82,8 @@ export function staticString(env: Constants, node: Field | undefined): string | 
 function templateParts(
   node: Node,
 ): { readonly cooked: readonly string[]; readonly expressions: readonly Field[] } | undefined {
-  const quasis = node['quasis']
-  const expressions = node['expressions']
+  const quasis = node.quasis
+  const expressions = node.expressions
   if (!Array.isArray(quasis) || !Array.isArray(expressions)) return undefined
   const cooked: string[] = []
   for (const quasi of quasis) {
@@ -121,9 +121,9 @@ function foldTemplate(env: Constants, node: Node): string | undefined {
  * @returns the string, or undefined.
  */
 function foldConcatenation(env: Constants, node: Node): string | undefined {
-  if (node['operator'] !== '+') return undefined
-  const left = staticString(env, node['left'])
-  const right = staticString(env, node['right'])
+  if (node.operator !== '+') return undefined
+  const left = staticString(env, node.left)
+  const right = staticString(env, node.right)
   return left === undefined || right === undefined ? undefined : left + right
 }
 
@@ -135,12 +135,12 @@ function foldConcatenation(env: Constants, node: Node): string | undefined {
  * @returns the string, or undefined.
  */
 function foldCall(env: Constants, node: Node): string | undefined {
-  const callee = node['callee']
-  const args = node['arguments']
+  const callee = node.callee
+  const args = node.arguments
   if (!isNode(callee) || callee.type !== 'MemberExpression' || !Array.isArray(args)) return undefined
   const method = memberName(callee)
   if (method === 'fromCharCode' || method === 'fromCodePoint') return foldCharacters(method, args)
-  const receiver = callee['object']
+  const receiver = callee.object
   if (method === 'toLowerCase' || method === 'toUpperCase') {
     const text = staticString(env, receiver)
     return text === undefined ? undefined : method === 'toLowerCase' ? text.toLowerCase() : text.toUpperCase()
@@ -159,8 +159,8 @@ function foldCall(env: Constants, node: Node): string | undefined {
 function foldCharacters(method: string, args: readonly Field[]): string | undefined {
   const codes: number[] = []
   for (const argument of args) {
-    if (!isNode(argument) || argument.type !== 'Literal' || typeof argument['value'] !== 'number') return undefined
-    codes.push(argument['value'])
+    if (!isNode(argument) || argument.type !== 'Literal' || typeof argument.value !== 'number') return undefined
+    codes.push(argument.value)
   }
   // `fromCharCode` truncates each argument to sixteen bits; the mask reproduces
   // that without calling the deprecated form.
@@ -193,7 +193,7 @@ function foldParts(env: Constants, parts: readonly Field[]): string | undefined 
  */
 function foldJoin(env: Constants, receiver: Field | undefined, args: readonly Field[]): string | undefined {
   if (!isNode(receiver) || receiver.type !== 'ArrayExpression') return undefined
-  const elements = receiver['elements']
+  const elements = receiver.elements
   if (!Array.isArray(elements)) return undefined
   const separator = args.length === 0 ? '' : staticString(env, args[0])
   if (separator === undefined) return undefined
@@ -238,8 +238,8 @@ export function approximateString(env: Constants, node: Field | undefined): stri
     case 'TemplateLiteral':
       return approximateTemplate(env, read)
     case 'BinaryExpression':
-      return read['operator'] === '+'
-        ? `${approximateString(env, read['left']) ?? UNREADABLE}${approximateString(env, read['right']) ?? UNREADABLE}`
+      return read.operator === '+'
+        ? `${approximateString(env, read.left) ?? UNREADABLE}${approximateString(env, read.right) ?? UNREADABLE}`
         : undefined
     default:
       return undefined

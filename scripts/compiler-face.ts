@@ -67,15 +67,15 @@ function statedOneOf(value: Json | undefined, named: ReadonlySet<string>): strin
  */
 export function compilerFaceOffences(options: { readonly [key: string]: Json }): string[] {
   const offences: string[] = []
-  const moduleValue = statedOneOf(options['module'], TS6_MODULES)
+  const moduleValue = statedOneOf(options.module, TS6_MODULES)
   if (moduleValue !== undefined) {
     offences.push(`module ${moduleValue} is a TypeScript 6 module system; use esnext with bundler resolution`)
   }
-  const resolution = statedOneOf(options['moduleResolution'], TS6_RESOLUTIONS)
+  const resolution = statedOneOf(options.moduleResolution, TS6_RESOLUTIONS)
   if (resolution !== undefined) {
     offences.push(`moduleResolution ${resolution} is a TypeScript 6 resolver; use bundler`)
   }
-  const target = statedOneOf(options['target'], SUPERSEDED_TARGETS)
+  const target = statedOneOf(options.target, SUPERSEDED_TARGETS)
   if (target !== undefined) {
     offences.push(`target ${target} is a TypeScript ≤6 emit face; use esnext`)
   }
@@ -84,10 +84,10 @@ export function compilerFaceOffences(options: { readonly [key: string]: Json }):
       offences.push(`${flag} is a TypeScript 6 module-interop flag; TypeScript 7 verbatimModuleSyntax replaced it`)
     }
   }
-  if (options['skipLibCheck'] === true) {
+  if (options.skipLibCheck === true) {
     offences.push("skipLibCheck silences a dependency's diagnostics instead of fixing them")
   }
-  if (options['strict'] === false) {
+  if (options.strict === false) {
     offences.push('strict is off; the TypeScript 7 face keeps it on')
   }
   return offences

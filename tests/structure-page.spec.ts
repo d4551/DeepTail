@@ -22,7 +22,7 @@ beforeEach(() => {
 
 it('reads one shell with one main as conforming', () => {
   const shell = document.createElement('div')
-  shell.dataset['deeptailShell'] = ''
+  shell.dataset.deeptailShell = ''
   shell.append(document.createElement('main'))
   document.body.append(shell)
   const { findings, add } = collector()
@@ -32,14 +32,14 @@ it('reads one shell with one main as conforming', () => {
 
 it('reports a split shell, a nested shell, and a shell without exactly one main', () => {
   const first = document.createElement('div')
-  first.dataset['deeptailShell'] = ''
+  first.dataset.deeptailShell = ''
   const nested = document.createElement('div')
-  nested.dataset['deeptailShell'] = ''
+  nested.dataset.deeptailShell = ''
   first.append(nested)
   const second = document.createElement('div')
-  second.dataset['deeptailShell'] = ''
+  second.dataset.deeptailShell = ''
   const crowded = document.createElement('div')
-  crowded.dataset['deeptailShell'] = ''
+  crowded.dataset.deeptailShell = ''
   crowded.append(document.createElement('main'), document.createElement('main'))
   document.body.append(first, second, crowded)
   const { findings, add } = collector()
@@ -56,7 +56,7 @@ it('reports a split shell, a nested shell, and a shell without exactly one main'
 
 it('reports every script hanging off a product surface, inline or sourced', () => {
   const root = document.createElement('div')
-  root.dataset['deeptailPicker'] = ''
+  root.dataset.deeptailPicker = ''
   const inline = document.createElement('script')
   const sourced = document.createElement('script')
   sourced.setAttribute('src', '/src/injected.ts')
@@ -72,7 +72,7 @@ it('reports every script hanging off a product surface, inline or sourced', () =
 
 it('reports a sourced one-off outside the product surfaces, and stays silent for harness scripts', () => {
   const root = document.createElement('div')
-  root.dataset['deeptailShell'] = ''
+  root.dataset.deeptailShell = ''
   const inside = document.createElement('script')
   inside.setAttribute('src', '/src/other.ts')
   root.append(inside)

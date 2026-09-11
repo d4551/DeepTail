@@ -29,8 +29,8 @@ export interface HostRecord {
 export function isHostRecord(value: HostRecord | WireValue): value is HostRecord {
   return (
     isWireObject(value) &&
-    typeof value['id'] === 'string' &&
-    typeof value['label'] === 'string' &&
-    typeof value['origin'] === 'string'
+    typeof value.id === 'string' &&
+    typeof value.label === 'string' &&
+    typeof value.origin === 'string'
   )
 }

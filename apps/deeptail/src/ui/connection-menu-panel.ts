@@ -114,7 +114,7 @@ function repairItem(hostId: string, options: MenuPanelOptions): HTMLButtonElemen
     },
     { role: 'menuitem' },
   )
-  repair.dataset['deeptailAction'] = ACTIONS['connection.repair'].marker
+  repair.dataset.deeptailAction = ACTIONS['connection.repair'].marker
   return repair
 }
 
@@ -153,6 +153,6 @@ function buildFooter(options: MenuPanelOptions): HTMLElement {
  */
 function menuItem(className: string, text: string, marker: ActionMarker, onClick: () => void): HTMLButtonElement {
   const item = button(className, text, onClick, { role: 'menuitem' })
-  item.dataset['deeptailAction'] = marker
+  item.dataset.deeptailAction = marker
   return item
 }
