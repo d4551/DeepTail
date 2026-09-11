@@ -184,8 +184,12 @@ export function openComposeSheet(target: ComposeTarget, t: Translate, announce: 
 
   const submit = (mode: PromptMode): void => {
     if (busy) return
-    const text = textarea.value.trim()
-    if (text === '') {
+    // The draft is sent as it was typed: a newline the operator committed with
+    // Shift+Enter is part of their message, not noise to strip. The emptiness
+    // check reads the trimmed value, because a draft of only spaces says
+    // nothing and must not reach the host.
+    const draft = textarea.value
+    if (draft.trim() === '') {
       showFailure(failure, t('chat.messageRequired'))
       setAria(textarea, { invalid: 'true' })
       textarea.focus()
@@ -197,7 +201,7 @@ export function openComposeSheet(target: ComposeTarget, t: Translate, announce: 
     const release = (): void => {
       setBusy(false)
     }
-    sendPrompt(target, mode, text, { dialog, failure, t, announce, release })
+    sendPrompt(target, mode, draft, { dialog, failure, t, announce, release })
   }
 
   const { cancel, steer, send } = buildComposeActions(

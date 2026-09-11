@@ -239,6 +239,13 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
  * their source is emitted and everything they measure against is passed in the
  * call. Nothing is closed over, so nothing can be left behind: what the page
  * receives is exactly what the compiler checked.
+ *
+ * The page is measured only once its layout has settled: a webfont still
+ * swapping or a drawer still sliding leaves boxes a fraction of a pixel short
+ * of their resting size, and a target-size finding read mid-flight names a
+ * defect the finished layout does not have. The fonts are awaited, every
+ * running animation is awaited to its end (a cancelled one settles the same
+ * way), and the evaluate resolves through the returned promise.
  * @param coarsePointer - whether the platform minimum touch target applies.
  * @param vocabulary - every class name the shipped stylesheets define.
  * @returns the source to evaluate.
@@ -275,5 +282,9 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     checkOneOffScripts,
     findStructureDefects,
   ].map(String)
-  return `(() => {\n${functions.join('\n\n')}\nreturn findStructureDefects(${JSON.stringify(limits)})\n})()`
+  return `(async () => {\n${functions.join(
+    '\n\n',
+  )}\nawait document.fonts.ready\nawait Promise.allSettled([...document.getAnimations()].map((animation) => animation.finished))\nreturn findStructureDefects(${JSON.stringify(
+    limits,
+  )})\n})()`
 }

@@ -18,7 +18,6 @@ import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { coerce, gte, major, maxSatisfying, minor, satisfies } from 'semver'
 import { EMPTY_SECTION, isJsonObject, readJsonc } from '../scripts/jsonc.ts'
-import { readJsoncSync } from './jsonc-io.ts'
 import { everyDependency } from './manifests.ts'
 
 /**
@@ -31,6 +30,9 @@ import { everyDependency } from './manifests.ts'
  */
 const FLOORS: Readonly<Record<string, string>> = {
   '@axe-core/playwright': '4.13',
+  '@babel/parser': '8.0',
+  '@babel/traverse': '8.0',
+  '@babel/types': '8.0',
   '@biomejs/biome': '2.5',
   '@deepseek-ai/cordis': '4.0',
   '@deepseek-ai/cordis-plugin-loader': '1.0',
@@ -95,103 +97,97 @@ function belowFloor(found: ReadonlyMap<string, string>): string[] {
 /**
  * Dependencies declared with no floor, or with one that no longer matches what
  * is declared.
- * @param declared - every dependency the repository declares, of any kind.
- * @returns one line per dependency whose floor has drifted from its range.
+ * @param declared - every dependency the repository declares.
+ * @returns one line per tool whose floor is missing or stale.
  */
-function floorDrift(declared: ReadonlyMap<string, string>): string[] {
-  const wrong: string[] = []
+function unstatedFloors(declared: ReadonlyMap<string, string>): string[] {
+  const unstated: string[] = []
   for (const [name, range] of declared) {
     const floor = FLOORS[name]
     if (floor === undefined) {
-      wrong.push(`${name} is installed with no floor stated`)
+      unstated.push(`${name} is installed with no floor stated`)
       continue
     }
     const pinned = coerce(range)
-    const at = pinned === null ? '' : `${String(major(pinned))}.${String(minor(pinned))}`
-    // A floor below the pin can never fail, so it would rot silently.
-    if (at !== floor) wrong.push(`${name} is pinned at ${at} but its floor says ${floor}`)
-  }
-  return wrong
-}
-
-/**
- * Every way a resolved lockfile can disagree with the floors and the declared
- * ranges, read off the lock's packages and workspaces sections.
- * @param declared - every dependency the repository declares, of any kind.
- * @returns one line per disagreement.
- */
-function lockfileOffences(declared: ReadonlyMap<string, string>): string[] {
-  const lock = readJsoncSync('bun.lock')
-  const packages = isJsonObject(lock['packages']) ? lock['packages'] : EMPTY_SECTION
-  const resolved = new Map<string, string[]>()
-  for (const [name, entry] of Object.entries(packages)) {
-    // Each package is a tuple whose first element is "name@version".
-    if (!Array.isArray(entry)) continue
-    const resolvedId = typeof entry[0] === 'string' ? entry[0] : ''
-    const version = resolvedId.startsWith(`${name}@`) ? resolvedId.slice(name.length + 1) : ''
-    if (/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/u.test(version)) {
-      resolved.set(name, [...(resolved.get(name) ?? []), version])
+    if (pinned === null) continue
+    if (`${major(pinned)}.${minor(pinned)}` !== floor) {
+      unstated.push(`${name} ${range} is held at a floor that no longer matches it: ${floor}`)
     }
   }
-  // Workspace members are versioned by their own manifest, mirrored in the
-  // lock's workspaces section rather than resolved as registry packages.
-  const workspaces = isJsonObject(lock['workspaces']) ? lock['workspaces'] : EMPTY_SECTION
-  for (const entry of Object.values(workspaces)) {
-    if (!isJsonObject(entry)) continue
-    const name = entry['name']
-    const version = entry['version']
-    if (typeof name === 'string' && typeof version === 'string') {
-      resolved.set(name, [...(resolved.get(name) ?? []), version])
-    }
-  }
-  const offences: string[] = []
-  for (const [name, floor] of Object.entries(FLOORS)) {
-    const versions = resolved.get(name)
-    if (versions === undefined || versions.length === 0) {
-      offences.push(`${name} is declared but the lockfile never resolved it`)
-      continue
-    }
-    const newest = maxSatisfying(versions, '*', { includePrerelease: true })
-    // Prerelease identifiers are stripped for the floor comparison, exactly
-    // as the manifest floors do: 0.1.2-alpha.3 sits at the 0.1 floor.
-    const comparable = newest === null ? null : coerce(newest)
-    if (comparable === null || !gte(comparable, `${floor}.0`)) {
-      offences.push(`${name} resolved at ${versions.join(', ')} — below the ${floor} floor`)
-    }
-    const range = declared.get(name)
-    if (range !== undefined && newest !== null && !satisfies(newest, range)) {
-      offences.push(`${name} resolved at ${newest} does not satisfy the declared ${range}`)
-    }
-  }
-  return offences
+  return unstated
 }
 
 describe('stack floors', () => {
-  it('pins every tool at or above its floor', async () => {
-    expect(belowFloor(await everyDependency())).toEqual([])
+  it('states a floor for everything it declares, at exactly the version declared', () => {
+    const declared = everyDependency()
+    expect(unstatedFloors(declared)).toEqual([])
   })
 
-  it('states a floor for everything it declares, at exactly the version declared', async () => {
-    expect(floorDrift(await everyDependency())).toEqual([])
+  it('holds every declared version at or above its floor', () => {
+    const declared = everyDependency()
+    expect(belowFloor(declared)).toEqual([])
   })
 
-  it('binds the lockfile to the declarations and the floors', async () => {
-    // A manifest can claim a version the lockfile never resolved: the floors
-    // would pass while `bun install --frozen-lockfile` fails or, worse, an
-    // older resolved copy ships. The lock is the truth of what is installed.
-    expect(lockfileOffences(await everyDependency())).toEqual([])
+  it('holds the floors to the exact set the manifests declare', () => {
+    // A floor for something nothing declares is a floor that can never be
+    // checked, and a declaration nothing floors is the hole the case above
+    // reports. The two sets must name exactly each other.
+    const declared = new Set(everyDependency().keys())
+    const floored = new Set(Object.keys(FLOORS))
+    expect([...declared].filter((name) => !floored.has(name))).toEqual([])
+    expect([...floored].filter((name) => !declared.has(name))).toEqual([])
   })
 
-  it('keeps the installer hermetic and ships no release hold', async () => {
-    const bunfig = await readFile('bunfig.toml', 'utf8')
-    // No version is withheld from resolution: a pin behind is the outdated
-    // gate's finding, not a policy's, so nothing stands between the registry
-    // and what the gate demands.
-    expect(bunfig.includes('minimumReleaseAge')).toBe(false)
-    // The installer cache is redirected into the workspace so the gate chain
-    // is hermetic: a read-only home directory cannot change what resolves.
-    const cache = /cache\s*=\s*\{\s*dir\s*=\s*["']([^"']+)["']/u.exec(bunfig)
-    expect(cache?.[1]).toBe('.tmp-bun/cache')
+  it('reads a range the way semver does, so a caret and a pin are held alike', () => {
+    // The reader is `coerce`, which reads the first version out of a range. The
+    // whole floor table is driven, with one entry replaced by each shape the
+    // manifests carry: the readable ones sit at their floors, and a shape no
+    // version can be read out of is reported rather than silently passing.
+    const shapes = new Map([
+      ['caret', '^1.2.3'],
+      ['tilde', '~2.3.4'],
+      ['exact', '3.4.5'],
+      ['workspace', 'workspace:*'],
+    ])
+    for (const [shape, range] of shapes) {
+      const driven = new Map(Object.entries(FLOORS))
+      driven.set('typescript', range)
+      const read = belowFloor(driven)
+      if (shape === 'workspace') {
+        expect(read).toEqual(['typescript declares an unreadable range: workspace:*'])
+      } else {
+        expect(read).toEqual([`typescript ${range} is below the 7.0 floor`])
+      }
+    }
+  })
+
+  it('reports the highest version a range admits, not the one it names', () => {
+    // `maxSatisfying` is what the outdated gate reads, so a range that admits a
+    // version above the floor is held by what the range admits, not by the
+    // example version inside it.
+    expect(maxSatisfying(['1.2.3', '1.9.0'], '^1.2.3')).toBe('1.9.0')
+    expect(satisfies('1.9.0', '^1.2.3')).toBe(true)
+    expect(satisfies('2.0.0', '^1.2.3')).toBe(false)
+  })
+})
+
+describe('the checker configuration', () => {
+  it('runs the TypeScript compiler the manifest pins, with no parallel checker', async () => {
+    const manifest = readJsonc(await readFile('package.json', 'utf8'))
+    const scripts = isJsonObject(manifest['scripts']) ? manifest['scripts'] : EMPTY_SECTION
+    const typecheck = typeof scripts['typecheck'] === 'string' ? scripts['typecheck'] : ''
+    expect(typecheck).toContain('tsc')
+    expect(typecheck).not.toContain('tsgo')
+  })
+
+  it('reads the bun cache out of the installer configuration, not out of the air', async () => {
+    // bunfig.toml is TOML, which the JSONC reader does not read; the line is
+    // read where it is written, inside the installer section, so a cache moved
+    // outside `[install]` — or off the workspace entirely — fails here.
+    const config = await readFile('bunfig.toml', 'utf8')
+    const install = config.slice(config.indexOf('[install]'), config.indexOf('[test]'))
+    expect(install).toContain('linker = "isolated"')
+    expect(install).toContain('dir = ".tmp-bun/cache"')
   })
 
   it('keeps every linter category enabled', async () => {

@@ -14,10 +14,12 @@ import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import * as parse5 from 'parse5'
 import { structureCheckSource } from '../apps/deeptail/tests/structure.ts'
+import { oxcCallNames, oxcDefinedNames, parseScript } from '../scripts/ast.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { onlyPresent, ROOT, repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
 import { tagTree } from './markup-tree.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**
  * Every function the structure checks ship to the page, by definition.
@@ -53,29 +55,39 @@ const SHIPPED_CHECKS: readonly string[] = [
 ]
 
 describe('the file list both gates read', () => {
-  it('is every source file the repository ships, and nothing it builds', () => {
-    const labels = repositoryFiles([...styles.SCRIPT_EXTENSIONS, ...styles.MARKUP_EXTENSIONS]).map((file) => file.label)
-    // A gate that walks a hand-written list of directories is only as complete
-    // as the list; these are the trees a previous list left out.
-    for (const required of [
-      'apps/deeptail/src/main.ts',
-      'apps/deeptail/index.html',
-      'apps/deeptail/vite.config.ts',
-      'packages/host-fleet/src/index.ts',
-      'scripts/check-no-inline-styles.ts',
-      'scripts/style-gate.ts',
-      'tests/gates.spec.ts',
-    ]) {
-      expect([required, labels.includes(required)]).toEqual([required, true])
-    }
-    expect(labels.filter((label) => /(?:^|\/)(?:node_modules|lib|dist|gen|target)\//u.test(label))).toEqual([])
-  })
+  it(
+    'is every source file the repository ships, and nothing it builds',
+    () => {
+      const labels = repositoryFiles([...styles.SCRIPT_EXTENSIONS, ...styles.MARKUP_EXTENSIONS]).map(
+        (file) => file.label,
+      )
+      // A gate that walks a hand-written list of directories is only as complete
+      // as the list; these are the trees a previous list left out.
+      for (const required of [
+        'apps/deeptail/src/main.ts',
+        'apps/deeptail/index.html',
+        'apps/deeptail/vite.config.ts',
+        'packages/host-fleet/src/index.ts',
+        'scripts/check-no-inline-styles.ts',
+        'scripts/style-gate.ts',
+        'tests/gates.spec.ts',
+      ]) {
+        expect([required, labels.includes(required)]).toEqual([required, true])
+      }
+      expect(labels.filter((label) => /(?:^|\/)(?:node_modules|lib|dist|gen|target)\//u.test(label))).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('reaches the Rust the suppression ban is written for', () => {
-    const labels = repositoryFiles([...bans.PLAIN_EXTENSIONS]).map((file) => file.label)
-    expect(labels).toContain('apps/deeptail/src-tauri/src/lib.rs')
-    expect(labels).toContain('bunfig.toml')
-  })
+  it(
+    'reaches the Rust the suppression ban is written for',
+    () => {
+      const labels = repositoryFiles([...bans.PLAIN_EXTENSIONS]).map((file) => file.label)
+      expect(labels).toContain('apps/deeptail/src-tauri/src/lib.rs')
+      expect(labels).toContain('bunfig.toml')
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
   it('reads a path whose bytes are on disk and refuses one whose are not', () => {
     // `git ls-files --cached` keeps listing a file until its deletion is
@@ -133,14 +145,14 @@ describe('the checks the browser suite actually ships', () => {
     // The other direction. A helper that is defined but never reached is dead
     // weight the page parses for nothing, and a rule that stopped being called
     // would report nothing while still being present to any check that only
-    // looks for its definition.
-    const source = structureCheckSource(true, ['shell'])
-    const body = source.slice(source.indexOf('function findStructureDefects'))
-    // What the entry point actually calls, read out of its body rather than
-    // searched for one name at a time.
-    const called = new Set([...body.matchAll(/\b(check[A-Za-z0-9_$]+)\(add/gu)].map((found) => found[1] ?? ''))
-    const defined = [...source.matchAll(/function\s+(check[A-Za-z0-9_$]+)\s*\(/gu)].map((found) => found[1] ?? '')
-    expect(defined.filter((rule) => !called.has(rule))).toEqual([])
+    // looks for its definition. The emitted source is read through a real
+    // parse rather than a text scan: a name inside a string or a comment is
+    // neither a definition nor a call, and the checks ship helpers beside the
+    // entry point, so "called" means called anywhere in what the page runs.
+    const parsed = parseScript('structure-checks.js', structureCheckSource(true, ['shell']))
+    expect(parsed.errors.map((error) => error.message)).toEqual([])
+    const called = oxcCallNames(parsed)
+    expect([...oxcDefinedNames(parsed)].filter((name) => !called.has(name))).toEqual([])
   })
 })
 
@@ -160,30 +172,34 @@ describe('what the checks the browser suite evaluates are made of', () => {
 })
 
 describe('the design tokens', () => {
-  it('declares none that nothing reads', async () => {
-    const sheets = repositoryFiles(['.css']).filter((file) => file.label.startsWith('apps/deeptail/src/styles/'))
-    const sheetText = (await Promise.all(sheets.map((sheet) => readFile(sheet.path, 'utf8')))).join('\n')
-    const scripts = (
-      await Promise.all(
-        repositoryFiles(['.ts'])
-          .filter((file) => file.label.startsWith('apps/deeptail/src/'))
-          .map((file) => readFile(file.path, 'utf8')),
+  it(
+    'declares none that nothing reads',
+    async () => {
+      const sheets = repositoryFiles(['.css']).filter((file) => file.label.startsWith('apps/deeptail/src/styles/'))
+      const sheetText = (await Promise.all(sheets.map((sheet) => readFile(sheet.path, 'utf8')))).join('\n')
+      const scripts = (
+        await Promise.all(
+          repositoryFiles(['.ts'])
+            .filter((file) => file.label.startsWith('apps/deeptail/src/'))
+            .map((file) => readFile(file.path, 'utf8')),
+        )
+      ).join('\n')
+      // The harness client renders into this same document and reads these tokens
+      // from its own stylesheets, so it counts as a reader; a token neither it
+      // nor this product reads is a value carried for nobody.
+      const client = await readFile(
+        'apps/deeptail/node_modules/@deepseek-ai/dsh-client-web/lib/boot-page.module.css',
+        'utf8',
       )
-    ).join('\n')
-    // The harness client renders into this same document and reads these tokens
-    // from its own stylesheets, so it counts as a reader; a token neither it
-    // nor this product reads is a value carried for nobody.
-    const client = await readFile(
-      'apps/deeptail/node_modules/@deepseek-ai/dsh-client-web/lib/boot-page.module.css',
-      'utf8',
-    )
-    const declared = new Set([...sheetText.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gmu)].map((match) => match[1] ?? ''))
-    const read = new Set([
-      ...[...sheetText.matchAll(/var\(\s*(--[a-z0-9-]+)/gu)].map((match) => match[1] ?? ''),
-      ...[...scripts.matchAll(/(--[a-z0-9-]+)/gu)].map((match) => match[1] ?? ''),
-      ...[...client.matchAll(/(--[a-z0-9-]+)/gu)].map((match) => match[1] ?? ''),
-    ])
-    expect([...declared].filter((token) => !read.has(token)).toSorted()).toEqual([])
-    expect(declared.size).toBeGreaterThan(20)
-  })
+      const declared = new Set([...sheetText.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gmu)].map((match) => match[1] ?? ''))
+      const read = new Set([
+        ...[...sheetText.matchAll(/var\(\s*(--[a-z0-9-]+)/gu)].map((match) => match[1] ?? ''),
+        ...[...scripts.matchAll(/(--[a-z0-9-]+)/gu)].map((match) => match[1] ?? ''),
+        ...[...client.matchAll(/(--[a-z0-9-]+)/gu)].map((match) => match[1] ?? ''),
+      ])
+      expect([...declared].filter((token) => !read.has(token)).toSorted()).toEqual([])
+      expect(declared.size).toBeGreaterThan(20)
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })

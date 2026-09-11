@@ -151,6 +151,30 @@ export async function expectNoViolationsAtEachWidth(
 }
 
 /**
+ * Audit one driven surface at every designed width, in both palettes.
+ *
+ * The shell is opened over the fixture with the roster shown, the case drives
+ * it to the state under audit, and what is showing is audited and closed. The
+ * open-drive-audit shape is stated once here; a case contributes only the
+ * fixture and the driving it needs.
+ * @param harness - the suite's browser harness.
+ * @param fixture - the registry the page boots against.
+ * @param drive - drives the opened page to the state under audit, under the
+ * view it is being opened for.
+ */
+export async function auditShellAtEachWidth(
+  harness: Harness,
+  fixture: Parameters<typeof fleet>[0],
+  drive: (page: Page, view: AuditView) => Promise<void>,
+): Promise<void> {
+  await expectNoViolationsAtEachWidth(harness, async (view) => {
+    const page = await openShellWithDrawer(harness, fixture, view)
+    await drive(page, view)
+    return page
+  })
+}
+
+/**
  * Open the shell over a fleet fixture and wait until it is showing.
  * @param harness - the suite's browser harness.
  * @param fixture - the registry the page boots against.

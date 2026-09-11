@@ -3,10 +3,16 @@
  *
  * The gates read a real parse — oxc, the parser the project's linter already
  * uses — so a construct is judged by what it is rather than by how it is spelt.
+ * Babel's traverse stands beside it as the independent walker: where a gate's
+ * read rests on a node shape, the second parser pins that shape to the tree
+ * the language defines rather than to one parser's dialect.
  *
  * @module
  */
 
+import { parse as babelParse, type ParserPlugin } from '@babel/parser'
+import traverse from '@babel/traverse'
+import * as babelTypes from '@babel/types'
 import { parseSync } from 'oxc-parser'
 import { lineReader } from './lines.ts'
 
@@ -196,4 +202,83 @@ export function parseScript(label: string, text: string): Parsed {
     errors: parsed.errors,
     lineAt: (offset: Field | undefined) => (typeof offset === 'number' ? at(offset) : 1),
   }
+}
+
+/** The names a walk of the oxc tree sees defined, by function declaration. */
+export function oxcDefinedNames(parsed: Parsed): Set<string> {
+  const names = new Set<string>()
+  walk(parsed.body, (node) => {
+    if (node.type !== 'FunctionDeclaration') return
+    const name = fieldOf(nodeAt(node, 'id'), 'name')
+    if (typeof name === 'string') names.add(name)
+  })
+  return names
+}
+
+/** The names a walk of the oxc tree sees called, by plain callee. */
+export function oxcCallNames(parsed: Parsed): Set<string> {
+  const names = new Set<string>()
+  walk(parsed.body, (node) => {
+    if (node.type !== 'CallExpression') return
+    const callee = nodeAt(node, 'callee')
+    if (callee === undefined || callee.type !== 'Identifier') return
+    const name = fieldOf(callee, 'name')
+    if (typeof name === 'string') names.add(name)
+  })
+  return names
+}
+
+/** The Babel parse of one script: the tree the independent walker descends. */
+export interface BabelParsed {
+  /** The parsed file, typed by the validator package the walker reads. */
+  readonly file: babelTypes.File
+  /** What the parser recovered rather than refused, by message. */
+  readonly errors: readonly string[]
+}
+
+/** The plugins each dialect is parsed with, longest suffix first. */
+const BABEL_DIALECTS: readonly (readonly [suffix: string, plugins: readonly ParserPlugin[]])[] = [
+  ['.tsx', ['typescript', 'jsx']],
+  ['.mts', ['typescript']],
+  ['.cts', ['typescript']],
+  ['.ts', ['typescript']],
+  ['.jsx', ['jsx']],
+  ['.mjs', []],
+  ['.js', []],
+]
+
+/**
+ * Parse one script the way Babel reads it, for the walker to descend.
+ * @param label - the path, whose suffix selects the dialect plugins.
+ * @param text - the file's contents.
+ * @returns the file node and whatever the parser recovered.
+ */
+export function parseScriptWithBabel(label: string, text: string): BabelParsed {
+  const plugins = BABEL_DIALECTS.find(([suffix]) => label.endsWith(suffix))?.[1] ?? []
+  const file = babelParse(text, { sourceType: 'module', plugins: [...plugins], errorRecovery: true })
+  return { file, errors: file.errors.map((error) => error.message) }
+}
+
+/** The names the Babel walker sees defined, by function declaration. */
+export function babelDefinedNames(parsed: BabelParsed): Set<string> {
+  const names = new Set<string>()
+  traverse(parsed.file, {
+    FunctionDeclaration(path) {
+      const id = path.node.id
+      if (id !== null && id !== undefined) names.add(id.name)
+    },
+  })
+  return names
+}
+
+/** The names the Babel walker sees called, by plain callee. */
+export function babelCallNames(parsed: BabelParsed): Set<string> {
+  const names = new Set<string>()
+  traverse(parsed.file, {
+    CallExpression(path) {
+      const callee = path.node.callee
+      if (babelTypes.isIdentifier(callee)) names.add(callee.name)
+    },
+  })
+  return names
 }

@@ -30,6 +30,7 @@ import { describe, expect, it } from 'bun:test'
 import { manifestScripts } from '../scripts/manifest.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { expand, filtersOf, selected, selectsSomething, testCommands } from '../scripts/test-commands.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /** Where the browser suites live, and the suffix that keeps them out of the unit run. */
 const BROWSER_DIRECTORY = 'apps/deeptail/tests/'
@@ -63,56 +64,76 @@ function unitTestArguments(): string[] {
 }
 
 describe('the suites the gate chain runs', () => {
-  it('names every browser spec so the unit command cannot select it', () => {
-    const { browser } = specs()
-    expect(browser.length).toBeGreaterThan(0)
-    expect(browser.filter((label) => !label.endsWith(BROWSER_SUFFIX))).toEqual([])
-  })
+  it(
+    'names every browser spec so the unit command cannot select it',
+    () => {
+      const { browser } = specs()
+      expect(browser.length).toBeGreaterThan(0)
+      expect(browser.filter((label) => !label.endsWith(BROWSER_SUFFIX))).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('shares no file name between a unit spec and a browser spec', () => {
-    // The filter matches on the whole path, so two specs of the same name in
-    // different trees are one filter that selects both. The suffix above makes
-    // that impossible; this is what says so when it stops being true.
-    const { browser, unit } = specs()
-    const browserNames = new Set(browser.map((label) => label.slice(label.lastIndexOf('/') + 1)))
-    const collisions = unit.filter((label) => browserNames.has(label.slice(label.lastIndexOf('/') + 1)))
-    expect(collisions).toEqual([])
-  })
+  it(
+    'shares no file name between a unit spec and a browser spec',
+    () => {
+      // The filter matches on the whole path, so two specs of the same name in
+      // different trees are one filter that selects both. The suffix above makes
+      // that impossible; this is what says so when it stops being true.
+      const { browser, unit } = specs()
+      const browserNames = new Set(browser.map((label) => label.slice(label.lastIndexOf('/') + 1)))
+      const collisions = unit.filter((label) => browserNames.has(label.slice(label.lastIndexOf('/') + 1)))
+      expect(collisions).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('selects no browser spec when the script’s own arguments are expanded and matched', () => {
-    // The arguments the manifest actually carries, expanded the way the shell
-    // expands them, then matched the way bun matches them: as substrings of a
-    // path, not as paths.
-    const { browser } = specs()
-    const all = [...browser, ...specs().unit]
-    const filters = unitTestArguments().flatMap((pattern) => expand(pattern, all))
-    expect(filters.length).toBeGreaterThan(0)
-    const swept = browser.filter((label) => filters.some((filter) => label.includes(filter)))
-    expect(swept).toEqual([])
-  })
+  it(
+    'selects no browser spec when the script’s own arguments are expanded and matched',
+    () => {
+      // The arguments the manifest actually carries, expanded the way the shell
+      // expands them, then matched the way bun matches them: as substrings of a
+      // path, not as paths.
+      const { browser } = specs()
+      const all = [...browser, ...specs().unit]
+      const filters = unitTestArguments().flatMap((pattern) => expand(pattern, all))
+      expect(filters.length).toBeGreaterThan(0)
+      const swept = browser.filter((label) => filters.some((filter) => label.includes(filter)))
+      expect(swept).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })
 
 describe('the filters each command hands bun', () => {
-  it('hands bun no filter that selects nothing, in any command the repository ships', () => {
-    // A dead filter is silent: bun runs the live ones, exits zero, and the
-    // command reports the same green while running less than it names.
-    const all = repositoryFiles(['.spec.ts']).map((file) => file.label)
-    const dead = testCommands().flatMap(({ where, command }) =>
-      filtersOf(command)
-        .filter((filter) => !selectsSomething(filter, all))
-        .map((filter) => `${where}: ${filter}`),
-    )
-    expect(dead).toEqual([])
-  })
+  it(
+    'hands bun no filter that selects nothing, in any command the repository ships',
+    () => {
+      // A dead filter is silent: bun runs the live ones, exits zero, and the
+      // command reports the same green while running less than it names.
+      const all = repositoryFiles(['.spec.ts']).map((file) => file.label)
+      const dead = testCommands().flatMap(({ where, command }) =>
+        filtersOf(command)
+          .filter((filter) => !selectsSomething(filter, all))
+          .map((filter) => `${where}: ${filter}`),
+      )
+      expect(dead).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('finds a command in every place one is written, rather than reading none', () => {
-    // The case above passes over an empty list, which is what it would read if
-    // either reader stopped finding commands. Both places must answer.
-    const commands = testCommands()
-    expect(commands.filter(({ where }) => where.startsWith('package.json')).length).toBeGreaterThan(0)
-    expect(commands.filter(({ where }) => where.startsWith('stryker.')).length).toBeGreaterThan(0)
-    expect(commands.filter(({ command }) => filtersOf(command).length === 0)).toEqual([])
-  })
+  it(
+    'finds a command in every place one is written, rather than reading none',
+    () => {
+      // The case above passes over an empty list, which is what it would read if
+      // either reader stopped finding commands. Both places must answer.
+      const commands = testCommands()
+      expect(commands.filter(({ where }) => where.startsWith('package.json')).length).toBeGreaterThan(0)
+      expect(commands.filter(({ where }) => where.startsWith('stryker.')).length).toBeGreaterThan(0)
+      expect(commands.filter(({ command }) => filtersOf(command).length === 0)).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })
 
 describe('the readers that decide what a command runs', () => {
@@ -178,18 +199,22 @@ describe('the gates the chain runs', () => {
     expect(gates.filter((gate) => !chain.includes(`bun run ${gate}`))).toEqual([])
   })
 
-  it('names a reader that ships, for each gate script it declares', () => {
-    // Each names a module in `scripts/`, so the rule it enforces is the rule
-    // that module's own fixtures prove: one gate, read twice, never two. That
-    // the named module exists is what is checked; what it does is checked
-    // where it is driven.
-    const shipped = new Set(repositoryFiles(['.ts']).map((file) => file.label))
-    const missing = [...manifestScripts()]
-      .filter(([name]) => name.startsWith('check:'))
-      .flatMap(([name, command]) => {
-        const path = /bun\s+(scripts\/[\w-]+\.ts)/u.exec(command)?.[1]
-        return path !== undefined && shipped.has(path) ? [] : [`${name}: ${command}`]
-      })
-    expect(missing).toEqual([])
-  })
+  it(
+    'names a reader that ships, for each gate script it declares',
+    () => {
+      // Each names a module in `scripts/`, so the rule it enforces is the rule
+      // that module's own fixtures prove: one gate, read twice, never two. That
+      // the named module exists is what is checked; what it does is checked
+      // where it is driven.
+      const shipped = new Set(repositoryFiles(['.ts']).map((file) => file.label))
+      const missing = [...manifestScripts()]
+        .filter(([name]) => name.startsWith('check:'))
+        .flatMap(([name, command]) => {
+          const path = /bun\s+(scripts\/[\w-]+\.ts)/u.exec(command)?.[1]
+          return path !== undefined && shipped.has(path) ? [] : [`${name}: ${command}`]
+        })
+      expect(missing).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })

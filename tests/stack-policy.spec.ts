@@ -15,6 +15,7 @@ import { coerce, gte } from 'semver'
 import { readJsonc } from '../scripts/jsonc.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { everyDependency, lockfileNames } from './manifests.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**
  * The UI frameworks this product retired, by name.
@@ -57,38 +58,50 @@ function isRetiredFramework(name: string): boolean {
 }
 
 describe('the stack policy bans', () => {
-  it('installs none of the UI frameworks the design system retired', async () => {
-    // Absence, not a floor: a retired framework at its newest version is still
-    // a second vocabulary the tokens and the sheets never read. The manifests
-    // and the lockfile are both read, so a declaration that never resolves
-    // cannot hide in either.
-    const declared = [...(await everyDependency()).keys()]
-    expect(declared.filter((name) => isRetiredFramework(name))).toEqual([])
-    expect([...lockfileNames()].filter((name) => isRetiredFramework(name))).toEqual([])
-  })
+  it(
+    'installs none of the UI frameworks the design system retired',
+    async () => {
+      // Absence, not a floor: a retired framework at its newest version is still
+      // a second vocabulary the tokens and the sheets never read. The manifests
+      // and the lockfile are both read, so a declaration that never resolves
+      // cannot hide in either.
+      const declared = [...(await everyDependency()).keys()]
+      expect(declared.filter((name) => isRetiredFramework(name))).toEqual([])
+      expect([...lockfileNames()].filter((name) => isRetiredFramework(name))).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('ships no legacy pipeline configuration file', () => {
-    // The v3-and-earlier pipeline was configured by a file; the v4-and-later
-    // one compiles away inside the build. Either is a pipeline this product
-    // retired, and a config file is the shape a reintroduction takes first.
-    const retired = repositoryFiles(['.js', '.cjs', '.mjs', '.ts', '.json', '.yml', '.yaml', '.toml'])
-      .map((file) => file.label)
-      .filter((label) =>
-        /(?:^|\/)(?:tailwind|postcss|daisyui|purgecss|autoprefixer)\.config\b|\.postcssrc\b/u.test(label),
-      )
-    expect(retired).toEqual([])
-  })
+  it(
+    'ships no legacy pipeline configuration file',
+    () => {
+      // The v3-and-earlier pipeline was configured by a file; the v4-and-later
+      // one compiles away inside the build. Either is a pipeline this product
+      // retired, and a config file is the shape a reintroduction takes first.
+      const retired = repositoryFiles(['.js', '.cjs', '.mjs', '.ts', '.json', '.yml', '.yaml', '.toml'])
+        .map((file) => file.label)
+        .filter((label) =>
+          /(?:^|\/)(?:tailwind|postcss|daisyui|purgecss|autoprefixer)\.config\b|\.postcssrc\b/u.test(label),
+        )
+      expect(retired).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('ships exactly one page, wired to exactly the one module entry', async () => {
-    // A second page is a second shell, and a second script entry is a
-    // per-page module the design system and the gates never read: the SSOT is
-    // one page loading one module.
-    const pages = repositoryFiles(['.html', '.htm']).map((file) => file.label)
-    expect(pages).toEqual(['apps/deeptail/index.html'])
-    const html = await readFile('apps/deeptail/index.html', 'utf8')
-    const entries = [...html.matchAll(/<script\b([^>]*)>/gu)].map((match) => match[1] ?? '')
-    expect(entries).toEqual([' type="module" src="/src/main.ts"'])
-  })
+  it(
+    'ships exactly one page, wired to exactly the one module entry',
+    async () => {
+      // A second page is a second shell, and a second script entry is a
+      // per-page module the design system and the gates never read: the SSOT is
+      // one page loading one module.
+      const pages = repositoryFiles(['.html', '.htm']).map((file) => file.label)
+      expect(pages).toEqual(['apps/deeptail/index.html'])
+      const html = await readFile('apps/deeptail/index.html', 'utf8')
+      const entries = [...html.matchAll(/<script\b([^>]*)>/gu)].map((match) => match[1] ?? '')
+      expect(entries).toEqual([' type="module" src="/src/main.ts"'])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
   it('runs on a bun at the floor, and pins the manager to exactly what runs', async () => {
     const manifest = readJsonc(await readFile('package.json', 'utf8'))

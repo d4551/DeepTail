@@ -14,6 +14,7 @@ import { join } from 'node:path'
 import { readManifest, sectionOf } from '../scripts/manifest.ts'
 import { declaredPins } from '../scripts/pins.ts'
 import { repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**
  * The pins one written manifest declares.
@@ -30,33 +31,41 @@ async function pinsOf(manifest: string): Promise<Map<string, string>> {
 }
 
 describe('the declared pins', () => {
-  it('read every manifest the repository ships, not only the root one', () => {
-    const manifests = repositoryFiles(['package.json'])
-    expect(manifests.length).toBeGreaterThan(1)
-    const pins = declaredPins()
-    for (const manifest of manifests) {
-      const parsed = readManifest(manifest.path)
-      for (const kind of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
-        for (const [name, range] of sectionOf(parsed, kind)) {
-          expect([manifest.label, name, pins.get(name)]).toEqual([manifest.label, name, range])
+  it(
+    'read every manifest the repository ships, not only the root one',
+    () => {
+      const manifests = repositoryFiles(['package.json'])
+      expect(manifests.length).toBeGreaterThan(1)
+      const pins = declaredPins()
+      for (const manifest of manifests) {
+        const parsed = readManifest(manifest.path)
+        for (const kind of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+          for (const [name, range] of sectionOf(parsed, kind)) {
+            expect([manifest.label, name, pins.get(name)]).toEqual([manifest.label, name, range])
+          }
         }
       }
-    }
-  })
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('read a dependency of every kind a manifest can declare', () => {
-    // Each kind installs something; a reader that knew three of the four would
-    // hold whole families of packages to no floor at all.
-    const pins = declaredPins()
-    const kinds = ['dependencies', 'devDependencies']
-    const found = kinds.map((kind) => {
-      const declared = repositoryFiles(['package.json']).flatMap((manifest) =>
-        Array.from(sectionOf(readManifest(manifest.path), kind).keys()),
-      )
-      return declared.every((name) => pins.has(name)) && declared.length > 0
-    })
-    expect(found).toEqual(kinds.map(() => true))
-  })
+  it(
+    'read a dependency of every kind a manifest can declare',
+    () => {
+      // Each kind installs something; a reader that knew three of the four would
+      // hold whole families of packages to no floor at all.
+      const pins = declaredPins()
+      const kinds = ['dependencies', 'devDependencies']
+      const found = kinds.map((kind) => {
+        const declared = repositoryFiles(['package.json']).flatMap((manifest) =>
+          Array.from(sectionOf(readManifest(manifest.path), kind).keys()),
+        )
+        return declared.every((name) => pins.has(name)) && declared.length > 0
+      })
+      expect(found).toEqual(kinds.map(() => true))
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
   it('reports a range for every name it holds, and holds no empty name', () => {
     const pins = declaredPins()

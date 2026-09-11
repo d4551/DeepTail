@@ -25,6 +25,7 @@ import { GATE as ENTRIES } from '../../scripts/check-entries.ts'
 import { GATE as INLINE_STYLES } from '../../scripts/check-no-inline-styles.ts'
 import { GATE as STYLESHEETS } from '../../scripts/check-stylesheets.ts'
 import { type Gate, readGate } from '../../scripts/gate-runner.ts'
+import { TREE_SCAN_BUDGET_MS } from '../tree-budget.ts'
 
 /**
  * What one gate refused, one line per offence.
@@ -37,19 +38,35 @@ async function refused(gate: Gate): Promise<string[]> {
 }
 
 describe('the repository under the gates that read all of it', () => {
-  it('carries no legacy idiom and no suppression', async () => {
-    expect(await refused(BANS)).toEqual([])
-  })
+  it(
+    'carries no legacy idiom and no suppression',
+    async () => {
+      expect(await refused(BANS)).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('carries no inline style', async () => {
-    expect(await refused(INLINE_STYLES)).toEqual([])
-  })
+  it(
+    'carries no inline style',
+    async () => {
+      expect(await refused(INLINE_STYLES)).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('carries no stylesheet value outside the scale', async () => {
-    expect(await refused(STYLESHEETS)).toEqual([])
-  })
+  it(
+    'carries no stylesheet value outside the scale',
+    async () => {
+      expect(await refused(STYLESHEETS)).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('carries no script that does work when it is imported', async () => {
-    expect(await refused(ENTRIES)).toEqual([])
-  })
+  it(
+    'carries no script that does work when it is imported',
+    async () => {
+      expect(await refused(ENTRIES)).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })

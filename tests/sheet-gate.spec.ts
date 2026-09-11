@@ -19,6 +19,7 @@ import { unringedSelectors } from '../scripts/focus-ring-gate.ts'
 import { breakpointsOf, duplicateRulesets, STYLE_EXTENSIONS, scanSheet } from '../scripts/sheet-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { joined } from './fixtures.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /** This suite's own path, which reads widths rather than restating them. */
 const OWNER = 'tests/sheet-gate.spec.ts'
@@ -58,55 +59,77 @@ describe('the breakpoint reader', () => {
 })
 
 describe('the sheets the product ships', () => {
-  it('write every length through the scale', async () => {
-    const offences = (await sheets()).flatMap((sheet) =>
-      scanSheet(sheet.label, sheet.text).map((found) => `${found.label}:${String(found.line)}: ${found.why}`),
-    )
-    expect(offences).toEqual([])
-  })
+  it(
+    'write every length through the scale',
+    async () => {
+      const offences = (await sheets()).flatMap((sheet) =>
+        scanSheet(sheet.label, sheet.text).map((found) => `${found.label}:${String(found.line)}: ${found.why}`),
+      )
+      expect(offences).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('switch layout at each width in exactly one place', async () => {
-    // The drawer width was asserted to be written once — by a reader that knew
-    // one syntax and one file, while a second breakpoint sat in the other
-    // syntax in the other sheet. Every sheet is read now, in both syntaxes.
-    const widths = (await sheets()).flatMap((sheet) => breakpointsOf(sheet.text))
-    expect(widths.toSorted()).toEqual(['360px', '480px', '720px'])
-    expect(new Set(widths).size).toBe(widths.length)
-  })
+  it(
+    'switch layout at each width in exactly one place',
+    async () => {
+      // The drawer width was asserted to be written once — by a reader that knew
+      // one syntax and one file, while a second breakpoint sat in the other
+      // syntax in the other sheet. Every sheet is read now, in both syntaxes.
+      const widths = (await sheets()).flatMap((sheet) => breakpointsOf(sheet.text))
+      expect(widths.toSorted()).toEqual(['360px', '480px', '720px'])
+      expect(new Set(widths).size).toBe(widths.length)
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })
 
 describe('the layout widths the product ships', () => {
-  it('are the only place a layout width is written', async () => {
-    // A width in a media query and the same width restated in script are two
-    // breakpoints that agree only until one of them is changed. The stylesheet
-    // decides and publishes the decision as a custom property the script reads.
-    const declaring = new Map((await sheets()).flatMap((s) => breakpointsOf(s.text).map((w) => [w, s.label] as const)))
-    // This suite reads every width out of the sheets rather than restating one,
-    // so the only widths in its own source are the fixtures above; the rule
-    // suite beside it carries no layout width at all.
-    const files = repositoryFiles(['.css', '.ts']).filter((file) => file.label !== OWNER)
-    const read = await Promise.all(
-      files.map(async (file) => ({ label: file.label, text: await readFile(file.path, 'utf8') })),
-    )
-    const restated = read.flatMap((file) =>
-      [...declaring]
-        .filter(([width, sheet]) => file.label !== sheet && file.text.includes(width))
-        .map(([width]) => `${width} in ${file.label}`),
-    )
-    expect(restated).toEqual([])
-  })
+  it(
+    'are the only place a layout width is written',
+    async () => {
+      // A width in a media query and the same width restated in script are two
+      // breakpoints that agree only until one of them is changed. The stylesheet
+      // decides and publishes the decision as a custom property the script reads.
+      const declaring = new Map(
+        (await sheets()).flatMap((s) => breakpointsOf(s.text).map((w) => [w, s.label] as const)),
+      )
+      // This suite reads every width out of the sheets rather than restating one,
+      // so the only widths in its own source are the fixtures above; the rule
+      // suite beside it carries no layout width at all.
+      const files = repositoryFiles(['.css', '.ts']).filter((file) => file.label !== OWNER)
+      const read = await Promise.all(
+        files.map(async (file) => ({ label: file.label, text: await readFile(file.path, 'utf8') })),
+      )
+      const restated = read.flatMap((file) =>
+        [...declaring]
+          .filter(([width, sheet]) => file.label !== sheet && file.text.includes(width))
+          .map(([width]) => `${width} in ${file.label}`),
+      )
+      expect(restated).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('write a ring back on every selector that hides one', async () => {
-    const hidden = (await sheets()).flatMap((sheet) =>
-      unringedSelectors(sheet.text).map((selector) => `${sheet.label}: ${selector}`),
-    )
-    expect(hidden).toEqual([])
-  })
+  it(
+    'write a ring back on every selector that hides one',
+    async () => {
+      const hidden = (await sheets()).flatMap((sheet) =>
+        unringedSelectors(sheet.text).map((selector) => `${sheet.label}: ${selector}`),
+      )
+      expect(hidden).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('declare no rule twice', async () => {
-    const repeated = (await sheets()).flatMap((sheet) =>
-      duplicateRulesets(sheet.label, sheet.text).map((found) => `${found.label}:${String(found.line)}: ${found.why}`),
-    )
-    expect(repeated).toEqual([])
-  })
+  it(
+    'declare no rule twice',
+    async () => {
+      const repeated = (await sheets()).flatMap((sheet) =>
+        duplicateRulesets(sheet.label, sheet.text).map((found) => `${found.label}:${String(found.line)}: ${found.why}`),
+      )
+      expect(repeated).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })

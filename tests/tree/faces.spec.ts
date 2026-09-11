@@ -21,37 +21,46 @@ import { readRegistry } from '../../scripts/action-registry.ts'
 import { emitActionTable, emitCapabilities, emitTypeScript } from '../../scripts/action-registry-emit.ts'
 import { emitRust } from '../../scripts/action-registry-rust.ts'
 import { ROOT, repositoryFiles } from '../../scripts/source-tree.ts'
+import { TREE_SCAN_BUDGET_MS } from '../tree-budget.ts'
 
 /** The registry as it ships. */
 const registry = readRegistry(await Bun.file(`${ROOT}apps/deeptail/src/actions/actions.bao`).text())
 
 describe('the generated faces', () => {
-  it('are what the registry says, byte for byte', async () => {
-    const faces: readonly (readonly [string, string])[] = [
-      ['apps/deeptail/src/actions/registry.ts', emitTypeScript(registry)],
-      ['apps/deeptail/src/actions/capabilities.ts', emitCapabilities(registry)],
-      ['apps/deeptail/src/actions/action-table.ts', emitActionTable(registry)],
-      ['apps/deeptail/src-tauri/src/capability/catalog.rs', emitRust(registry)],
-    ]
-    const read = await Promise.all(
-      faces.map(async ([path, written]) => ((await Bun.file(`${ROOT}${path}`).text()) === written ? '' : path)),
-    )
-    expect(read.filter((path) => path !== '')).toEqual([])
-  })
+  it(
+    'are what the registry says, byte for byte',
+    async () => {
+      const faces: readonly (readonly [string, string])[] = [
+        ['apps/deeptail/src/actions/registry.ts', emitTypeScript(registry)],
+        ['apps/deeptail/src/actions/capabilities.ts', emitCapabilities(registry)],
+        ['apps/deeptail/src/actions/action-table.ts', emitActionTable(registry)],
+        ['apps/deeptail/src-tauri/src/capability/catalog.rs', emitRust(registry)],
+      ]
+      const read = await Promise.all(
+        faces.map(async ([path, written]) => ((await Bun.file(`${ROOT}${path}`).text()) === written ? '' : path)),
+      )
+      expect(read.filter((path) => path !== '')).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })
 
 describe('the controls the page draws', () => {
-  it('take every marker from the registry, so none exists that nothing authorises', async () => {
-    const sources = repositoryFiles(['.ts']).filter(
-      (file) => file.label.startsWith('apps/deeptail/src/') && !file.label.endsWith('registry.ts'),
-    )
-    const literals = await Promise.all(
-      sources.map(async (file) =>
-        [...(await Bun.file(file.path).text()).matchAll(/deeptailAction\s*=\s*'/gu)].map(
-          (found) => `${file.label}:${String(found.index)}`,
+  it(
+    'take every marker from the registry, so none exists that nothing authorises',
+    async () => {
+      const sources = repositoryFiles(['.ts']).filter(
+        (file) => file.label.startsWith('apps/deeptail/src/') && !file.label.endsWith('registry.ts'),
+      )
+      const literals = await Promise.all(
+        sources.map(async (file) =>
+          [...(await Bun.file(file.path).text()).matchAll(/deeptailAction\s*=\s*'/gu)].map(
+            (found) => `${file.label}:${String(found.index)}`,
+          ),
         ),
-      ),
-    )
-    expect(literals.flat()).toEqual([])
-  })
+      )
+      expect(literals.flat()).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })

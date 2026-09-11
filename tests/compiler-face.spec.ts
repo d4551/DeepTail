@@ -17,6 +17,7 @@ import { describe, expect, it } from 'bun:test'
 import { compilerFaceOffences } from '../scripts/compiler-face.ts'
 import { EMPTY_SECTION, isJsonObject, type Json, readJsonc } from '../scripts/jsonc.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /** The path whose compilerOptions every project inherits. */
 const BASE = 'tsconfig.base.json'
@@ -102,19 +103,27 @@ describe('the canonical TypeScript 7 compiler face', () => {
     expect(faces.map((types) => Array.isArray(types) && types.length > 0)).toEqual([true, true])
   })
 
-  it('declines skipLibCheck in every configuration the repository ships', async () => {
-    const labels = shippedConfigs()
-    const faces = await Promise.all(labels.map(async (label) => await compilerOptionsOf(label)))
-    const softened = labels.filter((_, index) => optionValue(faces[index] ?? EMPTY_SECTION, 'skipLibCheck') === true)
-    expect(softened).toEqual([])
-  })
+  it(
+    'declines skipLibCheck in every configuration the repository ships',
+    async () => {
+      const labels = shippedConfigs()
+      const faces = await Promise.all(labels.map(async (label) => await compilerOptionsOf(label)))
+      const softened = labels.filter((_, index) => optionValue(faces[index] ?? EMPTY_SECTION, 'skipLibCheck') === true)
+      expect(softened).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('keeps strict on in every configuration the repository ships', async () => {
-    const labels = shippedConfigs()
-    const faces = await Promise.all(labels.map(async (label) => await compilerOptionsOf(label)))
-    const switchedOff = labels.filter((_, index) => optionValue(faces[index] ?? EMPTY_SECTION, 'strict') === false)
-    expect(switchedOff).toEqual([])
-  })
+  it(
+    'keeps strict on in every configuration the repository ships',
+    async () => {
+      const labels = shippedConfigs()
+      const faces = await Promise.all(labels.map(async (label) => await compilerOptionsOf(label)))
+      const switchedOff = labels.filter((_, index) => optionValue(faces[index] ?? EMPTY_SECTION, 'strict') === false)
+      expect(switchedOff).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })
 
 /**
@@ -210,9 +219,13 @@ describe('every emit face below esnext', () => {
     expect(compilerFaceOffences({ module: 6, moduleResolution: null, target: ['es5'] })).toEqual([])
   })
 
-  it('is absent from every tsconfig this repository ships', async () => {
-    const labels = shippedConfigs()
-    const faces = await Promise.all(labels.map(async (label) => compilerFaceOffences(await compilerOptionsOf(label))))
-    expect(labels.flatMap((label, index) => (faces[index] ?? []).map((line) => `${label}: ${line}`))).toEqual([])
-  })
+  it(
+    'is absent from every tsconfig this repository ships',
+    async () => {
+      const labels = shippedConfigs()
+      const faces = await Promise.all(labels.map(async (label) => compilerFaceOffences(await compilerOptionsOf(label))))
+      expect(labels.flatMap((label, index) => (faces[index] ?? []).map((line) => `${label}: ${line}`))).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })

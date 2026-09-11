@@ -21,6 +21,7 @@ import { describe, expect, it } from 'bun:test'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { parseSync } from 'oxc-parser'
 import { ROOT, repositoryFiles } from '../scripts/source-tree.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /** The dependency the shell must not need in order to paint. */
 const CLIENT = '@deepseek-ai/dsh-client-web'
@@ -80,12 +81,16 @@ function valueImporters(specifier: string): string[] {
 }
 
 describe('the shell’s entry weight', () => {
-  it('needs no value from the harness client in order to paint', () => {
-    // The client is loaded with a dynamic `import()` at the moment a session is
-    // actually opened. A static import here puts it back in the entry chunk,
-    // and nothing else in the suite would notice.
-    expect(valueImporters(CLIENT)).toEqual([])
-  })
+  it(
+    'needs no value from the harness client in order to paint',
+    () => {
+      // The client is loaded with a dynamic `import()` at the moment a session is
+      // actually opened. A static import here puts it back in the entry chunk,
+      // and nothing else in the suite would notice.
+      expect(valueImporters(CLIENT)).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
   it('ships an entry chunk the shell can parse before it paints', () => {
     // The source reader above sees one specifier. This weighs what the bundler
@@ -112,10 +117,14 @@ describe('the shell’s entry weight', () => {
     expect(heaviest.bytes).toBeGreaterThan(ENTRY_BUDGET)
   })
 
-  it('reads a value import as one, so the check cannot pass by accident', () => {
-    // The same reader against a package the shell really does import for its
-    // value: if this returned nothing, the case above would be green whatever
-    // `boot.ts` did.
-    expect(valueImporters('@tauri-apps/api/core').length).toBeGreaterThan(0)
-  })
+  it(
+    'reads a value import as one, so the check cannot pass by accident',
+    () => {
+      // The same reader against a package the shell really does import for its
+      // value: if this returned nothing, the case above would be green whatever
+      // `boot.ts` did.
+      expect(valueImporters('@tauri-apps/api/core').length).toBeGreaterThan(0)
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })

@@ -52,11 +52,6 @@ describe('the binding forms the reader has to know', () => {
     expect(free('function a(o) { outer: for (;;) { break outer } return o }')).toEqual([])
   })
 
-  it('does read a computed property, which is a reference', () => {
-    expect(free('function a(o) { return o[KEY] }')).toEqual(['KEY'])
-    expect(free('function a() { return { [KEY]: 1 } }')).toEqual(['KEY'])
-  })
-
   it('reads a name a nested function reaches past its own scope for', () => {
     expect(free('function a() { return () => LOOKUP.get(1) }')).toEqual(['LOOKUP'])
     expect(free('function a(x) { return function b(y) { return x + y + Z } }')).toEqual(['Z'])

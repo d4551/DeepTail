@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, it } from 'bun:test'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
-import { expectNoViolationsAtEachWidth, openShellWithDrawer } from './surfaces.ts'
+import { auditShellAtEachWidth, expectNoViolationsAtEachWidth } from './surfaces.ts'
 
 let harness: Harness
 
@@ -19,31 +19,27 @@ afterAll(async () => {
 })
 
 it('has no WCAG violations on a spawn refusal at every designed width, in both palettes', async () => {
-  await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShellWithDrawer(
-      harness,
-      oneHost({
-        remoteErrors: { 'session/create': 'no such preset' },
-        remoteErrorCodes: { 'session/create': 'agent-preset-not-found' },
-        remoteErrorDetails: { 'session/create': { available: ['standard', 'ptc'] } },
-      }),
-      view,
-    )
-    await page.locator('[data-deeptail-action="new-session"]').click()
-    await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
-    await page.locator('[data-deeptail-field="preset"]').fill('nope')
-    await page.locator('[data-deeptail-action="spawn-create"]').click()
-    await page.locator('[data-deeptail-state="spawn-error"]').waitFor({ state: 'visible' })
-    return page
-  })
+  await auditShellAtEachWidth(
+    harness,
+    oneHost({
+      remoteErrors: { 'session/create': 'no such preset' },
+      remoteErrorCodes: { 'session/create': 'agent-preset-not-found' },
+      remoteErrorDetails: { 'session/create': { available: ['standard', 'ptc'] } },
+    }),
+    async (page) => {
+      await page.locator('[data-deeptail-action="new-session"]').click()
+      await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+      await page.locator('[data-deeptail-field="preset"]').fill('nope')
+      await page.locator('[data-deeptail-action="spawn-create"]').click()
+      await page.locator('[data-deeptail-state="spawn-error"]').waitFor({ state: 'visible' })
+    },
+  )
 }, 180_000)
 
 it('has no WCAG violations on a shell-error at every designed width, in both palettes', async () => {
-  await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShellWithDrawer(harness, oneHost({ bootError: 'host refused the boot table' }), view)
+  await auditShellAtEachWidth(harness, oneHost({ bootError: 'host refused the boot table' }), async (page) => {
     await page.locator('[data-deeptail-session="s-running"] .session-open').click()
     await page.locator('[data-deeptail-state="shell-error"]').waitFor({ state: 'visible' })
-    return page
   })
 }, 180_000)
 

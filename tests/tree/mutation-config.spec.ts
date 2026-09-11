@@ -23,6 +23,7 @@ import { describe, expect, it } from 'bun:test'
 import { manifestScripts } from '../../scripts/manifest.ts'
 import { repositoryFiles } from '../../scripts/source-tree.ts'
 import { type ScopeConfig, scopeConfigs } from '../../scripts/stryker-config.ts'
+import { TREE_SCAN_BUDGET_MS } from '../tree-budget.ts'
 
 /** The score every scope is held to. */
 const REQUIRED_SCORE = 99
@@ -135,18 +136,26 @@ describe('every mutation run reads the tree it claims to', () => {
     expect(sandboxed).toEqual([])
   })
 
-  it('covers every file of source the repository ships', () => {
-    // The denominator. A file inside no scope is a file whose every mutant is
-    // uncounted, and nothing else in this repository would say so.
-    const patterns = configs().flatMap((scope) => scope.mutate)
-    expect(unmatched(sourceFiles(), patterns)).toEqual([])
-  })
+  it(
+    'covers every file of source the repository ships',
+    () => {
+      // The denominator. A file inside no scope is a file whose every mutant is
+      // uncounted, and nothing else in this repository would say so.
+      const patterns = configs().flatMap((scope) => scope.mutate)
+      expect(unmatched(sourceFiles(), patterns)).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('reads a source file at all, rather than an empty denominator', () => {
-    // The case above passes over an empty list. What it reads is the tree, so
-    // a reader that stopped answering would read as full coverage.
-    expect(sourceFiles().length).toBeGreaterThan(0)
-  })
+  it(
+    'reads a source file at all, rather than an empty denominator',
+    () => {
+      // The case above passes over an empty list. What it reads is the tree, so
+      // a reader that stopped answering would read as full coverage.
+      expect(sourceFiles().length).toBeGreaterThan(0)
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
   it('names an uncovered file when it is given one, rather than only ever being green', () => {
     // Driven against the exact hole this case was blind to for as long as it

@@ -10,6 +10,7 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
+import { until } from './wait.ts'
 
 let harness: Harness
 
@@ -132,7 +133,14 @@ it('tells a refused send through the live region once the sheet has gone', async
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
   })
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
-  expect(await page.locator('.main > [role="status"]').textContent()).toContain('Send failed: agent busy')
+  // The refusal is delivered on the harness's own turn, which can land after
+  // the dismissal this test already observed, so the announcement is waited
+  // for rather than read once: a single read races the delivery and reports
+  // the region as silent while the words are still in flight.
+  await until(async () => {
+    const spoken = await page.locator('.main > [role="status"]').textContent()
+    return spoken?.includes('Send failed: agent busy') === true
+  })
   await page.close()
 })
 

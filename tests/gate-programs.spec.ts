@@ -24,6 +24,7 @@ import { GATE as STYLESHEETS } from '../scripts/check-stylesheets.ts'
 import { GATE as TREE } from '../scripts/check-tree.ts'
 import { type Gate, readGate } from '../scripts/gate-runner.ts'
 import { ROOT } from '../scripts/source-tree.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /** Every gate the chain runs, by the script that runs it. */
 const PROGRAMS: readonly (readonly [string, Gate])[] = [
@@ -57,37 +58,45 @@ async function run(args: readonly string[]): Promise<Said> {
 }
 
 describe('each gate run from the command line', () => {
-  it('says what the gate says, on the stream and under the status that match it', async () => {
-    const checked = await Promise.all(
-      PROGRAMS.map(async ([name, gate]) => {
-        // Read and run at once: the two answer the same question about the
-        // same tree, and one after the other is twice the walk.
-        const [outcome, said] = await Promise.all([readGate(gate), run([join(ROOT, 'scripts', name)])])
-        const expected: Said = outcome.ok
-          ? { code: 0, out: outcome.text, err: '' }
-          : { code: 1, out: '', err: outcome.text }
-        return [name, said, name, expected]
-      }),
-    )
-    for (const [name, said, expectedName, expected] of checked) {
-      expect([name, said]).toEqual([expectedName, expected])
-    }
-  })
+  it(
+    'says what the gate says, on the stream and under the status that match it',
+    async () => {
+      const checked = await Promise.all(
+        PROGRAMS.map(async ([name, gate]) => {
+          // Read and run at once: the two answer the same question about the
+          // same tree, and one after the other is twice the walk.
+          const [outcome, said] = await Promise.all([readGate(gate), run([join(ROOT, 'scripts', name)])])
+          const expected: Said = outcome.ok
+            ? { code: 0, out: outcome.text, err: '' }
+            : { code: 1, out: '', err: outcome.text }
+          return [name, said, name, expected]
+        }),
+      )
+      for (const [name, said, expectedName, expected] of checked) {
+        expect([name, said]).toEqual([expectedName, expected])
+      }
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('says nothing at all when the script is imported rather than run', async () => {
-    // Every gate here reads the whole repository and exits on what it finds. A
-    // module that did that on import would run the gate again inside whatever
-    // imported it, and set that process's exit status from a scan nobody asked
-    // for.
-    const imported = await Promise.all(
-      PROGRAMS.map(async ([name]) => {
-        const path = join(ROOT, 'scripts', name)
-        const said = await run(['-e', `await import(${JSON.stringify(path)})`])
-        return [name, said]
-      }),
-    )
-    for (const [name, said] of imported) {
-      expect([name, said]).toEqual([name, { code: 0, out: '', err: '' }])
-    }
-  })
+  it(
+    'says nothing at all when the script is imported rather than run',
+    async () => {
+      // Every gate here reads the whole repository and exits on what it finds. A
+      // module that did that on import would run the gate again inside whatever
+      // imported it, and set that process's exit status from a scan nobody asked
+      // for.
+      const imported = await Promise.all(
+        PROGRAMS.map(async ([name]) => {
+          const path = join(ROOT, 'scripts', name)
+          const said = await run(['-e', `await import(${JSON.stringify(path)})`])
+          return [name, said]
+        }),
+      )
+      for (const [name, said] of imported) {
+        expect([name, said]).toEqual([name, { code: 0, out: '', err: '' }])
+      }
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })

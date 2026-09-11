@@ -36,6 +36,7 @@ export const FLOORS: Readonly<Record<string, number>> = {
   'apps/deeptail/src/frames.ts': 100,
   'apps/deeptail/src/host.ts': 100,
   'apps/deeptail/src/locales.ts': 100,
+  'apps/deeptail/src/markers.ts': 100,
   'apps/deeptail/src/native-call.ts': 100,
   'apps/deeptail/src/picker-ports.ts': 100,
   'apps/deeptail/src/picker-tailnet.ts': 98.51,
@@ -130,6 +131,7 @@ export const FLOORS: Readonly<Record<string, number>> = {
   'tests/manifests.ts': 100,
   'tests/markup-tree.ts': 100,
   'tests/structure-double.ts': 100,
+  'tests/tree-budget.ts': 100,
   'tests/transport-double.ts': 100,
 }
 
