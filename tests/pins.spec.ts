@@ -67,11 +67,17 @@ describe('the declared pins', () => {
     TREE_SCAN_BUDGET_MS,
   )
 
-  it('reports a range for every name it holds, and holds no empty name', () => {
-    const pins = declaredPins()
-    expect(pins.size).toBeGreaterThan(0)
-    expect([...pins].filter(([name, range]) => name === '' || range === '')).toEqual([])
-  })
+  it(
+    'reports a range for every name it holds, and holds no empty name',
+    () => {
+      // The pins are read off the tree, so this case spawns the listing like
+      // the two above and runs under the same budget.
+      const pins = declaredPins()
+      expect(pins.size).toBeGreaterThan(0)
+      expect([...pins].filter(([name, range]) => name === '' || range === '')).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })
 
 describe('a manifest that declares something a range cannot be', () => {

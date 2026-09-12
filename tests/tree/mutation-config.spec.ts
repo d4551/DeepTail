@@ -70,71 +70,103 @@ function configs(): readonly ScopeConfig[] {
 }
 
 describe('every mutation run', () => {
-  it('exists at all', () => {
-    // A suite that reads a list of configurations passes vacuously on an empty
-    // list, which is what every assertion below would do if the runs were
-    // deleted rather than weakened.
-    expect(configs().length).toBeGreaterThan(0)
-  })
+  it(
+    'exists at all',
+    () => {
+      // A suite that reads a list of configurations passes vacuously on an empty
+      // list, which is what every assertion below would do if the runs were
+      // deleted rather than weakened.
+      expect(configs().length).toBeGreaterThan(0)
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('breaks below the score it claims, rather than merely reporting it', () => {
-    const weak = configs().flatMap((scope) =>
-      scope.thresholds.break === REQUIRED_SCORE ? [] : [`${scope.label}: break is ${String(scope.thresholds.break)}`],
-    )
-    expect(weak).toEqual([])
-  })
+  it(
+    'breaks below the score it claims, rather than merely reporting it',
+    () => {
+      const weak = configs().flatMap((scope) =>
+        scope.thresholds.break === REQUIRED_SCORE ? [] : [`${scope.label}: break is ${String(scope.thresholds.break)}`],
+      )
+      expect(weak).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('reports every score below the bar as a failure rather than as a shade of green', () => {
-    const graded = configs().flatMap((scope) =>
-      scope.thresholds.high === REQUIRED_SCORE && scope.thresholds.low === REQUIRED_SCORE ? [] : [scope.label],
-    )
-    expect(graded).toEqual([])
-  })
+  it(
+    'reports every score below the bar as a failure rather than as a shade of green',
+    () => {
+      const graded = configs().flatMap((scope) =>
+        scope.thresholds.high === REQUIRED_SCORE && scope.thresholds.low === REQUIRED_SCORE ? [] : [scope.label],
+      )
+      expect(graded).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('names a bun test command and something to mutate', () => {
-    const unpaired = configs().flatMap((scope) =>
-      scope.command.startsWith('bun test ') && scope.mutate.length > 0 ? [] : [scope.label],
-    )
-    expect(unpaired).toEqual([])
-  })
+  it(
+    'names a bun test command and something to mutate',
+    () => {
+      const unpaired = configs().flatMap((scope) =>
+        scope.command.startsWith('bun test ') && scope.mutate.length > 0 ? [] : [scope.label],
+      )
+      expect(unpaired).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('uses the built-in runner, and asks it for no coverage it cannot give', () => {
-    // The command runner knows nothing about which test covered which mutant,
-    // so anything but `off` here is a claim the runner cannot honour. The
-    // runner itself is Stryker's default and is named nowhere: naming it makes
-    // the dependency reader look for a plugin package that does not exist.
-    const wrong = configs().flatMap((scope) =>
-      scope.coverageAnalysis === 'off' && scope.testRunner === undefined ? [] : [scope.label],
-    )
-    expect(wrong).toEqual([])
-  })
+  it(
+    'uses the built-in runner, and asks it for no coverage it cannot give',
+    () => {
+      // The command runner knows nothing about which test covered which mutant,
+      // so anything but `off` here is a claim the runner cannot honour. The
+      // runner itself is Stryker's default and is named nowhere: naming it makes
+      // the dependency reader look for a plugin package that does not exist.
+      const wrong = configs().flatMap((scope) =>
+        scope.coverageAnalysis === 'off' && scope.testRunner === undefined ? [] : [scope.label],
+      )
+      expect(wrong).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('excludes nothing from what it mutates', () => {
-    const excluded = configs().flatMap((scope) =>
-      scope.mutate.filter((pattern) => pattern.startsWith('!')).map((pattern) => `${scope.label}: ${pattern}`),
-    )
-    expect(excluded).toEqual([])
-  })
+  it(
+    'excludes nothing from what it mutates',
+    () => {
+      const excluded = configs().flatMap((scope) =>
+        scope.mutate.filter((pattern) => pattern.startsWith('!')).map((pattern) => `${scope.label}: ${pattern}`),
+      )
+      expect(excluded).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })
 
 describe('every mutation run reads the tree it claims to', () => {
-  it('re-reads every mutant on every run, rather than trusting a stored verdict', () => {
-    // Incremental mode keys a stored verdict on the mutated source. The command
-    // runner tells it nothing about the tests, so a run after a test was added
-    // — or deleted — reuses every verdict and reports the score the tests used
-    // to earn. It did exactly that here: a scope whose coverage had just been
-    // rewritten reported its old number, to the decimal.
-    const stale = configs().flatMap((scope) => (scope.incremental === true ? [scope.label] : []))
-    expect(stale).toEqual([])
-  })
+  it(
+    're-reads every mutant on every run, rather than trusting a stored verdict',
+    () => {
+      // Incremental mode keys a stored verdict on the mutated source. The command
+      // runner tells it nothing about the tests, so a run after a test was added
+      // — or deleted — reuses every verdict and reports the score the tests used
+      // to earn. It did exactly that here: a scope whose coverage had just been
+      // rewritten reported its old number, to the decimal.
+      const stale = configs().flatMap((scope) => (scope.incremental === true ? [scope.label] : []))
+      expect(stale).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
-  it('mutates the source in place, so nothing it reads is a copy', () => {
-    // The gates read the repository through `git ls-files`, and a sandbox copy
-    // is not a repository. Mutating in place is what keeps the suites reading
-    // the same tree they read outside a mutation run.
-    const sandboxed = configs().flatMap((scope) => (scope.inPlace === true ? [] : [scope.label]))
-    expect(sandboxed).toEqual([])
-  })
+  it(
+    'mutates the source in place, so nothing it reads is a copy',
+    () => {
+      // The gates read the repository through `git ls-files`, and a sandbox copy
+      // is not a repository. Mutating in place is what keeps the suites reading
+      // the same tree they read outside a mutation run.
+      const sandboxed = configs().flatMap((scope) => (scope.inPlace === true ? [] : [scope.label]))
+      expect(sandboxed).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 
   it(
     'covers every file of source the repository ships',

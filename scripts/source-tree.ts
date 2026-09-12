@@ -43,7 +43,15 @@ export function onlyPresent(files: readonly SourceFile[]): SourceFile[] {
 }
 
 /** The command that answers which files the repository ships. */
-export const LISTING_COMMAND = ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'] as const
+export const LISTING_COMMAND = [
+  'git',
+  '--no-optional-locks',
+  'ls-files',
+  '--cached',
+  '--others',
+  '--exclude-standard',
+  '-z',
+] as const
 
 /**
  * The files a listing names, of the kinds a gate asked for.

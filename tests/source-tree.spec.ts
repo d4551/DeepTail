@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { onlyPresent, ROOT, repositoryFiles } from '../scripts/source-tree.ts'
+import { LISTING_COMMAND, onlyPresent, ROOT, repositoryFiles } from '../scripts/source-tree.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**
@@ -92,6 +92,18 @@ describe('the file list', () => {
     },
     TREE_SCAN_BUDGET_MS,
   )
+
+  it('reads the index without taking a lock, so a concurrent writer never blocks the listing', () => {
+    // The listing runs beside every other gate, suite and agent in the
+    // workspace, several of them holding the index for writing. An optional
+    // lock taken for a read would serialise the whole chain behind them — the
+    // shape a full run hung on — so the command declines the lock before it
+    // names the subcommand, which is where git reads it.
+    const subcommand = LISTING_COMMAND.indexOf('ls-files')
+    expect(subcommand).toBeGreaterThan(0)
+    expect(LISTING_COMMAND[0]).toBe('git')
+    expect(LISTING_COMMAND.slice(1, subcommand)).toContain('--no-optional-locks')
+  })
 })
 
 describe('the file list against the index', () => {

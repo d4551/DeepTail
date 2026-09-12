@@ -288,3 +288,24 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     limits,
   )})\n})()`
 }
+
+/**
+ * The markup checks and the page-contract entry point, exported for the unit
+ * chain.
+ *
+ * The page receives these as their own source text, so nothing here may close
+ * over anything; the unit suite drives them directly under happy-dom for the
+ * reason `tests/dom.ts` records — the markup a case builds is the part a
+ * mutation run can judge, and the browser suites remain the account of what a
+ * real page does with the same markup. The geometry, shell, and vocabulary
+ * halves are exported from their own modules for the same reason.
+ */
+export {
+  checkAriaReferences,
+  checkDuplicateIds,
+  checkGroupNames,
+  checkHeadingOrder,
+  checkListOwnership,
+  checkNestedInteractive,
+  findStructureDefects,
+}

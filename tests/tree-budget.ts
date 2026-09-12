@@ -7,6 +7,11 @@
  * budget is stated once here and passed per test, so a slow scan fails on
  * what it found, never on the clock.
  *
+ * The value is a measurement, not a guess: a single spawned listing has been
+ * observed at half a minute on a loaded machine, and one test can spawn the
+ * listing several times — so the budget holds four such spawns and the reads
+ * that follow them.
+ *
  * Milliseconds a whole-tree scan may run before the runner calls it hung.
  */
-export const TREE_SCAN_BUDGET_MS = 30_000
+export const TREE_SCAN_BUDGET_MS = 120_000
