@@ -179,6 +179,13 @@ const RAW = new RegExp(
   'iu',
 )
 
+/**
+ * The written forms no sheet may use, the definition sheet included: a hex
+ * literal or a named colour is a second spelling of a colour the palette
+ * states in its function form alone.
+ */
+const RAW_LITERAL = new RegExp(`#[0-9a-f]{3,8}\\b|\\b(?:${NAMED.join('|')})\\b`, 'iu')
+
 /** The override flag, assembled so the gate's own source does not carry it. */
 const OVERRIDE = ['!', 'important'].join('')
 
@@ -208,15 +215,13 @@ const OVERRIDE_FLAG = new RegExp(`!\\s*${OVERRIDE.slice(1)}\\b`, 'iu')
  */
 export function scanColour(label: string, value: string, line: number, paletteDefinition: boolean): Offence[] {
   const offences: Offence[] = []
-  if (!paletteDefinition) {
-    const colour = RAW.exec(value)
-    if (colour !== null) {
-      offences.push({
-        label,
-        line,
-        why: `${colour[0]} is written out rather than read from the palette in tokens.css`,
-      })
-    }
+  const colour = paletteDefinition ? RAW_LITERAL.exec(value) : RAW.exec(value)
+  if (colour !== null) {
+    offences.push({
+      label,
+      line,
+      why: `${colour[0]} is written out rather than read from the palette in tokens.css`,
+    })
   }
   if (OVERRIDE_FLAG.test(value)) {
     offences.push({ label, line, why: `an ${OVERRIDE} override wins every cascade; restate the selector instead` })
