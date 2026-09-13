@@ -7,6 +7,8 @@
  * @module
  */
 
+import { readFileSync } from 'node:fs'
+import { ROOT } from '../../../scripts/source-tree.ts'
 import {
   checkAriaReferences,
   checkDuplicateIds,
@@ -30,6 +32,31 @@ import { checkOverlappingTargets, checkTouchTargets, drawnBox } from './structur
 import { describe } from './structure-report.ts'
 import { checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import { checkClassVocabulary } from './structure-vocabulary.ts'
+
+/** The sheet that names the two pointer floors. */
+const TOKEN_SHEET = `${ROOT}apps/deeptail/src/styles/tokens.css`
+
+/**
+ * One pointer floor as a token sheet defines it, in CSS pixels.
+ * @param text - the sheet contents.
+ * @param name - `fine` (WCAG 2.5.8) or `coarse` (Apple HIG / WCAG 2.5.5).
+ * @returns the floor.
+ */
+export function pointerTargetFloorFrom(text: string, name: 'fine' | 'coarse'): number {
+  const match = new RegExp(`--dsh-target-${name}:\\s*(\\d+)px`, 'u').exec(text)
+  const px = match?.[1]
+  if (px === undefined) throw new Error(`deeptail: tokens.css does not define --dsh-target-${name}`)
+  return Number(px)
+}
+
+/**
+ * One pointer floor as the shipped token sheet defines it.
+ * @param name - `fine` or `coarse`.
+ * @returns the floor.
+ */
+export function pointerTargetFloor(name: 'fine' | 'coarse'): number {
+  return pointerTargetFloorFrom(readFileSync(TOKEN_SHEET, 'utf8'), name)
+}
 
 /** An animation whose iteration count can be read. */
 export interface TimedAnimation {
@@ -59,12 +86,6 @@ export async function waitForFiniteAnimations(): Promise<void> {
   await Promise.allSettled(finiteAnimations([...document.getAnimations()]).map((animation) => animation.finished))
 }
 
-/** The smallest touch target Apple's Human Interface Guidelines admit, in CSS pixels. */
-const MINIMUM_TOUCH_TARGET = 44
-
-/** The smallest target WCAG 2.2 admits for any pointer, in CSS pixels. */
-const MINIMUM_POINTER_TARGET = 24
-
 /** The surfaces this product draws, however the page is laid out. */
 const PRODUCT_SURFACES =
   '[data-deeptail-shell], [data-deeptail-picker], [data-deeptail-state="boot-error"], [data-deeptail-return]'
@@ -81,7 +102,7 @@ const INTERACTIVE =
  */
 export function structureCheckSource(coarsePointer: boolean, vocabulary: readonly string[]): string {
   const limits = {
-    target: coarsePointer ? MINIMUM_TOUCH_TARGET : MINIMUM_POINTER_TARGET,
+    target: pointerTargetFloor(coarsePointer ? 'coarse' : 'fine'),
     interactive: INTERACTIVE,
     scope: PRODUCT_SURFACES,
     vocabulary,

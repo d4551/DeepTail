@@ -15,6 +15,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
+import { pointerTargetFloor, pointerTargetFloorFrom } from '../apps/deeptail/tests/structure-emit.ts'
 import { unringedSelectors } from '../scripts/focus-ring-gate.ts'
 import { breakpointsOf, duplicateRulesets, STYLE_EXTENSIONS, scanSheet } from '../scripts/sheet-gate.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
@@ -183,6 +184,9 @@ describe('the pointer floors the product ships', () => {
       const tokens = await readFile('apps/deeptail/src/styles/tokens.css', 'utf8')
       const defined = [...tokens.matchAll(/--dsh-target-(\w+)\s*:/gu)].map((match) => match[1])
       expect(defined.toSorted()).toEqual(['coarse', 'fine'])
+      expect(pointerTargetFloor('fine')).toBe(24)
+      expect(pointerTargetFloor('coarse')).toBe(44)
+      expect(() => pointerTargetFloorFrom(':root { }', 'fine')).toThrow('does not define --dsh-target-fine')
       const retired = [joined('target-', 'min'), joined('target-', 'touch')]
       const leftover = (await sheets()).flatMap((sheet) =>
         retired.filter((name) => sheet.text.includes(`--dsh-${name}`)).map((name) => `${sheet.label}: ${name}`),

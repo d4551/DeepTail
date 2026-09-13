@@ -11,12 +11,13 @@ import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { fleet, oneHost } from './fixtures.ts'
 import { type AnswerTable, type Harness, startHarness } from './harness.ts'
+import { pointerTargetFloor } from './structure-emit.ts'
 import { defects } from './structure-page.ts'
 import { openDrawerIfPresent } from './surfaces.ts'
 import { pointerFlags, SMALL_PHONE_VIEWPORT, TABLET_VIEWPORT, VIEWPORTS } from './viewports.ts'
 
 /** The smallest target any pointer admits, and so the least a row can occupy. */
-const MINIMUM_ROW = 24
+const MINIMUM_ROW = pointerTargetFloor('fine')
 
 let harness: Harness
 

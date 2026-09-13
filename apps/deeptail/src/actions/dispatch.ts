@@ -44,7 +44,12 @@ export interface ActionInputs {
   'spawn.create': { readonly hostId: string; readonly preset: string; readonly cwd: string }
   'picker.pair': { readonly link: string; readonly label: string }
   'picker.tailnet': undefined
-  'tailnet.connect': { readonly kind: string; readonly secret: string; readonly tailnet: string }
+  'tailnet.connect': {
+    readonly kind: string
+    readonly secret: string
+    readonly tailnet: string
+    readonly clientId: string
+  }
   'tailnet.forget': undefined
 }
 
@@ -85,7 +90,7 @@ export interface ActionDeps {
   /** Stop one session's running turn. */
   cancel(hostId: string, sessionId: string): Promise<void>
   /** Store a tailnet credential and list the machines it reaches. */
-  connectTailnet(kind: string, secret: string, tailnet: string): Promise<void>
+  connectTailnet(kind: string, secret: string, tailnet: string, clientId: string): Promise<void>
   /** Drop the tailnet credential. */
   forgetTailnet(): Promise<void>
   /** Move the sidebar drawer. */

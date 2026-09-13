@@ -242,7 +242,7 @@
 
 /* A finger is not a mouse. On a touch pointer the row and the button clear the
    44px Apple HIG and WCAG 2.2 enhanced floor. */
-@media (pointer: coarse) {
+@media not (hover: hover) {
   .button,
   .row {
     min-block-size: var(--dsh-target-coarse);

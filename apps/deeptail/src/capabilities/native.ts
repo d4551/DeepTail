@@ -1,10 +1,11 @@
 /**
  * The page's read of what the native authority has issued.
  *
- * The ledger in `grants.ts` is a mirror: it decides what the shell draws and
- * what a control may attempt. The copy that decides whether a call reaches a
- * host lives in Rust, which refuses a priced route the page holds no live
- * grant for. This module is the one seam between them.
+ * The ledger in `grants.ts` is a mirror. The dispatcher spends it at the
+ * moment of dispatch, which is what decides whether a control may run. The
+ * copy that decides whether a call reaches a host lives in Rust, which refuses
+ * a priced route the page holds no live grant for. This module is the one seam
+ * between them.
  *
  * The read is taken wherever the registry is read, because the pairing set is
  * what the authority scopes grants to: a host that has just been paired or

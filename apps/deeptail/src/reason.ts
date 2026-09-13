@@ -51,6 +51,12 @@ const TRANSPORT_KEYS: Readonly<Record<string, PickerKey>> = {
  */
 export function describeFailure<T>(reason: T, t: Translate): string {
   if (!(reason instanceof RemoteError)) return messageOf(reason)
+  if (reason.code === 'agent-preset-not-found') {
+    const available = reason.details['available']
+    if (Array.isArray(available) && available.length > 0) {
+      return t('spawn.presetUnknown', { presets: available.map(String).join(', ') })
+    }
+  }
   const key = TRANSPORT_KEYS[reason.code]
   if (key === undefined) return reason.message
   return t(key, {

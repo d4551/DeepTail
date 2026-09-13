@@ -129,6 +129,7 @@ function sessionHandlers(
       return { kind: 'executed' }
     },
     'spawn.create': async (deps, input) => {
+      if (hostOf(deps, input.hostId) === undefined) return { kind: 'invalid', reason: 'no-host' }
       await deps.spawn(input.hostId, input.preset, input.cwd)
       return { kind: 'executed', announce: t('spawn.created', { label: labelOf(deps, input.hostId) }) }
     },
@@ -151,7 +152,7 @@ function pickerHandlers(): Pick<
       return { kind: 'executed' }
     },
     'tailnet.connect': async (deps, input) => {
-      await deps.connectTailnet(input.kind, input.secret, input.tailnet)
+      await deps.connectTailnet(input.kind, input.secret, input.tailnet, input.clientId)
       return { kind: 'executed' }
     },
     'tailnet.forget': async (deps) => {
