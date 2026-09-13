@@ -88,7 +88,6 @@ describe('the documented toolchain', () => {
       'Playwright is documented as 1.62.1 and pinned at 1.63.0',
     ])
   })
-
 })
 
 describe('the bun pin the documentation names', () => {

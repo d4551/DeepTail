@@ -250,7 +250,7 @@ it('reports a fieldset, a radiogroup, and a group named by nothing, and stays si
 
 it('reads a conforming page as conforming, and wires the markup checks into one report', () => {
   const shell = document.createElement('div')
-  shell.setAttribute('data-deeptail-shell', '')
+  shell.dataset['deeptailShell'] = ''
   const main = document.createElement('main')
   const heading = document.createElement('h1')
   heading.id = 'session-heading'

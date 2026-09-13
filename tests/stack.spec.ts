@@ -159,10 +159,15 @@ describe('stack floors', () => {
       }
     }
   })
-
 })
 
 describe('stack floors refuse an old major', () => {
+  it('holds TypeScript at major 7, not 6', () => {
+    const pinned = coerce(everyDependency().get('typescript'))
+    if (pinned === null) throw new Error('typescript is not declared')
+    expect(major(pinned)).toBe(7)
+  })
+
   it('names a TypeScript 6 pin, a React 18 pin and a Tauri v1 pin', () => {
     const driven = new Map([
       ...Object.entries(FLOORS),

@@ -20,7 +20,11 @@ describe('the markup gate rejects a retired framework class or directive', () =>
   it('a daisyUI class, including the v4 leftover and the v5 compound', () => {
     namesWhy(styleOffences(`<div class="${joined('btn-', 'primary')}">x</div>`, 'index.html'), CLASS, 'btn-primary')
     namesWhy(styleOffences(`<div class="${joined('btn-', 'group')}">x</div>`, 'index.html'), CLASS, 'btn-group')
-    namesWhy(styleOffences(`<div class="${joined('theme-', 'controller')}">x</div>`, 'index.html'), CLASS, 'theme-controller')
+    namesWhy(
+      styleOffences(`<div class="${joined('theme-', 'controller')}">x</div>`, 'index.html'),
+      CLASS,
+      'theme-controller',
+    )
     namesWhy(styleOffences(`<div class="${joined('dock-', 'active')}">x</div>`, 'index.html'), CLASS, 'dock-active')
     namesWhy(styleOffences(`<div class="${joined('vali', 'dator')}">x</div>`, 'index.html'), CLASS, 'validator')
     namesWhy(styleOffences(`<input class="${joined('input-', 'sm')}">`, 'index.html'), CLASS, 'input-sm')
@@ -35,13 +39,16 @@ describe('the markup gate rejects a retired framework class or directive', () =>
     namesWhy(styleOffences(`<div class="${joined('md:p-', '4')}">x</div>`, 'index.html'), CLASS, 'md:p-4')
     namesWhy(styleOffences(`<div class="${joined('flex-', 'col')}">x</div>`, 'index.html'), CLASS, 'flex-col')
   })
-
 })
 
 describe('the markup gate rejects HTMX 4 wiring', () => {
   it('an attribute, including the data- prefix and the inherited modifier', () => {
     namesWhy(styleOffences(`<div ${joined('data-h', 'x-get')}="/x">x</div>`, 'index.html'), HX, 'data-hx-get')
-    namesWhy(styleOffences(`<div ${joined('hx-confirm', ':inherited')}="sure?">x</div>`, 'index.html'), HX, 'hx-confirm:inherited')
+    namesWhy(
+      styleOffences(`<div ${joined('hx-confirm', ':inherited')}="sure?">x</div>`, 'index.html'),
+      HX,
+      'hx-confirm:inherited',
+    )
     namesWhy(styleOffences(`<form ${joined('hx-sta', 'tus')}:422="target:#e"></form>`, 'index.html'), HX, 'hx-status')
     namesWhy(styleOffences(`<div ${joined('hx-act', 'ion')}="/x">x</div>`, 'index.html'), HX, 'hx-action')
     namesWhy(styleOffences(`<div ${joined('hx-met', 'hod')}="GET">x</div>`, 'index.html'), HX, 'hx-method')
@@ -49,7 +56,11 @@ describe('the markup gate rejects HTMX 4 wiring', () => {
     namesWhy(styleOffences(`<div ${joined('hx-optimi', 'stic')}="...">x</div>`, 'index.html'), HX, 'hx-optimistic')
     namesWhy(styleOffences(`<div ${joined('hx-que', 'ry')}="/x">x</div>`, 'index.html'), HX, 'hx-query')
     namesWhy(styleOffences(`<div ${joined('hx-on', ':click')}="go()">x</div>`, 'index.html'), HX, 'hx-on')
-    namesWhy(styleOffences(`<div ${joined('hx-include', ':append')}=".child">x</div>`, 'index.html'), HX, 'hx-include:append')
+    namesWhy(
+      styleOffences(`<div ${joined('hx-include', ':append')}=".child">x</div>`, 'index.html'),
+      HX,
+      'hx-include:append',
+    )
   })
 })
 

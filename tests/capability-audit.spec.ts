@@ -77,7 +77,9 @@ describe('the denial audit', () => {
     audit.record(denial(2))
     expect(seen).toEqual([1])
   })
+})
 
+describe('the denial audit subscription', () => {
   it('hands a follower a snapshot, so unsubscribing mid-delivery is safe', () => {
     // A listener that unsubscribes as it is called would otherwise mutate the
     // collection being walked: the record walks a copy, so the listener that

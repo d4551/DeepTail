@@ -113,7 +113,9 @@ describe('every mutation run', () => {
     },
     TREE_SCAN_BUDGET_MS,
   )
+})
 
+describe('every mutation run names how it runs', () => {
   it(
     'uses the built-in runner, and asks it for no coverage it cannot give',
     () => {
@@ -178,7 +180,9 @@ describe('every mutation run reads the tree it claims to', () => {
     },
     TREE_SCAN_BUDGET_MS,
   )
+})
 
+describe('every mutation run names a hole', () => {
   it(
     'reads a source file at all, rather than an empty denominator',
     () => {

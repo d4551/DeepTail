@@ -100,7 +100,6 @@ describe('the inline-style gate rejects a write whose name is assembled', () => 
     namesWhy(styleOffences(contested), 'the attribute name must be written as a literal', 'contested constant')
     expect(readsTheName(contested)).toBe(false)
   })
-
 })
 
 describe('the inline-style gate rejects a method reached through brackets', () => {
@@ -167,7 +166,6 @@ describe('the inline-style gate rejects an attribute write', () => {
       'document fixture',
     )
   })
-
 })
 
 describe('the inline-style gate rejects a write hidden behind a leading slash', () => {

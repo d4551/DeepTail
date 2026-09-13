@@ -13,7 +13,7 @@ import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { freeNames } from '../../../scripts/free-names.ts'
 import { type Harness, startHarness } from './harness.ts'
-import { structureCheckSource } from './structure.ts'
+import { structureCheckSource } from './structure-emit.ts'
 import { initScriptSource } from './tauri-ipc.ts'
 
 let harness: Harness

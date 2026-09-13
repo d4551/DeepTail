@@ -123,7 +123,9 @@ describe('the palette rule rejects a named colour', () => {
       raw(joined('Cadet', 'Blue')),
     ])
   })
+})
 
+describe('the palette rule allows a word that is not a colour', () => {
   it('and says nothing about a word that merely contains one', () => {
     expect(FONT_WORDS.slice(2).map((word) => sheetOffences(`.a { ${FAMILY}: ${word}; }`))).toEqual(
       FONT_WORDS.slice(2).map(() => []),
@@ -179,7 +181,9 @@ describe('the palette rule reads one declaration', () => {
       { label: 'apps/deeptail/src/styles/tokens.css', line: 2, why: raw('white') },
     ])
   })
+})
 
+describe('the palette rule on the definition sheet', () => {
   it('and refuses the override on the definition sheet exactly as anywhere else', () => {
     const flag = ['!', 'important'].join('')
     expect(scanColour('apps/deeptail/src/styles/tokens.css', `var(--x) ${flag}`, 4, true)).toEqual([

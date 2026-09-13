@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import * as parse5 from 'parse5'
-import { structureCheckSource } from '../apps/deeptail/tests/structure.ts'
+import { structureCheckSource } from '../apps/deeptail/tests/structure-emit.ts'
 import { oxcCallNames, oxcDefinedNames, parseScript } from '../scripts/ast.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { onlyPresent, ROOT, repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'

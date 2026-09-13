@@ -73,7 +73,9 @@ describe('the file list', () => {
     },
     TREE_SCAN_BUDGET_MS,
   )
+})
 
+describe('the file list order and ignore rules', () => {
   it(
     'reports the files in path order, so an offence list reads the same twice',
     () => {

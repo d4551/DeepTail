@@ -13,10 +13,10 @@
 import type { Json } from './jsonc.ts'
 
 /** Module values the TypeScript 6 compiler shipped as its common face. */
-const TS6_MODULES = new Set(['commonjs', 'amd', 'umd', 'system', 'none', 'es6', 'es2015'])
+const TS6_MODULES = new Set(['commonjs', 'amd', 'umd', 'system', 'none', 'es6', 'es2015', 'node16'])
 
 /** Resolution values the TypeScript 6 compiler used before bundler/nodenext. */
-const TS6_RESOLUTIONS = new Set(['node', 'node10', 'classic'])
+const TS6_RESOLUTIONS = new Set(['node', 'node10', 'classic', 'node16'])
 
 /**
  * Targets below `esnext`. A face that emits ES5/ES6/ES2020 is a TypeScript 6
@@ -87,8 +87,20 @@ export function compilerFaceOffences(options: { readonly [key: string]: Json }):
   if (options['skipLibCheck'] === true) {
     offences.push("skipLibCheck silences a dependency's diagnostics instead of fixing them")
   }
+  if (options['ignoreDeprecations'] !== undefined) {
+    offences.push('ignoreDeprecations keeps a TypeScript 6 option working; remove the option')
+  }
   if (options['strict'] === false) {
     offences.push('strict is off; the TypeScript 7 face keeps it on')
+  }
+  if (options['isolatedModules'] === false) {
+    offences.push('isolatedModules is off; the TypeScript 7 face keeps it on')
+  }
+  if (options['verbatimModuleSyntax'] === false) {
+    offences.push('verbatimModuleSyntax is off; the TypeScript 7 face keeps it on')
+  }
+  if (options['erasableSyntaxOnly'] === false) {
+    offences.push('erasableSyntaxOnly is off; TypeScript 7 uses it to refuse enum, namespace, and import-equals')
   }
   return offences
 }

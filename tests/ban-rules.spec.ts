@@ -178,12 +178,18 @@ describe('the ban on syntax the checker no longer follows', () => {
     ])
   })
 
-  it('refuses import-equals and a namespace, and admits a global declaration', () => {
+  it('refuses import-equals, a namespace, and an enum, and admits a global declaration', () => {
     expect(bans(joined('import x = requ', "ire('y')"))).toEqual([
       'import-equals is TypeScript 6 syntax; use a default import or `import type`',
     ])
     expect(bans('namespace Shapes { export const a = 1 }')).toEqual([
       'a namespace is a TypeScript 6 module system; use ES module exports',
+    ])
+    expect(bans('enum Color { Red }')).toEqual([
+      'an enum is TypeScript 6 syntax; use a union of string literals or as const',
+    ])
+    expect(bans('const enum Size { S }')).toEqual([
+      'an enum is TypeScript 6 syntax; use a union of string literals or as const',
     ])
     expect(bans('declare global { interface Window { a: number } }')).toEqual([])
   })

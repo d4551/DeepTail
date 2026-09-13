@@ -205,7 +205,7 @@ it('has no WCAG violations in the compose sheet at mobile, tablet and desktop, i
 }, 180_000)
 
 it('has no WCAG violations on the pairing form at mobile, tablet and desktop, in both palettes', async () => {
-  await expectNoViolationsAtEachWidth(harness, async (view) => openPairingForm(harness, view))
+  await expectNoViolationsAtEachWidth(harness, (view) => openPairingForm(harness, view))
 }, 180_000)
 
 it('has no WCAG violations on the picker error at mobile, tablet and desktop, in both palettes', async () => {

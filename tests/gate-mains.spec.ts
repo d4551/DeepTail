@@ -176,7 +176,7 @@ describe('the pipeline guard as the merge chain runs it', () => {
       const run = await runProgram(GUARD, root, [])
       expect(run.code).toBe(1)
       expect(run.out).toBe('')
-      expect(run.err).toMatch(/^the pipeline definitions carry \d+ violation\(s\):\n/)
+      expect(run.err).toMatch(/^the pipeline definitions carry \d+ violation\(s\):\n/u)
       expect(run.err).toContain('workflow ci.yml: carries "continue-on-error", which lets a run decide nothing')
       expect(run.err).toContain('.github/CODEOWNERS is gone; nothing names who must review the pipeline')
     },

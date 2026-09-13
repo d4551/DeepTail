@@ -84,6 +84,10 @@ export const BANNED: readonly Rule[] = [
     why: 'this name says the code stands in for something real; name what it does, or remove the debt',
   },
   {
+    holds: (node) => node.type === 'TSEnumDeclaration',
+    why: 'an enum is TypeScript 6 syntax; use a union of string literals or as const',
+  },
+  {
     holds: (node) => node.type === 'TSImportEqualsDeclaration',
     why: 'import-equals is TypeScript 6 syntax; use a default import or `import type`',
   },

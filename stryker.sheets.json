@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "commandRunner": {
-    "command": "bun test tests/sheet-gate.spec.ts tests/sheet-gate-rules.spec.ts tests/sheet-gate-cascade.spec.ts tests/sheet-gate-tables.spec.ts tests/sheet-gate-imports.spec.ts tests/sheet-gate-colour.spec.ts tests/sheet-reader.spec.ts tests/sheet-readers.spec.ts tests/lines.spec.ts"
+    "command": "bun test tests/sheet-gate.spec.ts tests/sheet-gate-rules.spec.ts tests/sheet-gate-reach.spec.ts tests/sheet-gate-cascade.spec.ts tests/sheet-gate-tables.spec.ts tests/sheet-gate-imports.spec.ts tests/sheet-gate-colour.spec.ts tests/sheet-reader.spec.ts tests/sheet-readers.spec.ts tests/lines.spec.ts"
   },
   "mutate": ["scripts/sheet-*.ts", "scripts/colour-gate.ts", "scripts/focus-ring-gate.ts", "scripts/lines.ts"],
   "coverageAnalysis": "off",

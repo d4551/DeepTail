@@ -36,3 +36,18 @@ export function surface(tag: string): HTMLElement {
   node.dataset['structureScope'] = ''
   return node
 }
+
+/**
+ * Paints one box onto one element, where happy-dom paints none.
+ * @param node - the element to give a box.
+ * @param box - the edges of the box, in CSS pixels.
+ */
+export function paintBox(
+  node: Element,
+  box: { readonly top: number; readonly left: number; readonly right: number; readonly bottom: number },
+): void {
+  Object.defineProperty(node, 'getBoundingClientRect', {
+    value: () => ({ ...box, width: box.right - box.left, height: box.bottom - box.top }),
+    configurable: true,
+  })
+}

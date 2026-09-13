@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { structureCheckSource } from '../apps/deeptail/tests/structure.ts'
+import { structureCheckSource } from '../apps/deeptail/tests/structure-emit.ts'
 import {
   babelCallNames,
   babelDefinedNames,
@@ -68,7 +68,9 @@ describe('the two parsers agree on what a source defines', () => {
     expect(babel.errors).toEqual([])
     expect([...oxcDefinedNames(oxc)].toSorted()).toEqual([...babelDefinedNames(babel)].toSorted())
   })
+})
 
+describe('the two parsers agree on dialects and recovery', () => {
   it('parses a dialect no plugin names, so the plugin table is total', () => {
     const babel = parseScriptWithBabel('plain.mjs', 'const value = 1\n')
     expect(babel.errors).toEqual([])

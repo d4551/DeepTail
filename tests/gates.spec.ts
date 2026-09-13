@@ -151,6 +151,8 @@ const SUPERSEDED_CASES: readonly [string, string, string, string?][] = [
   ['Tauri v1 global via brackets', "window['__TAURI__'].invoke('x')", 'the __TAURI__ global'],
   ['import equals', "import value = require('node:fs')", 'import-equals is TypeScript 6 syntax'],
   ['namespace', 'namespace Geometry {}', 'a namespace is a TypeScript 6 module system'],
+  ['enum', 'enum Color { Red }', 'an enum is TypeScript 6 syntax'],
+  ['const enum', 'const enum Size { S }', 'an enum is TypeScript 6 syntax'],
   ['expando prototype', 'Chart.prototype.draw = function draw() {}', 'removed in TypeScript 7'],
   ['expando prototype via brackets', "Chart['prototype'].draw = draw", 'removed in TypeScript 7'],
 ]
@@ -272,7 +274,6 @@ describe('the ban gate reads a name however it is reached', () => {
       'Reflect.construct Array',
     )
   })
-
 })
 
 describe('the ban gate allows a merge that carries none of the banned names', () => {

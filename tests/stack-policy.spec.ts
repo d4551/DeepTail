@@ -75,21 +75,11 @@ describe('the stack policy bans', () => {
     },
     TREE_SCAN_BUDGET_MS,
   )
-
 })
 
 describe('the stack policy names a planted reintroduction', () => {
   it('including Vue, Nuxt, daisyUI, Tailwind and HTMX', () => {
-    const planted = [
-      'vue',
-      'nuxt',
-      '@vue/runtime-dom',
-      '@nuxt/kit',
-      'daisyui',
-      'tailwindcss',
-      'htmx.org',
-      'typescript',
-    ]
+    const planted = ['vue', 'nuxt', '@vue/runtime-dom', '@nuxt/kit', 'daisyui', 'tailwindcss', 'htmx.org', 'typescript']
     expect(planted.filter((name) => isRetiredFramework(name))).toEqual([
       'vue',
       'nuxt',

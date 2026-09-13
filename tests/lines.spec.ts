@@ -54,7 +54,9 @@ describe('the line reader', () => {
     expect(lineReader('a\nb')(99)).toBe(2)
     expect(lineReader('ab\ncd\nef\ngh')(99)).toBe(4)
   })
+})
 
+describe('the line reader at the edges', () => {
   it('reads the first line where there is no break at all, or no text', () => {
     expect(lineReader('abc')(2)).toBe(1)
     expect(lineReader('')(0)).toBe(1)

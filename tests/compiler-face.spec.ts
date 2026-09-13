@@ -47,6 +47,7 @@ const CANONICAL: readonly (readonly [string, string | boolean])[] = [
   ['noImplicitReturns', true],
   ['noUnusedLocals', true],
   ['noUnusedParameters', true],
+  ['erasableSyntaxOnly', true],
 ]
 
 /**
@@ -157,7 +158,19 @@ describe('the TypeScript 6 compiler face', () => {
     expect(compilerFaceOffences({ skipLibCheck: true })).toEqual([
       "skipLibCheck silences a dependency's diagnostics instead of fixing them",
     ])
+    expect(compilerFaceOffences({ ignoreDeprecations: '5.0' })).toEqual([
+      'ignoreDeprecations keeps a TypeScript 6 option working; remove the option',
+    ])
     expect(compilerFaceOffences({ strict: false })).toEqual(['strict is off; the TypeScript 7 face keeps it on'])
+    expect(compilerFaceOffences({ isolatedModules: false })).toEqual([
+      'isolatedModules is off; the TypeScript 7 face keeps it on',
+    ])
+    expect(compilerFaceOffences({ verbatimModuleSyntax: false })).toEqual([
+      'verbatimModuleSyntax is off; the TypeScript 7 face keeps it on',
+    ])
+    expect(compilerFaceOffences({ erasableSyntaxOnly: false })).toEqual([
+      'erasableSyntaxOnly is off; TypeScript 7 uses it to refuse enum, namespace, and import-equals',
+    ])
   })
 })
 
@@ -166,11 +179,11 @@ describe('every value the TypeScript 6 face may state', () => {
     // A member nothing states is a member the reader could stop refusing with
     // no configuration noticing, and the first tsconfig to restore it would be
     // reported as canonical.
-    const modules = ['commonjs', 'amd', 'umd', 'system', 'none', 'es6', 'es2015']
+    const modules = ['commonjs', 'amd', 'umd', 'system', 'none', 'es6', 'es2015', 'node16']
     expect(refusals('module', modules)).toEqual(
       modules.map((value) => [`module ${value} is a TypeScript 6 module system; use esnext with bundler resolution`]),
     )
-    const resolutions = ['node', 'node10', 'classic']
+    const resolutions = ['node', 'node10', 'classic', 'node16']
     expect(refusals('moduleResolution', resolutions)).toEqual(
       resolutions.map((value) => [`moduleResolution ${value} is a TypeScript 6 resolver; use bundler`]),
     )
@@ -218,7 +231,9 @@ describe('every emit face below esnext', () => {
     // a reader that lowercased it would fail on the value rather than report.
     expect(compilerFaceOffences({ module: 6, moduleResolution: null, target: ['es5'] })).toEqual([])
   })
+})
 
+describe('the TypeScript 6 face in the tree', () => {
   it(
     'is absent from every tsconfig this repository ships',
     async () => {

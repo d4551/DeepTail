@@ -11,7 +11,8 @@
 import type { Page } from 'playwright'
 import { classTokensOf } from '../../../scripts/sheet-reader.ts'
 import { repositoryFiles } from '../../../scripts/source-tree.ts'
-import { type StructureFinding, structureCheckSource } from './structure.ts'
+import type { StructureFinding } from './structure.ts'
+import { structureCheckSource } from './structure-emit.ts'
 import { VIEWPORTS } from './viewports.ts'
 
 export { VIEWPORTS }

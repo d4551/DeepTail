@@ -159,6 +159,46 @@ function sendOnEnter(textarea: HTMLTextAreaElement, send: () => void): void {
   })
 }
 
+/** What a compose submit needs besides the target and the mode. */
+interface ComposeSubmit {
+  readonly dialog: Dialog
+  readonly textarea: HTMLTextAreaElement
+  readonly failure: HTMLElement
+  readonly t: Translate
+  readonly announce: (text: string) => void
+  readonly busy: boolean
+  setBusy(next: boolean): void
+}
+
+/**
+ * Send the draft, or refuse an empty one.
+ * @param target - where the message goes.
+ * @param mode - queue or steer.
+ * @param ports - the sheet's fields and busy latch.
+ */
+function submitCompose(target: ComposeTarget, mode: PromptMode, ports: ComposeSubmit): void {
+  if (ports.busy) return
+  const draft = ports.textarea.value
+  if (draft.trim() === '') {
+    showFailure(ports.failure, ports.t('chat.messageRequired'))
+    setAria(ports.textarea, { invalid: 'true' })
+    ports.textarea.focus()
+    return
+  }
+  clearFailure(ports.failure)
+  setAria(ports.textarea, { invalid: 'false' })
+  ports.setBusy(true)
+  sendPrompt(target, mode, draft, {
+    dialog: ports.dialog,
+    failure: ports.failure,
+    t: ports.t,
+    announce: ports.announce,
+    release: () => {
+      ports.setBusy(false)
+    },
+  })
+}
+
 /**
  * Open the compose sheet for one session.
  * @param target - where the message goes.
@@ -183,25 +223,7 @@ export function openComposeSheet(target: ComposeTarget, t: Translate, announce: 
   }
 
   const submit = (mode: PromptMode): void => {
-    if (busy) return
-    // The draft is sent as it was typed: a newline the operator committed with
-    // Shift+Enter is part of their message, not noise to strip. The emptiness
-    // check reads the trimmed value, because a draft of only spaces says
-    // nothing and must not reach the host.
-    const draft = textarea.value
-    if (draft.trim() === '') {
-      showFailure(failure, t('chat.messageRequired'))
-      setAria(textarea, { invalid: 'true' })
-      textarea.focus()
-      return
-    }
-    clearFailure(failure)
-    setAria(textarea, { invalid: 'false' })
-    setBusy(true)
-    const release = (): void => {
-      setBusy(false)
-    }
-    sendPrompt(target, mode, draft, { dialog, failure, t, announce, release })
+    submitCompose(target, mode, { dialog, textarea, failure, t, announce, busy, setBusy })
   }
 
   const { cancel, steer, send } = buildComposeActions(

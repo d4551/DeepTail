@@ -20,11 +20,8 @@ import {
   checkGrid,
   checkHorizontalOverflow,
   checkNestedScroll,
-  gridAncestor,
-  isLayoutPane,
-  scrolls,
 } from './structure-layout.ts'
-import { checkOverlappingTargets, checkTouchTargets, drawnBox } from './structure-pointer.ts'
+import { checkOverlappingTargets, checkTouchTargets } from './structure-pointer.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
 import { checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import { checkClassVocabulary } from './structure-vocabulary.ts'
@@ -56,20 +53,6 @@ interface StructureLimits {
   /** Every class name the shipped stylesheets define. */
   readonly vocabulary: readonly string[]
 }
-
-/** The smallest touch target Apple's Human Interface Guidelines admit, in CSS pixels. */
-const MINIMUM_TOUCH_TARGET = 44
-
-/** The smallest target WCAG 2.2 admits for any pointer, in CSS pixels. */
-const MINIMUM_POINTER_TARGET = 24
-
-/** The surfaces this product draws, however the page is laid out. */
-const PRODUCT_SURFACES =
-  '[data-deeptail-shell], [data-deeptail-picker], [data-deeptail-state="boot-error"], [data-deeptail-return]'
-
-/** Elements that take focus or activation, including role-named forms. */
-const INTERACTIVE =
-  'a[href], button, input, select, textarea, summary, [contenteditable="true"], [tabindex]:not([tabindex="-1"]), [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"]'
 
 /**
  * Every id must be unique for an ARIA reference or a label to mean anything.
@@ -230,63 +213,6 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   checkInlineScripts(add, limits)
   checkOneOffScripts(add, limits)
   return findings
-}
-
-/**
- * The source a page evaluates to run these checks.
- *
- * The checks run in the browser, where nothing from this module exists, so
- * their source is emitted and everything they measure against is passed in the
- * call. Nothing is closed over, so nothing can be left behind: what the page
- * receives is exactly what the compiler checked.
- *
- * The page is measured only once its layout has settled: a webfont still
- * swapping or a drawer still sliding leaves boxes a fraction of a pixel short
- * of their resting size, and a target-size finding read mid-flight names a
- * defect the finished layout does not have. The fonts are awaited, every
- * running animation is awaited to its end (a cancelled one settles the same
- * way), and the evaluate resolves through the returned promise.
- * @param coarsePointer - whether the platform minimum touch target applies.
- * @param vocabulary - every class name the shipped stylesheets define.
- * @returns the source to evaluate.
- */
-export function structureCheckSource(coarsePointer: boolean, vocabulary: readonly string[]): string {
-  const limits: StructureLimits = {
-    target: coarsePointer ? MINIMUM_TOUCH_TARGET : MINIMUM_POINTER_TARGET,
-    interactive: INTERACTIVE,
-    scope: PRODUCT_SURFACES,
-    vocabulary,
-  }
-  const functions = [
-    describe,
-    checkDuplicateIds,
-    checkNestedInteractive,
-    checkHeadingOrder,
-    checkAriaReferences,
-    checkListOwnership,
-    checkGroupNames,
-    checkClassVocabulary,
-    checkHorizontalOverflow,
-    scrolls,
-    isLayoutPane,
-    checkClipping,
-    checkNestedScroll,
-    drawnBox,
-    checkOverlappingTargets,
-    checkTouchTargets,
-    checkAlignment,
-    gridAncestor,
-    checkGrid,
-    checkShell,
-    checkInlineScripts,
-    checkOneOffScripts,
-    findStructureDefects,
-  ].map(String)
-  return `(async () => {\n${functions.join(
-    '\n\n',
-  )}\nawait document.fonts.ready\nawait Promise.allSettled([...document.getAnimations()].map((animation) => animation.finished))\nreturn findStructureDefects(${JSON.stringify(
-    limits,
-  )})\n})()`
 }
 
 /**
