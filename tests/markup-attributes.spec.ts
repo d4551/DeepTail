@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { joined, styleOffences } from './fixtures.ts'
+import { joined, namesWhy, styleOffences } from './fixtures.ts'
 
 /** A remote host, assembled so this file's own source carries none whole. */
 const remoteHost = (): string => joined('ht', 'tps://cdn.example.com')
@@ -164,8 +164,12 @@ describe('the directive attributes', () => {
   })
 
   it('read the theme hook and the Bootstrap prefix however they are cased', () => {
-    expect(markup(tag('div', 'DATA-THEME', 'dark'))).not.toEqual([])
-    expect(markup(tag('div', 'DATA-BS-TOGGLE', 'modal'))).not.toEqual([])
+    namesWhy(markup(tag('div', 'DATA-THEME', 'dark')), 'data-theme is the daisyUI theme hook', 'DATA-THEME')
+    namesWhy(
+      markup(tag('div', 'DATA-BS-TOGGLE', 'modal')),
+      'a Bootstrap data-bs attribute is a retired framework hook',
+      'DATA-BS-TOGGLE',
+    )
   })
 
   it('are not read out of an attribute that merely starts with the same letter', () => {

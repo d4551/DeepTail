@@ -10,6 +10,7 @@ import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
+import { waitForLiveShell } from './surfaces.ts'
 
 let harness: Harness
 
@@ -31,7 +32,7 @@ it('ships one main landmark and the named shell in the built page', async () => 
 
 it('adopts that chrome and fires the drawer toggle', async () => {
   const page = await harness.open(oneHost(), { mobile: true })
-  await page.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(page)
   expect(await page.locator('main').count()).toBe(1)
   const toggle = page.locator('.drawer-toggle')
   await toggle.click()

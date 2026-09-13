@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { breakpointsOf, scanSheet } from '../scripts/sheet-gate.ts'
-import { joined } from './fixtures.ts'
+import { joined, namesWhy } from './fixtures.ts'
 
 /** A remote host, assembled so this file's own source carries none whole. */
 const remoteHost = (): string => joined('ht', 'tps://cdn.example.com')
@@ -109,7 +109,11 @@ describe('the retired at-rule reader', () => {
 
   it('reads the layer directive however wide the space inside it', () => {
     for (const spacing of [' ', '  ', '\t']) {
-      expect(sheetOffences(joined('@lay', `er${spacing}utilities { .a { color: currentcolor; } }`))).not.toEqual([])
+      namesWhy(
+        sheetOffences(joined('@lay', `er${spacing}utilities { .a { color: currentcolor; } }`)),
+        'belongs to the utility pipeline this product retired',
+        `layer utilities spaced ${JSON.stringify(spacing)}`,
+      )
     }
   })
 

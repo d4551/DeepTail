@@ -11,6 +11,7 @@ import { expect } from 'bun:test'
 import type { Page } from 'playwright'
 import { fleet } from './fixtures.ts'
 import type { Harness, Violation } from './harness.ts'
+import { waitForFiniteAnimations } from './structure-emit.ts'
 import { pointerFlags, VIEWPORTS, type Viewport } from './viewports.ts'
 
 /** One designed width × palette the a11y suite must actually open, not merely list. */
@@ -60,15 +61,15 @@ function auditView(viewport: Viewport, dark: boolean): AuditView {
  */
 export async function realizeView(page: Page, view: Pick<AuditView, 'width' | 'height'>): Promise<void> {
   await page.setViewportSize({ width: view.width, height: view.height })
-  await page.evaluate(async () => {
-    await document.fonts.ready
-    await Promise.allSettled([...document.getAnimations()].map((animation) => animation.finished))
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => {
-        resolve()
-      })
-    })
-  })
+  await page.evaluate(waitForFiniteAnimations)
+  await page.evaluate(
+    async () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          resolve()
+        })
+      }),
+  )
 }
 
 /**
@@ -90,12 +91,31 @@ export function describeViolations(violations: readonly Violation[]): string {
 }
 
 /**
+ * Wait until the live mount has attached, not merely until the first paint is
+ * in the document. The shipped page already carries `[data-deeptail-shell]`;
+ * the new-session control is appended only when JS binds the chrome.
+ * @param page - the page that loaded the built bundle.
+ */
+export async function waitForLiveShell(page: Page): Promise<void> {
+  await page.waitForSelector('[data-deeptail-shell]')
+  // Attached, not visible: on a drawer width the control sits in the closed
+  // sidebar (`visibility: hidden`) until the case opens it.
+  await page.locator('[data-deeptail-action="new-session"]').waitFor({ state: 'attached' })
+}
+
+/**
  * Open the drawer when this width seats the roster behind it.
+ *
+ * The toggle is painted before JS binds it. Clicking it before the live mount
+ * attaches is a no-op, and the subsequent adopt closes the drawer, so the
+ * roster the case then waits to see never becomes visible.
  * @param page - the page showing the shell.
  */
 export async function openDrawerIfPresent(page: Page): Promise<void> {
   const drawer = page.locator('[data-deeptail-action="drawer"]')
-  if (await drawer.isVisible()) await drawer.click()
+  if (!(await drawer.isVisible())) return
+  await drawer.click()
+  await page.locator('[data-deeptail-action="drawer"][aria-expanded="true"]').waitFor({ state: 'visible' })
 }
 
 /**
@@ -186,7 +206,7 @@ export async function openShell(
   view?: Parameters<Harness['open']>[1],
 ): Promise<Page> {
   const page = await harness.open(fleet(fixture), view)
-  await page.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(page)
   return page
 }
 
@@ -224,8 +244,13 @@ export async function openShellAt(
   fixture: Parameters<typeof fleet>[0] = {},
   extra?: Parameters<Harness['open']>[1],
 ): Promise<Page> {
-  const page = await harness.open(fleet(fixture), { ...extra, ...pointerFlags(viewport) })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await harness.open(fleet(fixture), {
+    ...extra,
+    ...pointerFlags(viewport),
+    width: viewport.width,
+    height: viewport.height,
+  })
+  await waitForLiveShell(page)
   await realizeView(page, viewport)
   return page
 }

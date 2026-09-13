@@ -126,6 +126,7 @@ it('emits the checks as one self-contained page source, with the limits passed i
   // defect the finished layout does not have.
   expect(coarse.startsWith('(async () => {')).toBe(true)
   expect(coarse.endsWith('})()')).toBe(true)
+  expect(coarse).toContain('await waitForFiniteAnimations()')
   expect(coarse).toContain('await document.fonts.ready')
   expect(coarse).toContain('await Promise.allSettled')
   expect(coarse).toContain('"target":44')
@@ -160,6 +161,7 @@ it('emits the checks as one self-contained page source, with the limits passed i
     'checkInlineScripts',
     'checkOneOffScripts',
     'findStructureDefects',
+    'waitForFiniteAnimations',
   ]
   expect(shipped.filter((name) => !coarse.includes(`function ${name}`))).toEqual([])
 })

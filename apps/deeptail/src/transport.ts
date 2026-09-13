@@ -80,9 +80,8 @@ async function fetchBundle(host: string, url: string): Promise<string> {
   const [fetched] = await Promise.allSettled([
     invoke<string>('carrier_load_bundle', { host, path: `${path.pathname}${path.search}` }),
   ])
-  if (fetched === undefined || fetched.status === 'rejected') {
-    const refusal: unknown = fetched?.reason
-    throw new Error(`deeptail: bundle ${url} could not be fetched: ${String(refusal)}`, { cause: refusal })
+  if (fetched.status === 'rejected') {
+    throw new Error(`deeptail: bundle ${url} could not be fetched: ${messageOf(fetched.reason)}`)
   }
   return fetched.value
 }

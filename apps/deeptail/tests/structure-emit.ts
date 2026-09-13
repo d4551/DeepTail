@@ -31,6 +31,20 @@ import { describe } from './structure-report.ts'
 import { checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import { checkClassVocabulary } from './structure-vocabulary.ts'
 
+/**
+ * Wait for fonts and finite animations. Infinite ones (the loading spinner)
+ * never finish and must not be awaited.
+ * @returns nothing, once fonts are ready and finite animations have finished.
+ */
+export async function waitForFiniteAnimations(): Promise<void> {
+  await document.fonts.ready
+  const finite = [...document.getAnimations()].filter((animation) => {
+    const effect = animation.effect
+    return effect !== null && effect.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
+  })
+  await Promise.allSettled(finite.map((animation) => animation.finished))
+}
+
 /** The smallest touch target Apple's Human Interface Guidelines admit, in CSS pixels. */
 const MINIMUM_TOUCH_TARGET = 44
 
@@ -82,10 +96,9 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     checkInlineScripts,
     checkOneOffScripts,
     findStructureDefects,
+    waitForFiniteAnimations,
   ].map(String)
   return `(async () => {\n${functions.join(
     '\n\n',
-  )}\nawait document.fonts.ready\nawait Promise.allSettled([...document.getAnimations()].map((animation) => animation.finished))\nreturn findStructureDefects(${JSON.stringify(
-    limits,
-  )})\n})()`
+  )}\nawait waitForFiniteAnimations()\nreturn findStructureDefects(${JSON.stringify(limits)})\n})()`
 }

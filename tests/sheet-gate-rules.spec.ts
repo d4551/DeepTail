@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { scanSheet } from '../scripts/sheet-gate.ts'
-import { joined } from './fixtures.ts'
+import { joined, namesWhy } from './fixtures.ts'
 
 /** A remote host, assembled so this file's own source carries none whole. */
 const remoteHost = (): string => joined('ht', 'tps://cdn.example.com')
@@ -78,13 +78,15 @@ describe('the stylesheet gate rejects misalignment', () => {
     const bl = joined('border-', 'left-width')
     const left = joined('le', 'ft')
     const right = joined('ri', 'ght')
-    expect(sheetOffences(`.a { ${ml}: 12px; }`)).not.toEqual([])
-    expect(sheetOffences(`.a { ${pr}: 4px; }`)).not.toEqual([])
-    expect(sheetOffences(`.a { ${bl}: 1px; }`)).not.toEqual([])
-    expect(sheetOffences(`.a { ${left}: 0; }`)).not.toEqual([])
-    expect(sheetOffences(`.a { ${right}: 0; }`)).not.toEqual([])
-    expect(sheetOffences(`.a { text-align: ${left}; }`)).not.toEqual([])
-    expect(sheetOffences(`.a { text-align: ${right}; }`)).not.toEqual([])
+    const physical = 'is a physical side; use the logical start or end spelling'
+    namesWhy(sheetOffences(`.a { ${ml}: 12px; }`), physical, 'margin-left')
+    namesWhy(sheetOffences(`.a { ${pr}: 4px; }`), physical, 'padding-right')
+    namesWhy(sheetOffences(`.a { ${bl}: 1px; }`), physical, 'border-left-width')
+    namesWhy(sheetOffences(`.a { ${left}: 0; }`), physical, 'left')
+    namesWhy(sheetOffences(`.a { ${right}: 0; }`), physical, 'right')
+    const align = 'justified or physical text alignment is an alignment defect'
+    namesWhy(sheetOffences(`.a { text-align: ${left}; }`), align, 'text-align left')
+    namesWhy(sheetOffences(`.a { text-align: ${right}; }`), align, 'text-align right')
     // The logical spellings are the ones the direction follows.
     expect(sheetOffences('.a { margin-inline-start: var(--dsh-space-3); }')).toEqual([])
     expect(sheetOffences('.a { text-align: start; }')).toEqual([])
@@ -117,9 +119,10 @@ describe('the stylesheet gate rejects a raw palette and cascade', () => {
     expect(sheetOffences(joined('.a { @app', 'ly flex; }'))).toEqual([
       joined('@app', 'ly belongs to the utility pipeline this product retired; state the declarations directly'),
     ])
-    expect(sheetOffences(joined('@tail', 'wind base;'))).not.toEqual([])
-    expect(sheetOffences(joined('.a { @uti', 'lity card { padding: 1px; } }'))).not.toEqual([])
-    expect(sheetOffences(joined('@lay', 'er utilities { .a { color: red; } }'))).not.toEqual([])
+    const retired = 'belongs to the utility pipeline this product retired'
+    namesWhy(sheetOffences(joined('@tail', 'wind base;')), retired, '@tailwind')
+    namesWhy(sheetOffences(joined('.a { @uti', 'lity card { padding: 1px; } }')), retired, '@utility')
+    namesWhy(sheetOffences(joined('@lay', 'er utilities { .a { color: red; } }')), retired, '@layer utilities')
   })
 
   it('no at-rule of CSS itself, which the sheets are written in', () => {
@@ -134,27 +137,34 @@ describe('the stylesheet gate rejects a raw palette and cascade', () => {
     expect(sheetOffences(joined('.a { ', `${ampersand}:hover { color: currentcolor; } }`))).toEqual([
       `${ampersand}:hover rides another rule's scope; state the selector at the top level`,
     ])
-    expect(sheetOffences(joined('.a { .b ', `${ampersand}::before { color: currentcolor; } }`))).not.toEqual([])
+    namesWhy(
+      sheetOffences(joined('.a { .b ', `${ampersand}::before { color: currentcolor; } }`)),
+      "rides another rule's scope",
+      'nested &::before',
+    )
   })
 })
 
 describe('the stylesheet gate rejects a remote or retired dependency', () => {
   it('a remote asset, which no local install ships', () => {
     const host = remoteHost()
-    expect(sheetOffences(`.a { background: url("${host}/bg.png"); }`)).not.toEqual([])
-    expect(sheetOffences(`.a { cursor: url("${host}/c.cur"), auto; }`)).not.toEqual([])
-    expect(sheetOffences(`@import url("${host}/theme.css");`)).not.toEqual([])
-    expect(sheetOffences(`@import "${host}/theme.css";`)).not.toEqual([])
+    const remoteUrl = 'a remote URL loads an asset no local install ships'
+    const remoteImport = 'a remote import loads a sheet no local install ships'
+    namesWhy(sheetOffences(`.a { background: url("${host}/bg.png"); }`), remoteUrl, 'background url')
+    namesWhy(sheetOffences(`.a { cursor: url("${host}/c.cur"), auto; }`), remoteUrl, 'cursor url')
+    namesWhy(sheetOffences(`@import url("${host}/theme.css");`), remoteImport, 'import url()')
+    namesWhy(sheetOffences(`@import "${host}/theme.css";`), remoteImport, 'import quoted')
   })
 
   it('an import of a retired framework pipeline, in either quoting', () => {
     const tail = joined('tail', 'windcss')
     const daisy = joined('dais', 'yui')
-    expect(sheetOffences(`@import "${tail}";`)).not.toEqual([])
-    expect(sheetOffences(`@import '${daisy}';`)).not.toEqual([])
-    expect(sheetOffences(`@import url(${daisy}.css);`)).not.toEqual([])
-    expect(sheetOffences(`@import "${joined('alpine', 'js')}";`)).not.toEqual([])
-    expect(sheetOffences(`@import "${joined('htmx', '.org')}";`)).not.toEqual([])
+    const pipeline = "is a retired framework's pipeline"
+    namesWhy(sheetOffences(`@import "${tail}";`), pipeline, 'tailwindcss')
+    namesWhy(sheetOffences(`@import '${daisy}';`), pipeline, 'daisyui')
+    namesWhy(sheetOffences(`@import url(${daisy}.css);`), pipeline, 'daisyui url')
+    namesWhy(sheetOffences(`@import "${joined('alpine', 'js')}";`), pipeline, 'alpinejs')
+    namesWhy(sheetOffences(`@import "${joined('htmx', '.org')}";`), pipeline, 'htmx.org')
   })
 
   it('but allows an asset the bundle ships, and a data payload', () => {
@@ -171,9 +181,10 @@ describe('the stylesheet gate rejects a viewport unit that lies', () => {
     // past the bottom of the screen while the chrome is showing. The
     // connection menu was capped that way and its pinned footer sat exactly
     // there, out of reach with nothing to scroll it back.
-    expect(sheetOffences('.a { max-height: calc(100vh - 8px); }')).not.toEqual([])
-    expect(sheetOffences('.a { block-size: 50vh; }')).not.toEqual([])
-    expect(sheetOffences('.a { width: min(var(--dsh-drawer-width), 86vw); }')).not.toEqual([])
+    const viewport = 'is measured against a viewport the reader may not have'
+    namesWhy(sheetOffences('.a { max-height: calc(100vh - 8px); }'), viewport, '100vh')
+    namesWhy(sheetOffences('.a { block-size: 50vh; }'), viewport, '50vh')
+    namesWhy(sheetOffences('.a { width: min(var(--dsh-drawer-width), 86vw); }'), viewport, '86vw')
   })
 
   it('but allows the dynamic units, and the two that name an end on purpose', () => {
@@ -249,7 +260,7 @@ describe('the stylesheet gate rejects a DRY or grid hole', () => {
     expect(sheetOffences(`.a { ${COLUMNS}: 100px 1fr; }`)).toEqual([
       `hardcoded-grid: 100px in ${COLUMNS} belongs to the scale in tokens.css`,
     ])
-    expect(sheetOffences(`.a { ${ROWS}: 48px; }`)).not.toEqual([])
+    namesWhy(sheetOffences(`.a { ${ROWS}: 48px; }`), 'hardcoded-grid:', 'grid-template-rows')
     expect(sheetOffences(`.a { ${COLUMNS}: var(--dsh-grid-frame); }`)).toEqual([])
   })
 

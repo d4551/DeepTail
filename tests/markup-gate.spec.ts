@@ -33,12 +33,20 @@ const moves = (name: string): string => `<div ${name}="center">x</div>`
 
 describe('the markup gate rejects a per-page construct', () => {
   it('an inline event handler, whatever the tag', () => {
-    expect(styleOffences(documentFixture('onclick'), 'index.html')).not.toEqual([])
+    namesWhy(styleOffences(documentFixture('onclick'), 'index.html'), 'an inline event handler is a per-page script', 'onclick')
   })
 
   it('an inline script with no src, and an inline stylesheet', () => {
-    expect(styleOffences(joined('<scr', 'ipt>alert(1)</scr', 'ipt>'), 'index.html')).not.toEqual([])
-    expect(styleOffences(joined('<sty', 'le>.a { color: red }</sty', 'le>'), 'index.html')).not.toEqual([])
+    namesWhy(
+      styleOffences(joined('<scr', 'ipt>alert(1)</scr', 'ipt>'), 'index.html'),
+      'an inline script is a per-page script',
+      'script',
+    )
+    namesWhy(
+      styleOffences(joined('<sty', 'le>.a { color: red }</sty', 'le>'), 'index.html'),
+      'an inline stylesheet is a per-page sheet',
+      'style',
+    )
   })
 
   it('a URL that executes text as code, however the scheme is disguised', () => {
@@ -47,41 +55,45 @@ describe('the markup gate rejects a per-page construct', () => {
     const tabbed = scheme(['script:alert(1)'], 'java\t')
     const vbs = scheme(['vb', 'script:'], '')
     const dataHtml = scheme(['data:', 'text/html'], '')
-    expect(styleOffences(`<a href="${js}alert(1)">go</a>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<a href="${spaced}">go</a>`, 'index.html')).not.toEqual([])
-    // A tab inside the scheme is how the prefix is spelt to get past a test.
-    expect(styleOffences(`<a href="${tabbed}">go</a>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<iframe src="${dataHtml},<b>x</b>"></iframe>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<form action="${vbs}go()"></form>`, 'index.html')).not.toEqual([])
+    const exec = 'a URL that executes text as code'
+    namesWhy(styleOffences(`<a href="${js}alert(1)">go</a>`, 'index.html'), exec, 'javascript')
+    namesWhy(styleOffences(`<a href="${spaced}">go</a>`, 'index.html'), exec, 'spaced javascript')
+    namesWhy(styleOffences(`<a href="${tabbed}">go</a>`, 'index.html'), exec, 'tabbed javascript')
+    namesWhy(styleOffences(`<iframe src="${dataHtml},<b>x</b>"></iframe>`, 'index.html'), exec, 'data-html')
+    namesWhy(styleOffences(`<form action="${vbs}go()"></form>`, 'index.html'), exec, 'vbscript')
   })
 
   it('a handler carried inside markup built in script', () => {
-    expect(styleOffences(joined('el.insertAdjacentHTML("beforeend", "<div onc', 'lick="go()">x</div>")'))).not.toEqual(
-      [],
+    namesWhy(
+      styleOffences(joined('el.insertAdjacentHTML("beforeend", "<div onc', 'lick="go()">x</div>")')),
+      'an inline event handler is a per-page script',
+      'insertAdjacentHTML onclick',
     )
   })
 
   it('a resource that loads from outside the bundle', () => {
     const host = remoteHost()
-    expect(styleOffences(`<script type="module" src="${host}/app.js"></script>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<link rel="stylesheet" href="${host}/x.css">`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<img src="${host}/logo.svg" alt="">`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<iframe src="${host}/frame"></iframe>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<video poster="${host}/poster.png"></video>`, 'index.html')).not.toEqual([])
-    // A remote base re-roots every relative load in the document to that host.
-    expect(styleOffences(`<base href="${host}/">`, 'index.html')).not.toEqual([])
-    // A protocol-relative URL borrows the page scheme and loads the same way.
+    const remote = 'a remote resource URL loads an asset no local install ships'
+    namesWhy(styleOffences(`<script type="module" src="${host}/app.js"></script>`, 'index.html'), remote, 'script src')
+    namesWhy(styleOffences(`<link rel="stylesheet" href="${host}/x.css">`, 'index.html'), remote, 'link href')
+    namesWhy(styleOffences(`<img src="${host}/logo.svg" alt="">`, 'index.html'), remote, 'img src')
+    namesWhy(styleOffences(`<iframe src="${host}/frame"></iframe>`, 'index.html'), remote, 'iframe src')
+    namesWhy(styleOffences(`<video poster="${host}/poster.png"></video>`, 'index.html'), remote, 'video poster')
+    namesWhy(styleOffences(`<base href="${host}/">`, 'index.html'), remote, 'base href')
     const relative = joined('//', 'cdn.example.com')
-    expect(styleOffences(`<img src="${relative}/logo.svg" alt="">`, 'index.html')).not.toEqual([])
-    // One remote candidate inside a source list is the same load.
-    expect(styleOffences(`<img srcset="logo.svg 1x, ${host}/logo.svg 2x" alt="">`, 'index.html')).not.toEqual([])
+    namesWhy(styleOffences(`<img src="${relative}/logo.svg" alt="">`, 'index.html'), remote, 'protocol-relative')
+    namesWhy(styleOffences(`<img srcset="logo.svg 1x, ${host}/logo.svg 2x" alt="">`, 'index.html'), remote, 'srcset')
   })
 })
 
 describe('the markup gate rejects a remote redirect', () => {
   it('a meta refresh to a remote address, and not a local one', () => {
     const host = remoteHost()
-    expect(styleOffences(`<meta http-equiv="refresh" content="0; url=${host}/x">`, 'index.html')).not.toEqual([])
+    namesWhy(
+      styleOffences(`<meta http-equiv="refresh" content="0; url=${host}/x">`, 'index.html'),
+      'a meta refresh to a remote address',
+      'remote refresh',
+    )
     expect(styleOffences('<meta http-equiv="refresh" content="0; url=/x">', 'index.html')).toEqual([])
   })
 })
@@ -107,14 +119,22 @@ describe('the markup gate rejects the current spelling of a retired framework', 
     // prefix did not recognise the current spelling of a token it already
     // refused in its old one.
     for (const token of ['p-4!', 'w-full!', 'text-sm!', 'rounded-lg!']) {
-      expect(styleOffences(`<div class="${token}">x</div>`, 'index.html')).not.toEqual([])
+      namesWhy(
+        styleOffences(`<div class="${token}">x</div>`, 'index.html'),
+        'belongs to a UI framework this product retired',
+        token,
+      )
     }
   })
 
   it('a Tailwind 4 arbitrary value, which moved from brackets to parentheses', () => {
     // `bg-[--brand]` became `bg-(--brand)`.
     for (const token of ['bg-[--brand]', 'bg-(--brand)', 'w-(--size)', 'text-(--ink)']) {
-      expect(styleOffences(`<div class="${token}">x</div>`, 'index.html')).not.toEqual([])
+      namesWhy(
+        styleOffences(`<div class="${token}">x</div>`, 'index.html'),
+        'a bracketed utility class carries a raw value',
+        token,
+      )
     }
   })
 
@@ -130,7 +150,11 @@ describe('the markup gate rejects the current spelling of a retired framework', 
       'field-sizing-content',
       'scrollbar-thin',
     ]) {
-      expect([token, styleOffences(`<div class="${token}">x</div>`, 'index.html')]).not.toEqual([token, []])
+      namesWhy(
+        styleOffences(`<div class="${token}">x</div>`, 'index.html'),
+        'belongs to a UI framework this product retired',
+        token,
+      )
     }
   })
 })
@@ -152,7 +176,11 @@ describe('the markup gate rejects a class a retired framework renamed', () => {
       'validator-hint',
       'filter-reset',
     ]) {
-      expect([token, styleOffences(`<div class="${token}">x</div>`, 'index.html')]).not.toEqual([token, []])
+      namesWhy(
+        styleOffences(`<div class="${token}">x</div>`, 'index.html'),
+        'belongs to a UI framework this product retired',
+        token,
+      )
     }
   })
 
@@ -185,11 +213,17 @@ describe('the markup gate rejects a class a retired framework renamed', () => {
 describe('the markup gate rejects retired class vocabulary', () => {
   it('a wiring attribute and a bracketed utility class', () => {
     // Spelt in parts so this file's own source carries neither whole.
-    expect(styleOffences(documentFixture(joined('h', 'x-get')), 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div ${joined('cla', 'ss')}="${joined('w-', '[420px]')}">x</div>`, 'index.html')).not.toEqual(
-      [],
+    namesWhy(styleOffences(documentFixture(joined('h', 'x-get')), 'index.html'), 'an hx attribute wires behaviour into the tag', 'hx-get')
+    namesWhy(
+      styleOffences(`<div ${joined('cla', 'ss')}="${joined('w-', '[420px]')}">x</div>`, 'index.html'),
+      'a bracketed utility class carries a raw value',
+      'w-[420px]',
     )
-    expect(styleOffences(`<div class="${joined('bg-', '[#00f]')}">x</div>`, 'index.html')).not.toEqual([])
+    namesWhy(
+      styleOffences(`<div class="${joined('bg-', '[#00f]')}">x</div>`, 'index.html'),
+      'a bracketed utility class carries a raw value',
+      'bg-[#00f]',
+    )
   })
 
   it('a framework directive, the theme hook and the shorthand bindings', () => {
@@ -197,11 +231,27 @@ describe('the markup gate rejects retired class vocabulary', () => {
     const click = joined('@', 'click')
     const bind = joined(':c', 'lass')
     const data = joined('x-', 'data')
-    expect(styleOffences(`<html ${theme}="dark">x</html>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<html ${theme.toUpperCase()}="dark">x</html>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<button ${click}="go()">x</button>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div ${bind}="shell">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div ${data}="{ open: false }">x</div>`, 'index.html')).not.toEqual([])
+    namesWhy(styleOffences(`<html ${theme}="dark">x</html>`, 'index.html'), 'data-theme is the daisyUI theme hook', 'data-theme')
+    namesWhy(
+      styleOffences(`<html ${theme.toUpperCase()}="dark">x</html>`, 'index.html'),
+      'data-theme is the daisyUI theme hook',
+      'DATA-THEME',
+    )
+    namesWhy(
+      styleOffences(`<button ${click}="go()">x</button>`, 'index.html'),
+      'a directive attribute wires behaviour into the tag',
+      '@click',
+    )
+    namesWhy(
+      styleOffences(`<div ${bind}="shell">x</div>`, 'index.html'),
+      'a directive attribute wires behaviour into the tag',
+      ':class',
+    )
+    namesWhy(
+      styleOffences(`<div ${data}="{ open: false }">x</div>`, 'index.html'),
+      'a directive attribute wires behaviour into the tag',
+      'x-data',
+    )
   })
 
   it('but allows a class list the design system names, which is the shipped vocabulary', () => {
@@ -216,12 +266,13 @@ describe('the markup gate rejects retired class vocabulary', () => {
 
 describe('the markup gate rejects layout decided in the tag', () => {
   it('an attribute that moves a box or its content', () => {
-    expect(styleOffences(moves(joined('al', 'ign')), 'index.html')).not.toEqual([])
-    expect(styleOffences(moves(joined('val', 'ign')), 'index.html')).not.toEqual([])
-    expect(styleOffences(moves(joined('hs', 'pace')), 'index.html')).not.toEqual([])
-    expect(styleOffences(moves(joined('vs', 'pace')), 'index.html')).not.toEqual([])
-    expect(styleOffences(`<table ${joined('cell', 'padding')}="0">x</table>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<table ${joined('cell', 'spacing')}="0">x</table>`, 'index.html')).not.toEqual([])
+    const align = 'an alignment attribute is layout in the tag'
+    namesWhy(styleOffences(moves(joined('al', 'ign')), 'index.html'), align, 'align')
+    namesWhy(styleOffences(moves(joined('val', 'ign')), 'index.html'), align, 'valign')
+    namesWhy(styleOffences(moves(joined('hs', 'pace')), 'index.html'), align, 'hspace')
+    namesWhy(styleOffences(moves(joined('vs', 'pace')), 'index.html'), align, 'vspace')
+    namesWhy(styleOffences(`<table ${joined('cell', 'padding')}="0">x</table>`, 'index.html'), align, 'cellpadding')
+    namesWhy(styleOffences(`<table ${joined('cell', 'spacing')}="0">x</table>`, 'index.html'), align, 'cellspacing')
   })
 
   it('a size or a colour decided in the tag', () => {
@@ -232,13 +283,12 @@ describe('the markup gate rejects layout decided in the tag', () => {
     const border = joined('bor', 'der')
     const colour = joined('bgc', 'olor')
     const hex = joined('#ff', 'f')
-    expect(styleOffences(`<table ${width}="100%"><tr><td>x</td></tr></table>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div ${width}="100">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<iframe ${height}="300"></iframe>`, 'index.html')).not.toEqual([])
-    // A stray cell tag is dropped by the browser too, so the fixture rides in
-    // the table the cell would actually live in.
-    expect(styleOffences(`<table><tr><td ${border}="1">x</td></tr></table>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<body ${colour}="${hex}">x</body>`, 'index.html')).not.toEqual([])
+    const present = 'a presentational attribute decides size or type in the tag'
+    namesWhy(styleOffences(`<table ${width}="100%"><tr><td>x</td></tr></table>`, 'index.html'), present, 'table width')
+    namesWhy(styleOffences(`<div ${width}="100">x</div>`, 'index.html'), present, 'div width')
+    namesWhy(styleOffences(`<iframe ${height}="300"></iframe>`, 'index.html'), present, 'iframe height')
+    namesWhy(styleOffences(`<table><tr><td ${border}="1">x</td></tr></table>`, 'index.html'), present, 'td border')
+    namesWhy(styleOffences(`<body ${colour}="${hex}">x</body>`, 'index.html'), present, 'bgcolor')
   })
 
   it('but allows the image aspect-ratio hint, which stops a layout shift', () => {
@@ -246,14 +296,15 @@ describe('the markup gate rejects layout decided in the tag', () => {
   })
 
   it('a retired presentational element', () => {
-    expect(styleOffences(joined('<cen', 'ter><p>x</p></cen', 'ter>'), 'index.html')).not.toEqual([])
-    expect(styleOffences(joined('<fo', 'nt face="x">x</fo', 'nt>'), 'index.html')).not.toEqual([])
-    expect(styleOffences(joined('<mar', 'quee>x</mar', 'quee>'), 'index.html')).not.toEqual([])
+    const tag = 'a retired presentational tag'
+    namesWhy(styleOffences(joined('<cen', 'ter><p>x</p></cen', 'ter>'), 'index.html'), tag, 'center')
+    namesWhy(styleOffences(joined('<fo', 'nt face="x">x</fo', 'nt>'), 'index.html'), tag, 'font')
+    namesWhy(styleOffences(joined('<mar', 'quee>x</mar', 'quee>'), 'index.html'), tag, 'marquee')
   })
 
   it('a second landmark, which splits the shell', () => {
     const extra = joined('<ma', 'in><p>one</p></ma', 'in><ma', 'in><p>two</p></ma', 'in>')
-    expect(styleOffences(extra, 'index.html')).not.toEqual([])
+    namesWhy(styleOffences(extra, 'index.html'), 'a second main splits the shell', 'two main')
     expect(styleOffences(documentFixture('class="card"'), 'index.html')).toEqual([])
   })
 
