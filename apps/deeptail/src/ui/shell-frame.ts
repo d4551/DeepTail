@@ -57,6 +57,7 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
       showFailure(strip, message)
     },
     dispose: () => {
+      drawer.close()
       drawer.dispose()
       chrome.shell.remove()
     },

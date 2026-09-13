@@ -107,7 +107,9 @@ describe('the live mount', () => {
   it('rebuilds when the first paint is incomplete, and relabels a full one', () => {
     const root = document.createElement('div')
     root.id = 'root'
-    root.style.setProperty('--dsh-drawer', '1')
+    const sheet = document.createElement('style')
+    sheet.textContent = '#root { --dsh-drawer: 1; }'
+    document.head.append(sheet)
     document.body.append(root)
     const frame = mountShellFrame(root, createTranslate('en'))
     root.querySelector('.main-title')?.remove()
