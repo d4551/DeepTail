@@ -52,6 +52,7 @@ const SHIPPED_CHECKS: readonly string[] = [
   'gridAncestor',
   'isLayoutPane',
   'scrolls',
+  'waitForFiniteAnimations',
 ]
 
 describe('the file list both gates read', () => {

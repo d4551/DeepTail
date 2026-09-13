@@ -46,6 +46,7 @@ export const FLOORS: Readonly<Record<string, number>> = {
   'apps/deeptail/src/store.ts': 100,
   'apps/deeptail/src/stream.ts': 100,
   'apps/deeptail/src/tailscale.ts': 100,
+  'apps/deeptail/src/transport-bundles.ts': 100,
   'apps/deeptail/src/transport.ts': 100,
   'apps/deeptail/src/ui/dom.ts': 100,
   'apps/deeptail/src/ui/roving.ts': 100,
