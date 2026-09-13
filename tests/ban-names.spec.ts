@@ -21,6 +21,10 @@ describe('the ban on a name that says the code stands in for something', () => {
       ['const MOCK_ROWS = []'],
       ['const temporaryRows = 1'],
       ['const compat_layer = 1'],
+      ['function noopPaint() { return 1 }'],
+      ['const fetchShim = 1'],
+      ['class LocalePolyfill {}'],
+      ['const uiBarrel = 1'],
     ])
   })
 

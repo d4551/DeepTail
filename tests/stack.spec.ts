@@ -150,8 +150,7 @@ describe('stack floors', () => {
       ['workspace', 'workspace:*'],
     ])
     for (const [shape, range] of shapes) {
-      const driven = new Map(Object.entries(FLOORS))
-      driven.set('typescript', range)
+      const driven = new Map([...Object.entries(FLOORS), ['typescript', range]])
       const read = belowFloor(driven)
       if (shape === 'workspace') {
         expect(read).toEqual(['typescript declares an unreadable range: workspace:*'])
@@ -161,6 +160,27 @@ describe('stack floors', () => {
     }
   })
 
+})
+
+describe('stack floors refuse an old major', () => {
+  it('names a TypeScript 6 pin, a React 18 pin and a Tauri v1 pin', () => {
+    const driven = new Map([
+      ...Object.entries(FLOORS),
+      ['typescript', '6.9.2'],
+      ['react', '18.3.1'],
+      ['@tauri-apps/api', '1.6.0'],
+      ['playwright', '1.62.1'],
+    ])
+    expect(belowFloor(driven)).toEqual([
+      '@tauri-apps/api 1.6.0 is below the 2.11 floor',
+      'playwright 1.62.1 is below the 1.63 floor',
+      'react 18.3.1 is below the 19.3 floor',
+      'typescript 6.9.2 is below the 7.0 floor',
+    ])
+  })
+})
+
+describe('stack floors read a range', () => {
   it('reports the highest version a range admits, not the one it names', () => {
     // `maxSatisfying` is what the outdated gate reads, so a range that admits a
     // version above the floor is held by what the range admits, not by the

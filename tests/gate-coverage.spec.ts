@@ -119,7 +119,14 @@ describe('the structure checks the browser suite evaluates', () => {
       expect(source).toContain(
         '"scope":"[data-deeptail-shell], [data-deeptail-picker], [data-deeptail-state=\\"boot-error\\"], [data-deeptail-return]"',
       )
-      for (const rule of ['"alignment"', '"nested-grid"', '"split-shell"', '"inline-script"', '"target-size"']) {
+      for (const rule of [
+        '"alignment"',
+        '"nested-grid"',
+        '"split-shell"',
+        '"empty-root"',
+        '"inline-script"',
+        '"target-size"',
+      ]) {
         expect(source).toContain(rule)
       }
     }

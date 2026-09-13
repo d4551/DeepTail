@@ -40,6 +40,8 @@ const RETIRED_FRAMEWORKS = new Set([
   'semantic-ui',
   'uikit',
   'animate.css',
+  'vue',
+  'nuxt',
 ])
 
 /**
@@ -53,7 +55,9 @@ function isRetiredFramework(name: string): boolean {
     name.startsWith('@tailwindcss/') ||
     name.startsWith('@daisyui/') ||
     name.startsWith('@alpinejs/') ||
-    name.startsWith('@htmx.org/')
+    name.startsWith('@htmx.org/') ||
+    name.startsWith('@vue/') ||
+    name.startsWith('@nuxt/')
   )
 }
 
@@ -72,6 +76,33 @@ describe('the stack policy bans', () => {
     TREE_SCAN_BUDGET_MS,
   )
 
+})
+
+describe('the stack policy names a planted reintroduction', () => {
+  it('including Vue, Nuxt, daisyUI, Tailwind and HTMX', () => {
+    const planted = [
+      'vue',
+      'nuxt',
+      '@vue/runtime-dom',
+      '@nuxt/kit',
+      'daisyui',
+      'tailwindcss',
+      'htmx.org',
+      'typescript',
+    ]
+    expect(planted.filter((name) => isRetiredFramework(name))).toEqual([
+      'vue',
+      'nuxt',
+      '@vue/runtime-dom',
+      '@nuxt/kit',
+      'daisyui',
+      'tailwindcss',
+      'htmx.org',
+    ])
+  })
+})
+
+describe('the stack policy bans the rest of the ship list', () => {
   it(
     'ships no legacy pipeline configuration file',
     () => {

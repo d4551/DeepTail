@@ -20,6 +20,14 @@ beforeEach(() => {
   resetDocument()
 })
 
+it('reports an empty document, which is a first paint that never seated', () => {
+  const { findings, add } = collector()
+  checkShell(add, { scope: '[data-deeptail-shell], [data-deeptail-picker]' })
+  expect(findings).toEqual([
+    { rule: 'empty-root', detail: 'the document has no product surface; first paint must seat the shell or the picker' },
+  ])
+})
+
 it('reads one shell with one main as conforming', () => {
   const shell = document.createElement('div')
   shell.dataset['deeptailShell'] = ''

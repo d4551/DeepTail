@@ -23,7 +23,11 @@ interface ShellLimits {
  * @param limits - the product surfaces to read.
  */
 function checkShell(add: Report, limits: ShellLimits): void {
-  const shells = [...document.querySelectorAll(limits.scope)].filter((node) => node.matches('[data-deeptail-shell]'))
+  const surfaces = [...document.querySelectorAll(limits.scope)]
+  if (surfaces.length === 0) {
+    add('empty-root', 'the document has no product surface; first paint must seat the shell or the picker')
+  }
+  const shells = surfaces.filter((node) => node.matches('[data-deeptail-shell]'))
   if (shells.length > 1) {
     add('split-shell', `the document has ${String(shells.length)} [data-deeptail-shell] roots; a document carries one`)
   }
