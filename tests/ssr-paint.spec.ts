@@ -10,10 +10,19 @@
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createTranslate } from '../apps/deeptail/src/locales.ts'
 import { mountShellFrame } from '../apps/deeptail/src/ui/shell-frame.ts'
-import { assertPaintedShell, DIST_PAGE, EMPTY_ROOT, firstPaintMarkup, paintIndex } from '../scripts/paint-index.ts'
+import {
+  assertPaintedShell,
+  DIST_PAGE,
+  EMPTY_ROOT,
+  firstPaintMarkup,
+  paintFile,
+  paintIndex,
+} from '../scripts/paint-index.ts'
 import { resetDocument } from './dom.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
@@ -79,6 +88,17 @@ describe('the page painter', () => {
     expect(() => assertPaintedShell('')).toThrow('lost the product shell')
     expect(() => assertPaintedShell('<div></div>')).toThrow('lost the product shell')
     expect(assertPaintedShell(firstPaintMarkup()).includes('<main')).toBe(true)
+  })
+
+  it('stamps a built page on disk', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'deeptail-paint-'))
+    const page = join(root, 'index.html')
+    await writeFile(page, VITE_PAGE)
+    paintFile(page)
+    const html = await readFile(page, 'utf8')
+    expect(html.includes('<main')).toBe(true)
+    expect(html.includes(EMPTY_ROOT)).toBe(false)
+    await rm(root, { recursive: true, force: true })
   })
 })
 

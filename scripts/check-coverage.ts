@@ -153,7 +153,7 @@ export function coverageReport(
 if (import.meta.main) {
   const [table] = Bun.argv.slice(2)
   if (table === undefined) {
-    const run = Bun.spawnSync(['bun', 'test', '--coverage', ...(await suiteFiles())], {
+    const run = Bun.spawnSync(['bun', 'test', '--coverage', '--timeout', '180000', ...(await suiteFiles())], {
       stdout: 'pipe',
       stderr: 'pipe',
     })

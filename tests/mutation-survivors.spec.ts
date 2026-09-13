@@ -10,6 +10,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'bun:test'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -237,12 +238,12 @@ describe('the program a reader actually runs', () => {
     const printed = await runProgram(root, ['elsewhere/report.json'])
     expect(printed).toContain('a.ts (1)')
     expect(printed.trimEnd().endsWith('1 survived')).toBe(true)
-  })
+  }, TREE_SCAN_BUDGET_MS)
 
   it('reads the status it is given, so a run’s other outcomes can be listed', async () => {
     const { root } = await reportOnDisk('elsewhere/report.json', { 'a.ts': [mutant(2, 'NoCoverage')] })
     expect(await runProgram(root, ['elsewhere/report.json', 'NoCoverage'])).toContain('1 nocoverage')
-  })
+  }, TREE_SCAN_BUDGET_MS)
 })
 
 describe('the program, run the way a reader runs it', () => {

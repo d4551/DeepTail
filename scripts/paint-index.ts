@@ -63,11 +63,12 @@ export function paintIndex(html: string): string {
 }
 
 /**
- * Stamp the built page on disk.
+ * Stamp one built page on disk with the product shell.
+ * @param page - the HTML file to paint.
  */
-function paintDist(): void {
+export function paintFile(page: string): void {
   if (!GlobalRegistrator.isRegistered) GlobalRegistrator.register()
-  writeFileSync(DIST_PAGE, paintIndex(readFileSync(DIST_PAGE, 'utf8')))
+  writeFileSync(page, paintIndex(readFileSync(page, 'utf8')))
 }
 
-if (import.meta.main) paintDist()
+if (import.meta.main) paintFile(DIST_PAGE)
