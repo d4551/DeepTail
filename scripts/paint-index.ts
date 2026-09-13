@@ -41,7 +41,13 @@ export function firstPaintMarkup(): string {
  * @returns the markup, once it is the shell.
  */
 export function assertPaintedShell(painted: string): string {
-  if (!painted.includes('<main') || !painted.includes('data-deeptail-shell')) {
+  const mains = painted.split('<main').length - 1
+  if (
+    mains !== 1 ||
+    !painted.includes('data-deeptail-shell') ||
+    !painted.includes('drawer-toggle') ||
+    !painted.includes('main-title')
+  ) {
     throw new Error('deeptail: first paint lost the product shell')
   }
   return painted

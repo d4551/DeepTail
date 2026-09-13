@@ -245,7 +245,7 @@
 @media (pointer: coarse) {
   .button,
   .row {
-    min-block-size: var(--dsh-target-touch);
+    min-block-size: var(--dsh-target-coarse);
   }
 }
 

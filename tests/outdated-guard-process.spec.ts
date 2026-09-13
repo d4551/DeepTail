@@ -209,7 +209,9 @@ describe('the readers the evaluated instance exports', () => {
     expect(reader.behindInstallable(reader.parseOutdated(UNREADABLE))).toEqual([
       'future reports versions this gate cannot read: not-a-semver vs 1.0.0',
     ])
-    expect(reader.behindInstallable(reader.parseOutdated(BLANK_LATEST))).toEqual([])
+    expect(reader.behindInstallable(reader.parseOutdated(BLANK_LATEST))).toEqual([
+      'knip reports versions this gate cannot read: 6.34.0 vs ',
+    ])
     expect(reader.behindInstallable(reader.parseOutdated(AHEAD_OF_TAG))).toEqual([])
     expect(reader.behindInstallable(reader.parseOutdated(BEHIND_CHANNEL))).toEqual([
       '@deepseek-ai/dsh-client-web is at 0.1.2-alpha.3 and 0.1.2-rc.1 is installable now',

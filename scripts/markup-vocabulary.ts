@@ -75,6 +75,18 @@ const RETIRED_EXACT = new Set([
   'mockup-phone-camera',
   'mockup-phone-display',
   'divider',
+  // daisyUI 5 components this list named only as compounds or not at all.
+  // `stack` was exact, so `stack-top` (a modifier, a different token) passed;
+  // `file-input`, `floating-label`, `radial-progress`, `calendar`/`cally`, and
+  // the `fieldset` class (not the HTML element) are the current-major names a
+  // reintroduction writes first.
+  'floating-label',
+  'file-input',
+  'radial-progress',
+  'calendar',
+  'cally',
+  'fieldset',
+  'progress',
   // The spellings daisyUI 5 renamed away from. A page still writing one is a
   // page on the retired framework's previous major, which is as much a second
   // vocabulary as its current one — and the rename means the current-name
@@ -170,6 +182,20 @@ const RETIRED_PREFIXES = [
   'd-block',
   'd-inline',
   'd-grid',
+  // daisyUI 5 modifiers whose bare component is already exact, so a sized or
+  // coloured variant (`stack-top`, `checkbox-primary`, `file-input-sm`) was a
+  // different token the exact set never saw.
+  'stack-',
+  'file-input-',
+  'checkbox-',
+  'radio-',
+  'toggle-',
+  'range-',
+  'rating-',
+  'steps-',
+  'progress-',
+  'fieldset-',
+  'calendar-',
 ]
 
 /**

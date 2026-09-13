@@ -55,12 +55,7 @@ async function knownHosts(attemptsLeft = REGISTRY_ATTEMPTS): Promise<readonly Ho
     (reason) => (attemptsLeft <= 1 ? Promise.reject(reason) : undefined),
   )
   if (read !== undefined) {
-    ledger.hydrate(
-      await readNativeGrants().then(
-        (grants) => grants,
-        () => null,
-      ),
-    )
+    ledger.hydrate(await readNativeGrants())
     return read
   }
   await renderHostPicker(container)

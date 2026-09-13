@@ -43,13 +43,21 @@ export const REMOTE_URL = /^(?:https?:)?\/\//iu
 
 /**
  * An htmx wiring attribute, including HTMX 4's `:inherited` / `hx-status`
- * spellings and the `data-hx-` equivalent the docs still accept.
+ * spellings, the `data-hx-` equivalent the docs still accept, the boolean `hx`
+ * flag on a `<template>`, and the internal `htmx-partial` attribute the
+ * custom element compiles to.
  *
- * An `hx-` attribute moves an element's behaviour into the tag: a listener, a
+ * An `hx-` prefix is not the whole surface. HTMX 4's documented fallback for
+ * template languages that strip unknown tags is `<template hx type="partial">`
+ * — a boolean `hx` with no hyphen — and the runtime's internal form is
+ * `<template htmx-partial>`. A pattern that required `hx-` read both as
+ * ordinary markup and said nothing.
+ *
+ * An `hx` attribute moves an element's behaviour into the tag: a listener, a
  * fetch and a swap all decided where the markup is written. This product wires
  * interactivity in modules, so no wiring attribute may ship.
  */
-const HTMX_ATTRIBUTE = /^(?:data-)?hx-/iu
+const HTMX_ATTRIBUTE = /^(?:(?:data-)?hx(?:-.*)?|htmx-partial)$/iu
 
 /**
  * A Tailwind arbitrary-value utility in a class list.

@@ -7,7 +7,7 @@
  * @module
  */
 
-import { describe, it } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 import { joined, namesWhy, styleOffences } from './fixtures.ts'
 
 /** The reason an hx attribute is refused. */
@@ -39,6 +39,12 @@ describe('the markup gate rejects a retired framework class or directive', () =>
     namesWhy(styleOffences(`<div class="${joined('md:p-', '4')}">x</div>`, 'index.html'), CLASS, 'md:p-4')
     namesWhy(styleOffences(`<div class="${joined('flex-', 'col')}">x</div>`, 'index.html'), CLASS, 'flex-col')
   })
+
+  it('a daisyUI 5 modifier the exact-name list cannot see', () => {
+    for (const token of [joined('stack-', 'top'), joined('file-', 'input'), joined('floating-', 'label')]) {
+      namesWhy(styleOffences(`<div class="${token}">x</div>`, 'index.html'), CLASS, token)
+    }
+  })
 })
 
 describe('the markup gate rejects HTMX 4 wiring', () => {
@@ -61,6 +67,28 @@ describe('the markup gate rejects HTMX 4 wiring', () => {
       HX,
       'hx-include:append',
     )
+  })
+
+  it('the template form HTMX 4 documents when custom elements are stripped', () => {
+    // `<template hx type="partial">` is the published fallback: `hx` is a
+    // boolean attribute with no hyphen, so a pattern that required `hx-` read
+    // it as an ordinary template. The runtime's internal spelling is the
+    // `htmx-partial` attribute on the same tag. Assembled so this file is not
+    // the markup it plants.
+    const flag = joined('h', 'x')
+    const kind = joined('par', 'tial')
+    const internal = joined('htmx', '-partial')
+    namesWhy(
+      styleOffences(`<template ${flag} type="${kind}"><span>x</span></template>`, 'index.html'),
+      HX,
+      'template hx',
+    )
+    namesWhy(styleOffences(`<template ${internal}><span>x</span></template>`, 'index.html'), HX, 'htmx-partial')
+    namesWhy(styleOffences(`<div ${flag}>x</div>`, 'index.html'), HX, 'boolean hx')
+  })
+
+  it('but allows a template that carries no htmx wiring', () => {
+    expect(styleOffences('<template><span>x</span></template>', 'index.html')).toEqual([])
   })
 })
 

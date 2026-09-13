@@ -89,7 +89,7 @@ const SHORT_ROW = `| Package | Current | Update | Latest |
 | knip    | 6.33.0  |
 `
 
-/** A row whose newest column bun left empty, which the comparison passes over. */
+/** A row whose newest column bun left empty, which the comparison must name. */
 const BLANK_LATEST = `| Package | Current | Update | Latest |
 | knip    | 6.34.0  | 6.34.0 |        |
 `
@@ -195,11 +195,13 @@ describe('the outdated gate against a table it cannot read, and against none', (
 })
 
 describe('the rows the comparison passes over', () => {
-  it('passes over a row whose newest column is blank', () => {
-    // bun leaves the column empty for a package it has nothing to say about.
-    // Read as a version it would be a version nothing can parse, and the gate
-    // would fail on a row bun declined to answer for.
-    expect(behindInstallable(parseOutdated(BLANK_LATEST))).toEqual([])
+  it('names a row whose newest column is blank rather than passing over it', () => {
+    // An empty Latest cell is not "current": it is a column the table did not
+    // answer, the same miss as a sixth-column drop. Silence here is how a pin
+    // behind an installable version stays green.
+    expect(behindInstallable(parseOutdated(BLANK_LATEST))).toEqual([
+      'knip reports versions this gate cannot read: 6.34.0 vs ',
+    ])
   })
 
   it('does not pass over a row whose newest column says something', () => {

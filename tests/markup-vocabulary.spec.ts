@@ -55,10 +55,47 @@ describe('the class vocabulary rejects a retired framework’s earlier spelling'
       expect([token, retiredClassTokens(token)]).toEqual([token, [token]])
     }
   })
+})
 
-  it('but allows this product’s own classes, which share stems with all of it', () => {
-    for (const token of ['menu-item', 'menu-footer', 'menu-label', 'modal-dialog', 'shell', 'sidebar']) {
+describe('the class vocabulary allows this product’s own classes', () => {
+  it('which share stems with the retired frameworks', () => {
+    for (const token of [
+      'menu-item',
+      'menu-footer',
+      'menu-label',
+      'modal-dialog',
+      'shell',
+      'sidebar',
+      'radio',
+      'input',
+    ]) {
       expect([token, retiredClassTokens(token)]).toEqual([token, []])
+    }
+  })
+})
+
+describe('the class vocabulary rejects a daisyUI 5 modifier the exact-name list cannot see', () => {
+  it('because a modifier is a different token from the bare component', () => {
+    // `stack` is exact, so `stack-top` is a different token; `file-input` and
+    // `floating-label` are current-major component names this list never
+    // carried. Catching only the bare word is catching only the spelling a
+    // reintroduction does not have to write.
+    for (const token of [
+      'stack-top',
+      'stack-bottom',
+      'stack-start',
+      'stack-end',
+      'file-input',
+      'file-input-sm',
+      'floating-label',
+      'radial-progress',
+      'calendar',
+      'cally',
+      'fieldset',
+      'checkbox-primary',
+      'radio-sm',
+    ]) {
+      expect([token, retiredClassTokens(token)]).toEqual([token, [token]])
     }
   })
 })

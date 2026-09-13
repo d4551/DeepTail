@@ -49,7 +49,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--dsh-space-2);
-  height: var(--dsh-control-md);
+  min-height: var(--dsh-control-md);
+  height: auto;
   padding: var(--dsh-space-3) var(--dsh-space-5);
   margin: 0 var(--dsh-space-0) var(--dsh-space-3);
   box-sizing: border-box;

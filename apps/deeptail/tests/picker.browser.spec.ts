@@ -14,6 +14,29 @@ import { until } from './wait.ts'
 let harness: Harness
 
 /**
+ * Pair until the boot notice appears, or the rounds run out.
+ * @param page - the page showing the picker.
+ * @param roundsLeft - how many more times to pair before giving up.
+ */
+async function pairUntilBootNotice(page: Page, roundsLeft: number): Promise<void> {
+  if (roundsLeft <= 0) return
+  if ((await page.locator('[data-deeptail-state="boot-error"]').count()) > 0) return
+  await page.waitForSelector('[data-deeptail-picker]')
+  await page.getByRole('button', { name: 'Pair a host' }).click()
+  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+  await page.locator('[data-deeptail-field="link"]').fill('https://harness.local:3080/pair#token')
+  await page.locator('[data-deeptail-action="pair-submit"]').click()
+  await until(async () => {
+    if ((await page.locator('[data-deeptail-state="boot-error"]').count()) > 0) return true
+    return (
+      (await page.locator('[data-deeptail-picker]').count()) > 0 &&
+      (await page.locator('[data-deeptail-action="pair-submit"]').count()) === 0
+    )
+  })
+  await pairUntilBootNotice(page, roundsLeft - 1)
+}
+
+/**
  * Reach the picker's list view the way the product does: from a mounted shell,
  * by asking to pair another host.
  * @param extra - answer-table overrides for the case.
@@ -43,6 +66,25 @@ it('shows the empty state, not a bare list, when nothing is paired', async () =>
   // The empty screen is the call to action; there is no list to choose from.
   expect(await page.locator('[role="list"]').count()).toBe(0)
   await harness.shoot(page, 'picker-empty')
+  await page.close()
+})
+
+it('pairs a pasted link through the native command, not by closing the form', async () => {
+  const workstation = HOSTS[0]
+  if (workstation === undefined) throw new Error('HOSTS is empty')
+  const page = await harness.open({
+    hosts: [],
+    paired: workstation,
+  })
+  await page.locator('button.button-primary').click()
+  await page.locator('[data-deeptail-field="link"]').fill('https://harness.local:3080/?token=abc')
+  await page.locator('[data-deeptail-field="name"]').fill('Workstation')
+  await page.locator('[data-deeptail-action="pair-submit"]').click()
+  // A dismissed form is satisfied by a no-op; the command and the link it
+  // spent are the product side-effect.
+  expect((await harness.commands(page)).filter((command) => command === 'pair_host')).toEqual(['pair_host'])
+  expect(await page.evaluate(() => window.deeptailPairedLinks ?? [])).toEqual(['https://harness.local:3080/?token=abc'])
+  await page.waitForSelector('[data-deeptail-shell]')
   await page.close()
 })
 
@@ -155,5 +197,25 @@ it('renders the dark palette from the harness tokens', async () => {
   expect(await page.evaluate(() => document.body.dataset['dsDarkTheme'] !== undefined)).toBe(true)
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(21, 21, 23)')
   await harness.shoot(page, 'picker-dark')
+  await page.close()
+})
+
+it('retries the registry from the boot notice through the named action', async () => {
+  const workstation = HOSTS[0]
+  if (workstation === undefined) throw new Error('HOSTS is empty')
+  const page = await harness.open({
+    hosts: [],
+    paired: workstation,
+    listError: 'the registry is unreadable',
+    listErrorOn: [3, 5, 7],
+  })
+  await pairUntilBootNotice(page, 4)
+  await page.locator('[data-deeptail-state="boot-error"]').waitFor({ state: 'visible' })
+  const reads = async (): Promise<number> =>
+    (await harness.commands(page)).filter((command) => command === 'list_hosts').length
+  const before = await reads()
+  await page.locator('[data-deeptail-action="boot-retry"]').click()
+  await until(async () => (await reads()) > before)
+  expect(await reads()).toBeGreaterThan(before)
   await page.close()
 })

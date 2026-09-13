@@ -103,3 +103,9 @@
   font-family: inherit;
   cursor: pointer;
 }
+
+@media not (hover: hover) {
+  .select {
+    height: var(--dsh-target-coarse);
+  }
+}

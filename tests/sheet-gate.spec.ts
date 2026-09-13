@@ -172,3 +172,23 @@ describe('the layout widths the product ships', () => {
     TREE_SCAN_BUDGET_MS,
   )
 })
+
+describe('the pointer floors the product ships', () => {
+  it(
+    'are named once, as fine and coarse',
+    async () => {
+      // 24px and 44px were each named twice (`min`/`fine`, `touch`/`coarse`),
+      // so a sheet could raise one alias and leave the other behind. The
+      // pointer names are the ones the structure checks measure against.
+      const tokens = await readFile('apps/deeptail/src/styles/tokens.css', 'utf8')
+      const defined = [...tokens.matchAll(/--dsh-target-(\w+)\s*:/gu)].map((match) => match[1])
+      expect(defined.toSorted()).toEqual(['coarse', 'fine'])
+      const retired = [joined('target-', 'min'), joined('target-', 'touch')]
+      const leftover = (await sheets()).flatMap((sheet) =>
+        retired.filter((name) => sheet.text.includes(`--dsh-${name}`)).map((name) => `${sheet.label}: ${name}`),
+      )
+      expect(leftover).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
+})

@@ -102,6 +102,12 @@ it('spawns with a typed preset and reports the ids a host does have', async () =
   await harness.shoot(page, 'new-session')
   await page.locator('[data-deeptail-action="spawn-create"]').click()
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
+  // A closed dialog is satisfied by a no-op, so assert what reached the host.
+  const created = (await harness.calls(page)).filter((call) => call.endpoint === 'session/create')
+  expect(created.length).toBe(1)
+  expect(created[0]?.host).toBe('dev-1')
+  expect(created[0]?.args['agentPreset']).toBe('ptc')
+  expect(created[0]?.args['cwd']).toBe('/srv/work')
   await page.close()
 })
 

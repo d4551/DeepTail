@@ -132,7 +132,7 @@ describe('the stack policy bans the rest of the ship list', () => {
     if (match[1] === undefined) throw new Error('the bun pin is unreadable')
     const pinned = coerce(match[1] ?? '')
     if (pinned === null) throw new Error('the bun pin is unreadable')
-    expect(gte(pinned, '1.4.0')).toBe(true)
+    expect(gte(pinned, '1.4.2')).toBe(true)
     // The pin and the runtime drift apart silently — an upgraded bun with a
     // stale pin, or a pin ahead of the binary — so the pin must say exactly
     // what runs, and moving either is a decision this test witnesses.

@@ -75,6 +75,10 @@ describe('the page painter', () => {
     expect(html.includes('<div id="root"></div>')).toBe(false)
   })
 
+  it('paints the same page twice, so a stamp is not a roll of the dice', () => {
+    expect(paintIndex(VITE_PAGE)).toBe(paintIndex(VITE_PAGE))
+  })
+
   it('refuses a page that has no empty mount to paint', () => {
     expect(() => paintIndex('<div id="root"><main></main></div>')).toThrow('no empty #root to paint')
   })
@@ -87,6 +91,7 @@ describe('the page painter', () => {
   it('refuses markup that is not the product shell', () => {
     expect(() => assertPaintedShell('')).toThrow('lost the product shell')
     expect(() => assertPaintedShell('<div></div>')).toThrow('lost the product shell')
+    expect(() => assertPaintedShell('<main data-deeptail-shell></main>')).toThrow('lost the product shell')
     expect(assertPaintedShell(firstPaintMarkup()).includes('<main')).toBe(true)
   })
 

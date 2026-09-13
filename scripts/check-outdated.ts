@@ -92,7 +92,10 @@ export function parseOutdated(output: string): OutdatedRow[] {
 export function behindInstallable(rows: readonly OutdatedRow[]): string[] {
   const behind: string[] = []
   for (const row of rows) {
-    if (row.latest === '') continue
+    if (row.latest === '') {
+      behind.push(`${row.name} reports versions this gate cannot read: ${row.current} vs ${row.latest}`)
+      continue
+    }
     // Compared by version, not by string, and parsed, not coerced: `coerce`
     // drops the prerelease it was given, which would read 0.1.2-rc.1 and
     // 0.1.2-alpha.3 as equal and hide a channel that has moved on. A package

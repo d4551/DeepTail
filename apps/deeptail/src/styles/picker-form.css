@@ -65,8 +65,8 @@
    platform. */
 .radio {
   flex: none;
-  inline-size: var(--dsh-target-min);
-  block-size: var(--dsh-target-min);
+  inline-size: var(--dsh-target-fine);
+  block-size: var(--dsh-target-fine);
   accent-color: var(--dsw-alias-state-business-primary);
 }
 
@@ -225,12 +225,12 @@
    staying a dot inside a tall row. */
 @media (pointer: coarse) {
   .choice {
-    min-block-size: var(--dsh-target-touch);
+    min-block-size: var(--dsh-target-coarse);
   }
 
   .radio {
-    inline-size: var(--dsh-target-touch);
-    block-size: var(--dsh-target-touch);
+    inline-size: var(--dsh-target-coarse);
+    block-size: var(--dsh-target-coarse);
   }
 }
 

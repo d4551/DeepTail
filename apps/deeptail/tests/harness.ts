@@ -155,8 +155,29 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
     }, options.direction)
   }
   const page = await context.newPage()
+  if (coarse) await emulateCoarsePointer(page)
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
   return page
+}
+
+/**
+ * Make CSS `(pointer: coarse)` and `(hover: none)` true.
+ *
+ * `hasTouch` enables touch events. It does not change the media features the
+ * sheets switch the 44px floor on, so a phone viewport would still measure as
+ * a fine pointer and the Apple HIG bump would never apply.
+ * @param page - the page to emulate on.
+ */
+async function emulateCoarsePointer(page: Page): Promise<void> {
+  const session = await page.context().newCDPSession(page)
+  await session.send('Emulation.setEmulatedMedia', {
+    features: [
+      { name: 'pointer', value: 'coarse' },
+      { name: 'hover', value: 'none' },
+      { name: 'any-pointer', value: 'coarse' },
+      { name: 'any-hover', value: 'none' },
+    ],
+  })
 }
 
 export async function startHarness(): Promise<Harness> {

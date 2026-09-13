@@ -222,8 +222,9 @@ describe('the checker configuration', () => {
     for (const category of ['correctness', 'suspicious', 'perf', 'pedantic']) {
       expect(categories[category]).toBe('error')
     }
-    // A rule switched off is a defect hidden rather than fixed.
-    expect(Object.values(rules).filter((level) => level === 'off')).toEqual([])
+    // A rule dropped to warn or info silences as much as one switched off:
+    // `off` alone was the hole this suite's own header describes.
+    expect(Object.values(rules).filter((level) => level !== 'error')).toEqual([])
     // The linter carries no ignore list: what it reads is decided by the
     // repository's own ship list, not by a second list here.
     expect(config['ignorePatterns']).toBeUndefined()
