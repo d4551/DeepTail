@@ -58,9 +58,8 @@ function specs(): { readonly browser: string[]; readonly unit: string[] } {
 function unitTestArguments(): string[] {
   const script = manifestScripts().get('test') ?? ''
   const words = script.trim().split(/\s+/u)
-  const start = words.indexOf('test')
-  if (words[0] !== 'bun' || start === -1) throw new Error(`the test script is not a bun test run: ${script}`)
-  return words.slice(start + 1).filter((word) => !word.startsWith('-'))
+  if (words[0] !== 'bun' || words[1] !== 'test') throw new Error(`the test script is not a bun test run: ${script}`)
+  return filtersOf(script)
 }
 
 describe('the suites the gate chain runs', () => {
