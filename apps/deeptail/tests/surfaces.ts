@@ -63,7 +63,7 @@ export async function realizeView(page: Page, view: Pick<AuditView, 'width' | 'h
   await page.setViewportSize({ width: view.width, height: view.height })
   await page.evaluate(waitForFiniteAnimations)
   await page.evaluate(
-    async () =>
+    () =>
       new Promise<void>((resolve) => {
         requestAnimationFrame(() => {
           resolve()
