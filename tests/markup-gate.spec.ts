@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { documentFixture, joined, styleOffences } from './fixtures.ts'
+import { documentFixture, joined, namesWhy, styleOffences } from './fixtures.ts'
 
 /**
  * Assembles a URL scheme from parts, at module scope so the fixtures below
@@ -164,8 +164,12 @@ describe('the markup gate rejects a class a retired framework renamed', () => {
     // host above is assembled.
     const tag = joined('hx', '-partial')
     const attribute = joined('data-hx', '-get')
-    expect(styleOffences(`<${tag}><span>x</span></${tag}>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div ${attribute}="/a">x</div>`, 'index.html')).not.toEqual([])
+    namesWhy(styleOffences(`<${tag}><span>x</span></${tag}>`, 'index.html'), 'is an htmx element', 'hx-partial')
+    namesWhy(
+      styleOffences(`<div ${attribute}="/a">x</div>`, 'index.html'),
+      'an hx attribute wires behaviour into the tag',
+      'data-hx-get',
+    )
   })
 
   it('but allows the product’s own vocabulary, which shares stems with all of it', () => {
@@ -207,39 +211,6 @@ describe('the markup gate rejects retired class vocabulary', () => {
     expect(styleOffences('<button class="button-primary drawer-toggle menu-item">x</button>', 'index.html')).toEqual([])
     expect(styleOffences('<input class="input">', 'index.html')).toEqual([])
     expect(styleOffences('<div class="list status label">x</div>', 'index.html')).toEqual([])
-  })
-})
-
-describe('the markup gate rejects a retired framework class or directive', () => {
-  it('a daisyUI class, including the v4 leftover and the v5 compound', () => {
-    expect(styleOffences(`<div class="${joined('btn-', 'primary')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('btn-', 'group')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('theme-', 'controller')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('dock-', 'active')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('vali', 'dator')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<input class="${joined('input-', 'sm')}">`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('status-', 'error')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('list-', 'row')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('list-', 'col')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('divi', 'der')}">x</div>`, 'index.html')).not.toEqual([])
-  })
-
-  it('a Tailwind numeric utility, with or without a variant', () => {
-    expect(styleOffences(`<div class="${joined('p-', '4')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('md:p-', '4')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div class="${joined('flex-', 'col')}">x</div>`, 'index.html')).not.toEqual([])
-  })
-
-  it('an HTMX 4 attribute, including the data- prefix and the inherited modifier', () => {
-    expect(styleOffences(`<div ${joined('data-h', 'x-get')}="/x">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div ${joined('hx-confirm', ':inherited')}="sure?">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<form ${joined('hx-sta', 'tus')}:422="target:#e"></form>`, 'index.html')).not.toEqual([])
-  })
-
-  it('a Bootstrap grid class and a Vue or Bootstrap directive', () => {
-    expect(styleOffences(`<div class="${joined('col-md-', '6')}">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div ${joined('v-', 'if')}="open">x</div>`, 'index.html')).not.toEqual([])
-    expect(styleOffences(`<div ${joined('data-bs-', 'toggle')}="modal">x</div>`, 'index.html')).not.toEqual([])
   })
 })
 

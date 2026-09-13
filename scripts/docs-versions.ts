@@ -63,6 +63,45 @@ export function statesPin(stated: string, pinned: string): boolean {
 }
 
 /**
+ * Tools this reader holds to a pin, so a badge and a toolchain line that
+ * disagree about one of them cannot hide behind last-wins.
+ */
+const PINNED_NAMES = new Set(['Bun', ...Object.keys(DOCUMENTED_TOOLS)])
+
+/**
+ * Every tool the prose names twice at versions that cannot both be true.
+ *
+ * A badge stating Playwright 1.62 and a toolchain line stating 1.63.0 used to
+ * pass because the reader kept only the last match. Two claims that are not
+ * coarsenings of each other are a lie, wherever they sit.
+ * @param text - the prose to read.
+ * @returns one line per tool the prose contradicts itself about.
+ */
+export function documentationConflicts(text: string): string[] {
+  const seen = new Map<string, string>()
+  const conflicts: string[] = []
+  for (const match of text.matchAll(STATED_VERSION)) {
+    const gap = match[0].indexOf(' ')
+    const name = match[0].slice(0, gap)
+    const version = match[0].slice(gap + 1)
+    if (!PINNED_NAMES.has(name)) continue
+    const previous = seen.get(name)
+    if (previous === undefined) {
+      seen.set(name, version)
+      continue
+    }
+    if (previous === version) continue
+    if (statesPin(previous, version)) {
+      seen.set(name, version)
+      continue
+    }
+    if (statesPin(version, previous)) continue
+    conflicts.push(`${name} is documented as both ${previous} and ${version}`)
+  }
+  return conflicts
+}
+
+/**
  * Every tool whose documented version disagrees with what is installed.
  * @param stated - the versions the prose states.
  * @param declared - every dependency the repository declares.

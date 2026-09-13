@@ -6,29 +6,29 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { banOffences, readsTheName, source, styleOffences } from './fixtures.ts'
+import { banOffences, namesWhy, readsTheName, source, styleOffences } from './fixtures.ts'
 
 /**
  * The suppression directives the suite plants, spelt in parts so this file's
  * own lines are not the directives its fixtures carry.
  */
-const DIRECTIVES: readonly string[] = [
-  ['@ts-', 'expect-error'].join(''),
-  ['@ts-', 'ignore'].join(''),
-  ['@ts-', 'nocheck'].join(''),
-  ['oxlint-', 'disable-next-line'].join(''),
-  ['eslint-', 'disable'].join(''),
-  ['biome-', 'ignore lint: shipping'].join(''),
-  ['knip-', 'ignore'].join(''),
-  ['istanbul ', 'ignore next'].join(''),
-  '@public',
+const DIRECTIVES: readonly { readonly text: string; readonly why: string }[] = [
+  { text: ['@ts-', 'expect-error'].join(''), why: 'suppressing the type checker hides the defect' },
+  { text: ['@ts-', 'ignore'].join(''), why: 'suppressing the type checker hides the defect' },
+  { text: ['@ts-', 'nocheck'].join(''), why: 'suppressing the type checker hides the defect' },
+  { text: ['oxlint-', 'disable-next-line'].join(''), why: 'suppressing a rule hides the defect' },
+  { text: ['eslint-', 'disable'].join(''), why: 'suppressing a rule hides the defect' },
+  { text: ['biome-', 'ignore lint: shipping'].join(''), why: 'suppressing a rule hides the defect' },
+  { text: ['knip-', 'ignore'].join(''), why: 'suppressing a rule hides the defect' },
+  { text: ['istanbul ', 'ignore next'].join(''), why: 'excluding a line from coverage hides the gap' },
+  { text: '@public', why: 'marking an unused export public hides that nothing imports it' },
 ]
 
 describe('the suppression ban rejects', () => {
   it('every directive, in a line comment and in a block comment', () => {
     for (const directive of DIRECTIVES) {
-      expect([directive, banOffences(`// ${directive}\nconst a = 1`)]).not.toEqual([directive, []])
-      expect([directive, banOffences(`/* ${directive} */\nconst a = 1`)]).not.toEqual([directive, []])
+      namesWhy(banOffences(`// ${directive.text}\nconst a = 1`), directive.why, `line ${directive.text}`)
+      namesWhy(banOffences(`/* ${directive.text} */\nconst a = 1`), directive.why, `block ${directive.text}`)
     }
   })
 
@@ -43,16 +43,17 @@ describe('the suppression ban rejects', () => {
       '  return String(value)',
       '}',
     )
-    expect(banOffences(text)).not.toEqual([])
+    namesWhy(banOffences(text), 'suppressing the type checker hides the defect', 'after as const')
   })
 
   it('a Rust lint suppression, which the .ts-only walk never reached', () => {
     // Spelt in parts: the attribute is this test's data, not its instruction.
     const switch_off = ['al', 'low'].join('')
-    expect(banOffences(`#[${switch_off}(dead_code)]`, 'lib.rs')).not.toEqual([])
-    expect(banOffences(`#![${switch_off}(dead_code)]`, 'lib.rs')).not.toEqual([])
-    expect(banOffences('#[expect(dead_code)]', 'lib.rs')).not.toEqual([])
-    expect(banOffences(`#[ ${switch_off} ( dead_code ) ]`, 'lib.rs')).not.toEqual([])
+    const why = 'suppressing a Rust lint hides the defect'
+    namesWhy(banOffences(`#[${switch_off}(dead_code)]`, 'lib.rs'), why, 'allow')
+    namesWhy(banOffences(`#![${switch_off}(dead_code)]`, 'lib.rs'), why, 'inner allow')
+    namesWhy(banOffences('#[expect(dead_code)]', 'lib.rs'), why, 'expect')
+    namesWhy(banOffences(`#[ ${switch_off} ( dead_code ) ]`, 'lib.rs'), why, 'spaced allow')
   })
 
   it('a test taken out of the run', () => {
@@ -60,9 +61,10 @@ describe('the suppression ban rejects', () => {
     // not one of the fixtures it bans.
     const skip = ['sk', 'ip'].join('')
     const only = ['on', 'ly'].join('')
-    expect(banOffences(`it.${skip}('does the thing', () => {})`)).not.toEqual([])
-    expect(banOffences(`describe.${only}('a group', () => {})`)).not.toEqual([])
-    expect(banOffences(`it.to${'do'}('later')`)).not.toEqual([])
+    const why = 'a test that is skipped, focused or expected to fail is a test that does not report'
+    namesWhy(banOffences(`it.${skip}('does the thing', () => {})`), why, 'skip')
+    namesWhy(banOffences(`describe.${only}('a group', () => {})`), why, 'only')
+    namesWhy(banOffences(`it.to${'do'}('later')`), why, 'todo')
   })
 })
 
@@ -206,49 +208,87 @@ describe('neither gate is fooled by punctuation that changes nothing', () => {
     expect(readsTheName("el.setAttribute(('style'), 'x')")).toBe(true)
     expect(readsTheName("el.setAttribute('style' as string, 'x')")).toBe(true)
     expect(readsTheName("el.setAttribute((('sty') + ('le')), 'x')")).toBe(true)
-    expect(styleOffences("(el).style.color = 'red'")).not.toEqual([])
-    expect(banOffences("(document).write('x')")).not.toEqual([])
-    expect(banOffences(source('const d = (document)', "d.write('x')"))).not.toEqual([])
-    expect(banOffences('new (Array)(3)')).not.toEqual([])
-    expect(banOffences("(eval)('1 + 1')")).not.toEqual([])
+    namesWhy(
+      styleOffences("(el).style.color = 'red'"),
+      'an element style declaration is an inline style',
+      'parens style',
+    )
+    namesWhy(banOffences("(document).write('x')"), 'document.write is removed from modern engines', 'parens write')
+    namesWhy(
+      banOffences(source('const d = (document)', "d.write('x')")),
+      'document.write is removed from modern engines',
+      'aliased parens write',
+    )
+    namesWhy(banOffences('new (Array)(3)'), 'use an array literal or Array.from', 'parens Array')
+    namesWhy(banOffences("(eval)('1 + 1')"), 'eval executes text as code', 'parens eval')
   })
 })
 
 describe('the ban gate reads a name however it is reached', () => {
   it('through brackets', () => {
-    expect(banOffences("name['substr'](0, 3)")).not.toEqual([])
+    namesWhy(banOffences("name['substr'](0, 3)"), 'String.prototype.substr is deprecated; use slice', 'bracket substr')
   })
 
   it('through a rename', () => {
     // A `const` and an import alias both change the written name without
     // changing what runs, so a rule matching the written name is one line away
     // from being switched off.
-    expect(banOffences(source('const d = document', "d.write('x')"))).not.toEqual([])
-    expect(banOffences(source("import { it as check } from 'bun:test'", "check.skip('x', () => {})"))).not.toEqual([])
-    expect(banOffences(source('const list = Array', 'new list(3)'))).not.toEqual([])
+    namesWhy(
+      banOffences(source('const d = document', "d.write('x')")),
+      'document.write is removed from modern engines',
+      'renamed write',
+    )
+    namesWhy(
+      banOffences(source("import { it as check } from 'bun:test'", "check.skip('x', () => {})")),
+      'a test that is skipped, focused or expected to fail is a test that does not report',
+      'renamed skip',
+    )
+    namesWhy(
+      banOffences(source('const list = Array', 'new list(3)')),
+      'use an array literal or Array.from',
+      'renamed Array',
+    )
   })
 
   it('through the global object', () => {
-    expect(banOffences("globalThis.eval('1 + 1')")).not.toEqual([])
-    expect(banOffences("window.eval('1 + 1')")).not.toEqual([])
+    namesWhy(banOffences("globalThis.eval('1 + 1')"), 'eval executes text as code', 'globalThis eval')
+    namesWhy(banOffences("window.eval('1 + 1')"), 'eval executes text as code', 'window eval')
   })
 
   it('through a property write rather than an assignment', () => {
-    expect(banOffences("Reflect.set(el, 'innerHTML', '<b>x</b>')")).not.toEqual([])
-    expect(banOffences('Object.assign(el, { innerHTML: markup })')).not.toEqual([])
-    expect(banOffences('Reflect.construct(Array, [3])')).not.toEqual([])
+    namesWhy(
+      banOffences("Reflect.set(el, 'innerHTML', '<b>x</b>')"),
+      'use textContent, or insertAdjacentHTML with markup this repository does not author',
+      'Reflect.set innerHTML',
+    )
+    namesWhy(
+      banOffences('Object.assign(el, { innerHTML: markup })'),
+      'use textContent, or insertAdjacentHTML with markup this repository does not author',
+      'assign innerHTML',
+    )
+    namesWhy(
+      banOffences('Reflect.construct(Array, [3])'),
+      'use an array literal or Array.from',
+      'Reflect.construct Array',
+    )
   })
 
-  it('but not a merge that carries none of them', () => {
+})
+
+describe('the ban gate allows a merge that carries none of the banned names', () => {
+  it('and a write that is not document.write', () => {
     expect(banOffences('Object.assign(page, { recorded, commands })')).toEqual([])
     expect(banOffences('const d = drawer\nd.write = null')).toEqual([])
   })
+})
 
-  it('in a Rust attribute however it is laid out', () => {
+describe('the ban gate reads a Rust attribute however it is laid out', () => {
+  it('with the lint level not adjacent to the opening bracket', () => {
     // Neither of these has `#[` and `allow(` adjacent on one line, which is all
     // the line reader ever looked for.
-    expect(banOffences('#[cfg_attr(all(), allow(dead_code))]\nfn x() {}', 'lib.rs')).not.toEqual([])
-    expect(banOffences('#[\n    allow(dead_code)\n]\nfn x() {}', 'lib.rs')).not.toEqual([])
+    const why = 'suppressing a Rust lint hides the defect'
+    namesWhy(banOffences('#[cfg_attr(all(), allow(dead_code))]\nfn x() {}', 'lib.rs'), why, 'cfg_attr allow')
+    namesWhy(banOffences('#[\n    allow(dead_code)\n]\nfn x() {}', 'lib.rs'), why, 'multiline allow')
     expect(banOffences('// this crate does not allow (any) suppressions', 'lib.rs')).toEqual([])
   })
 })

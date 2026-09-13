@@ -92,6 +92,23 @@ export function refused(why: string, groups: readonly (readonly string[])[]): vo
 }
 
 /**
+ * A scanner's report names the reason this fixture exists to produce.
+ *
+ * `.not.toEqual([])` is satisfied by any non-empty list — including a parse
+ * error, a different rule, or a scanner that always returns a dummy string.
+ * Naming the reason is what keeps the fixture honest about the rule it drives.
+ * @param found - the reasons the scanner reported.
+ * @param reason - a distinctive stretch of the reason this fixture must produce.
+ * @param name - the fixture's name, so a miss says which case went silent.
+ */
+export function namesWhy(found: readonly string[], reason: string, name: string): void {
+  expect([name, found.some((why) => why.includes(reason)) ? reason : found.join(' | ') || 'nothing reported']).toEqual([
+    name,
+    reason,
+  ])
+}
+
+/**
  * Every fixture named is admitted: the gate reports nothing for it.
  * @param groups - one entry per fixture; an entry's lines assemble one source.
  */

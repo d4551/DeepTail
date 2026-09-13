@@ -8,11 +8,9 @@
 import { ACTIONS } from '../actions/registry.ts'
 import type { Translate } from '../locales.ts'
 import { DATA } from '../markers.ts'
-import { button, el, liveRegion, setAria } from './dom.ts'
+import { button, el, setAria } from './dom.ts'
+import { buildChrome, placeChrome, readChrome, relabelChrome, type ShellChrome, SIDEBAR_ID } from './shell-chrome.ts'
 import { errorStrip, showFailure } from './states.ts'
-
-/** The sidebar's id, which the drawer toggle points `aria-controls` at. */
-const SIDEBAR_ID = 'deeptail-sidebar'
 
 /** The regions of the shell, and what its main pane can be told to say. */
 export interface ShellFrame {
@@ -30,108 +28,62 @@ export interface ShellFrame {
 
 /**
  * Mount the chrome over the container.
+ *
+ * When the container already holds a first paint of this chrome, the live
+ * mount adopts those nodes and binds the drawer rather than replacing the
+ * tree the document shipped.
  * @param container - the application root.
  * @param t - copy source.
  * @returns the regions the shell's surfaces mount into, and a disposer.
  */
 export function mountShellFrame(container: HTMLElement, t: Translate): ShellFrame {
-  const shell = el('div', { className: 'shell', data: { [DATA.shell]: '' } })
-  const scrim = el('div', { className: 'drawer-scrim' })
-  // The landmark, the section header and the page heading each name something
-  // different; one key for all three gave the navigation region and the page
-  // the same name.
-  const sidebar = el('nav', { className: 'sidebar', aria: { label: t('shell.navLabel') } })
-  sidebar.id = SIDEBAR_ID
-  const brandRow = el('div', { className: 'brand-row' })
-  // A wordmark, not the page's heading: the sidebar it sits in is hidden on a
-  // phone, and a heading that disappears with the layout leaves the page with
-  // none at all.
-  brandRow.append(el('span', { className: 'brand-name', text: t('app.name') }))
-  sidebar.append(brandRow)
-
-  const main = el('main', { className: 'main' })
-  const header = el('div', { className: 'main-header' })
-  const body = el('div', { className: 'main-body' })
-  body.append(el('div', { className: 'placeholder', text: t('shell.pickSession') }))
-  const live = liveRegion()
-  main.append(header, body, live)
-
-  shell.append(scrim, sidebar, main)
-  container.replaceChildren(shell)
-
-  const dismiss = buildDrawerDismissal(sidebar, t, () => {
-    drawer.close()
-  })
-  const drawer = mountDrawer({ shell, sidebar, main, scrim, dismiss }, t)
-  // The main pane is present at every width, so the page's one heading lives
-  // here rather than in the drawer.
-  header.append(drawer.toggle, el('h1', { className: 'main-title', text: t('shell.sessionsHeading') }))
-
+  const adopted = readChrome(container)
+  const chrome = adopted ?? buildChrome(t)
+  if (adopted === undefined) placeChrome(container, chrome)
+  else relabelChrome(chrome, t)
+  const drawer = mountDrawer(chrome, t, adopted !== undefined)
+  if (adopted === undefined) {
+    chrome.header.append(drawer.toggle, el('h1', { className: 'main-title', text: t('shell.sessionsHeading') }))
+  }
   return {
-    sidebar,
-    body,
+    sidebar: chrome.sidebar,
+    body: chrome.body,
     announce: (text) => {
-      live.textContent = text
+      chrome.live.textContent = text
     },
     showError: (message) => {
       const strip = errorStrip('shell-error')
-      body.replaceChildren(strip)
+      chrome.body.replaceChildren(strip)
       showFailure(strip, message)
     },
     dispose: () => {
       drawer.dispose()
-      shell.remove()
+      chrome.shell.remove()
     },
   }
 }
 
-/**
- * The drawer's own close control, seated at the top of the drawer.
- *
- * The toggle that opens the drawer renders in the main header, which the open
- * drawer covers, so on a touch layout the reader cannot reach it — and there is
- * no Escape key on a phone. This is what they tap, and where focus lands when
- * the drawer opens.
- * @param sidebar - the drawer the control is seated in.
- * @param t - copy source.
- * @param onDismiss - closes the drawer.
- * @returns the control, hidden until the drawer is open.
- */
-function buildDrawerDismissal(sidebar: HTMLElement, t: Translate, onDismiss: () => void): HTMLButtonElement {
-  const dismiss = button('drawer-dismiss', t('shell.closeSessions'), onDismiss)
-  dismiss.dataset[DATA.action] = ACTIONS['drawer.dismiss'].marker
-  dismiss.hidden = true
-  sidebar.prepend(dismiss)
-  return dismiss
-}
-
-/** The elements the drawer moves between its open and closed states. */
-interface DrawerRegions {
-  readonly shell: HTMLElement
-  readonly sidebar: HTMLElement
-  /** The pane the open drawer covers, which must not stay reachable behind it. */
-  readonly main: HTMLElement
-  /** The backdrop, whose only gesture is to close the drawer. */
-  readonly scrim: HTMLElement
-  /** The drawer's own close control, shown only while it is a drawer and open. */
-  readonly dismiss: HTMLButtonElement
-}
-
-/** The drawer's control, and the teardown for the listeners it installs. */
+/** The drawer's control, and the teardown for the listeners it installed. */
 interface Drawer {
   readonly toggle: HTMLButtonElement
-  /** Close an open drawer, returning focus to the control that opened it. */
   readonly close: () => void
   readonly dispose: () => void
 }
 
 /**
+ * The button a first paint already seated, named by its class.
+ * @param root - the region that holds it.
+ * @param className - the class the first paint wrote.
+ * @returns the button.
+ */
+function seatedButton(root: ParentNode, className: string): HTMLButtonElement {
+  const node = root.querySelector(`button.${className}`)
+  if (!(node instanceof HTMLButtonElement)) throw new Error(`deeptail: missing ${className} in the shell chrome`)
+  return node
+}
+
+/**
  * Move focus with the drawer.
- *
- * The sidebar precedes the main pane in the document, so the control that opens
- * it sits after everything it reveals. Without this a keyboard user travels
- * backwards to reach what they just opened, and on the way out has to hunt for
- * the toggle again.
  * @param sidebar - the drawer.
  * @param toggle - the control that opens and closes it.
  * @param open - whether the drawer is now open.
@@ -141,39 +93,30 @@ function followDrawer(sidebar: HTMLElement, toggle: HTMLButtonElement, open: boo
     toggle.focus()
     return
   }
-  // On the next frame: the sidebar is still hidden until styles are recomputed,
-  // and focus does not enter a hidden subtree.
   requestAnimationFrame(() => sidebar.querySelector('button')?.focus())
 }
 
 /**
  * Whether the sidebar is currently a drawer.
- *
- * The drawer only exists on the narrow layout; on the wide one the sidebar is a
- * permanent column and must never be made inert. Which layout is showing is the
- * stylesheet's decision, taken at a width written only there and published as a
- * flag: a width restated in script is a second breakpoint waiting to disagree
- * with the first.
  * @returns true while the narrow layout is showing.
  */
 function isDrawerLayout(): boolean {
-  // The flag is set inside the shell's own container query, which cannot style
-  // its container, so it rides on #root — the shell's root — and is read there.
   const root = document.querySelector('#root')
   if (!(root instanceof HTMLElement)) return false
   return getComputedStyle(root).getPropertyValue('--dsh-drawer').trim() === '1'
 }
 
+/** The elements the drawer moves between its open and closed states. */
+interface DrawerRegions {
+  readonly shell: HTMLElement
+  readonly sidebar: HTMLElement
+  readonly main: HTMLElement
+  readonly scrim: HTMLElement
+  readonly dismiss: HTMLButtonElement
+}
+
 /**
  * Put the shell into the drawer state asked for.
- *
- * A translated drawer still holds its controls in the tab order, so the closed
- * one is taken out of the tree rather than merely moved off screen. The scrim
- * covers the whole main pane, the header and the toggle included, so tabbing
- * past the last drawer control landed on controls the reader can neither see
- * nor click: what the open drawer covers leaves the tree for as long as it is
- * open, which is what makes it modal. Escape and the scrim are its dismissals,
- * and both sit outside the inert pane.
  * @param regions - the shell, the sidebar, the pane behind it and the backdrop.
  * @param toggle - the control whose label and `aria-expanded` report the state.
  * @param t - copy source.
@@ -187,55 +130,86 @@ function applyDrawerState(regions: DrawerRegions, toggle: HTMLButtonElement, t: 
   const drawer = isDrawerLayout()
   sidebar.inert = !open && drawer
   main.inert = open && drawer
-  // The drawer covers the header the toggle renders in, so while it is open
-  // the control that opened it is behind it — visible in the tree only because
-  // `inert` had not yet been applied, and unreachable by touch either way. The
-  // drawer carries its own dismissal, which is also where focus lands.
   dismiss.hidden = !(open && drawer)
 }
 
 /**
- * Wire the drawer: the sidebar is a permanent column on the wide layout and a
- * dismissible overlay on the narrow one, dismissed by the scrim, by Escape,
- * and by the toggle that reports its state.
- * @param regions - the shell, the sidebar it holds, and the backdrop.
+ * The dismiss control, created or adopted.
+ * @param sidebar - where it sits.
  * @param t - copy source.
- * @returns the toggle to seat in the header, and a disposer.
+ * @param adopted - whether the first paint already seated it.
+ * @param onClose - closes the drawer.
+ * @returns the control.
  */
-function mountDrawer(regions: DrawerRegions, t: Translate): Drawer {
-  const { shell, scrim } = regions
-  const setDrawer = (open: boolean, moveFocus = false): void => {
-    applyDrawerState(regions, toggle, t, open)
-    if (moveFocus && isDrawerLayout()) followDrawer(regions.sidebar, toggle, open)
+function drawerDismiss(sidebar: HTMLElement, t: Translate, adopted: boolean, onClose: () => void): HTMLButtonElement {
+  if (adopted) {
+    const seated = seatedButton(sidebar, 'drawer-dismiss')
+    seated.addEventListener('click', onClose)
+    return seated
   }
-  const toggle = button('drawer-toggle', t('shell.openSessions'), () => {
-    setDrawer(shell.dataset[DATA.drawer] !== 'open', true)
-  })
+  const dismiss = button('drawer-dismiss', t('shell.closeSessions'), onClose)
+  dismiss.dataset[DATA.action] = ACTIONS['drawer.dismiss'].marker
+  dismiss.hidden = true
+  sidebar.prepend(dismiss)
+  return dismiss
+}
+
+/**
+ * The toggle control, created or adopted.
+ * @param chrome - the regions it sits in and reports on.
+ * @param t - copy source.
+ * @param adopted - whether the first paint already seated it.
+ * @param onToggle - opens or closes the drawer.
+ * @returns the control.
+ */
+function drawerToggle(chrome: ShellChrome, t: Translate, adopted: boolean, onToggle: () => void): HTMLButtonElement {
+  if (adopted) {
+    const seated = seatedButton(chrome.header, 'drawer-toggle')
+    seated.addEventListener('click', onToggle)
+    return seated
+  }
+  const toggle = button('drawer-toggle', t('shell.openSessions'), onToggle)
   toggle.dataset[DATA.action] = ACTIONS['drawer.toggle'].marker
   setAria(toggle, { controls: SIDEBAR_ID, expanded: 'false' })
+  return toggle
+}
 
+/**
+ * Wire the drawer onto chrome that was just built or just adopted.
+ * @param chrome - the regions the drawer moves.
+ * @param t - copy source.
+ * @param adopted - whether the toggle and dismiss already sit in the tree.
+ * @returns the toggle to seat in the header on a fresh mount, and a disposer.
+ */
+function mountDrawer(chrome: ShellChrome, t: Translate, adopted: boolean): Drawer {
+  const { shell, sidebar, main, scrim } = chrome
+  const drawer: { set: (open: boolean, moveFocus?: boolean) => void } = {
+    set: () => {
+      throw new Error('deeptail: drawer set before it was wired')
+    },
+  }
+  const dismiss = drawerDismiss(sidebar, t, adopted, () => drawer.set(false, true))
+  const toggle = drawerToggle(chrome, t, adopted, () => drawer.set(shell.dataset[DATA.drawer] !== 'open', true))
+  drawer.set = (open, moveFocus = false) => {
+    applyDrawerState({ shell, sidebar, main, scrim, dismiss }, toggle, t, open)
+    if (moveFocus && isDrawerLayout()) followDrawer(sidebar, toggle, open)
+  }
   scrim.addEventListener('click', () => {
-    setDrawer(false, true)
+    drawer.set(false, true)
   })
   const onShellKeyDown = (event: KeyboardEvent): void => {
-    // The connection menu owns Escape while it is open and stops the event
-    // there, so one press never closes both it and the drawer.
-    if (event.key === 'Escape' && shell.dataset[DATA.drawer] === 'open') setDrawer(false, true)
+    if (event.key === 'Escape' && shell.dataset[DATA.drawer] === 'open') drawer.set(false, true)
   }
   document.addEventListener('keydown', onShellKeyDown)
-  const onLayoutChange = (): void => {
-    setDrawer(shell.dataset[DATA.drawer] === 'open')
-  }
-  // The flag changes when the viewport crosses the width the stylesheet named,
-  // which is exactly when the document's own box changes.
-  const watchLayout = new ResizeObserver(onLayoutChange)
+  const watchLayout = new ResizeObserver(() => {
+    drawer.set(shell.dataset[DATA.drawer] === 'open')
+  })
   watchLayout.observe(document.documentElement)
-  setDrawer(false)
-
+  drawer.set(false)
   return {
     toggle,
     close: () => {
-      setDrawer(false, true)
+      drawer.set(false, true)
     },
     dispose: () => {
       document.removeEventListener('keydown', onShellKeyDown)

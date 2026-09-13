@@ -5,7 +5,7 @@
 [![Tauri 2.11](https://img.shields.io/badge/Tauri-2.11-24C8DB?logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust edition 2024](https://img.shields.io/badge/Rust-edition%202024-000000?logo=rust&logoColor=white)](https://doc.rust-lang.org/edition-guide/rust-2024/)
 [![Vite 8](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
-[![Playwright 1.62](https://img.shields.io/badge/Playwright-1.62-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
+[![Playwright 1.63](https://img.shields.io/badge/Playwright-1.63-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 [![Platforms: desktop, iOS, Android](https://img.shields.io/badge/platforms-desktop%20%C2%B7%20iOS%20%C2%B7%20Android-4B5563)](#layout)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 

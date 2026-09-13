@@ -6,7 +6,7 @@
   "description": "DeepTail shell: boots the DeepSeek Harness web client against a remote host over the Tauri carrier",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && bun ../../scripts/paint-index.ts",
     "preview": "vite preview"
   },
   "dependencies": {

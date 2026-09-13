@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
-import { documentationDrift, statedVersions, statesPin } from '../scripts/docs-versions.ts'
+import { documentationConflicts, documentationDrift, statedVersions, statesPin } from '../scripts/docs-versions.ts'
 import { readJsonc } from '../scripts/jsonc.ts'
 import { everyDependency } from './manifests.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
@@ -52,13 +52,15 @@ describe('the documented toolchain', () => {
     'documents the toolchain it installs, at the version it installs',
     async () => {
       const readme = await readFile('README.md', 'utf8')
-      const section = readme.slice(readme.indexOf('## Toolchain'))
       const manifest = readJsonc(await readFile('package.json', 'utf8'))
       const manager = typeof manifest['packageManager'] === 'string' ? manifest['packageManager'] : ''
-      const stated = statedVersions(section)
+      const stated = statedVersions(readme)
       // A reader that found nothing would report no drift at all, which is what
-      // the toolchain line looked like to every gate before this one.
+      // the toolchain line looked like to every gate before this one. The whole
+      // README is read, so a badge that names a different version than the
+      // toolchain line cannot hide above the heading this used to slice from.
       expect(stated.size).toBeGreaterThan(0)
+      expect(documentationConflicts(readme)).toEqual([])
       expect(documentationDrift(stated, await everyDependency(), manager)).toEqual([])
     },
     TREE_SCAN_BUDGET_MS,
@@ -87,6 +89,9 @@ describe('the documented toolchain', () => {
     ])
   })
 
+})
+
+describe('the bun pin the documentation names', () => {
   it('reads bun off a pin that names bun, and not off one that merely contains it', () => {
     // `packageManager` names the manager as well as its version. A reader that
     // took the version out of the middle of that name would read a fork, or a
@@ -95,5 +100,17 @@ describe('the documented toolchain', () => {
     expect(documentationDrift(statedVersions(AGREEING), DECLARED, '@acme/bun@1.4.2')).toEqual([
       'Bun is documented as 1.4.2 and pinned at @acme/bun@1.4.2',
     ])
+  })
+})
+
+describe('the documented toolchain contradicts itself', () => {
+  it('names a badge and a toolchain line that cannot both be true', () => {
+    // The README used to carry Playwright 1.62 in a badge and 1.63.0 in the
+    // toolchain line. Last-wins on the map kept only the later claim.
+    expect(documentationConflicts('Playwright 1.62 · Playwright 1.63.0')).toEqual([
+      'Playwright is documented as both 1.62 and 1.63.0',
+    ])
+    expect(documentationConflicts('Tauri 2.11 · Tauri 2.11.1')).toEqual([])
+    expect(documentationConflicts(AGREEING)).toEqual([])
   })
 })

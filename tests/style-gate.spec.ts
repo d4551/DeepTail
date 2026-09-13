@@ -15,41 +15,57 @@ import {
   documentFixture,
   interpolatedMarkup,
   markupFixture,
+  namesWhy,
   readsTheName,
   source,
   styleOffences,
 } from './fixtures.ts'
 
+/** The reason a property write of the style declaration is refused. */
+const STYLE_DECL = 'an element style declaration is an inline style'
+
 describe('the inline-style gate rejects a property write', () => {
   it('the plain property write it exists for', () => {
-    expect(styleOffences('el.style.color = "red"')).not.toEqual([])
+    namesWhy(styleOffences('el.style.color = "red"'), STYLE_DECL, 'plain write')
   })
 
   it('a style declaration merged onto an element', () => {
-    expect(styleOffences("Object.assign(el, { style: 'color: red' })")).not.toEqual([])
-    expect(styleOffences('Object.defineProperties(el, { style: { value: 1 } })')).not.toEqual([])
+    namesWhy(styleOffences("Object.assign(el, { style: 'color: red' })"), STYLE_DECL, 'assign')
+    namesWhy(styleOffences('Object.defineProperties(el, { style: { value: 1 } })'), STYLE_DECL, 'defineProperties')
   })
 
   it('a computed property spelt around', () => {
-    expect(styleOffences("el['sty' + 'le'].color = 'red'")).not.toEqual([])
-    expect(styleOffences("el['style'].color = 'red'")).not.toEqual([])
+    namesWhy(styleOffences("el['sty' + 'le'].color = 'red'"), STYLE_DECL, 'concat key')
+    namesWhy(styleOffences("el['style'].color = 'red'"), STYLE_DECL, 'bracket key')
   })
 
   it('the typed style map and the bulk text form', () => {
-    expect(styleOffences('el.attributeStyleMap.set("color", "red")')).not.toEqual([])
-    expect(styleOffences('el.style.cssText = "color: red"')).not.toEqual([])
+    namesWhy(
+      styleOffences('el.attributeStyleMap.set("color", "red")'),
+      'the typed style map is the style attribute',
+      'attributeStyleMap',
+    )
+    namesWhy(
+      styleOffences('el.style.cssText = "color: red"'),
+      'writing cssText replaces an inline style block',
+      'cssText',
+    )
   })
 
   it('the declaration destructured back out of an element', () => {
-    expect(styleOffences('const { style } = el')).not.toEqual([])
-    expect(styleOffences('const { style: declaration } = el')).not.toEqual([])
-    expect(styleOffences('function paint({ style }) { return style }')).not.toEqual([])
+    namesWhy(styleOffences('const { style } = el'), STYLE_DECL, 'destructure')
+    namesWhy(styleOffences('const { style: declaration } = el'), STYLE_DECL, 'renamed destructure')
+    namesWhy(styleOffences('function paint({ style }) { return style }'), STYLE_DECL, 'param destructure')
   })
 })
 
 describe('the inline-style gate rejects a write whose name is assembled', () => {
   it('an attribute named in a case HTML treats as the same name', () => {
-    expect(styleOffences("document.body.setAttribute('STYLE', 'color: red')")).not.toEqual([])
+    namesWhy(
+      styleOffences("document.body.setAttribute('STYLE', 'color: red')"),
+      'setting the attribute named style is an inline style',
+      'STYLE case',
+    )
   })
 
   it('an attribute name held in a constant', () => {
@@ -81,46 +97,82 @@ describe('the inline-style gate rejects a write whose name is assembled', () => 
     // call. Choosing either would be a guess, so the name is refused as
     // unreadable rather than excused as harmless.
     const contested = source("const attribute = 'role'", "const attribute = 'style'", "el.setAttribute(attribute, 'x')")
-    expect(styleOffences(contested)).not.toEqual([])
+    namesWhy(styleOffences(contested), 'the attribute name must be written as a literal', 'contested constant')
     expect(readsTheName(contested)).toBe(false)
   })
 
-  it('a method reached through brackets, which is the same method', () => {
+})
+
+describe('the inline-style gate rejects a method reached through brackets', () => {
+  it('which is the same method', () => {
     for (const spelling of ["const s = 'setAttribute'\nel[s]('style', 'x')", "el['setAttribute']('style', 'x')"]) {
       expect([spelling, readsTheName(spelling)]).toEqual([spelling, true])
     }
-    expect(styleOffences(source("const s = 'setAttributeNode'", 'el[s](node)'))).not.toEqual([])
-    expect(styleOffences(source("const k = 'set'", "Reflect[k](el, 'style', 'x')"))).not.toEqual([])
+    namesWhy(
+      styleOffences(source("const s = 'setAttributeNode'", 'el[s](node)')),
+      'an attribute node hides its name from every checker',
+      'bracket setAttributeNode',
+    )
+    namesWhy(
+      styleOffences(source("const k = 'set'", "Reflect[k](el, 'style', 'x')")),
+      'setting the property named style is an inline style',
+      'bracket Reflect.set',
+    )
   })
 })
 
 describe('the inline-style gate rejects an attribute write', () => {
   it('an attribute node, which never names itself at the call', () => {
-    expect(
+    namesWhy(
       styleOffences(source("const node = document.createAttribute('style')", 'el.setAttributeNode(node)')),
-    ).not.toEqual([])
-    expect(styleOffences('el.attributes.setNamedItem(node)')).not.toEqual([])
+      'an attribute node hides its name from every checker',
+      'setAttributeNode',
+    )
+    namesWhy(
+      styleOffences('el.attributes.setNamedItem(node)'),
+      'the attribute map hides the name from every checker',
+      'setNamedItem',
+    )
   })
 
   it('a property written through Reflect or Object', () => {
-    expect(styleOffences("Reflect.set(document.body, 'style', 'color: red')")).not.toEqual([])
-    expect(styleOffences("Object.defineProperty(el, 'style', { value: 1 })")).not.toEqual([])
+    namesWhy(
+      styleOffences("Reflect.set(document.body, 'style', 'color: red')"),
+      'setting the property named style is an inline style',
+      'Reflect.set',
+    )
+    namesWhy(
+      styleOffences("Object.defineProperty(el, 'style', { value: 1 })"),
+      'setting the property named style is an inline style',
+      'defineProperty',
+    )
   })
 
   it('an attribute name it cannot read at all', () => {
-    expect(styleOffences('el.setAttribute(pickName(), "x")')).not.toEqual([])
+    namesWhy(
+      styleOffences('el.setAttribute(pickName(), "x")'),
+      'the attribute name must be written as a literal',
+      'opaque name',
+    )
   })
 
   it('markup written in the source that carries the attribute', () => {
-    expect(styleOffences(markupFixture('style'))).not.toEqual([])
+    namesWhy(styleOffences(markupFixture('style')), 'a style attribute is an inline style', 'markup fixture')
   })
 
   it('the attribute in the shell document', () => {
-    expect(styleOffences(documentFixture('style'), 'index.html')).not.toEqual([])
+    namesWhy(
+      styleOffences(documentFixture('style'), 'index.html'),
+      'a style attribute is an inline style',
+      'document fixture',
+    )
   })
 
-  it('a write hidden behind a leading slash, which is not a comment', () => {
-    expect(styleOffences(source('/**/ el.style.color = "red"'))).not.toEqual([])
+})
+
+describe('the inline-style gate rejects a write hidden behind a leading slash', () => {
+  it('which is not a comment', () => {
+    namesWhy(styleOffences(source('/**/ el.style.color = "red"')), STYLE_DECL, 'not a comment')
   })
 })
 
@@ -129,21 +181,21 @@ describe('the inline-style gate rejects markup assembled at runtime', () => {
     // The value is not knowable here, but the attribute is named all the same.
     // Requiring the whole string to fold let every runtime-assembled fragment
     // through — a regression on the gate this replaced.
-    expect(styleOffences(interpolatedMarkup('style'))).not.toEqual([])
-    expect(styleOffences(concatenatedMarkup('style'))).not.toEqual([])
+    namesWhy(styleOffences(interpolatedMarkup('style')), 'a style attribute is an inline style', 'interpolated')
+    namesWhy(styleOffences(concatenatedMarkup('style')), 'a style attribute is an inline style', 'concatenated')
     // The same shapes carrying any other attribute are ordinary markup.
     expect(styleOffences(interpolatedMarkup('class'))).toEqual([])
     expect(styleOffences(concatenatedMarkup('class'))).toEqual([])
   })
 
   it('the attribute written in JSX, in the dialects that carry it', () => {
-    expect(styleOffences(badge('style'), 'badge.tsx')).not.toEqual([])
+    namesWhy(styleOffences(badge('style'), 'badge.tsx'), STYLE_DECL, 'jsx style')
     expect(styleOffences(badge('className'), 'badge.tsx')).toEqual([])
   })
 
   it('a module in any dialect it is written in, not only .ts', () => {
     for (const label of ['a.tsx', 'a.mts', 'a.cts', 'a.js', 'a.mjs', 'a.cjs']) {
-      expect([label, styleOffences('el.style.color = "red"', label)]).not.toEqual([label, []])
+      namesWhy(styleOffences('el.style.color = "red"', label), STYLE_DECL, label)
     }
   })
 })
