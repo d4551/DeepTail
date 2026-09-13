@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { createTranslate } from '../apps/deeptail/src/locales.ts'
 import { mountShellFrame } from '../apps/deeptail/src/ui/shell-frame.ts'
-import { DIST_PAGE, EMPTY_ROOT, firstPaintMarkup, paintIndex } from '../scripts/paint-index.ts'
+import { assertPaintedShell, DIST_PAGE, EMPTY_ROOT, firstPaintMarkup, paintIndex } from '../scripts/paint-index.ts'
 import { resetDocument } from './dom.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
@@ -74,6 +74,12 @@ describe('the page painter', () => {
     const extra = VITE_PAGE.replace('</head>', '<script src="./other.js"></script></head>')
     expect(() => paintIndex(extra)).toThrow('exactly one script')
   })
+
+  it('refuses markup that is not the product shell', () => {
+    expect(() => assertPaintedShell('')).toThrow('lost the product shell')
+    expect(() => assertPaintedShell('<div></div>')).toThrow('lost the product shell')
+    expect(assertPaintedShell(firstPaintMarkup()).includes('<main')).toBe(true)
+  })
 })
 
 describe('the live mount', () => {
@@ -83,10 +89,39 @@ describe('the live mount', () => {
     document.body.append(root)
     const frame = mountShellFrame(root, createTranslate('en'))
     expect(root.querySelectorAll('main')).toHaveLength(1)
-    const adopted = mountShellFrame(root, createTranslate('en'))
+    const adopted = mountShellFrame(root, createTranslate('zh'))
     expect(root.querySelectorAll('main')).toHaveLength(1)
     expect(root.querySelectorAll('[data-deeptail-shell]')).toHaveLength(1)
+    adopted.announce('opened')
+    adopted.showError('lost the host')
+    expect(root.querySelector('[role="alert"]')?.textContent).toBe('lost the host')
+    const toggle = root.querySelector('.drawer-toggle')
+    if (!(toggle instanceof HTMLButtonElement)) throw new Error('missing drawer toggle')
+    toggle.click()
+    root.querySelector('.drawer-scrim')?.dispatchEvent(new Event('click'))
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     adopted.dispose()
+    frame.dispose()
+  })
+
+  it('rebuilds when the first paint is incomplete, and relabels a full one', () => {
+    const root = document.createElement('div')
+    root.id = 'root'
+    root.style.setProperty('--dsh-drawer', '1')
+    document.body.append(root)
+    const frame = mountShellFrame(root, createTranslate('en'))
+    root.querySelector('.main-title')?.remove()
+    const rebuilt = mountShellFrame(root, createTranslate('en'))
+    expect(root.querySelector('.main-title')).not.toBeNull()
+    rebuilt.dispose()
+    const full = mountShellFrame(root, createTranslate('en'))
+    const toggle = root.querySelector('.drawer-toggle')
+    if (!(toggle instanceof HTMLButtonElement)) throw new Error('missing drawer toggle')
+    toggle.click()
+    const dismiss = root.querySelector('.drawer-dismiss')
+    if (!(dismiss instanceof HTMLButtonElement)) throw new Error('missing drawer dismiss')
+    dismiss.click()
+    full.dispose()
     frame.dispose()
   })
 })

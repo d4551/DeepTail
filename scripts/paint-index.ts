@@ -36,16 +36,25 @@ export function firstPaintMarkup(): string {
 }
 
 /**
+ * Whether markup is the product shell this paint must seat.
+ * @param painted - the chrome as HTML.
+ * @returns the markup, once it is the shell.
+ */
+export function assertPaintedShell(painted: string): string {
+  if (!painted.includes('<main') || !painted.includes('data-deeptail-shell')) {
+    throw new Error('deeptail: first paint lost the product shell')
+  }
+  return painted
+}
+
+/**
  * Fill the empty mount in a built page with the product shell.
  * @param html - the page Vite wrote.
  * @returns the page with the first paint seated in `#root`.
  */
 export function paintIndex(html: string): string {
   if (!html.includes(EMPTY_ROOT)) throw new Error('deeptail: dist/index.html has no empty #root to paint')
-  const painted = firstPaintMarkup()
-  if (!painted.includes('<main') || !painted.includes('data-deeptail-shell')) {
-    throw new Error('deeptail: first paint lost the product shell')
-  }
+  const painted = assertPaintedShell(firstPaintMarkup())
   const scripts = html.match(/<script\b/gu)
   if (scripts === null || scripts.length !== 1) {
     throw new Error(`deeptail: shipped page must carry exactly one script, found ${String(scripts?.length ?? 0)}`)
