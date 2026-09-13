@@ -10,7 +10,11 @@
  */
 
 import { beforeEach, expect, it } from 'bun:test'
-import { structureCheckSource } from '../apps/deeptail/tests/structure-emit.ts'
+import {
+  finiteAnimations,
+  structureCheckSource,
+  waitForFiniteAnimations,
+} from '../apps/deeptail/tests/structure-emit.ts'
 import { checkInlineScripts, checkOneOffScripts, checkShell } from '../apps/deeptail/tests/structure-shell.ts'
 import { checkClassVocabulary } from '../apps/deeptail/tests/structure-vocabulary.ts'
 import { resetDocument } from './dom.ts'
@@ -161,7 +165,27 @@ it('emits the checks as one self-contained page source, with the limits passed i
     'checkInlineScripts',
     'checkOneOffScripts',
     'findStructureDefects',
+    'finiteAnimations',
     'waitForFiniteAnimations',
   ]
   expect(shipped.filter((name) => !coarse.includes(`function ${name}`))).toEqual([])
+})
+
+it('drops infinite animations and keeps ones that finish', () => {
+  const spinning = {
+    effect: { getComputedTiming: () => ({ iterations: Number.POSITIVE_INFINITY }) },
+    finished: Promise.resolve(),
+  }
+  const once = {
+    effect: { getComputedTiming: () => ({ iterations: 1 }) },
+    finished: Promise.resolve(),
+  }
+  const none = { effect: null, finished: Promise.resolve() }
+  expect(finiteAnimations([spinning, once, none])).toEqual([once])
+})
+
+it('settles the layout without waiting on a spinner', async () => {
+  Object.defineProperty(document, 'fonts', { configurable: true, value: { ready: Promise.resolve() } })
+  Object.defineProperty(document, 'getAnimations', { configurable: true, value: () => [] })
+  await waitForFiniteAnimations()
 })

@@ -10,6 +10,24 @@
 import { invoke } from '@tauri-apps/api/core'
 
 /**
+ * Read a settled bundle fetch, naming the URL a refusal belongs to.
+ * @param fetched - the settled outcome, or missing when the tuple was empty.
+ * @param url - bundle URL the boot table named.
+ * @returns the bundle's source.
+ */
+export function bundleFromSettled(fetched: PromiseSettledResult<string> | undefined, url: string): string {
+  if (fetched === undefined || fetched.status === 'rejected') {
+    const detail = fetched === undefined ? '' : `: ${String(fetched.reason)}`
+    const cause = fetched?.status === 'rejected' && fetched.reason instanceof Error ? fetched.reason : undefined
+    throw new Error(
+      `deeptail: bundle ${url} could not be fetched${detail}`,
+      cause === undefined ? undefined : { cause },
+    )
+  }
+  return fetched.value
+}
+
+/**
  * Fetch one client plugin bundle's source through Rust.
  *
  * A host that refuses one bundle rejects with its own reason, and that reason
@@ -25,15 +43,7 @@ export async function fetchBundle(host: string, url: string): Promise<string> {
   const [fetched] = await Promise.allSettled([
     invoke<string>('carrier_load_bundle', { host, path: `${path.pathname}${path.search}` }),
   ])
-  if (fetched === undefined) {
-    throw new Error(`deeptail: bundle ${url} could not be fetched`)
-  }
-  if (fetched.status === 'rejected') {
-    throw new Error(`deeptail: bundle ${url} could not be fetched: ${String(fetched.reason)}`, {
-      cause: fetched.reason instanceof Error ? fetched.reason : undefined,
-    })
-  }
-  return fetched.value
+  return bundleFromSettled(fetched, url)
 }
 
 /**

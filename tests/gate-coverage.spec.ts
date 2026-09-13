@@ -49,6 +49,7 @@ const SHIPPED_CHECKS: readonly string[] = [
   'describe',
   'drawnBox',
   'findStructureDefects',
+  'finiteAnimations',
   'gridAncestor',
   'isLayoutPane',
   'scrolls',

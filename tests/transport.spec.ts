@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 import {
   answerFetchWith,
+  bundleFromSettled,
   countOf,
   invocations,
   refusalOf,
@@ -104,5 +105,17 @@ describe('bundle loading', () => {
     )
     const failure = await refusalOf(carrier.loadBundle('https://host.example/plugins/gone.js'))
     expect(failure?.cause).toBe(refusal)
+  })
+
+  it('names a missing settled outcome and a non-error refusal', () => {
+    expect(() => bundleFromSettled(undefined, 'https://host.example/plugins/gone.js')).toThrow(
+      'deeptail: bundle https://host.example/plugins/gone.js could not be fetched',
+    )
+    expect(() =>
+      bundleFromSettled({ status: 'rejected', reason: 'host unreachable' }, 'https://host.example/plugins/gone.js'),
+    ).toThrow('deeptail: bundle https://host.example/plugins/gone.js could not be fetched: host unreachable')
+    expect(bundleFromSettled({ status: 'fulfilled', value: 'source' }, 'https://host.example/plugins/ok.js')).toBe(
+      'source',
+    )
   })
 })

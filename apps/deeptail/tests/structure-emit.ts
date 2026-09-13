@@ -31,6 +31,24 @@ import { describe } from './structure-report.ts'
 import { checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import { checkClassVocabulary } from './structure-vocabulary.ts'
 
+/** An animation whose iteration count can be read. */
+export interface TimedAnimation {
+  readonly effect: { getComputedTiming(): { readonly iterations: number } } | null
+  readonly finished: Promise<unknown>
+}
+
+/**
+ * Drop infinite animations. A spinner never finishes and must not be awaited.
+ * @param animations - every animation currently running.
+ * @returns the ones that will finish.
+ */
+export function finiteAnimations<T extends TimedAnimation>(animations: readonly T[]): T[] {
+  return animations.filter((animation) => {
+    const effect = animation.effect
+    return effect !== null && effect.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
+  })
+}
+
 /**
  * Wait for fonts and finite animations. Infinite ones (the loading spinner)
  * never finish and must not be awaited.
@@ -38,11 +56,7 @@ import { checkClassVocabulary } from './structure-vocabulary.ts'
  */
 export async function waitForFiniteAnimations(): Promise<void> {
   await document.fonts.ready
-  const finite = [...document.getAnimations()].filter((animation) => {
-    const effect = animation.effect
-    return effect !== null && effect.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
-  })
-  await Promise.allSettled(finite.map((animation) => animation.finished))
+  await Promise.allSettled(finiteAnimations([...document.getAnimations()]).map((animation) => animation.finished))
 }
 
 /** The smallest touch target Apple's Human Interface Guidelines admit, in CSS pixels. */
@@ -96,6 +110,7 @@ export function structureCheckSource(coarsePointer: boolean, vocabulary: readonl
     checkInlineScripts,
     checkOneOffScripts,
     findStructureDefects,
+    finiteAnimations,
     waitForFiniteAnimations,
   ].map(String)
   return `(async () => {\n${functions.join(
