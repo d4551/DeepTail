@@ -12,7 +12,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 import { resetDocument } from './dom.ts'
-import { refusalOf, resetTransportDouble, transport } from './transport-double.ts'
+import { failBundleExecute, refusalOf, resetTransportDouble, transport } from './transport-double.ts'
 
 if (GlobalRegistrator.isRegistered) {
   await GlobalRegistrator.unregister()
@@ -31,5 +31,15 @@ describe('a bundle the page refuses to run', () => {
     const carrier = transport.createCarrier('host-1')
     const failure = await refusalOf(carrier.loadBundle('https://host.example/plugins/broken.js'))
     expect(failure?.message).toBe('deeptail: bundle https://host.example/plugins/broken.js failed to execute')
+  })
+
+  it('drops the script node when the execute waiter is refused', async () => {
+    const element = document.createElement('script')
+    document.head.append(element)
+    const failure = await new Promise<Error>((resolve) => {
+      failBundleExecute(element, 'https://host.example/plugins/broken.js', resolve)
+    })
+    expect(failure.message).toBe('deeptail: bundle https://host.example/plugins/broken.js failed to execute')
+    expect(element.isConnected).toBe(false)
   })
 })

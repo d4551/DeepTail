@@ -25,6 +25,10 @@ import {
 const STYLE_DECL = 'an element style declaration is an inline style'
 
 describe('the inline-style gate rejects a property write', () => {
+  it('says so when the source does not parse', () => {
+    namesWhy(styleOffences('function ('), 'this file does not parse, so it cannot be checked', 'unparseable')
+  })
+
   it('the plain property write it exists for', () => {
     namesWhy(styleOffences('el.style.color = "red"'), STYLE_DECL, 'plain write')
   })

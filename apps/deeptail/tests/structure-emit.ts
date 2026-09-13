@@ -33,7 +33,7 @@ import { checkClassVocabulary } from './structure-vocabulary.ts'
 
 /** An animation whose iteration count can be read. */
 export interface TimedAnimation {
-  readonly effect: { getComputedTiming(): { readonly iterations: number } } | null
+  readonly effect: { getComputedTiming(): { readonly iterations?: number } } | null
   readonly finished: Promise<unknown>
 }
 

@@ -114,6 +114,10 @@ describe('bundle loading', () => {
     expect(() =>
       bundleFromSettled({ status: 'rejected', reason: 'host unreachable' }, 'https://host.example/plugins/gone.js'),
     ).toThrow('deeptail: bundle https://host.example/plugins/gone.js could not be fetched: host unreachable')
+    const refusal = new Error('host unreachable')
+    expect(() =>
+      bundleFromSettled({ status: 'rejected', reason: refusal }, 'https://host.example/plugins/gone.js'),
+    ).toThrow('deeptail: bundle https://host.example/plugins/gone.js could not be fetched: Error: host unreachable')
     expect(bundleFromSettled({ status: 'fulfilled', value: 'source' }, 'https://host.example/plugins/ok.js')).toBe(
       'source',
     )

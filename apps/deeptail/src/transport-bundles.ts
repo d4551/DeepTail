@@ -18,11 +18,9 @@ import { invoke } from '@tauri-apps/api/core'
 export function bundleFromSettled(fetched: PromiseSettledResult<string> | undefined, url: string): string {
   if (fetched === undefined || fetched.status === 'rejected') {
     const detail = fetched === undefined ? '' : `: ${String(fetched.reason)}`
-    const cause = fetched?.status === 'rejected' && fetched.reason instanceof Error ? fetched.reason : undefined
-    throw new Error(
-      `deeptail: bundle ${url} could not be fetched${detail}`,
-      cause === undefined ? undefined : { cause },
-    )
+    throw new Error(`deeptail: bundle ${url} could not be fetched${detail}`, {
+      cause: fetched === undefined ? undefined : fetched.reason,
+    })
   }
   return fetched.value
 }
@@ -47,6 +45,17 @@ export async function fetchBundle(host: string, url: string): Promise<string> {
 }
 
 /**
+ * Report that a bundle's page script failed to run.
+ * @param element - the script node to drop.
+ * @param url - the bundle URL, for the failure a refusal reports.
+ * @param reject - the waiter that holds the execute promise.
+ */
+export function failBundleExecute(element: HTMLScriptElement, url: string, reject: (error: Error) => void): void {
+  element.remove()
+  reject(new Error(`deeptail: bundle ${url} failed to execute`))
+}
+
+/**
  * Run one bundle's source as a page script, exactly as the served shell loads
  * its own same-origin bundles.
  *
@@ -68,14 +77,7 @@ export async function executeBundle(url: string, source: string): Promise<void> 
       },
       { once: true },
     )
-    element.addEventListener(
-      'error',
-      () => {
-        element.remove()
-        reject(new Error(`deeptail: bundle ${url} failed to execute`))
-      },
-      { once: true },
-    )
+    element.addEventListener('error', () => failBundleExecute(element, url, reject), { once: true })
     document.head.append(element)
   }).finally(() => {
     URL.revokeObjectURL(blob)

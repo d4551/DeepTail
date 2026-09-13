@@ -11,7 +11,6 @@ import { expect } from 'bun:test'
 import type { Page } from 'playwright'
 import { fleet } from './fixtures.ts'
 import type { Harness, Violation } from './harness.ts'
-import { waitForFiniteAnimations } from './structure-emit.ts'
 import { pointerFlags, VIEWPORTS, type Viewport } from './viewports.ts'
 
 /** One designed width × palette the a11y suite must actually open, not merely list. */
@@ -61,7 +60,14 @@ function auditView(viewport: Viewport, dark: boolean): AuditView {
  */
 export async function realizeView(page: Page, view: Pick<AuditView, 'width' | 'height'>): Promise<void> {
   await page.setViewportSize({ width: view.width, height: view.height })
-  await page.evaluate(waitForFiniteAnimations)
+  await page.evaluate(async () => {
+    await document.fonts.ready
+    const finite = [...document.getAnimations()].filter((animation) => {
+      const effect = animation.effect
+      return effect !== null && effect.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
+    })
+    await Promise.allSettled(finite.map((animation) => animation.finished))
+  })
   await page.evaluate(
     () =>
       new Promise<void>((resolve) => {

@@ -132,8 +132,8 @@ mock.module('@tauri-apps/api/core', () => ({ invoke: invokeDouble, Channel: IpcC
 /** The carrier module under test, imported after the boundary was mocked. */
 export const transport = await import('../apps/deeptail/src/transport.ts')
 
-/** The settled-bundle reader, loaded through the same mocked invoke graph. */
-export const { bundleFromSettled } = await import('../apps/deeptail/src/transport-bundles.ts')
+/** The bundle helpers, loaded through the same mocked invoke graph. */
+export const { bundleFromSettled, failBundleExecute } = await import('../apps/deeptail/src/transport-bundles.ts')
 
 /**
  * Put the recorded state back the way a fresh process would find it: no
