@@ -13,12 +13,13 @@
  * @module
  */
 
+import type { ActionOutcome } from '../actions/outcomes.ts'
+import { outcomeCopy } from '../actions/outcomes.ts'
 import { ACTIONS } from '../actions/registry.ts'
-import { type HostApi, RemoteError } from '../api.ts'
 import type { HostRecord } from '../host.ts'
 import type { Translate } from '../locales.ts'
 import { DATA } from '../markers.ts'
-import { describeFailure } from '../reason.ts'
+import { messageOf } from '../reason.ts'
 import { button, el, labelledField, setAria } from './dom.ts'
 import { type Dialog, openDialog } from './modal.ts'
 import { clearFailure, errorStrip, showFailure } from './states.ts'
@@ -26,7 +27,7 @@ import { clearFailure, errorStrip, showFailure } from './states.ts'
 /** What the dialog needs to spawn. */
 export interface SpawnPorts {
   readonly hosts: readonly HostRecord[]
-  apiFor(host: HostRecord): HostApi
+  create(hostId: string, preset: string, cwd: string): Promise<ActionOutcome>
 }
 
 /**

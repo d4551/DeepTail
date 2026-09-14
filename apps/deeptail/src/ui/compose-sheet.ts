@@ -8,24 +8,24 @@
  * @module
  */
 
+import type { ActionOutcome } from '../actions/outcomes.ts'
+import { outcomeCopy } from '../actions/outcomes.ts'
 import { ACTIONS } from '../actions/registry.ts'
-import type { HostApi } from '../api.ts'
 import type { Translate } from '../locales.ts'
 import { DATA } from '../markers.ts'
-import { describeFailure } from '../reason.ts'
+import { messageOf } from '../reason.ts'
 import { button, el, labelledField, setAria } from './dom.ts'
 import { type Dialog, openDialog } from './modal.ts'
 import { clearFailure, errorStrip, showFailure } from './states.ts'
 
+/** How a prompt joins the session's work. */
+export type PromptMode = 'queue' | 'steer'
+
 /** What the sheet needs to send. */
 export interface ComposeTarget {
-  readonly api: HostApi
-  readonly sessionId: string
   readonly title: string
+  send(mode: PromptMode, text: string): Promise<ActionOutcome>
 }
-
-/** How a prompt joins the session's work. */
-type PromptMode = 'queue' | 'steer'
 
 /** The sheet's editable surface. */
 interface ComposeFields {
@@ -101,23 +101,36 @@ function buildComposeActions(t: Translate, dismiss: () => void, submit: (mode: P
 }
 
 /**
+ * The copy a failed send is told with.
+ * @param outcome - what dispatch answered.
+ * @param t - copy source.
+ * @returns the sentence.
+ */
+function composeFailureCopy(outcome: ActionOutcome, t: Translate): string {
+  if (outcome.kind === 'invalid' && outcome.reason === 'host-refused') {
+    return t('chat.sendFailed', { message: outcome.message })
+  }
+  return outcomeCopy(outcome, t) ?? t('chat.sendFailed', { message: outcome.kind })
+}
+
+/**
  * Report a send that never landed, wherever the operator can still see it.
  *
  * Escape closes the sheet at any time, including mid-flight, and reporting into
  * a detached node would lose the failure entirely, so a sheet that has already
  * gone is answered through the live region instead.
- * @param reason - whatever the call rejected with.
+ * @param outcome - what dispatch answered.
  * @param report - where the outcome is told.
  */
-function reportSendFailure<T>(reason: T, report: ComposeReport): void {
-  const message = describeFailure(reason, report.t)
+function reportSendFailure(outcome: ActionOutcome, report: ComposeReport): void {
+  const message = composeFailureCopy(outcome, report.t)
   if (!report.dialog.isOpen()) {
-    report.announce(report.t('chat.sendFailed', { message }))
+    report.announce(message)
     return
   }
   // The draft is deliberately left intact: a failed send must not cost the
   // operator what they typed.
-  showFailure(report.failure, report.t('chat.sendFailed', { message }))
+  showFailure(report.failure, message)
   report.release()
 }
 
@@ -128,16 +141,25 @@ function reportSendFailure<T>(reason: T, report: ComposeReport): void {
  * @param text - the drafted message.
  * @param report - where the outcome is told.
  */
-function sendPrompt(target: ComposeTarget, mode: PromptMode, text: string, report: ComposeReport): void {
+function sendPrompt<T>(target: ComposeTarget, mode: PromptMode, text: string, report: ComposeReport): void {
   const sent = (): void => {
     // Closed first: the shell's live region sits inside the root this dialog
     // holds inert, and a mutation made while it is inert is never announced.
     report.dialog.close()
     report.announce(report.t('chat.sent', { label: target.title }))
   }
-  target.api.prompt(target.sessionId, text, mode).then(sent, (reason) => {
-    reportSendFailure(reason, report)
-  })
+  target.send(mode, text).then(
+    (outcome) => {
+      if (outcome.kind === 'executed') sent()
+      else reportSendFailure(outcome, report)
+    },
+    (reason: T) => {
+      reportSendFailure(
+        { kind: 'invalid', traceId: '', reason: 'host-refused', message: messageOf(reason) },
+        report,
+      )
+    },
+  )
 }
 
 /**
