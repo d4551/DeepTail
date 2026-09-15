@@ -173,10 +173,10 @@ function checkGrid(add: Report, limits: { readonly scope: string }): void {
       if (display === 'table' && element.tagName !== 'TABLE') {
         add('hardcoded-grid', `${describe(element)} uses display:table as a layout grid`)
       }
-      for (const table of node.querySelectorAll('table')) {
-        if (table.querySelector('th, [scope]') === null) {
-          add('layout-table', `${describe(table)} is a table with no header, used as a layout grid`)
-        }
+    }
+    for (const table of node.querySelectorAll('table')) {
+      if (table.querySelector('th, [scope]') === null) {
+        add('layout-table', `${describe(table)} is a table with no header, used as a layout grid`)
       }
     }
   }

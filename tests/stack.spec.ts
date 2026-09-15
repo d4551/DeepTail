@@ -55,7 +55,7 @@ const FLOORS: Readonly<Record<string, string>> = {
   '@tauri-apps/api': '2.11',
   '@tauri-apps/cli': '2.11',
   '@types/bun': '1.4',
-  '@types/node': '26.5',
+  '@types/node': '26.6',
   '@types/semver': '7.8',
   'jsonc-parser': '3.3',
   knip: '6.35',

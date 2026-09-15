@@ -102,15 +102,15 @@ describe('the file list both gates read', () => {
 })
 
 describe('the structure checks the browser suite evaluates', () => {
-  it('carries every floor it measures against into the page', () => {
+  it('carries every floor it measures against into the page', async () => {
     // The checks are shipped to the page as their own source text and close
     // over nothing, so everything they measure against travels in the call. A
     // value left behind would be a type error where they are written; that it
     // arrives at all is what is checked here, because the two floors differ and
     // shipping the wrong one would pass every case on one pointer.
-    expect(structureCheckSource(true, ['shell'])).toContain('"target":44')
-    expect(structureCheckSource(false, ['shell'])).toContain('"target":24')
-    for (const source of [structureCheckSource(true, ['shell']), structureCheckSource(false, ['shell'])]) {
+    expect(await structureCheckSource(true, ['shell'])).toContain('"target":44')
+    expect(await structureCheckSource(false, ['shell'])).toContain('"target":24')
+    for (const source of [await structureCheckSource(true, ['shell']), await structureCheckSource(false, ['shell'])]) {
       expect(source).toContain('a[href], button, input, select, textarea, summary')
       // The vocabulary travels with the floors: a vocabulary the page never
       // receives would refuse every class — or, refused by nothing, check none.
@@ -136,7 +136,7 @@ describe('the structure checks the browser suite evaluates', () => {
 })
 
 describe('the checks the browser suite actually ships', () => {
-  it('defines every check it ships, not merely mentions one', () => {
+  it('defines every check it ships, not merely mentions one', async () => {
     // `findStructureDefects` calls each helper by name, so every name occurs in
     // the emitted text twice: once where it is defined and once where it is
     // called. A check for the name alone therefore stayed green when a helper
@@ -144,13 +144,13 @@ describe('the checks the browser suite actually ships', () => {
     // `ReferenceError` the moment the page evaluates this, which makes every
     // structural check on that page report nothing at all. Definitions are what
     // is counted, and the whole set is pinned rather than a chosen few.
-    const defined = [...structureCheckSource(true, ['shell']).matchAll(/function\s+([A-Za-z0-9_$]+)\s*\(/gu)]
+    const defined = [...(await structureCheckSource(true, ['shell'])).matchAll(/function\s+([A-Za-z0-9_$]+)\s*\(/gu)]
       .map((found) => found[1] ?? '')
       .toSorted()
     expect(defined).toEqual([...SHIPPED_CHECKS])
   })
 
-  it('calls every check it defines, so none is shipped and then never run', () => {
+  it('calls every check it defines, so none is shipped and then never run', async () => {
     // The other direction. A helper that is defined but never reached is dead
     // weight the page parses for nothing, and a rule that stopped being called
     // would report nothing while still being present to any check that only
@@ -158,7 +158,7 @@ describe('the checks the browser suite actually ships', () => {
     // parse rather than a text scan: a name inside a string or a comment is
     // neither a definition nor a call, and the checks ship helpers beside the
     // entry point, so "called" means called anywhere in what the page runs.
-    const parsed = parseScript('structure-checks.js', structureCheckSource(true, ['shell']))
+    const parsed = parseScript('structure-checks.js', await structureCheckSource(true, ['shell']))
     expect(parsed.errors.map((error) => error.message)).toEqual([])
     const called = oxcCallNames(parsed)
     expect([...oxcDefinedNames(parsed)].filter((name) => !called.has(name))).toEqual([])

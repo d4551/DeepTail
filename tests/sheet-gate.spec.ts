@@ -184,8 +184,8 @@ describe('the pointer floors the product ships', () => {
       const tokens = await readFile('apps/deeptail/src/styles/tokens.css', 'utf8')
       const defined = [...tokens.matchAll(/--dsh-target-(\w+)\s*:/gu)].map((match) => match[1])
       expect(defined.toSorted()).toEqual(['coarse', 'fine'])
-      expect(pointerTargetFloor('fine')).toBe(24)
-      expect(pointerTargetFloor('coarse')).toBe(44)
+      expect(await pointerTargetFloor('fine')).toBe(24)
+      expect(await pointerTargetFloor('coarse')).toBe(44)
       expect(() => pointerTargetFloorFrom(':root { }', 'fine')).toThrow('does not define --dsh-target-fine')
       const retired = [joined('target-', 'min'), joined('target-', 'touch')]
       const leftover = (await sheets()).flatMap((sheet) =>

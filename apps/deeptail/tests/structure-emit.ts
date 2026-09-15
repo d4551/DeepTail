@@ -60,7 +60,6 @@ export async function pointerTargetFloor(name: 'fine' | 'coarse'): Promise<numbe
 /** An animation whose iteration count can be read. */
 export interface TimedAnimation {
   readonly effect: { getComputedTiming(): { readonly iterations?: number } } | null
-  readonly finished: Promise<Animation>
 }
 
 /**

@@ -123,8 +123,8 @@ it('reports every class no shipped sheet defines, and stays silent for the vocab
   ])
 })
 
-it('emits the checks as one self-contained page source, with the limits passed in the call', () => {
-  const coarse = structureCheckSource(true, ['session-row'])
+it('emits the checks as one self-contained page source, with the limits passed in the call', async () => {
+  const coarse = await structureCheckSource(true, ['session-row'])
   // The source is an async IIFE: it settles the page's fonts and running
   // animations before it measures, so a finding read mid-flight cannot name a
   // defect the finished layout does not have.
@@ -137,7 +137,7 @@ it('emits the checks as one self-contained page source, with the limits passed i
   expect(coarse).toContain('"vocabulary":["session-row"]')
   expect(coarse).toContain('[data-deeptail-picker]')
   expect(coarse).toContain('a[href]')
-  const fine = structureCheckSource(false, [])
+  const fine = await structureCheckSource(false, [])
   expect(fine).toContain('"target":24')
   expect(fine).toContain('"vocabulary":[]')
   // Every check the page runs is shipped in that source, by name.

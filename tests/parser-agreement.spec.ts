@@ -31,8 +31,8 @@ function outer(inner: number): void {
 `
 
 describe('the two parsers agree on what a source defines', () => {
-  it('reads the same definitions out of the checks the page ships', () => {
-    const source = structureCheckSource(true, ['shell'])
+  it('reads the same definitions out of the checks the page ships', async () => {
+    const source = await structureCheckSource(true, ['shell'])
     const oxc = parseScript('structure-checks.js', source)
     const babel = parseScriptWithBabel('structure-checks.js', source)
     expect(oxc.errors).toEqual([])
@@ -40,8 +40,8 @@ describe('the two parsers agree on what a source defines', () => {
     expect([...oxcDefinedNames(oxc)].toSorted()).toEqual([...babelDefinedNames(babel)].toSorted())
   })
 
-  it('reads the same calls out of the checks the page ships', () => {
-    const source = structureCheckSource(false, ['shell'])
+  it('reads the same calls out of the checks the page ships', async () => {
+    const source = await structureCheckSource(false, ['shell'])
     const oxc = parseScript('structure-checks.js', source)
     const babel = parseScriptWithBabel('structure-checks.js', source)
     expect([...oxcCallNames(oxc)].toSorted()).toEqual([...babelCallNames(babel)].toSorted())
