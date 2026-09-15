@@ -30,15 +30,6 @@ export interface SpawnPorts {
   create(hostId: string, preset: string, cwd: string): Promise<ActionOutcome>
 }
 
-/**
- * What a spawn asks the host for.
- *
- * Both fields are optional, and an empty box means "whatever the host would
- * choose" — which is said by leaving the field off the request entirely rather
- * than by sending an empty string.
- */
-type SpawnRequest = Parameters<HostApi['createSession']>[0]
-
 /** A control and the label that names it. */
 interface LabelledControl<T extends HTMLElement> {
   /** The label, which is what gets mounted. */
@@ -126,64 +117,52 @@ function buildSpawnForm(hosts: readonly HostRecord[], t: Translate): SpawnForm {
 }
 
 /**
- * The request for what the operator typed.
- * @param chosen - the agent preset, empty for the host default.
- * @param directory - the working directory, empty for the host default.
- * @returns the request, carrying only the fields that were filled in.
+ * The copy a failed spawn is told with.
+ * @param outcome - what dispatch answered.
+ * @param t - copy source.
+ * @returns the sentence.
  */
-function draftRequest(chosen: string, directory: string): SpawnRequest {
-  return {
-    ...(chosen === '' ? {} : { agentPreset: chosen }),
-    ...(directory === '' ? {} : { cwd: directory }),
+function spawnFailCopy(outcome: ActionOutcome, t: Translate): string {
+  if (outcome.kind === 'invalid' && outcome.reason === 'host-refused') {
+    const prefix = t('spawn.presetUnknown', { presets: '\0' }).split('\0')[0]
+    if (prefix !== undefined && prefix !== '' && outcome.message.startsWith(prefix)) return outcome.message
+    return t('spawn.failed', { message: outcome.message })
   }
+  return outcomeCopy(outcome, t) ?? t('spawn.failed', { message: outcome.kind })
 }
 
 /**
  * Create the session and report the outcome where the operator can see it.
- * @param ports - hosts and their Remote surfaces.
+ * @param ports - how the dialog asks the application to spawn.
  * @param host - the host to spawn on.
- * @param request - the preset and directory to spawn with.
+ * @param preset - the typed preset, empty for the host default.
+ * @param cwd - the typed directory, empty for the host default.
  * @param report - where the outcome is told.
  */
-function spawnSession(ports: SpawnPorts, host: HostRecord, request: SpawnRequest, report: SpawnReport): void {
-  const spawned = (): void => {
-    // Closed first: the live region is inert while this dialog is open.
-    report.dialog.close()
-    report.announce(report.t('spawn.created', { label: host.label }))
-  }
-  const refused = <T>(reason: T) => {
-    const message = describeFailure(reason, report.t)
-    if (!report.dialog.isOpen()) {
-      report.announce(report.t('spawn.failed', { message }))
+function spawnSession(
+  ports: SpawnPorts,
+  host: HostRecord,
+  preset: string,
+  cwd: string,
+  report: SpawnReport,
+): void {
+  const landed = (outcome: ActionOutcome): void => {
+    if (outcome.kind === 'executed') {
+      report.dialog.close()
+      report.announce(outcome.announce ?? report.t('spawn.created', { label: host.label }))
       return
     }
-    // The dialog stays up with the typed values in it, so a rejected id can be
-    // corrected in place.
-    showFailure(report.failure, describeSpawnFailure(reason, message, report.t))
+    const message = spawnFailCopy(outcome, report.t)
+    if (!report.dialog.isOpen()) {
+      report.announce(message)
+      return
+    }
+    showFailure(report.failure, message)
     report.release()
   }
-  ports.apiFor(host).createSession(request).then(spawned, refused)
-}
-
-/**
- * The message a failed spawn should carry.
- *
- * An unknown preset is the one failure the operator can correct on the spot, and
- * the host sends the ids it does have alongside it, so those are shown rather
- * than the bare rejection.
- * @param reason - whatever the call rejected with.
- * @param message - the already-extracted message text.
- * @param t - copy source.
- * @returns the text for the failure strip.
- */
-function describeSpawnFailure<T>(reason: T, message: string, t: Translate): string {
-  if (reason instanceof RemoteError && reason.code === 'agent-preset-not-found') {
-    const available = reason.details['available']
-    if (Array.isArray(available) && available.length > 0) {
-      return t('spawn.presetUnknown', { presets: available.map(String).join(', ') })
-    }
-  }
-  return t('spawn.failed', { message })
+  ports.create(host.id, preset, cwd).then(landed, (reason: { readonly message?: never }) => {
+    landed({ kind: 'invalid', traceId: '', reason: 'host-refused', message: messageOf(reason) })
+  })
 }
 
 /**
