@@ -28,6 +28,10 @@
   box-sizing: border-box;
   background: var(--dsw-specific-sidebar-fill);
   border-inline-end: 1px solid var(--dsw-alias-border-l1);
+  /* The sidebar's own box is the constraint its head responds to: the grid
+   * track and the frame rows size it wide, the drawer's insets size it narrow,
+   * so neither axis depends on its contents and it can be a size container. */
+  container-type: size;
   /* Elevated surface: the thumb steps up a rung against the sidebar fill. */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);

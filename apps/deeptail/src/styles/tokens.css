@@ -46,6 +46,9 @@
     "Microsoft YaHei";
   --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ds-transition-duration: 0.2s;
+  /* The spinner turns until its read settles; the period is its own decision,
+   * named here so the sheet that animates does not own a bare length. */
+  --dsh-spin-period: 0.8s;
 }
 
 @media (prefers-reduced-motion: reduce) {

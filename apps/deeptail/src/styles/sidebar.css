@@ -25,10 +25,11 @@
  * content lost rather than content scrolled. The brand row is the one thing
  * here that names nothing the reader can act on, so it is what yields.
  *
- * After the rule it overrides, not before: a media query carries no
+ * After the rule it overrides, not before: a container query carries no
  * specificity of its own, so above it the base `display: flex` simply won and
- * this did nothing at all. */
-@media (height <= 360px) {
+ * this did nothing at all. The query reads `.sidebar` itself, the size
+ * container whose height the fixed chrome competes for. */
+@container (height <= 360px) {
   .brand-row {
     display: none;
   }
@@ -38,7 +39,7 @@
   font-size: var(--dsh-text-title);
   font-weight: 600;
   line-height: var(--dsh-leading-body);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--dsh-tracking-brand);
   color: var(--dsw-alias-label-primary);
 }
 
