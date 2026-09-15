@@ -30,7 +30,7 @@ const t: Translate = Object.assign(
 )
 
 /** The facts a control is measured against. */
-const facts: Preconditions = { hasHosts: true, hostState: 'online', running: true, tailnetStored: true }
+const facts: Preconditions = { hasHosts: true, hostState: 'online', running: true }
 
 /** The calls a dispatcher run made, in order. */
 type Calls = { readonly names: string[] }
@@ -93,7 +93,7 @@ const ACTIVATION: { readonly [A in ActionId]: ActionInputs[A] } = {
   'spawn.create': { hostId: 'host-a', preset: '', cwd: '' },
   'picker.pair': { link: 'https://h.example/?token=t', label: 'Harness' },
   'picker.tailnet': undefined,
-  'tailnet.connect': { kind: 'api', secret: 'tskey-api-1', tailnet: '' },
+  'tailnet.connect': { kind: 'api', secret: 'tskey-api-1', tailnet: '', clientId: 'deeptail' },
   'tailnet.forget': undefined,
 }
 

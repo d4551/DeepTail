@@ -9,7 +9,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { createHostApi, FORBIDDEN, RemoteError, UNAUTHORIZED } from './api.ts'
+import { createHostApi, FORBIDDEN, type HostApi, RemoteError, UNAUTHORIZED } from './api.ts'
 import { type HostRecord, isHostRecord } from './host.ts'
 import { answered, type Invoke, listOf } from './native-call.ts'
 import { messageOf } from './reason.ts'
@@ -74,8 +74,8 @@ export function nativePorts(call: Invoke = invoke, reach: Reach = liveReach): Pi
 /** Whether a value is a list of paired hosts. */
 const isHostRecords = listOf(isHostRecord)
 
-/** How a host is asked whether it answers at all. */
-export type Reach = (host: HostRecord) => Promise<unknown>
+/** How a host is asked whether it answers at all; the answer itself is ignored. */
+export type Reach = (host: HostRecord) => ReturnType<HostApi['listSessions']>
 
 /**
  * Ask one host for its sessions, which is the smallest read that proves it
@@ -83,7 +83,7 @@ export type Reach = (host: HostRecord) => Promise<unknown>
  * @param host - the host to reach.
  * @returns whatever the host answered with.
  */
-function liveReach(host: HostRecord): Promise<unknown> {
+function liveReach(host: HostRecord): ReturnType<HostApi['listSessions']> {
   return createHostApi(createCarrier(host.id)).listSessions()
 }
 

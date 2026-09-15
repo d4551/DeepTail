@@ -120,11 +120,11 @@ function checkNestedScroll(add: Report): void {
 /**
  * Physical or justified text alignment is an alignment defect at runtime too.
  *
- * The sheet gate refuses `text-align: left|right|justify` in source. A page
- * can still compute that alignment from an injected sheet or a framework
+ * The sheet gate refuses a physical or justified text alignment in source. A
+ * page can still compute that alignment from an injected sheet or a framework
  * class, and no rule engine reports it: the text is readable and the contrast
- * holds. `start`/`end` follow the writing mode; `left`/`right`/`justify` do
- * not.
+ * holds. The logical `start`/`end` spellings follow the writing mode; the
+ * physical and justified ones do not.
  * @param add - collects a finding.
  * @param limits - the product surfaces to read.
  */
@@ -173,10 +173,10 @@ function checkGrid(add: Report, limits: { readonly scope: string }): void {
       if (display === 'table' && element.tagName !== 'TABLE') {
         add('hardcoded-grid', `${describe(element)} uses display:table as a layout grid`)
       }
-    }
-    for (const table of node.querySelectorAll('table')) {
-      if (table.querySelector('th, [scope]') === null) {
-        add('layout-table', `${describe(table)} is a table with no header, used as a layout grid`)
+      for (const table of node.querySelectorAll('table')) {
+        if (table.querySelector('th, [scope]') === null) {
+          add('layout-table', `${describe(table)} is a table with no header, used as a layout grid`)
+        }
       }
     }
   }

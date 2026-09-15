@@ -56,8 +56,8 @@ it('hands the page no scripted IPC naming anything the page has not got', async 
 it('hands the page no structural check naming anything the page has not got', async () => {
   const vocabulary = ['modal-dialog', 'modal-body']
   const missing = await Promise.all(
-    [true, false].map((coarse) =>
-      unresolved(`structural checks (coarse: ${String(coarse)})`, structureCheckSource(coarse, vocabulary)),
+    [true, false].map(async (coarse) =>
+      unresolved(`structural checks (coarse: ${String(coarse)})`, await structureCheckSource(coarse, vocabulary)),
     ),
   )
   expect(missing.flat()).toEqual([])

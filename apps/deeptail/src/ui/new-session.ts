@@ -139,13 +139,7 @@ function spawnFailCopy(outcome: ActionOutcome, t: Translate): string {
  * @param cwd - the typed directory, empty for the host default.
  * @param report - where the outcome is told.
  */
-function spawnSession(
-  ports: SpawnPorts,
-  host: HostRecord,
-  preset: string,
-  cwd: string,
-  report: SpawnReport,
-): void {
+function spawnSession(ports: SpawnPorts, host: HostRecord, preset: string, cwd: string, report: SpawnReport): void {
   const landed = (outcome: ActionOutcome): void => {
     if (outcome.kind === 'executed') {
       report.dialog.close()
@@ -202,8 +196,7 @@ export function openNewSession(ports: SpawnPorts, t: Translate, announce: (text:
     const release = (): void => {
       setBusy(false)
     }
-    const request = draftRequest(preset.value.trim(), cwd.value.trim())
-    spawnSession(ports, host, request, { dialog, failure, t, announce, release })
+    spawnSession(ports, host, preset.value.trim(), cwd.value.trim(), { dialog, failure, t, announce, release })
   })
 
   create.dataset[DATA.action] = ACTIONS['spawn.create'].marker

@@ -17,6 +17,7 @@ import {
   readSocketFrame,
   type ServerMessage,
 } from '../apps/deeptail/src/frames.ts'
+import type { JsonValue } from '../apps/deeptail/src/wire.ts'
 
 /** The logical stream the connection under test claimed. */
 const STREAM = 'stream-1'
@@ -26,7 +27,7 @@ const STREAM = 'stream-1'
  * @param data - the message's data, as the socket dispatched it.
  * @returns the event a socket listener receives.
  */
-function dispatched(data: unknown): MessageEvent {
+function dispatched(data: JsonValue): MessageEvent {
   return new MessageEvent('message', { data })
 }
 
@@ -49,7 +50,7 @@ class Framed extends Event {
  * @param frame - the frame's fields.
  * @returns the serialized text.
  */
-function wire(frame: unknown): string {
+function wire(frame: JsonValue): string {
   return JSON.stringify(frame)
 }
 
@@ -99,7 +100,7 @@ describe('the frames a client reads', () => {
       streamId: STREAM,
       error: { message: 'the host gave up' },
     })
-    const held = [{ code: 7 }, 'a string', null, [1], { message: 7 }]
+    const held: readonly JsonValue[] = [{ code: 7 }, 'a string', null, [1], { message: 7 }]
     const read = await Promise.all(
       held.map(
         async (error) => await readSocketFrame(dispatched(wire({ type: 'error', streamId: STREAM, error })), STREAM),

@@ -11,6 +11,7 @@ import type { Page } from 'playwright'
 import { ACTION_LIST } from '../src/actions/registry.ts'
 
 import { type AnswerTable, type Harness, startHarness } from './harness.ts'
+import { pairUntilBootNotice } from './pair-until.ts'
 import { openShell } from './surfaces.ts'
 
 let harness: Harness
@@ -51,30 +52,9 @@ async function bootNotice(): Promise<Page> {
     listError: 'the registry is unreadable',
     listErrorOn: [3, 5, 7],
   })
-  await pairUntilNotice(page, 4)
+  await pairUntilBootNotice(page, 4)
   await page.locator('[data-deeptail-state="boot-error"]').waitFor({ state: 'visible' })
   return page
-}
-
-/**
- * Pair through the picker until the boot notice appears, or the rounds run out.
- *
- * Written as one round calling the next rather than as a loop: each round can
- * only begin once the one before it has been answered, and the application's
- * own retry count is what decides how many there are.
- * @param page - the page showing the picker.
- * @param roundsLeft - how many more times to pair before giving up.
- */
-async function pairUntilNotice(page: Page, roundsLeft: number): Promise<void> {
-  if (roundsLeft <= 0) return
-  if ((await page.locator('[data-deeptail-state="boot-error"]').count()) > 0) return
-  await page.waitForSelector('[data-deeptail-picker]')
-  await page.getByRole('button', { name: 'Pair a host' }).click()
-  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
-  await page.locator('[data-deeptail-field="link"]').fill('https://harness.local:3080/pair#token')
-  await page.locator('[data-deeptail-action="pair-submit"]').click()
-  await page.waitForTimeout(100)
-  await pairUntilNotice(page, roundsLeft - 1)
 }
 
 /**

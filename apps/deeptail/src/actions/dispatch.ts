@@ -65,8 +65,8 @@ export interface ActionDeps {
   clientBooted(): boolean
   /** Hand a session to the harness client on its own host. */
   openClient(host: HostRecord, sessionId: string): Promise<void>
-  /** Open the pairing form, for a new host or to clear a revoked token. */
-  pair(repairing?: string): void
+  /** Open the pairing form, for a new host or to clear one host's revoked token. */
+  pair(repairingHostId?: string): void
   /** Forget a host and its token. */
   forget(hostId: string): Promise<void>
   /** Make one host the selected one. */
@@ -101,8 +101,10 @@ export interface ActionDeps {
  * What a control's own precondition is measured against.
  *
  * The surface that owns the data supplies it: a row knows whether its session is
- * running, the menu knows how its host reads. A precondition is therefore read
- * from the facts the control was drawn from.
+ * running, the menu knows how its host reads. Facts that are the application's
+ * own — the tailnet credential, the selected host — are read from the deps
+ * table, which is their single source; a fact held in two places is a fact that
+ * can disagree with itself.
  */
 export interface Preconditions {
   /** Whether at least one host is paired. */
@@ -111,8 +113,6 @@ export interface Preconditions {
   readonly hostState: HostState
   /** Whether the session the control names is running. */
   readonly running: boolean
-  /** Whether a tailnet credential is stored. */
-  readonly tailnetStored: boolean
 }
 
 /**
@@ -174,7 +174,7 @@ function precondition(deps: ActionDeps, action: ActionDescriptor, facts: Precond
     case 'unauthorized':
       return facts.hostState === 'unauthorized' ? undefined : 'not-unauthorized'
     case 'tailnetConnected':
-      return facts.tailnetStored ? undefined : 'no-tailnet'
+      return deps.tailnetStored() ? undefined : 'no-tailnet'
   }
 }
 

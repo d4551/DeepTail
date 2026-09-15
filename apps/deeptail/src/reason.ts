@@ -80,23 +80,3 @@ export function describeFailure<T>(reason: T, t: Translate): string {
 export function reportSettled<T>(work: Promise<T>, t: Translate, report: (message: string) => void): void {
   work.then(undefined, (reason: T) => report(describeFailure(reason, t)))
 }
-
-/** The settled outcome of work: landed, or failed with the operator's copy. */
-export type Outcome = { readonly ok: true } | { readonly ok: false; readonly message: string }
-
-/**
- * Await work with its failure settled into copy, so a caller branches on an
- * outcome instead of catching or chaining arms.
- *
- * The surfaces that stay interactive through a mutation need the failure as a
- * message, not as a thrown value; this hands both arms back as one value.
- * @param work - the promise to settle.
- * @param t - copy source.
- * @returns landed, or the localized failure message.
- */
-export function settle<T>(work: Promise<T>, t: Translate): Promise<Outcome> {
-  return work.then(
-    (): Outcome => ({ ok: true }),
-    (reason: T): Outcome => ({ ok: false, message: describeFailure(reason, t) }),
-  )
-}

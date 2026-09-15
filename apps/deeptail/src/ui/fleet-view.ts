@@ -8,9 +8,10 @@
  * @module
  */
 
-import type { HostApi, SessionSummary } from '../api.ts'
+import type { ActionOutcome } from '../actions/outcomes.ts'
+import { outcomeCopy } from '../actions/outcomes.ts'
+import type { SessionSummary } from '../api.ts'
 import type { Translate } from '../locales.ts'
-import { settle } from '../reason.ts'
 import type { FleetStore, HostEntry } from '../store.ts'
 import { type Disposer, el, screenReaderText } from './dom.ts'
 import { focusedControl, keepScrollReachable, restoreFocus } from './roster-focus.ts'
@@ -20,11 +21,12 @@ import { emptyRow, hostStateLabel, loadingRow, retryStrip } from './states.ts'
 
 /** What the roster needs from the shell. */
 export interface FleetPorts {
-  apiFor(hostId: string): HostApi | undefined
   /** Hand this session off to the harness client on its host. */
   open(hostId: string, sessionId: string): void
   /** Message this session. */
   message(hostId: string, session: SessionSummary): void
+  /** Stop this session, priced and carried by the action plane. */
+  cancel(hostId: string, sessionId: string): Promise<ActionOutcome>
 }
 
 /**
@@ -258,27 +260,26 @@ function rowHandlers(entry: HostEntry, session: SessionSummary, view: RosterView
 /**
  * Stop one session, then re-read the host it belongs to.
  *
- * A failed cancel is reported on its own host rather than raised, so one
- * refused stop never blanks the fleet. Every arm settles, so a caller that
- * fires this from a click handler leaves no rejected promise behind.
+ * The stop is spent through the action plane, which answers with the host's
+ * own account however it lands; the roster records that account on the host
+ * it belongs to, so one refused stop never blanks the fleet. The busy flag
+ * clears and the host re-reads once the stop settles, so a second row action
+ * never races the first and the failure stays visible beside the rows that
+ * still answer.
  * @param entry - the host the session belongs to.
  * @param session - the session to stop.
  * @param view - the fleet, its copy and its mutation state.
  */
 async function stopSession(entry: HostEntry, session: SessionSummary, view: RosterView): Promise<void> {
-  const api = view.ports.apiFor(entry.host.id)
   const { mutations } = view
-  if (api === undefined || mutations.busy) return
+  if (mutations.busy) return
   mutations.busy = true
   mutations.failures.delete(entry.host.id)
   view.render()
-  // A failed stop is reported on its own host rather than raised, so one
-  // refused stop never blanks the fleet. The busy flag clears and the host
-  // re-reads once the stop settles, so a second row action never races the
-  // first and the failure stays visible beside the rows that still answer.
-  const stopped = await settle(api.cancel(session.sessionId), view.t)
-  if (stopped.ok) mutations.failures.delete(entry.host.id)
-  else mutations.failures.set(entry.host.id, view.t('sessions.stopFailed', { message: stopped.message }))
+  const outcome = await view.ports.cancel(entry.host.id, session.sessionId)
+  const told = outcome.kind === 'executed' ? undefined : outcomeCopy(outcome, view.t)
+  if (told === undefined) mutations.failures.delete(entry.host.id)
+  else mutations.failures.set(entry.host.id, told)
   mutations.busy = false
   view.render()
   view.store.refresh(entry.host.id)

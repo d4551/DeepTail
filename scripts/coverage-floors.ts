@@ -42,6 +42,7 @@ export const FLOORS: Readonly<Record<string, number>> = {
   'apps/deeptail/src/picker-tailnet.ts': 100,
   'apps/deeptail/src/reason.ts': 100,
   'apps/deeptail/src/roster.ts': 100,
+  'apps/deeptail/src/runtime.ts': 100,
   'apps/deeptail/src/socket-state.ts': 100,
   'apps/deeptail/src/store.ts': 100,
   'apps/deeptail/src/stream.ts': 100,
@@ -50,8 +51,9 @@ export const FLOORS: Readonly<Record<string, number>> = {
   'apps/deeptail/src/transport.ts': 100,
   'apps/deeptail/src/ui/dom.ts': 100,
   'apps/deeptail/src/ui/roving.ts': 100,
+  'apps/deeptail/src/ui/seated.ts': 100,
   'apps/deeptail/src/ui/shell-chrome.ts': 100,
-  'apps/deeptail/src/ui/shell-frame.ts': 97,
+  'apps/deeptail/src/ui/shell-frame.ts': 99.2,
   'apps/deeptail/src/ui/states.ts': 100,
   'apps/deeptail/src/wire.ts': 100,
   'apps/deeptail/tests/structure-emit.ts': 100,
@@ -106,7 +108,8 @@ export const FLOORS: Readonly<Record<string, number>> = {
   'scripts/markup-gate.ts': 100,
   'scripts/markup-vocabulary.ts': 100,
   'scripts/mutation-survivors.ts': 94.55,
-  'scripts/paint-index.ts': 93.33,
+  'scripts/paint-index.ts': 100,
+  'scripts/paint-stamp.ts': 100,
   'scripts/pins.ts': 100,
   'scripts/pipeline-guard-gates.ts': 100,
   'scripts/pipeline-guard-jobs.ts': 100,
@@ -135,10 +138,11 @@ export const FLOORS: Readonly<Record<string, number>> = {
   'tests/jsonc-io.ts': 100,
   'tests/manifests.ts': 100,
   'tests/markup-tree.ts': 100,
+  'tests/shell-chrome-double.ts': 100,
   'tests/structure-double.ts': 100,
   'tests/tree-budget.ts': 100,
   'tests/transport-double.ts': 100,
 }
 
 /** The line coverage the whole chain is held to, pinned the same way. */
-export const OVERALL_FLOOR = 99.59
+export const OVERALL_FLOOR = 99.61

@@ -5,10 +5,13 @@
  * @module
  */
 
+import type { Preconditions } from '../actions/dispatch.ts'
 import { ACTIONS } from '../actions/registry.ts'
 import type { Translate } from '../locales.ts'
 import { DATA } from '../markers.ts'
-import { button, el, setAria } from './dom.ts'
+import { type AppRuntime, type OutcomeTell, runAction } from '../runtime.ts'
+import { type Disposer, el, setAria } from './dom.ts'
+import { bindSeated, seatedButton } from './seated.ts'
 import { buildChrome, placeChrome, readChrome, relabelChrome, type ShellChrome, SIDEBAR_ID } from './shell-chrome.ts'
 import { errorStrip, showFailure } from './states.ts'
 
@@ -22,8 +25,20 @@ export interface ShellFrame {
   readonly announce: (text: string) => void
   /** Put a failure that belongs to no single row in the main pane. */
   readonly showError: (message: string) => void
+  /** Move the drawer to the state asked for, focus following it. */
+  readonly setDrawer: (open: boolean) => void
   /** Remove the chrome, and with it every listener it installed. */
   readonly dispose: () => void
+}
+
+/** What the chrome's own registry controls spend through. */
+export interface ShellFramePorts {
+  /** The action plane the toggle and the dismiss control spend through. */
+  readonly runtime: AppRuntime
+  /** The facts the chrome's controls spend against. */
+  readonly facts: Preconditions
+  /** Where the chrome's outcomes are told, read when a control is activated. */
+  tell(): OutcomeTell
 }
 
 /**
@@ -34,14 +49,15 @@ export interface ShellFrame {
  * tree the document shipped.
  * @param container - the application root.
  * @param t - copy source.
+ * @param ports - what the chrome's registry controls are dispatched through.
  * @returns the regions the shell's surfaces mount into, and a disposer.
  */
-export function mountShellFrame(container: HTMLElement, t: Translate): ShellFrame {
+export function mountShellFrame(container: HTMLElement, t: Translate, ports: ShellFramePorts): ShellFrame {
   const adopted = readChrome(container)
   const chrome = adopted ?? buildChrome(t)
   if (adopted === undefined) placeChrome(container, chrome)
   else relabelChrome(chrome, t)
-  const drawer = mountDrawer(chrome, t, adopted !== undefined)
+  const drawer = mountDrawer(chrome, t, adopted !== undefined, ports)
   if (adopted === undefined) {
     chrome.header.append(drawer.toggle, el('h1', { className: 'main-title', text: t('shell.sessionsHeading') }))
   }
@@ -56,6 +72,9 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
       chrome.body.replaceChildren(strip)
       showFailure(strip, message)
     },
+    setDrawer: (open) => {
+      drawer.set(open, true)
+    },
     dispose: () => {
       drawer.close()
       drawer.dispose()
@@ -63,24 +82,13 @@ export function mountShellFrame(container: HTMLElement, t: Translate): ShellFram
     },
   }
 }
-
 /** The drawer's control, and the teardown for the listeners it installed. */
 interface Drawer {
   readonly toggle: HTMLButtonElement
+  /** Move the drawer to a state, focus following it when asked. */
+  readonly set: (open: boolean, moveFocus?: boolean) => void
   readonly close: () => void
   readonly dispose: () => void
-}
-
-/**
- * The button a first paint already seated, named by its class.
- * @param root - the region that holds it.
- * @param className - the class the first paint wrote.
- * @returns the button.
- */
-function seatedButton(root: ParentNode, className: string): HTMLButtonElement {
-  const node = root.querySelector(`button.${className}`)
-  if (!(node instanceof HTMLButtonElement)) throw new Error(`deeptail: missing ${className} in the shell chrome`)
-  return node
 }
 
 /**
@@ -145,10 +153,12 @@ function applyDrawerState(regions: DrawerRegions, toggle: HTMLButtonElement, t: 
 function drawerDismiss(sidebar: HTMLElement, t: Translate, adopted: boolean, onClose: () => void): HTMLButtonElement {
   if (adopted) {
     const seated = seatedButton(sidebar, 'drawer-dismiss')
-    seated.addEventListener('click', onClose)
+    bindSeated(seated, onClose)
     return seated
   }
-  const dismiss = button('drawer-dismiss', t('shell.closeSessions'), onClose)
+  const dismiss = el('button', { className: 'drawer-dismiss', text: t('shell.closeSessions') })
+  dismiss.type = 'button'
+  bindSeated(dismiss, onClose)
   dismiss.dataset[DATA.action] = ACTIONS['drawer.dismiss'].marker
   dismiss.hidden = true
   sidebar.prepend(dismiss)
@@ -166,35 +176,31 @@ function drawerDismiss(sidebar: HTMLElement, t: Translate, adopted: boolean, onC
 function drawerToggle(chrome: ShellChrome, t: Translate, adopted: boolean, onToggle: () => void): HTMLButtonElement {
   if (adopted) {
     const seated = seatedButton(chrome.header, 'drawer-toggle')
-    seated.addEventListener('click', onToggle)
+    bindSeated(seated, onToggle)
     return seated
   }
-  const toggle = button('drawer-toggle', t('shell.openSessions'), onToggle)
+  const toggle = el('button', { className: 'drawer-toggle', text: t('shell.openSessions') })
+  toggle.type = 'button'
+  bindSeated(toggle, onToggle)
   toggle.dataset[DATA.action] = ACTIONS['drawer.toggle'].marker
   setAria(toggle, { controls: SIDEBAR_ID, expanded: 'false' })
   return toggle
 }
 
 /**
- * Wire the drawer onto chrome that was just built or just adopted.
- * @param chrome - the regions the drawer moves.
- * @param t - copy source.
- * @param adopted - whether the toggle and dismiss already sit in the tree.
- * @returns the toggle to seat in the header on a fresh mount, and a disposer.
+ * Follow the layout the drawer sits in: the backdrop closes it, Escape closes
+ * it, and a layout flip re-applies the state the sidebar is drawn in.
+ * @param regions - the shell, the sidebar, the pane behind it and the backdrop.
+ * @param drawer - the state the watchers move.
+ * @returns the teardown for the listeners the watchers installed.
  */
-function mountDrawer(chrome: ShellChrome, t: Translate, adopted: boolean): Drawer {
-  const { shell, sidebar, main, scrim } = chrome
-  const drawer: { set: (open: boolean, moveFocus?: boolean) => void } = {
-    set: () => {
-      throw new Error('deeptail: drawer set before it was wired')
-    },
-  }
-  const dismiss = drawerDismiss(sidebar, t, adopted, () => drawer.set(false, true))
-  const toggle = drawerToggle(chrome, t, adopted, () => drawer.set(shell.dataset[DATA.drawer] !== 'open', true))
-  drawer.set = (open, moveFocus = false) => {
-    applyDrawerState({ shell, sidebar, main, scrim, dismiss }, toggle, t, open)
-    if (moveFocus && isDrawerLayout()) followDrawer(sidebar, toggle, open)
-  }
+function watchDrawerRegions(
+  regions: DrawerRegions,
+  drawer: {
+    readonly set: (open: boolean, moveFocus?: boolean) => void
+  },
+): Disposer {
+  const { shell, scrim } = regions
   scrim.addEventListener('click', () => {
     drawer.set(false, true)
   })
@@ -206,15 +212,56 @@ function mountDrawer(chrome: ShellChrome, t: Translate, adopted: boolean): Drawe
     drawer.set(shell.dataset[DATA.drawer] === 'open')
   })
   watchLayout.observe(document.documentElement)
+  return () => {
+    document.removeEventListener('keydown', onShellKeyDown)
+    watchLayout.disconnect()
+  }
+}
+
+/**
+ * Wire the drawer onto chrome that was just built or just adopted.
+ * @param chrome - the regions the drawer moves.
+ * @param t - copy source.
+ * @param adopted - whether the toggle and dismiss already sit in the tree.
+ * @param ports - what the toggle and the dismiss control are dispatched through.
+ * @returns the toggle to seat in the header on a fresh mount, and a disposer.
+ */
+function mountDrawer(chrome: ShellChrome, t: Translate, adopted: boolean, ports: ShellFramePorts): Drawer {
+  const { shell, sidebar, main, scrim } = chrome
+  // The state the closures below apply; assigned before any of them can fire,
+  // because a listener is bound only after this assignment has run.
+  let applyState: (open: boolean, moveFocus?: boolean) => void
+  const drawer = {
+    set: (open: boolean, moveFocus = false): void => {
+      applyState(open, moveFocus)
+    },
+  }
+  const dismiss = drawerDismiss(sidebar, t, adopted, () => {
+    runAction(ports.runtime, ACTIONS['drawer.dismiss'], undefined, ports.facts, ports.tell())
+  })
+  const toggle = drawerToggle(chrome, t, adopted, () => {
+    runAction(
+      ports.runtime,
+      ACTIONS['drawer.toggle'],
+      { open: shell.dataset[DATA.drawer] !== 'open' },
+      ports.facts,
+      ports.tell(),
+    )
+  })
+  applyState = (open, moveFocus = false) => {
+    applyDrawerState({ shell, sidebar, main, scrim, dismiss }, toggle, t, open)
+    if (moveFocus && isDrawerLayout()) followDrawer(sidebar, toggle, open)
+  }
+  const disposeWatchers = watchDrawerRegions({ shell, sidebar, main, scrim, dismiss }, drawer)
   drawer.set(false)
   return {
     toggle,
+    set: (open, moveFocus = false) => {
+      drawer.set(open, moveFocus)
+    },
     close: () => {
       drawer.set(false, true)
     },
-    dispose: () => {
-      document.removeEventListener('keydown', onShellKeyDown)
-      watchLayout.disconnect()
-    },
+    dispose: disposeWatchers,
   }
 }

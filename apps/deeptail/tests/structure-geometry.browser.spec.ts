@@ -17,7 +17,7 @@ import { openDrawerIfPresent } from './surfaces.ts'
 import { pointerFlags, SMALL_PHONE_VIEWPORT, TABLET_VIEWPORT, VIEWPORTS } from './viewports.ts'
 
 /** The smallest target any pointer admits, and so the least a row can occupy. */
-const MINIMUM_ROW = pointerTargetFloor('fine')
+const MINIMUM_ROW = await pointerTargetFloor('fine')
 
 let harness: Harness
 

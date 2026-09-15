@@ -79,7 +79,7 @@ function connectionHandlers(): Pick<
       return { kind: 'executed' }
     },
     'connection.repair': (deps, input) => {
-      deps.pair(labelOf(deps, input.hostId))
+      deps.pair(input.hostId)
       return { kind: 'executed' }
     },
     'connection.unpair': async (deps, input) => {
@@ -111,19 +111,23 @@ function sessionHandlers(
       return { kind: 'executed' }
     },
     'session.message': (deps, input) => {
+      if (hostOf(deps, input.hostId) === undefined) return { kind: 'invalid', reason: 'no-host' }
       deps.openCompose(input.hostId, input.sessionId, input.title)
       return { kind: 'executed' }
     },
     'session.cancel': async (deps, input) => {
+      if (hostOf(deps, input.hostId) === undefined) return { kind: 'invalid', reason: 'no-host' }
       await deps.cancel(input.hostId, input.sessionId)
       return { kind: 'executed' }
     },
     'compose.send': async (deps, input) => {
+      if (hostOf(deps, input.hostId) === undefined) return { kind: 'invalid', reason: 'no-host' }
       if (input.text.trim() === '') return { kind: 'invalid', reason: 'empty-message' }
       await deps.message(input.hostId, input.sessionId, input.text, 'queue')
       return { kind: 'executed' }
     },
     'compose.steer': async (deps, input) => {
+      if (hostOf(deps, input.hostId) === undefined) return { kind: 'invalid', reason: 'no-host' }
       if (input.text.trim() === '') return { kind: 'invalid', reason: 'empty-message' }
       await deps.message(input.hostId, input.sessionId, input.text, 'steer')
       return { kind: 'executed' }

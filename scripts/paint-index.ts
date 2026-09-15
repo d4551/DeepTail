@@ -1,23 +1,22 @@
 /**
- * Stamp the built page with the control-plane chrome.
+ * Paint the control-plane chrome the shipped page carries.
  *
  * Vite leaves `#root` empty. The factories that paint the live shell fill it
- * here, so the shipped document is the first paint, not a blank mount.
+ * here, so the shipped document is the first paint, not a blank mount. The
+ * filesystem half — reading a built page and writing it back stamped — lives
+ * in `paint-stamp.ts`, which this module stays free of.
  *
  * @module
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
+import { createGrantLedger } from '../apps/deeptail/src/capabilities/grants.ts'
 import { createTranslate } from '../apps/deeptail/src/locales.ts'
+import { createAppRuntime } from '../apps/deeptail/src/runtime.ts'
 import { mountShellFrame } from '../apps/deeptail/src/ui/shell-frame.ts'
-import { ROOT } from './source-tree.ts'
 
 /** The empty mount Vite writes, which this paint replaces. */
 export const EMPTY_ROOT = '<div id="root"></div>'
-
-/** The built page this paint stamps. */
-export const DIST_PAGE = `${ROOT}apps/deeptail/dist/index.html`
 
 /**
  * The control-plane chrome as markup, from the same factories the webview
@@ -28,8 +27,18 @@ export const DIST_PAGE = `${ROOT}apps/deeptail/dist/index.html`
  * @returns the shell's inner HTML, ready to sit inside `#root`.
  */
 export function firstPaintMarkup(): string {
+  if (!GlobalRegistrator.isRegistered) GlobalRegistrator.register()
   const host = document.createElement('div')
-  const frame = mountShellFrame(host, createTranslate('en'))
+  const t = createTranslate('en')
+  // The paint builds the chrome through the same factories the live mount
+  // builds it through, so the plane rides along; nothing dispatches at paint
+  // time, because listeners do not serialize.
+  const runtime = createAppRuntime(t, createGrantLedger())
+  const frame = mountShellFrame(host, t, {
+    runtime,
+    facts: { hasHosts: false, hostState: 'unknown', running: false },
+    tell: () => ({ announce: frame.announce, fail: frame.showError }),
+  })
   const markup = host.innerHTML
   frame.dispose()
   return markup
@@ -67,14 +76,3 @@ export function paintIndex(html: string): string {
   }
   return html.replace(EMPTY_ROOT, `<div id="root">${painted}</div>`)
 }
-
-/**
- * Stamp one built page on disk with the product shell.
- * @param page - the HTML file to paint.
- */
-export function paintFile(page: string): void {
-  if (!GlobalRegistrator.isRegistered) GlobalRegistrator.register()
-  writeFileSync(page, paintIndex(readFileSync(page, 'utf8')))
-}
-
-if (import.meta.main) paintFile(DIST_PAGE)

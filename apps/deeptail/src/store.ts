@@ -25,7 +25,7 @@ export interface HostEntry {
 }
 
 /** The whole fleet. */
-export interface FleetState {
+interface FleetState {
   readonly entries: readonly HostEntry[]
 }
 

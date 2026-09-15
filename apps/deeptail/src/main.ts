@@ -12,6 +12,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import type { Preconditions } from './actions/dispatch.ts'
 import { ACTIONS } from './actions/registry.ts'
 import { type BootedHost, bootHost, teardownHost } from './boot.ts'
 import { createGrantLedger } from './capabilities/grants.ts'
@@ -22,6 +23,7 @@ import { followAppLifecycle } from './lifecycle.ts'
 import { createTranslate } from './locales.ts'
 import { DATA } from './markers.ts'
 import { messageOf } from './reason.ts'
+import { createAppRuntime, runAction } from './runtime.ts'
 import { applyTheme } from './theme.ts'
 import { type CarrierHooks, createCarrier } from './transport.ts'
 import { button, el } from './ui/dom.ts'
@@ -44,6 +46,27 @@ const t = createTranslate()
 
 /** The page's mirror of what the native authority has issued. */
 const ledger = createGrantLedger()
+
+/** The action plane every control on the page spends through. */
+const runtime = createAppRuntime(t, ledger)
+
+/** The hosts the control plane was last mounted over. */
+let mountedHosts: readonly HostRecord[] = []
+
+/**
+ * The facts the boot plane holds: whether the registry has produced hosts and
+ * whether a client owns the page. The boot's own actions are `always`
+ * available, so none of these is read; they are what the boot itself knows.
+ * @returns the facts.
+ */
+function bootFacts(): Preconditions {
+  return { hasHosts: mountedHosts.length > 0, hostState: 'unknown', running: booted !== undefined }
+}
+
+runtime.deps.clientBooted = () => booted !== undefined
+runtime.deps.openClient = openSession
+runtime.deps.returnToFleet = returnToFleet
+runtime.deps.remount = start
 
 /**
  * Read the host registry, handing any failure to the picker.
@@ -105,6 +128,16 @@ async function clearPage(): Promise<void> {
  * @param hosts - the registry as it now stands.
  */
 function mountControlPlane(hosts: readonly HostRecord[], notice?: string): void {
+  mountedHosts = hosts
+  runtime.deps.hosts = () => mountedHosts
+  runtime.deps.pair = (repairingHostId) => {
+    runToBootNotice(pairAnother(hosts.find((host) => host.id === repairingHostId)?.label))
+  }
+  runtime.deps.forget = async (hostId) => {
+    await clearPage()
+    await invoke('forget_host', { host: hostId })
+    mountControlPlane(await knownHosts())
+  }
   disposeShell = mountShell(
     container,
     {
@@ -114,19 +147,8 @@ function mountControlPlane(hosts: readonly HostRecord[], notice?: string): void 
         shellCarriers.set(host.id, carrier)
         return carrier
       },
-      open: openSession,
-      pair: () => {
-        runToBootNotice(pairAnother())
-      },
-      repair: (hostId) => {
-        runToBootNotice(pairAnother(hosts.find((host) => host.id === hostId)?.label))
-      },
-      unpair: async (hostId) => {
-        await clearPage()
-        await invoke('forget_host', { host: hostId })
-        mountControlPlane(await knownHosts())
-      },
     },
+    runtime,
     t,
     notice,
   )
@@ -195,7 +217,9 @@ function showBootNotice(message: string): void {
     text: message,
     data: { [DATA.state]: 'boot-error' },
   })
-  const retry = button('retry', t('action.retry'), () => runToBootNotice(start()))
+  const retry = button('retry', t('action.retry'), () => {
+    runAction(runtime, ACTIONS['boot.retry'], undefined, bootFacts(), { fail: showBootNotice })
+  })
   retry.dataset[DATA.action] = ACTIONS['boot.retry'].marker
   strip.append(retry)
   container.replaceChildren(strip)
@@ -209,9 +233,9 @@ function showBootNotice(message: string): void {
  */
 function showReturnBar(): void {
   const bar = el('div', { className: 'return-bar' })
-  const back = button('button button-outline return-button', t('shell.backToFleet'), () =>
-    runToBootNotice(returnToFleet()),
-  )
+  const back = button('button button-outline return-button', t('shell.backToFleet'), () => {
+    runAction(runtime, ACTIONS['client.return'], undefined, bootFacts(), { fail: showBootNotice })
+  })
   back.dataset[DATA.action] = ACTIONS['client.return'].marker
   bar.append(back)
   bar.dataset[DATA.return] = ''

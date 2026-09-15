@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'bun:test'
 import { FORBIDDEN, PROTOCOL, RemoteError, TRANSPORT, UNAUTHORIZED } from '../apps/deeptail/src/api.ts'
 import { createTranslate } from '../apps/deeptail/src/locales.ts'
-import { describeFailure, messageOf, reportSettled, settle } from '../apps/deeptail/src/reason.ts'
+import { describeFailure, messageOf, reportSettled } from '../apps/deeptail/src/reason.ts'
 
 /** The copy source every case reads through. */
 const t = createTranslate('en')
@@ -30,15 +30,20 @@ describe('the raw message of a rejection', () => {
     expect(messageOf(new RemoteError('session-not-found', 'no such session'))).toBe('no such session')
   })
 
-  it('reads anything else as its text, rather than as nothing', async () => {
+  it('reads anything else as its text, rather than as nothing', () => {
     // A rejection can carry any value at all, and a reader that answered only
-    // for errors would report an empty line for the rest. A rejection carrying
-    // no value at all is the case a bare Promise.reject() produces, so it is
-    // read through the same settle path a surface waits on.
+    // for errors would report an empty line for the rest.
     expect(messageOf('a bare string')).toBe('a bare string')
     expect(messageOf(404)).toBe('404')
     expect(messageOf(null)).toBe('null')
-    expect(await settle(rejected(), t)).toEqual({ ok: false, message: 'undefined' })
+  })
+
+  it('reads the rejection a bare Promise.reject() carries as its text', async () => {
+    const said: string[] = []
+    reportSettled(rejected(), t, (m) => said.push(m))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(said).toEqual(['undefined'])
   })
 })
 
@@ -48,6 +53,18 @@ describe('the localized message of a failure', () => {
     // and a sentence invented here would be a sentence nobody wrote.
     const raised = new RemoteError('agent-preset-unknown', 'no preset named fast')
     expect(describeFailure(raised, t)).toBe('no preset named fast')
+  })
+
+  it('offers the presets the host named when a typed preset is not one it has', () => {
+    // The only remote surface that names the available ids is the failure a
+    // bad one produces, so the failure's own list is what the operator reads.
+    const unknown = new RemoteError('agent-preset-not-found', 'no such preset', { available: ['standard', 'fast'] })
+    expect(describeFailure(unknown, t)).toBe('This host has no such preset. Available: standard, fast')
+  })
+
+  it('keeps the host’s message when the preset failure names no alternatives', () => {
+    const bare = new RemoteError('agent-preset-not-found', 'no such preset')
+    expect(describeFailure(bare, t)).toBe('no such preset')
   })
 
   it('writes a transport failure in the operator’s language, not the protocol’s', () => {
@@ -120,16 +137,5 @@ describe('work nobody awaits', () => {
     await Promise.resolve()
     await Promise.resolve()
     expect(said).toEqual([])
-  })
-})
-
-describe('work a surface waits on', () => {
-  it('hands back both arms as one value, so a caller branches rather than catches', async () => {
-    expect(await settle(Promise.resolve('done'), t)).toEqual({ ok: true })
-    const failed = await settle(
-      rejected(new RemoteError(PROTOCOL, 'no result', { endpoint: 'x', detail: 'no result' })),
-      t,
-    )
-    expect(failed).toEqual({ ok: false, message: 'x answered outside the protocol: no result' })
   })
 })

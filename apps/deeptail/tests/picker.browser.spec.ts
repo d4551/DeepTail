@@ -9,32 +9,10 @@ import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { HOSTS } from './fixtures.ts'
 import { type AnswerTable, type Harness, startHarness, textOf } from './harness.ts'
+import { pairUntilBootNotice } from './pair-until.ts'
 import { until } from './wait.ts'
 
 let harness: Harness
-
-/**
- * Pair until the boot notice appears, or the rounds run out.
- * @param page - the page showing the picker.
- * @param roundsLeft - how many more times to pair before giving up.
- */
-async function pairUntilBootNotice(page: Page, roundsLeft: number): Promise<void> {
-  if (roundsLeft <= 0) return
-  if ((await page.locator('[data-deeptail-state="boot-error"]').count()) > 0) return
-  await page.waitForSelector('[data-deeptail-picker]')
-  await page.getByRole('button', { name: 'Pair a host' }).click()
-  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
-  await page.locator('[data-deeptail-field="link"]').fill('https://harness.local:3080/pair#token')
-  await page.locator('[data-deeptail-action="pair-submit"]').click()
-  await until(async () => {
-    if ((await page.locator('[data-deeptail-state="boot-error"]').count()) > 0) return true
-    return (
-      (await page.locator('[data-deeptail-picker]').count()) > 0 &&
-      (await page.locator('[data-deeptail-action="pair-submit"]').count()) === 0
-    )
-  })
-  await pairUntilBootNotice(page, roundsLeft - 1)
-}
 
 /**
  * Reach the picker's list view the way the product does: from a mounted shell,
@@ -80,8 +58,8 @@ it('pairs a pasted link through the native command, not by closing the form', as
   await page.locator('[data-deeptail-field="link"]').fill('https://harness.local:3080/?token=abc')
   await page.locator('[data-deeptail-field="name"]').fill('Workstation')
   await page.locator('[data-deeptail-action="pair-submit"]').click()
-  // A dismissed form is satisfied by a no-op; the command and the link it
-  // spent are the product side-effect.
+  // The form closing is not the assertion: the command the submit spent and
+  // the link it carried are what the product did.
   expect((await harness.commands(page)).filter((command) => command === 'pair_host')).toEqual(['pair_host'])
   expect(await page.evaluate(() => window.deeptailPairedLinks ?? [])).toEqual(['https://harness.local:3080/?token=abc'])
   await page.waitForSelector('[data-deeptail-shell]')

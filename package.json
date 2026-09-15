@@ -55,8 +55,8 @@
     "@types/semver": "7.8.0",
     "jsonc-parser": "3.3.1",
     "knip": "6.35.1",
-    "oxc-parser": "0.149.0",
-    "oxlint": "1.82.0",
+    "oxc-parser": "0.150.0",
+    "oxlint": "1.83.0",
     "parse5": "8.0.1",
     "semver": "7.8.5",
     "typescript": "7.0.2"

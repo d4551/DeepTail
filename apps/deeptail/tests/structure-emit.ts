@@ -7,7 +7,6 @@
  * @module
  */
 
-import { readFileSync } from 'node:fs'
 import { ROOT } from '../../../scripts/source-tree.ts'
 import {
   checkAriaReferences,
@@ -54,14 +53,14 @@ export function pointerTargetFloorFrom(text: string, name: 'fine' | 'coarse'): n
  * @param name - `fine` or `coarse`.
  * @returns the floor.
  */
-export function pointerTargetFloor(name: 'fine' | 'coarse'): number {
-  return pointerTargetFloorFrom(readFileSync(TOKEN_SHEET, 'utf8'), name)
+export async function pointerTargetFloor(name: 'fine' | 'coarse'): Promise<number> {
+  return pointerTargetFloorFrom(await Bun.file(TOKEN_SHEET).text(), name)
 }
 
 /** An animation whose iteration count can be read. */
 export interface TimedAnimation {
   readonly effect: { getComputedTiming(): { readonly iterations?: number } } | null
-  readonly finished: Promise<unknown>
+  readonly finished: Promise<Animation>
 }
 
 /**
@@ -100,9 +99,9 @@ const INTERACTIVE =
  * @param vocabulary - every class name the shipped stylesheets define.
  * @returns the source to evaluate.
  */
-export function structureCheckSource(coarsePointer: boolean, vocabulary: readonly string[]): string {
+export async function structureCheckSource(coarsePointer: boolean, vocabulary: readonly string[]): Promise<string> {
   const limits = {
-    target: pointerTargetFloor(coarsePointer ? 'coarse' : 'fine'),
+    target: await pointerTargetFloor(coarsePointer ? 'coarse' : 'fine'),
     interactive: INTERACTIVE,
     scope: PRODUCT_SURFACES,
     vocabulary,

@@ -14,23 +14,14 @@ import type { ActionOutcome } from './actions/outcomes.ts'
 import { outcomeCopy } from './actions/outcomes.ts'
 import type { ActionDescriptor, ActionId } from './actions/registry.ts'
 import { createDenialAudit, type DenialAudit } from './capabilities/audit.ts'
-import { createGrantLedger, type GrantLedger } from './capabilities/grants.ts'
+import type { GrantLedger } from './capabilities/grants.ts'
 import type { HostRecord } from './host.ts'
 import type { Translate } from './locales.ts'
-import { messageOf } from './reason.ts'
-import type { HostState } from './ui/states.ts'
-
-/** Facts that let a control through its own precondition. */
-export const READY_FACTS: Preconditions = {
-  hasHosts: true,
-  hostState: 'online',
-  running: true,
-  tailnetStored: true,
-}
 
 /** Where an outcome is told: the live region, or a failure strip. */
 export interface OutcomeTell {
-  readonly announce: (text: string) => void
+  /** Announce a settled action, where a live region exists to announce it. */
+  readonly announce?: (text: string) => void
   readonly fail: (text: string) => void
 }
 
@@ -53,7 +44,7 @@ export interface AppRuntime {
  * @param name - the slot.
  * @returns never; always throws.
  */
-export function missingPlane(name: string): never {
+function missingPlane(name: string): never {
   throw new Error(`deeptail: action plane missing ${name}`)
 }
 
@@ -129,7 +120,7 @@ function unboundPicker(): Pick<
  */
 export function presentOutcome(outcome: ActionOutcome, t: Translate, tell: OutcomeTell): void {
   if (outcome.kind === 'executed') {
-    if (outcome.announce !== undefined) tell.announce(outcome.announce)
+    if (outcome.announce !== undefined) tell.announce?.(outcome.announce)
     return
   }
   const copy = outcomeCopy(outcome, t)
@@ -138,49 +129,34 @@ export function presentOutcome(outcome: ActionOutcome, t: Translate, tell: Outco
 
 /**
  * Dispatch one action and present whatever it answered.
+ *
+ * Dispatch never rejects — every path through the dispatcher lands as an
+ * outcome — so the promise is told only what to do with an outcome.
  * @param runtime - the live plane.
  * @param action - the registry entry.
  * @param input - what the control supplies.
  * @param facts - the surface's current facts.
  * @param tell - where the outcome is told.
  */
-export function runAction<A extends ActionId, T>(
+export function runAction<A extends ActionId>(
   runtime: AppRuntime,
   action: ActionDescriptor & { readonly id: A },
   input: ActionInputs[A],
   facts: Preconditions,
   tell: OutcomeTell,
 ): void {
-  runtime.dispatcher.dispatch(action, input, facts).then(
-    (outcome) => presentOutcome(outcome, runtime.t, tell),
-    (reason: T) => tell.fail(messageOf(reason)),
-  )
-}
-
-/**
- * Facts for one control, with the four fields named.
- * @param hasHosts - whether any host is paired.
- * @param hostState - how the host the control belongs to reads.
- * @param running - whether the named session is running.
- * @param tailnetStored - whether a tailnet credential is stored.
- * @returns the facts.
- */
-export function actionFacts(
-  hasHosts: boolean,
-  hostState: HostState,
-  running: boolean,
-  tailnetStored: boolean,
-): Preconditions {
-  return { hasHosts, hostState, running, tailnetStored }
+  runtime.dispatcher.dispatch(action, input, facts).then((outcome) => presentOutcome(outcome, runtime.t, tell))
 }
 
 /**
  * Build the runtime the page spends through.
  * @param t - copy source.
+ * @param ledger - the page's grant mirror, hydrated by the boot from the native
+ * authority's snapshot; one ledger, so what a control paints and what dispatch
+ * spends can never disagree.
  * @returns the runtime, with every slot still unbound.
  */
-export function createAppRuntime(t: Translate): AppRuntime {
-  const ledger = createGrantLedger()
+export function createAppRuntime(t: Translate, ledger: GrantLedger): AppRuntime {
   const audit = createDenialAudit()
   const deps: ActionDeps = { ...unboundShell(), ...unboundSession(), ...unboundPicker() }
   const dispatcher = createDispatcher(deps, ledger, audit, t)

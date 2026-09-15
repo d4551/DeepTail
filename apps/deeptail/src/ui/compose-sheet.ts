@@ -19,7 +19,7 @@ import { type Dialog, openDialog } from './modal.ts'
 import { clearFailure, errorStrip, showFailure } from './states.ts'
 
 /** How a prompt joins the session's work. */
-export type PromptMode = 'queue' | 'steer'
+type PromptMode = 'queue' | 'steer'
 
 /** What the sheet needs to send. */
 export interface ComposeTarget {
@@ -152,12 +152,17 @@ function sendPrompt<T>(target: ComposeTarget, mode: PromptMode, text: string, re
     (outcome) => {
       if (outcome.kind === 'executed') sent()
       else reportSendFailure(outcome, report)
+      return outcome
     },
     (reason: T) => {
-      reportSendFailure(
-        { kind: 'invalid', traceId: '', reason: 'host-refused', message: messageOf(reason) },
-        report,
-      )
+      const outcome: ActionOutcome = {
+        kind: 'invalid',
+        traceId: '',
+        reason: 'host-refused',
+        message: messageOf(reason),
+      }
+      reportSendFailure(outcome, report)
+      return outcome
     },
   )
 }

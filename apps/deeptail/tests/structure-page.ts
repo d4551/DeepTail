@@ -61,6 +61,8 @@ export function isDrawerLayout(page: Page): Promise<boolean> {
  * @returns one line per finding.
  */
 export async function defects(page: Page, coarsePointer = false): Promise<string> {
-  const found = await page.evaluate<StructureFinding[]>(structureCheckSource(coarsePointer, await shippedVocabulary()))
+  const found = await page.evaluate<StructureFinding[]>(
+    await structureCheckSource(coarsePointer, await shippedVocabulary()),
+  )
   return found.map((finding) => `${finding.rule}: ${finding.detail}`).join('\n')
 }
