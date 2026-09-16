@@ -334,11 +334,14 @@ function utilityOf(token: string): string {
  * A styled-components or emotion build writes a hashed class into the markup
  * and ships the rule that styles it from JavaScript, so the class is a second
  * vocabulary with no sheet behind it and no gate to read. The hash is what
- * tells a generated name from this design system's own: a generated one
- * carries a digit or a capital inside its trailing run, where a class written
- * by hand is lowercase words.
+ * tells a generated name from this design system's own: it carries a digit —
+ * `css-1a2b3c` is the name emotion writes, and `jsx-` the one styled-jsx
+ * writes — or two capitals inside one word, which is the shape
+ * styled-components' own hash takes. A class written by hand is lowercase
+ * words, so neither shape reaches it.
  */
-const RUNTIME_GENERATED_CLASS = /^(?:sc|css|emotion|jsx)-[a-z0-9]*[0-9A-Z][a-z0-9]{3,}$/u
+const RUNTIME_GENERATED_CLASS =
+  /^(?:sc|css|jsx)-(?:[a-z0-9]*[0-9][a-z0-9]*|[a-z0-9]*[A-Z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*)$/u
 
 /**
  * Whether one class token belongs to a retired framework.
