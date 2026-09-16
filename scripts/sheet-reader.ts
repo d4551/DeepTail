@@ -16,59 +16,15 @@
  * and was therefore a way past every declaration rule in the gate.
  *
  * @module
- */function stryNS_9fa48() {
-  var g = typeof globalThis === 'object' && globalThis && globalThis.Math === Math && globalThis || new Function("return this")();
-  var ns = g.__stryker__ || (g.__stryker__ = {});
-  if (ns.activeMutant === undefined && g.process && g.process.env && g.process.env.__STRYKER_ACTIVE_MUTANT__) {
-    ns.activeMutant = g.process.env.__STRYKER_ACTIVE_MUTANT__;
-  }
-  function retrieveNS() {
-    return ns;
-  }
-  stryNS_9fa48 = retrieveNS;
-  return retrieveNS();
-}
-stryNS_9fa48();
-function stryCov_9fa48() {
-  var ns = stryNS_9fa48();
-  var cov = ns.mutantCoverage || (ns.mutantCoverage = {
-    static: {},
-    perTest: {}
-  });
-  function cover() {
-    var c = cov.static;
-    if (ns.currentTestId) {
-      c = cov.perTest[ns.currentTestId] = cov.perTest[ns.currentTestId] || {};
-    }
-    var a = arguments;
-    for (var i = 0; i < a.length; i++) {
-      c[a[i]] = (c[a[i]] || 0) + 1;
-    }
-  }
-  stryCov_9fa48 = cover;
-  cover.apply(null, arguments);
-}
-function stryMutAct_9fa48(id) {
-  var ns = stryNS_9fa48();
-  function isActive(id) {
-    if (ns.activeMutant === id) {
-      if (ns.hitCount !== void 0 && ++ns.hitCount > ns.hitLimit) {
-        throw new Error('Stryker: Hit count limit reached (' + ns.hitCount + ')');
-      }
-      return true;
-    }
-    return false;
-  }
-  stryMutAct_9fa48 = isActive;
-  return isActive(id);
-}
-import { lineReader } from './lines.ts';
+ */
+
+import { lineReader } from './lines.ts'
 
 /** Where a comment opens and closes. */
-const COMMENTS = stryMutAct_9fa48("577") ? /\/\*[\s\s]*?\*\//gu : stryMutAct_9fa48("576") ? /\/\*[\S\S]*?\*\//gu : stryMutAct_9fa48("575") ? /\/\*[^\s\S]*?\*\//gu : stryMutAct_9fa48("574") ? /\/\*[\s\S]\*\//gu : (stryCov_9fa48("574", "575", "576", "577"), /\/\*[\s\S]*?\*\//gu);
+const COMMENTS = /\/\*[\s\S]*?\*\//gu
 
 /** A class selector: a dot and the compound token that names the class. */
-const CLASS_TOKEN = stryMutAct_9fa48("580") ? /\.([a-zA-Z][^a-zA-Z0-9-]*)/gu : stryMutAct_9fa48("579") ? /\.([a-zA-Z][a-zA-Z0-9-])/gu : stryMutAct_9fa48("578") ? /\.([^a-zA-Z][a-zA-Z0-9-]*)/gu : (stryCov_9fa48("578", "579", "580"), /\.([a-zA-Z][a-zA-Z0-9-]*)/gu);
+const CLASS_TOKEN = /\.([a-zA-Z][a-zA-Z0-9-]*)/gu
 
 /**
  * The sheet with its comments blanked out, offsets preserved.
@@ -80,12 +36,7 @@ const CLASS_TOKEN = stryMutAct_9fa48("580") ? /\.([a-zA-Z][^a-zA-Z0-9-]*)/gu : s
  * @returns the sheet, same length, comments replaced by spaces.
  */
 export function withoutComments(text: string): string {
-  if (stryMutAct_9fa48("581")) {
-    {}
-  } else {
-    stryCov_9fa48("581");
-    return text.replaceAll(COMMENTS, stryMutAct_9fa48("582") ? () => undefined : (stryCov_9fa48("582"), comment => comment.replaceAll(stryMutAct_9fa48("583") ? /[\n]/gu : (stryCov_9fa48("583"), /[^\n]/gu), stryMutAct_9fa48("584") ? "" : (stryCov_9fa48("584"), ' '))));
-  }
+  return text.replaceAll(COMMENTS, (comment) => comment.replaceAll(/[^\n]/gu, ' '))
 }
 
 /**
@@ -98,30 +49,30 @@ export function withoutComments(text: string): string {
  */
 export interface Declaration {
   /** The property name, lower case. */
-  readonly property: string;
+  readonly property: string
   /** Everything after the colon, trimmed. */
-  readonly value: string;
+  readonly value: string
   /** One-based line the declaration is written on. */
-  readonly line: number;
+  readonly line: number
 }
 
 /** One brace-delimited block, and what it holds directly. */
 export interface Block {
   /** The text before the brace: a selector list, or an at-rule prelude. */
-  readonly prelude: string;
+  readonly prelude: string
   /** One-based line the prelude starts on. */
-  readonly line: number;
+  readonly line: number
   /** Whether the prelude opens an at-rule rather than a style rule. */
-  readonly atRule: boolean;
+  readonly atRule: boolean
   /** Whether a style rule encloses this block, which makes it a nested one. */
-  readonly nested: boolean;
+  readonly nested: boolean
   /** The declarations written directly in this block, in source order. */
-  readonly declarations: readonly Declaration[];
+  readonly declarations: readonly Declaration[]
 }
 
 /** A block being read: the same block, while its declarations still arrive. */
 interface OpenBlock extends Block {
-  readonly declarations: Declaration[];
+  readonly declarations: Declaration[]
 }
 
 /**
@@ -132,23 +83,19 @@ interface OpenBlock extends Block {
  * @param line - the line reader.
  * @returns the declaration, or undefined when the segment holds none.
  */
-function declarationIn(text: string, from: number, to: number, line: (offset: number) => number): Declaration | undefined {
-  if (stryMutAct_9fa48("585")) {
-    {}
-  } else {
-    stryCov_9fa48("585");
-    const segment = stryMutAct_9fa48("586") ? text : (stryCov_9fa48("586"), text.slice(from, to));
-    const colon = segment.indexOf(stryMutAct_9fa48("587") ? "" : (stryCov_9fa48("587"), ':'));
-    if (stryMutAct_9fa48("590") ? colon !== -1 : stryMutAct_9fa48("589") ? false : stryMutAct_9fa48("588") ? true : (stryCov_9fa48("588", "589", "590"), colon === (stryMutAct_9fa48("591") ? +1 : (stryCov_9fa48("591"), -1)))) return undefined;
-    const property = stryMutAct_9fa48("594") ? segment.trim().toLowerCase() : stryMutAct_9fa48("593") ? segment.slice(0, colon).toLowerCase() : stryMutAct_9fa48("592") ? segment.slice(0, colon).trim().toUpperCase() : (stryCov_9fa48("592", "593", "594"), segment.slice(0, colon).trim().toLowerCase());
-    const value = stryMutAct_9fa48("596") ? segment.trim() : stryMutAct_9fa48("595") ? segment.slice(colon + 1) : (stryCov_9fa48("595", "596"), segment.slice(stryMutAct_9fa48("597") ? colon - 1 : (stryCov_9fa48("597"), colon + 1)).trim());
-    if (stryMutAct_9fa48("600") ? property === '' && value === '' : stryMutAct_9fa48("599") ? false : stryMutAct_9fa48("598") ? true : (stryCov_9fa48("598", "599", "600"), (stryMutAct_9fa48("602") ? property !== '' : stryMutAct_9fa48("601") ? false : (stryCov_9fa48("601", "602"), property === (stryMutAct_9fa48("603") ? "Stryker was here!" : (stryCov_9fa48("603"), '')))) || (stryMutAct_9fa48("605") ? value !== '' : stryMutAct_9fa48("604") ? false : (stryCov_9fa48("604", "605"), value === (stryMutAct_9fa48("606") ? "Stryker was here!" : (stryCov_9fa48("606"), '')))))) return undefined;
-    return stryMutAct_9fa48("607") ? {} : (stryCov_9fa48("607"), {
-      property,
-      value,
-      line: line(stryMutAct_9fa48("608") ? from - segment.indexOf(property) : (stryCov_9fa48("608"), from + segment.indexOf(property)))
-    });
-  }
+function declarationIn(
+  text: string,
+  from: number,
+  to: number,
+  line: (offset: number) => number,
+): Declaration | undefined {
+  const segment = text.slice(from, to)
+  const colon = segment.indexOf(':')
+  if (colon === -1) return undefined
+  const property = segment.slice(0, colon).trim().toLowerCase()
+  const value = segment.slice(colon + 1).trim()
+  if (property === '' || value === '') return undefined
+  return { property, value, line: line(from + segment.indexOf(property)) }
 }
 
 /**
@@ -159,29 +106,20 @@ function declarationIn(text: string, from: number, to: number, line: (offset: nu
  * @returns the offset just past the closing quote.
  */
 function endOfString(text: string, start: number): number {
-  if (stryMutAct_9fa48("609")) {
-    {}
-  } else {
-    stryCov_9fa48("609");
-    const quote = text[start];
-    for (let index = stryMutAct_9fa48("610") ? start - 1 : (stryCov_9fa48("610"), start + 1); stryMutAct_9fa48("613") ? index >= text.length : stryMutAct_9fa48("612") ? index <= text.length : stryMutAct_9fa48("611") ? false : (stryCov_9fa48("611", "612", "613"), index < text.length); stryMutAct_9fa48("614") ? index -= 1 : (stryCov_9fa48("614"), index += 1)) {
-      if (stryMutAct_9fa48("615")) {
-        {}
-      } else {
-        stryCov_9fa48("615");
-        if (stryMutAct_9fa48("618") ? text[index] !== '\\' : stryMutAct_9fa48("617") ? false : stryMutAct_9fa48("616") ? true : (stryCov_9fa48("616", "617", "618"), text[index] === (stryMutAct_9fa48("619") ? "" : (stryCov_9fa48("619"), '\\')))) stryMutAct_9fa48("620") ? index -= 1 : (stryCov_9fa48("620"), index += 1);else if (stryMutAct_9fa48("623") ? text[index] !== quote : stryMutAct_9fa48("622") ? false : stryMutAct_9fa48("621") ? true : (stryCov_9fa48("621", "622", "623"), text[index] === quote)) return stryMutAct_9fa48("624") ? index - 1 : (stryCov_9fa48("624"), index + 1);
-      }
-    }
-    return text.length;
+  const quote = text[start]
+  for (let index = start + 1; index < text.length; index += 1) {
+    if (text[index] === '\\') index += 1
+    else if (text[index] === quote) return index + 1
   }
+  return text.length
 }
 
 /** What one walk of a sheet found. */
 interface Read {
   /** Every block, in the order they open. */
-  readonly blocks: Block[];
+  readonly blocks: Block[]
   /** Every declaration, in source order, whatever block it sits in. */
-  readonly declarations: Declaration[];
+  readonly declarations: Declaration[]
 }
 
 /**
@@ -193,104 +131,46 @@ interface Read {
  * @returns the blocks and the declarations.
  */
 function scan(text: string): Read {
-  if (stryMutAct_9fa48("625")) {
-    {}
-  } else {
-    stryCov_9fa48("625");
-    const sheet = withoutComments(text);
-    const line = lineReader(sheet);
-    const stack: OpenBlock[] = stryMutAct_9fa48("626") ? ["Stryker was here"] : (stryCov_9fa48("626"), []);
-    const read: Read = stryMutAct_9fa48("627") ? {} : (stryCov_9fa48("627"), {
-      blocks: stryMutAct_9fa48("628") ? ["Stryker was here"] : (stryCov_9fa48("628"), []),
-      declarations: stryMutAct_9fa48("629") ? ["Stryker was here"] : (stryCov_9fa48("629"), [])
-    });
-    let segment = 0;
-    for (let index = 0; stryMutAct_9fa48("632") ? index >= sheet.length : stryMutAct_9fa48("631") ? index <= sheet.length : stryMutAct_9fa48("630") ? false : (stryCov_9fa48("630", "631", "632"), index < sheet.length); stryMutAct_9fa48("633") ? index -= 1 : (stryCov_9fa48("633"), index += 1)) {
-      if (stryMutAct_9fa48("634")) {
-        {}
-      } else {
-        stryCov_9fa48("634");
-        const character = sheet[index];
-        if (stryMutAct_9fa48("637") ? character === '"' && character === "'" : stryMutAct_9fa48("636") ? false : stryMutAct_9fa48("635") ? true : (stryCov_9fa48("635", "636", "637"), (stryMutAct_9fa48("639") ? character !== '"' : stryMutAct_9fa48("638") ? false : (stryCov_9fa48("638", "639"), character === (stryMutAct_9fa48("640") ? "" : (stryCov_9fa48("640"), '"')))) || (stryMutAct_9fa48("642") ? character !== "'" : stryMutAct_9fa48("641") ? false : (stryCov_9fa48("641", "642"), character === (stryMutAct_9fa48("643") ? "" : (stryCov_9fa48("643"), "'")))))) {
-          if (stryMutAct_9fa48("644")) {
-            {}
-          } else {
-            stryCov_9fa48("644");
-            index = stryMutAct_9fa48("645") ? endOfString(sheet, index) + 1 : (stryCov_9fa48("645"), endOfString(sheet, index) - 1);
-            continue;
-          }
-        }
-        if (stryMutAct_9fa48("648") ? character !== '{' : stryMutAct_9fa48("647") ? false : stryMutAct_9fa48("646") ? true : (stryCov_9fa48("646", "647", "648"), character === (stryMutAct_9fa48("649") ? "" : (stryCov_9fa48("649"), '{')))) {
-          if (stryMutAct_9fa48("650")) {
-            {}
-          } else {
-            stryCov_9fa48("650");
-            const prelude = stryMutAct_9fa48("651") ? sheet : (stryCov_9fa48("651"), sheet.slice(segment, index));
-            const block: OpenBlock = stryMutAct_9fa48("652") ? {} : (stryCov_9fa48("652"), {
-              prelude: stryMutAct_9fa48("653") ? prelude.replaceAll(/\s+/gu, ' ') : (stryCov_9fa48("653"), prelude.trim().replaceAll(stryMutAct_9fa48("655") ? /\S+/gu : stryMutAct_9fa48("654") ? /\s/gu : (stryCov_9fa48("654", "655"), /\s+/gu), stryMutAct_9fa48("656") ? "" : (stryCov_9fa48("656"), ' '))),
-              line: line(stryMutAct_9fa48("657") ? segment - (prelude.length - prelude.trimStart().length) : (stryCov_9fa48("657"), segment + (stryMutAct_9fa48("658") ? prelude.length + prelude.trimStart().length : (stryCov_9fa48("658"), prelude.length - (stryMutAct_9fa48("659") ? prelude.trimEnd().length : (stryCov_9fa48("659"), prelude.trimStart().length)))))),
-              atRule: stryMutAct_9fa48("661") ? prelude.trimEnd().startsWith('@') : stryMutAct_9fa48("660") ? prelude.trimStart().endsWith('@') : (stryCov_9fa48("660", "661"), prelude.trimStart().startsWith(stryMutAct_9fa48("662") ? "" : (stryCov_9fa48("662"), '@'))),
-              nested: stryMutAct_9fa48("663") ? stack.every(open => !open.atRule) : (stryCov_9fa48("663"), stack.some(stryMutAct_9fa48("664") ? () => undefined : (stryCov_9fa48("664"), open => stryMutAct_9fa48("665") ? open.atRule : (stryCov_9fa48("665"), !open.atRule)))),
-              declarations: stryMutAct_9fa48("666") ? ["Stryker was here"] : (stryCov_9fa48("666"), [])
-            });
-            if (stryMutAct_9fa48("667")) {
-              ;
-            } else {
-              stryCov_9fa48("667");
-              stack.push(block);
-            }
-            if (stryMutAct_9fa48("668")) {
-              ;
-            } else {
-              stryCov_9fa48("668");
-              read.blocks.push(block);
-            }
-            segment = stryMutAct_9fa48("669") ? index - 1 : (stryCov_9fa48("669"), index + 1);
-            continue;
-          }
-        }
-        if (stryMutAct_9fa48("672") ? character !== ';' || character !== '}' : stryMutAct_9fa48("671") ? false : stryMutAct_9fa48("670") ? true : (stryCov_9fa48("670", "671", "672"), (stryMutAct_9fa48("674") ? character === ';' : stryMutAct_9fa48("673") ? true : (stryCov_9fa48("673", "674"), character !== (stryMutAct_9fa48("675") ? "" : (stryCov_9fa48("675"), ';')))) && (stryMutAct_9fa48("677") ? character === '}' : stryMutAct_9fa48("676") ? true : (stryCov_9fa48("676", "677"), character !== (stryMutAct_9fa48("678") ? "" : (stryCov_9fa48("678"), '}')))))) continue;
-        const open = stack.at(stryMutAct_9fa48("679") ? +1 : (stryCov_9fa48("679"), -1));
-        if (stryMutAct_9fa48("682") ? open === undefined : stryMutAct_9fa48("681") ? false : stryMutAct_9fa48("680") ? true : (stryCov_9fa48("680", "681", "682"), open !== undefined)) {
-          if (stryMutAct_9fa48("683")) {
-            {}
-          } else {
-            stryCov_9fa48("683");
-            const found = declarationIn(sheet, segment, index, line);
-            if (stryMutAct_9fa48("686") ? found === undefined : stryMutAct_9fa48("685") ? false : stryMutAct_9fa48("684") ? true : (stryCov_9fa48("684", "685", "686"), found !== undefined)) {
-              if (stryMutAct_9fa48("687")) {
-                {}
-              } else {
-                stryCov_9fa48("687");
-                if (stryMutAct_9fa48("688")) {
-                  ;
-                } else {
-                  stryCov_9fa48("688");
-                  open.declarations.push(found);
-                }
-                if (stryMutAct_9fa48("689")) {
-                  ;
-                } else {
-                  stryCov_9fa48("689");
-                  read.declarations.push(found);
-                }
-              }
-            }
-          }
-        }
-        segment = stryMutAct_9fa48("690") ? index - 1 : (stryCov_9fa48("690"), index + 1);
-        // Popping an empty stack is a no-op, so the brace alone decides: stating
-        // the same guard twice is one statement that can be deleted unnoticed.
-        if (stryMutAct_9fa48("693") ? character !== '}' : stryMutAct_9fa48("692") ? false : stryMutAct_9fa48("691") ? true : (stryCov_9fa48("691", "692", "693"), character === (stryMutAct_9fa48("694") ? "" : (stryCov_9fa48("694"), '}')))) if (stryMutAct_9fa48("695")) {
-          ;
-        } else {
-          stryCov_9fa48("695");
-          stack.pop();
-        }
+  const sheet = withoutComments(text)
+  const line = lineReader(sheet)
+  const stack: OpenBlock[] = []
+  const read: Read = { blocks: [], declarations: [] }
+  let segment = 0
+  for (let index = 0; index < sheet.length; index += 1) {
+    const character = sheet[index]
+    if (character === '"' || character === "'") {
+      index = endOfString(sheet, index) - 1
+      continue
+    }
+    if (character === '{') {
+      const prelude = sheet.slice(segment, index)
+      const block: OpenBlock = {
+        prelude: prelude.trim().replaceAll(/\s+/gu, ' '),
+        line: line(segment + (prelude.length - prelude.trimStart().length)),
+        atRule: prelude.trimStart().startsWith('@'),
+        nested: stack.some((open) => !open.atRule),
+        declarations: [],
+      }
+      stack.push(block)
+      read.blocks.push(block)
+      segment = index + 1
+      continue
+    }
+    if (character !== ';' && character !== '}') continue
+    const open = stack.at(-1)
+    if (open !== undefined) {
+      const found = declarationIn(sheet, segment, index, line)
+      if (found !== undefined) {
+        open.declarations.push(found)
+        read.declarations.push(found)
       }
     }
-    return read;
+    segment = index + 1
+    // Popping an empty stack is a no-op, so the brace alone decides: stating
+    // the same guard twice is one statement that can be deleted unnoticed.
+    if (character === '}') stack.pop()
   }
+  return read
 }
 
 /**
@@ -299,24 +179,19 @@ function scan(text: string): Read {
  * @returns one entry per block, with the declarations written directly in it.
  */
 export function blocksOf(text: string): Block[] {
-  if (stryMutAct_9fa48("696")) {
-    {}
-  } else {
-    stryCov_9fa48("696");
-    return scan(text).blocks;
-  }
+  return scan(text).blocks
 }
 
 /** A rule's selector list and the declarations it holds, normalized. */
 export interface Ruleset {
   /** The selectors, comma-separated as written, with whitespace collapsed. */
-  readonly selector: string;
+  readonly selector: string
   /** The declarations, in source order, with whitespace collapsed. */
-  readonly body: string;
+  readonly body: string
   /** One-based line the selector opens on. */
-  readonly line: number;
+  readonly line: number
   /** Whether a style rule encloses this one. */
-  readonly nested: boolean;
+  readonly nested: boolean
 }
 
 /**
@@ -330,22 +205,14 @@ export interface Ruleset {
  * @returns one entry per rule, in source order.
  */
 export function rulesetsOf(text: string): Ruleset[] {
-  if (stryMutAct_9fa48("697")) {
-    {}
-  } else {
-    stryCov_9fa48("697");
-    return stryMutAct_9fa48("698") ? blocksOf(text).map(block => ({
+  return blocksOf(text)
+    .filter((block) => !block.atRule && block.prelude !== '' && block.declarations.length > 0)
+    .map((block) => ({
       selector: block.prelude,
-      body: block.declarations.map(one => `${one.property}: ${one.value}`).join('; '),
+      body: block.declarations.map((one) => `${one.property}: ${one.value}`).join('; '),
       line: block.line,
-      nested: block.nested
-    })) : (stryCov_9fa48("698"), blocksOf(text).filter(stryMutAct_9fa48("699") ? () => undefined : (stryCov_9fa48("699"), block => stryMutAct_9fa48("702") ? !block.atRule && block.prelude !== '' || block.declarations.length > 0 : stryMutAct_9fa48("701") ? false : stryMutAct_9fa48("700") ? true : (stryCov_9fa48("700", "701", "702"), (stryMutAct_9fa48("704") ? !block.atRule || block.prelude !== '' : stryMutAct_9fa48("703") ? true : (stryCov_9fa48("703", "704"), (stryMutAct_9fa48("705") ? block.atRule : (stryCov_9fa48("705"), !block.atRule)) && (stryMutAct_9fa48("707") ? block.prelude === '' : stryMutAct_9fa48("706") ? true : (stryCov_9fa48("706", "707"), block.prelude !== (stryMutAct_9fa48("708") ? "Stryker was here!" : (stryCov_9fa48("708"), '')))))) && (stryMutAct_9fa48("711") ? block.declarations.length <= 0 : stryMutAct_9fa48("710") ? block.declarations.length >= 0 : stryMutAct_9fa48("709") ? true : (stryCov_9fa48("709", "710", "711"), block.declarations.length > 0))))).map(stryMutAct_9fa48("712") ? () => undefined : (stryCov_9fa48("712"), block => stryMutAct_9fa48("713") ? {} : (stryCov_9fa48("713"), {
-      selector: block.prelude,
-      body: block.declarations.map(stryMutAct_9fa48("714") ? () => undefined : (stryCov_9fa48("714"), one => stryMutAct_9fa48("715") ? `` : (stryCov_9fa48("715"), `${one.property}: ${one.value}`))).join(stryMutAct_9fa48("716") ? "" : (stryCov_9fa48("716"), '; ')),
-      line: block.line,
-      nested: block.nested
-    }))));
-  }
+      nested: block.nested,
+    }))
 }
 
 /**
@@ -354,12 +221,7 @@ export function rulesetsOf(text: string): Ruleset[] {
  * @returns the declarations.
  */
 export function declarationsOf(text: string): Declaration[] {
-  if (stryMutAct_9fa48("717")) {
-    {}
-  } else {
-    stryCov_9fa48("717");
-    return scan(text).declarations;
-  }
+  return scan(text).declarations
 }
 
 /**
@@ -373,23 +235,13 @@ export function declarationsOf(text: string): Declaration[] {
  * @returns the class names, in the order first written, duplicates removed.
  */
 export function classTokensOf(text: string): string[] {
-  if (stryMutAct_9fa48("718")) {
-    {}
-  } else {
-    stryCov_9fa48("718");
-    const found: string[] = stryMutAct_9fa48("719") ? ["Stryker was here"] : (stryCov_9fa48("719"), []);
-    for (const block of blocksOf(text)) {
-      if (stryMutAct_9fa48("720")) {
-        {}
-      } else {
-        stryCov_9fa48("720");
-        if (stryMutAct_9fa48("722") ? false : stryMutAct_9fa48("721") ? true : (stryCov_9fa48("721", "722"), block.atRule)) continue;
-        // Every captured group of every match, which is one group: reading it by
-        // index needs a guard for a case the pattern cannot produce, and a guard
-        // for an impossible case is a line no test can ever reach.
-        found.push(...(stryMutAct_9fa48("724") ? [] : (stryCov_9fa48("724"), [...block.prelude.matchAll(CLASS_TOKEN)])).flatMap(stryMutAct_9fa48("725") ? () => undefined : (stryCov_9fa48("725"), match => stryMutAct_9fa48("726") ? [...match] : (stryCov_9fa48("726"), (stryMutAct_9fa48("727") ? [] : (stryCov_9fa48("727"), [...match])).slice(1)))));
-      }
-    }
-    return stryMutAct_9fa48("728") ? [] : (stryCov_9fa48("728"), [...new Set(found)]);
+  const found: string[] = []
+  for (const block of blocksOf(text)) {
+    if (block.atRule) continue
+    // Every captured group of every match, which is one group: reading it by
+    // index needs a guard for a case the pattern cannot produce, and a guard
+    // for an impossible case is a line no test can ever reach.
+    found.push(...[...block.prelude.matchAll(CLASS_TOKEN)].flatMap((match) => [...match].slice(1)))
   }
+  return [...new Set(found)]
 }
