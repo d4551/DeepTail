@@ -16,8 +16,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { parseSync } from 'oxc-parser'
-import { parseFragment } from 'parse5'
-import { tagTree } from './markup-tree.ts'
+import { fragmentTree, NESTED_ACTIVATION_TARGET, NESTED_ACTIVATION_TARGET_TREE } from './markup-tree.ts'
 
 describe('oxc jsx parsing', () => {
   it('emits a jsx attribute node for a string attribute', () => {
@@ -58,7 +57,9 @@ describe('parse5 nesting', () => {
   // The markup gate cannot reject an activation target nested in its own kind:
   // the HTML parsing algorithm closes the open element when the second start
   // tag arrives, so the tree a parser hands a gate never carries that shape.
+  // The fragment and its pinned tree live in `markup-tree.ts`, where the suite
+  // that reads a parsed tree for the shell checks reads the same pin.
   it('closes an open activation target when its own kind opens inside it', () => {
-    expect(tagTree(parseFragment('<button>a<button>b</button></button>'))).toEqual(['  button', '  button'])
+    expect(fragmentTree(NESTED_ACTIVATION_TARGET)).toEqual(NESTED_ACTIVATION_TARGET_TREE)
   })
 })

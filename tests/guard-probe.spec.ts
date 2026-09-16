@@ -18,6 +18,10 @@ const GATE = new URL('../scripts/check-outdated.ts', import.meta.url).pathname
 
 test('driving a gate in this process leaves the exit code as it found it', async () => {
   const entryMain = Bun.main
+  // The code the process arrived with, which is not necessarily nought: a spec
+  // that ran before this one may have left its own status behind, and a
+  // restoration pinned to a literal would report a failure here for that
+  // rather than for the gate.
   const entryExit = process.exitCode
   const spawnSync = Bun.spawnSync
   const out = spyOn(process.stdout, 'write').mockImplementation(() => true)
@@ -43,6 +47,10 @@ test('driving a gate in this process leaves the exit code as it found it', async
   out.mockRestore()
   Reflect.set(Bun, 'main', entryMain)
   process.exitCode = entryExit ?? 0
+  // The gate's own half: a refusal writes a non-zero status for the shell the
+  // gate program would be running under.
   expect(duringImport).toBe(1)
-  expect(process.exitCode).toBe(0)
+  // And the driver's half: the status goes back to what the process arrived
+  // with, so nothing after this point reports a failure this gate earned.
+  expect(process.exitCode).toBe(entryExit ?? 0)
 })

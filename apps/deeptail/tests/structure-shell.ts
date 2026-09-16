@@ -1,10 +1,12 @@
 /**
- * Shell integrity and the one-page one-module SSOT, as the live tree shows them.
+ * Shell integrity, the dialog contract, and the one-page one-module SSOT, as
+ * the live tree shows them.
  *
- * A second shell, a shell nested in a shell, a shell with no main landmark, or
- * an inline/one-off script hanging off a product surface is a second page the
- * design system never reads. The source gate catches the shipped HTML; these
- * catch what a runtime helper can still inject.
+ * A second shell, a shell nested in a shell, a shell with no main landmark, a
+ * dialog or a mask built outside the shared frame, or an inline/one-off script
+ * hanging off a product surface is a second page the design system never reads.
+ * The source gate catches the shipped HTML; these catch what a runtime helper
+ * can still inject.
  *
  * @module
  */
@@ -86,4 +88,69 @@ function checkOneOffScripts(add: Report, limits: ShellLimits): void {
   }
 }
 
-export { checkInlineScripts, checkOneOffScripts, checkShell }
+/**
+ * Every dialog, and every mask, comes from the one component that draws them.
+ *
+ * A dialog is a contract, not a box: it declares itself modal, it is named by a
+ * heading, everything behind it leaves the tree, and it is dismissed on Escape
+ * with focus handed back to whatever opened it. The shared frame is what holds
+ * that contract in one place, and it marks what it builds, so a dialog or a
+ * mask assembled anywhere else is a second contract — one that will be missing
+ * whichever of those promises its author did not think of, and that no rule
+ * engine reports while the one it *did* remember keeps axe quiet.
+ *
+ * The mask is found by where it is drawn rather than by a colour: an element
+ * laid out over the whole viewport, outside every product surface, that no
+ * frame holding a marked dialog contains. A page may paint a mask — the shell
+ * paints one behind its drawer — so the rule is not that masks are forbidden,
+ * only that each one belongs to a root that owns it.
+ * @param add - collects a finding.
+ * @param limits - the product surfaces to read.
+ */
+function checkDialogContract(add: Report, limits: ShellLimits): void {
+  const marker = '[data-deeptail-dialog]'
+  const roles = '[role="dialog"], [role="alertdialog"]'
+  const dialogs = [...document.querySelectorAll(roles)]
+  if (dialogs.length > 1) {
+    add('dialog-contract', `the document holds ${String(dialogs.length)} dialogs at once; one frame is open at a time`)
+  }
+  for (const dialog of dialogs) {
+    if (!dialog.matches(marker)) {
+      add(
+        'dialog-contract',
+        `${describe(dialog)} is a dialog the shared frame did not build, so nothing holds its mask, its naming and its dismissal together`,
+      )
+      continue
+    }
+    if (dialog.getAttribute('aria-modal') !== 'true') {
+      add('dialog-contract', `${describe(dialog)} is the shared frame without declaring itself modal`)
+    }
+  }
+  for (const marked of document.querySelectorAll(marker)) {
+    if (!marked.matches(roles)) {
+      add('dialog-contract', `${describe(marked)} carries the dialog marker without the dialog role to go with it`)
+    }
+  }
+  const owned = (node: Element): boolean => {
+    if (node.closest(limits.scope) !== null) return true
+    let held: Element | null = node
+    while (held !== null && held !== document.body) {
+      if (held.querySelector(marker) !== null) return true
+      held = held.parentElement
+    }
+    return false
+  }
+  for (const node of document.querySelectorAll('body *')) {
+    const style = getComputedStyle(node)
+    if (style.position !== 'fixed' && style.position !== 'absolute') continue
+    const box = node.getBoundingClientRect()
+    if (box.width < window.innerWidth * 0.9 || box.height < window.innerHeight * 0.9) continue
+    if (owned(node)) continue
+    add(
+      'overlay-contract',
+      `${describe(node)} is drawn over the whole viewport outside every product root, and no dialog frame owns it`,
+    )
+  }
+}
+
+export { checkDialogContract, checkInlineScripts, checkOneOffScripts, checkShell }

@@ -1,11 +1,12 @@
 /**
- * What a pointer can actually reach.
+ * What a pointer can reach, and what a keyboard is shown.
  *
  * Split from `structure-layout.ts` when it outgrew the size the linter allows
- * one file. These two rules share the one question the others do not ask:
- * where a box is *painted*, as against where it is laid out. An element inside
- * a pane that scrolls keeps reporting a rectangle the pane shows none of, and
- * both rules read that rectangle as somewhere a finger could land.
+ * one file. These rules share the one question the others do not ask: where a
+ * box is *painted*, as against where it is laid out. An element inside a pane
+ * that scrolls keeps reporting a rectangle the pane shows none of, and every
+ * rule here reads that rectangle as somewhere a finger could land or a focus
+ * ring would be seen.
  *
  * These run inside the page like the rest, so they may only use DOM APIs and
  * what they are handed.
@@ -132,4 +133,179 @@ export function checkTouchTargets(add: Report, limits: PointerLimits): void {
       )
     }
   }
+}
+
+/**
+ * What one control paints, in one state, through the properties a focus
+ * indicator can be made of.
+ *
+ * Read as a whole rather than one property at a time, because the question a
+ * focus rule asks is a comparison: the same control in two states. A box that
+ * carries a border at rest and a thicker one when focused has an indicator;
+ * the same box with the same border in both states has none the reader can
+ * find by looking.
+ */
+export interface FocusRing {
+  /** The outline's painted width, in CSS pixels. */
+  readonly outlineWidth: number
+  /** The outline's style, `none` when nothing is drawn. */
+  readonly outlineStyle: string
+  /** How opaque the outline is, 0 when fully transparent. */
+  readonly outlineOpacity: number
+  /** The whole `box-shadow` declaration, `none` when nothing is drawn. */
+  readonly shadow: string
+  /** The border's painted width, in CSS pixels. */
+  readonly borderWidth: number
+  /** How opaque the border is, 0 when fully transparent. */
+  readonly borderOpacity: number
+  /** The painted background, which a ring drawn inward replaces. */
+  readonly background: string
+  /** The painted text colour. */
+  readonly text: string
+}
+
+/**
+ * Read what a control paints, from the computed style of one of its states.
+ *
+ * Colours arrive from the engine as `rgb()`/`rgba()`, or as one of the wider
+ * gamut spellings the palette may adopt later. Only the three alpha-carrying
+ * forms are read; anything else is taken as opaque, because a ring this rule
+ * cannot decode is a ring the reader can see, and reporting it as invisible
+ * would be the check inventing a defect out of its own parser.
+ * @param style - the element's computed style in the state being read.
+ * @returns the indicator-bearing properties, resolved to numbers where a
+ * comparison needs one.
+ */
+export function readFocusRing(style: CSSStyleDeclaration): FocusRing {
+  const alpha = (colour: string): number => {
+    const text = colour.trim().toLowerCase()
+    if (text === 'transparent') return 0
+    const found = /rgba?\(([^)]*)\)/u.exec(text)
+    if (found === null) return 1
+    const held = (found[1] ?? '').split(',').map((one) => Number.parseFloat(one))
+    const last = held[3]
+    return last === undefined ? 1 : last
+  }
+  const pixels = (value: string): number => {
+    const size = Number.parseFloat(value)
+    return Number.isFinite(size) ? size : 0
+  }
+  return {
+    outlineWidth: pixels(style.outlineWidth),
+    outlineStyle: style.outlineStyle,
+    outlineOpacity: alpha(style.outlineColor),
+    shadow: style.boxShadow,
+    borderWidth: pixels(style.borderWidth),
+    borderOpacity: alpha(style.borderTopColor),
+    background: style.backgroundColor,
+    text: style.color,
+  }
+}
+
+/**
+ * Report a control that takes focus without showing it.
+ *
+ * WCAG 2.4.7 asks for an indicator a reader can see, and 2.4.11 that nothing
+ * hides it. Neither is a property of the markup: a control with the user
+ * agent's ring switched off and nothing painted back is *correct* in every
+ * rule engine's account — labelled, reachable, in the tab order — and a
+ * keyboard user cannot tell where they are. The only place the two states can
+ * be compared is the live page, which is what this rule reads.
+ *
+ * The indicator is an outline or a shadow, painted and not fully transparent,
+ * that the resting state does not already have. A border that thickens counts
+ * as well: the same square of pixels changes, and the reader sees it. A colour
+ * alone does not, because colour is the one channel WCAG 1.4.1 forbids as the
+ * sole carrier of information.
+ * @param add - collects a finding.
+ * @param node - the control that is focused.
+ * @param resting - what it painted before it was focused.
+ * @param focused - what it paints now.
+ */
+export function checkFocusRing(add: Report, node: Element, resting: FocusRing, focused: FocusRing): void {
+  const outline = focused.outlineStyle !== 'none' && focused.outlineWidth > 0 && focused.outlineOpacity > 0
+  const shadow = focused.shadow.trim() !== 'none' && focused.shadow.trim() !== ''
+  if (!outline && !shadow) {
+    add('focus-invisible', `${describe(node)} takes focus and paints no outline or shadow for it`)
+    return
+  }
+  const shown =
+    focused.outlineWidth !== resting.outlineWidth ||
+    focused.outlineStyle !== resting.outlineStyle ||
+    focused.outlineOpacity !== resting.outlineOpacity ||
+    focused.shadow !== resting.shadow ||
+    focused.borderWidth > resting.borderWidth
+  if (!shown) {
+    add(
+      'focus-invisible',
+      `${describe(node)} paints the same outline focused as unfocused, so focus is nowhere the reader can see it`,
+    )
+  }
+}
+
+/**
+ * Every control that takes focus shows that it has it, and is not covered.
+ *
+ * The check drives the page rather than reading it: a control's focused state
+ * exists only while something is focused, so each control is focused in turn,
+ * read, and the page is put back the way it was found. `preventScroll` keeps
+ * the measurement from moving the page out from under every other rule in the
+ * same pass.
+ *
+ * The covering test samples the centre and the four corners of what the
+ * control paints, inset a pixel so a sample cannot land on a neighbour's
+ * border, and reports only when every sample that a hit test answered with
+ * paints something else. WCAG 2.4.11 asks that the focused component not be
+ * *entirely* hidden, so a centre-only test would report a control whose middle
+ * is covered while both ends are in plain sight, which is not what the
+ * criterion says. Samples outside the viewport are dropped: a hit test cannot
+ * answer where the reader is shown nothing, and a control the window cuts is
+ * already accounted for by the panes it scrolls in.
+ *
+ * A control that does not take focus at all is not this rule's subject: it is
+ * reported where it belongs, as a target that paints no box or as an
+ * interaction nested in another.
+ * @param add - collects a finding.
+ * @param limits - which elements take focus or activation, handed in by the caller.
+ */
+export function checkFocusVisible(add: Report, limits: { readonly interactive: string }): void {
+  const opener = document.activeElement
+  const covers = (node: HTMLElement): Element | undefined => {
+    const box = drawnBox(node)
+    const width = box.right - box.left
+    const height = box.bottom - box.top
+    if (width <= 0 || height <= 0) return undefined
+    const inset = 1
+    const points: [number, number][] = [
+      [box.left + width / 2, box.top + height / 2],
+      [box.left + inset, box.top + inset],
+      [box.right - inset, box.top + inset],
+      [box.left + inset, box.bottom - inset],
+      [box.right - inset, box.bottom - inset],
+    ]
+    const shown = points.filter(([x, y]) => x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight)
+    if (shown.length === 0) return undefined
+    const hits = shown.map(([x, y]) => document.elementFromPoint(x, y))
+    if (hits.every((hit) => hit === node || node.contains(hit))) return undefined
+    return hits.find((hit) => hit !== null && hit !== node && !node.contains(hit)) ?? undefined
+  }
+  for (const node of document.querySelectorAll(limits.interactive)) {
+    if (node.closest('[inert]') !== null) continue
+    if (!(node instanceof HTMLElement) || !node.checkVisibility()) continue
+    // A disabled control is not focusable, so focusing it would report the
+    // ring it never had a chance to paint.
+    if (node.hasAttribute('disabled')) continue
+    const resting = readFocusRing(getComputedStyle(node))
+    node.focus({ preventScroll: true })
+    if (document.activeElement !== node) continue
+    checkFocusRing(add, node, resting, readFocusRing(getComputedStyle(node)))
+    const blocker = covers(node)
+    if (blocker !== undefined) {
+      add(
+        'focus-obscured',
+        `${describe(node)} holds focus under ${describe(blocker)}, which covers every point it paints`,
+      )
+    }
+  }
+  if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true })
 }

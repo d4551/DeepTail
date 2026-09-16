@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { LISTING_COMMAND, onlyPresent, ROOT, repositoryFiles } from '../scripts/source-tree.ts'
+import { LISTING_COMMAND, listedFiles, onlyPresent, readListing, ROOT, repositoryFiles } from '../scripts/source-tree.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**
@@ -105,6 +105,60 @@ describe('the file list order and ignore rules', () => {
     expect(subcommand).toBeGreaterThan(0)
     expect(LISTING_COMMAND[0]).toBe('git')
     expect(LISTING_COMMAND.slice(1, subcommand)).toContain('--no-optional-locks')
+  })
+})
+
+describe('the parse of one listing', () => {
+  it('keeps the entries that carry the asked-for suffix and drops the rest', () => {
+    expect(listedFiles('scripts/a.ts\0scripts/b.css\0scripts/c.ts\0', ['.ts']).map((file) => file.label)).toEqual([
+      'scripts/a.ts',
+      'scripts/c.ts',
+    ])
+  })
+
+  it('reads the suffix as the end of a name rather than as a stretch of it', () => {
+    // A path that merely contains the suffix is another file kind entirely, and
+    // a reader matching anywhere in the name would hand it to a gate that
+    // cannot read it.
+    expect(listedFiles('scripts/a.ts.bak\0scripts/ats\0', ['.ts'])).toEqual([])
+  })
+
+  it('sorts what it keeps, so two runs of a gate list offences the same way', () => {
+    // The listing itself is in git's order, which is not path order.
+    expect(listedFiles('scripts/z.ts\0scripts/a.ts\0', ['.ts']).map((file) => file.label)).toEqual([
+      'scripts/a.ts',
+      'scripts/z.ts',
+    ])
+  })
+
+  it('reads the join onto the root as concatenation, so the path it reports opens the file', () => {
+    // The listing reports paths relative to the root, and the root ends with
+    // its own separator: a join that inserted another would name nothing.
+    expect(listedFiles('apps/package.json\0', ['/package.json']).map((file) => file.path)).toEqual([
+      `${ROOT}apps/package.json`,
+    ])
+  })
+
+  it('reads the trailing separator as a separator rather than as a path', () => {
+    // The listing is NUL-separated and ends with one, so the last field is
+    // always empty. Kept, it would be a file the gates open and fail on.
+    expect(listedFiles('scripts/a.ts\0', ['.ts']).map((file) => file.label)).toEqual(['scripts/a.ts'])
+    expect(listedFiles('', ['.ts'])).toEqual([])
+  })
+})
+
+describe('what a finished listing command answers with', () => {
+  it('hands back the listing a command that answered wrote', () => {
+    expect(readListing(0, 'scripts/a.ts\0', '')).toBe('scripts/a.ts\0')
+  })
+
+  it('refuses a command that would not answer, rather than reading it as an empty repository', () => {
+    // A non-zero exit is git refusing. Read as output, its empty stream says the
+    // repository ships nothing, and every rule a gate has passes over nothing.
+    expect(() => readListing(128, '', 'fatal: not a git repository\n')).toThrow(
+      'source-tree: git ls-files exited 128: fatal: not a git repository\n',
+    )
+    expect(() => readListing(1, 'scripts/a.ts\0', 'fatal: bad revision\n')).toThrow('exited 1')
   })
 })
 

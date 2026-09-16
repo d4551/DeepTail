@@ -12,13 +12,12 @@
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
-import * as parse5 from 'parse5'
 import { structureCheckSource } from '../apps/deeptail/tests/structure-emit.ts'
 import { oxcCallNames, oxcDefinedNames, parseScript } from '../scripts/ast.ts'
 import * as bans from '../scripts/ban-gate.ts'
 import { onlyPresent, ROOT, repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
-import { tagTree } from './markup-tree.ts'
+import { fragmentTree } from './markup-tree.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**
@@ -166,17 +165,16 @@ describe('the checks the browser suite actually ships', () => {
 })
 
 describe('what the checks the browser suite evaluates are made of', () => {
-  it('cannot be handed an activation target nested in its own kind, and the parser is why', () => {
+  it('cannot be handed one activation target nested in another, and the parser is why', () => {
     // The `nested-interactive` rule walks a parsed tree, and the HTML parsing
     // algorithm closes an open activation target the moment a second start tag
-    // of its own kind arrives. That shape therefore never reaches the rule as
-    // a nesting: it arrives as siblings. Pinned here so the rule's silence on
-    // it is read as the parser's doing, and a future swap of the parser that
-    // changes this tree fails a named test instead of quietly shifting what
-    // the rule can see.
-    // The fragment node itself sits at depth 0, so its children indent once:
-    // two `button` lines at one depth, not a `button` under a `button`.
-    expect(tagTree(parse5.parseFragment('<button>a<button>b</button></button>'))).toEqual(['  button', '  button'])
+    // of its own kind arrives. Both kinds a page puts a control inside —
+    // `button` and `a` — are therefore split before the rule can see them: the
+    // nesting arrives as siblings at one depth rather than as a nesting.
+    // Pinned so a rule that says nothing about either shape is read as the
+    // parser's doing, and a future swap of the parser that changes this fails a
+    // named test instead of quietly shifting what the rule can see.
+    expect(fragmentTree('<a href="/one">a<a href="/two">b</a></a>')).toEqual(['  a', '  a'])
   })
 })
 

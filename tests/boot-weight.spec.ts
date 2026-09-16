@@ -97,13 +97,12 @@ describe('the shell’s entry weight', () => {
     // actually produced, so the client returning by any route at all -- a
     // transitive dependency, a re-export, a differently spelled specifier --
     // is caught by the thing that matters, which is what the page must parse.
-    const chunks = builtChunks()
-    const entry = chunks.filter((chunk) => chunk.name.startsWith('index-'))
-    expect(entry.length).toBe(1)
-    expect([entry[0]?.name ?? '', (entry[0]?.bytes ?? Number.MAX_SAFE_INTEGER) <= ENTRY_BUDGET]).toEqual([
-      entry[0]?.name ?? '',
-      true,
-    ])
+    const entries = builtChunks().filter((chunk) => chunk.name.startsWith('index-'))
+    expect(entries.length).toBe(1)
+    // Every entry chunk, rather than only the first: a build that emitted a
+    // second one would otherwise be weighed by whichever the directory listed
+    // first, and a chunk named beside the budget is a chunk nobody read.
+    expect(entries.filter((chunk) => chunk.bytes > ENTRY_BUDGET).map((chunk) => chunk.name)).toEqual([])
   })
 
   it('splits the client into a chunk of its own, which is the weight being deferred', () => {
