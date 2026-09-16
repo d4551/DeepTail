@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { oneHost, sessions } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
+import { until } from './wait.ts'
 
 let harness: Harness
 
@@ -131,10 +132,32 @@ it('names the available presets when the host rejects the one typed', async () =
   await page.close()
 })
 
+it('returns to the control plane from the bar beside a booted client', async () => {
+  const page = await harness.open(oneHost())
+  await page.waitForSelector('[data-deeptail-shell]')
+  const rosterReads = async (): Promise<number> =>
+    (await harness.calls(page)).filter((call) => call.endpoint === 'session/list').length
+  // Opening a session hands the page to the harness client, which is where the
+  // return bar comes from; the action under test is the way back out of it.
+  await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-open"]').click()
+  await page.locator('[data-deeptail-return]').waitFor({ state: 'attached' })
+  const before = await rosterReads()
+  await page.locator('[data-deeptail-action="return-fleet"]').click()
+  // Coming back mounts the control plane over the registry again, which is what
+  // re-reads the roster: the bar leaving on its own would say a node was
+  // dropped, not that the fleet is showing.
+  await page.locator('[data-deeptail-session="s-running"] .session-title').waitFor({ state: 'visible' })
+  expect(await textOf(page, '[data-deeptail-session="s-running"] .session-title')).toBe('Refactor the loader')
+  expect(await page.locator('[data-deeptail-return]').count()).toBe(0)
+  await until(async () => (await rosterReads()) > before)
+  expect(await rosterReads()).toBeGreaterThan(before)
+  await page.close()
+})
+
 it('puts the control plane back, carrying the reason, when a client fails to boot', async () => {
   const page = await harness.open(oneHost({ bootError: 'host refused the boot table' }))
   await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-session="s-running"] .session-open').click()
+  await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-open"]').click()
   // Booting replaces the page, so a failure part way through would otherwise
   // leave nothing on screen and no way back.
   await page.locator('[data-deeptail-state="shell-error"]').waitFor({ state: 'visible' })

@@ -197,6 +197,24 @@ export function recordAttributeOffences(
     if (HTMX_ATTRIBUTE.test(attribute.name)) {
       found.push({ line, why: 'an hx attribute wires behaviour into the tag; attach the listener in a module' })
     }
+    if (HTMX_EXTENSION_ATTRIBUTE.test(attribute.name)) {
+      found.push({
+        line,
+        why: 'an htmx extension attribute wires behaviour into the tag; attach the listener in a module',
+      })
+    }
+    if (VUE2_SLOT_ATTRIBUTE.test(attribute.name)) {
+      found.push({
+        line,
+        why: 'a Vue 2 slot attribute is a retired framework directive; render the slot in a module',
+      })
+    }
+    if (JQUERY_MOBILE_ATTRIBUTE.test(attribute.name)) {
+      found.push({
+        line,
+        why: 'a jQuery Mobile hook is a retired framework attribute; wire the behaviour in a module',
+      })
+    }
     for (const { pattern, why } of DIRECTIVE_ATTRIBUTES) {
       if (pattern.test(attribute.name)) found.push({ line, why })
     }

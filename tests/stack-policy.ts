@@ -1,6 +1,7 @@
 /**
- * The stack policy: the packages this workspace must not install, and the
- * dialect an installed package's own manifest says it ships.
+ * The stack policy: the packages this workspace must not install, the files a
+ * retired pipeline is configured by, and the dialect an installed package's own
+ * manifest says it ships.
  *
  * A floor table refuses a version below a line; it says nothing about a second
  * styling vocabulary arriving under a new name. That is held here, and what can
@@ -24,7 +25,9 @@ import { ROOT } from '../scripts/source-tree.ts'
  * or a utility stylesheet is a second vocabulary no gate reads. A package's
  * purpose is not a field npm defines — a component library ships ordinary
  * modules and ordinary sheets, so its manifest reads like any library's — which
- * is why these are refused by name rather than by metadata.
+ * is why these are refused by name rather than by metadata. Each framework is
+ * listed under every name it publishes under, because the refusal is about the
+ * vocabulary and not about the spelling npm happens to use for it.
  */
 const RETIRED_VOCABULARIES = new Set([
   '@base-ui-components/core',
@@ -34,20 +37,30 @@ const RETIRED_VOCABULARIES = new Set([
   '@vanilla-extract/css',
   'alpinejs',
   'animate.css',
+  'babel-plugin-styled-components',
   'bootstrap',
   'bootstrap-icons',
+  'bootstrap-vue',
   'bulma',
   'daisyui',
   'foundation-sites',
+  'fomantic-ui',
+  'fomantic-ui-css',
   'htmx',
   'htmx.org',
   'jquery',
+  'jquery-mobile',
+  'jquery-ui',
+  'jquery-ui-dist',
   'materialize-css',
   'nuxt',
   'open-props',
   'panda-css',
   'picocss',
+  'react-bootstrap',
   'semantic-ui',
+  'semantic-ui-css',
+  'semantic-ui-react',
   'styled-components',
   'tailwindcss',
   'uikit',
@@ -94,13 +107,27 @@ const RETIRED_SCOPES: readonly string[] = [
   '@daisyui/',
   '@emotion/',
   '@htmx.org/',
+  '@materializecss/',
   '@nuxt/',
   '@pandacss/',
+  '@picocss/',
   '@tailwindcss/',
   '@unocss/',
   '@vanilla-extract/',
   '@vue/',
 ]
+
+/**
+ * The configuration file names a retired CSS pipeline is configured by.
+ *
+ * A retired pipeline arrives in two shapes: a package the manifests declare,
+ * and a file the repository ships. The file is the shape a reintroduction takes
+ * first, and the pipelines name their configuration by the same convention —
+ * `<tool>.config.<extension>`, the short `uno` alias the utility engine ships,
+ * and the dotfile `rc` forms a pipeline reads when no config file is present.
+ */
+const RETIRED_PIPELINE_CONFIG =
+  /(?:^|\/)(?:(?:autoprefixer|daisyui|postcss|purgecss|tailwind|uno|unocss|windicss)\.config\.[a-z]+|\.(?:postcssrc|unocssrc)(?:\.[a-z]+)?)$/u
 
 /**
  * Whether a package is a styling vocabulary the design system retired.
@@ -123,6 +150,15 @@ export function isRetiredVocabulary(name: string): boolean {
  */
 export function isRetiredPackage(name: string): boolean {
   return isRetiredVocabulary(name) || RETIRED_PIPELINES.has(name)
+}
+
+/**
+ * Whether a shipped file is the configuration a retired CSS pipeline reads.
+ * @param label - the path, as the tree lists it.
+ * @returns true when the file is a retired pipeline's own configuration.
+ */
+export function isRetiredPipelineConfig(label: string): boolean {
+  return RETIRED_PIPELINE_CONFIG.test(label)
 }
 
 /** The directories this workspace installs dependencies into. */

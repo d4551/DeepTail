@@ -15,17 +15,21 @@ import { declarationsOf } from './sheet-reader.ts'
 import { CASINGS } from './sheet-scale.ts'
 
 /**
- * Lengths any sheet may write.
+ * Lengths any sheet may write on a drawn property.
  *
- * An inset of nought asks for no space, and a `0` on any other scaled property
- * is that property's reset: neither is a point on the scale, and both are
- * written where the layout needs them rather than where a decision was taken.
- * Every other length on a scaled property — a hairline's width included — is a
- * spacing, radius or type decision and belongs to the scale, so a 1px or a 2px
- * standing in for one is refused like any other off-scale value. The drawn
- * widths themselves have a ladder of their own, read below.
+ * A hairline and a focus ring are drawn, not spaced: they are one device pixel
+ * and two, at every density and every scale, and a nought asks for no line at
+ * all. These are the values of the drawn ladder in tokens.css — a sheet reads
+ * `--dsh-border-hairline` for the first of them and may write the same number
+ * in place, because the two spellings are one decision and the ladder is where
+ * it is named. What the rule refuses is a width that is on neither: a 4px or a
+ * 7px border is a line no other surface draws, which is a decision taken
+ * outside the scale rather than a rung of it.
+ *
+ * `scripts/check-scale.ts` reads the drawn ladder and refuses a rung that is
+ * not one of these, so the two declarations cannot drift apart.
  */
-export const DRAWN_LENGTHS: ReadonlySet<string> = new Set(['0px'])
+export const DRAWN_LENGTHS: ReadonlySet<string> = new Set(['0px', '1px', '2px', '3px'])
 
 /** A stacking order written as a bare number. */
 const STACKING = /^-?\d+$/u
@@ -203,13 +207,13 @@ function propertyOffences(label: string, property: string, value: string, line: 
  */
 function drawnWidthOffences(label: string, property: string, value: string, line: number): Offence[] {
   const words = value.split(/\s+/u).filter((word) => word !== '')
-  const bare = words.filter((word) => DRAWN_WIDTH_BARE.test(word))
+  const bare = words.filter((word) => DRAWN_WIDTH_BARE.test(word) && !DRAWN_LENGTHS.has(word))
   if (bare.length === 0) return []
   return [
     {
       label,
       line,
-      why: `drawn-width: ${bare.join(', ')} on ${property} is not a drawn rung; a border, a rule and a ring are drawn at --dsh-border-hairline, --dsh-border-ring or --dsh-border-accent in tokens.css`,
+      why: `drawn-width: ${bare.join(', ')} on ${property} is not a drawn rung; a border, a rule and a ring are drawn at ${[...DRAWN_LENGTHS].join(', ')} in tokens.css`,
     },
   ]
 }

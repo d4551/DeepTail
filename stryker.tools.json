@@ -24,6 +24,7 @@
     "scripts/jsonc.ts",
     "scripts/mutate-restore.ts",
     "scripts/mutation-survivors.ts",
+    "scripts/paint-contract.ts",
     "scripts/paint-index.ts",
     "scripts/paint-stamp.ts",
     "scripts/pins.ts",

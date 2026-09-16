@@ -32,6 +32,20 @@ it('lists a host and its sessions, announcing run state as text', async () => {
   await page.close()
 })
 
+it('hands the chosen session to the client on its own host', async () => {
+  const page = await harness.open(oneHost())
+  await page.waitForSelector('[data-deeptail-shell]')
+  // Opening a session boots the harness client for that session's host, which
+  // takes the page: the bar beside it is the only route back, so its arrival is
+  // what the open control did. A control that only closed or only repainted
+  // would leave the shell in place.
+  await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-open"]').click()
+  await page.locator('[data-deeptail-return]').waitFor({ state: 'attached' })
+  expect(await textOf(page, '[data-deeptail-return]')).toBe('Back to all sessions')
+  expect(await page.locator('[data-deeptail-shell]').count()).toBe(0)
+  await page.close()
+})
+
 it('offers Stop only on a running session', async () => {
   const page = await harness.open(oneHost())
   await page.waitForSelector('[data-deeptail-shell]')

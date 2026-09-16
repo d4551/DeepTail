@@ -10,7 +10,7 @@ import type { ActionDeps, ActionInputs, Preconditions } from '../apps/deeptail/s
 import { createDispatcher } from '../apps/deeptail/src/actions/dispatch.ts'
 import { outcomeCopy } from '../apps/deeptail/src/actions/outcomes.ts'
 import type { ActionDescriptor, ActionId } from '../apps/deeptail/src/actions/registry.ts'
-import { ACTION_IDS, ACTION_LIST, ACTIONS, CAPABILITIES } from '../apps/deeptail/src/actions/registry.ts'
+import { ACTION_IDS, ACTIONS, CAPABILITIES } from '../apps/deeptail/src/actions/registry.ts'
 import { createDenialAudit } from '../apps/deeptail/src/capabilities/audit.ts'
 import { createGrantLedger } from '../apps/deeptail/src/capabilities/grants.ts'
 import { DICTIONARIES, type PickerKey, type Translate } from '../apps/deeptail/src/locales.ts'
@@ -97,6 +97,37 @@ const ACTIVATION: { readonly [A in ActionId]: ActionInputs[A] } = {
   'tailnet.forget': undefined,
 }
 
+/**
+ * What each handler must ask the application for, exactly.
+ *
+ * A handler that runs and does nothing leaves a dispatch that executes and an
+ * outcome that reads as success, so the account of each action is the call it
+ * made rather than the fact that it returned. The table is keyed by `ActionId`,
+ * which is what makes an action added to the registry a compile error here
+ * until its own effect is stated.
+ */
+const EFFECT: { readonly [A in ActionId]: readonly string[] } = {
+  'boot.retry': ['remount'],
+  'client.return': ['return'],
+  'drawer.toggle': ['drawer:true'],
+  'drawer.dismiss': ['drawer:false'],
+  'session.spawn': ['spawn-dialog'],
+  'connection.pair': ['pair:'],
+  'connection.repair': ['pair:host-a'],
+  'connection.unpair': ['forget:host-a'],
+  'connection.select': ['select:host-a'],
+  'session.open': ['openClient:s-1'],
+  'session.message': ['compose:host-a/s-1'],
+  'session.cancel': ['cancel:s-1'],
+  'compose.send': ['message:s-1:queue'],
+  'compose.steer': ['message:s-1:steer'],
+  'spawn.create': ['spawn:host-a'],
+  'picker.pair': ['pair-link:https://h.example/?token=t'],
+  'picker.tailnet': ['tailnet'],
+  'tailnet.connect': ['connect:api'],
+  'tailnet.forget': ['forget-tailnet'],
+}
+
 /** The facts a control is measured against, set so its own precondition holds. */
 function factsFor(action: ActionDescriptor): Preconditions {
   return { ...facts, hostState: action.availability === 'unauthorized' ? 'unauthorized' : 'online' }
@@ -113,7 +144,7 @@ function fullLedger(): ReturnType<typeof createGrantLedger> {
 }
 
 describe('the dispatcher', () => {
-  it('runs every action the registry declares', async () => {
+  it('runs every action the registry declares, and asks for what its handler promises', async () => {
     const calls: Calls = { names: [] }
     const audit = createDenialAudit()
     const dispatcher = createDispatcher(recordingDeps(calls), fullLedger(), audit, t)
@@ -123,13 +154,16 @@ describe('the dispatcher', () => {
     const refused = await ACTION_IDS.reduce<Promise<string[]>>(
       (chain, id) =>
         chain.then(async (seen) => {
+          const before = calls.names.length
           const outcome = await dispatcher.dispatch(ACTIONS[id], ACTIVATION[id], factsFor(ACTIONS[id]))
-          return outcome.kind === 'executed' ? seen : [...seen, `${id}: ${outcome.kind}`]
+          if (outcome.kind !== 'executed') return [...seen, `${id}: ${outcome.kind}`]
+          const made = calls.names.slice(before)
+          if (made.join('|') === EFFECT[id].join('|')) return seen
+          return [...seen, `${id}: asked for ${made.join(', ') || 'nothing'}, where ${EFFECT[id].join(', ')} is what the action is`]
         }),
       Promise.resolve([]),
     )
     expect(refused).toEqual([])
-    expect(calls.names.length).toBeGreaterThanOrEqual(ACTION_LIST.length)
     expect(audit.recent()).toEqual([])
   })
 })

@@ -1,27 +1,30 @@
 /**
  * Stack floors and checker configuration.
  *
- * A toolchain that silently slips back a major version, or a checker that is
+ * A toolchain that silently slips back a version, or a checker that is
  * quietly switched off, is a regression no other gate reports: the build still
  * succeeds and every other suite stays green. These assertions read the
  * manifests and the source that actually ship. The policy bans — the retired
  * UI frameworks, the legacy pipeline configs, the one-page shell and the bun
  * pin — live in `stack-policy.spec.ts`.
  *
- * The floors are held to the pins deliberately. A floor written below what is
- * installed can never fail, so it rots into decoration; holding the two equal
- * means a downgrade fails here and an upgrade has to be stated here, and every
- * tool the repository installs must appear, so nothing joins without a floor.
+ * The floors are held to the pins deliberately, at the exact version the
+ * manifests declare. A floor written below what is installed can never fail, so
+ * it rots into decoration: stated at the major and minor alone it admitted
+ * every patch downgrade inside the same minor, and an upgrade said nothing.
+ * Holding the two equal means a downgrade of any depth fails here and an
+ * upgrade has to be stated here, and every tool the repository installs must
+ * appear, so nothing joins without a floor.
  */
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
-import { coerce, gte, major, maxSatisfying, minor, satisfies } from 'semver'
+import { coerce, gte, major, maxSatisfying, satisfies } from 'semver'
 import { EMPTY_SECTION, isJsonObject, readJsonc } from '../scripts/jsonc.ts'
 import { everyDependency } from './manifests.ts'
 
 /**
- * The major.minor every dependency this repository declares is held at.
+ * The exact version every dependency this repository declares is held at.
  *
  * Every one of them, not only the tools at the root: a workspace manifest is
  * exactly as able to slip back a version, and `vite` sat two minors above a
@@ -29,46 +32,46 @@ import { everyDependency } from './manifests.ts'
  * to prevent, present and unreported.
  */
 const FLOORS: Readonly<Record<string, string>> = {
-  '@axe-core/playwright': '4.13',
-  '@babel/parser': '8.0',
-  '@babel/traverse': '8.0',
-  '@babel/types': '8.0',
-  '@biomejs/biome': '2.5',
-  '@deepseek-ai/cordis': '4.0',
-  '@deepseek-ai/cordis-plugin-loader': '1.0',
-  '@deepseek-ai/dsh-api-session-controller': '0.1',
-  '@deepseek-ai/dsh-brand': '0.1',
-  '@deepseek-ai/dsh-client-modules': '0.1',
-  '@deepseek-ai/dsh-client-store': '0.1',
-  '@deepseek-ai/dsh-client-ui-primitives': '0.1',
-  '@deepseek-ai/dsh-client-ui-slots': '0.1',
-  '@deepseek-ai/dsh-client-web': '0.1',
-  '@deepseek-ai/dsh-invariants': '0.1',
-  '@deepseek-ai/dsh-jobs': '0.1',
-  '@deepseek-ai/dsh-session': '0.1',
-  '@deepseek-ai/dsh-tools': '0.1',
-  '@deepseek-ai/dsh-util-values': '0.1',
-  '@deepseek-ai/schemastery': '3.18',
-  '@deeptail/host-fleet': '0.1',
-  '@happy-dom/global-registrator': '20.14',
-  '@stryker-mutator/core': '10.0',
-  '@tauri-apps/api': '2.11',
-  '@tauri-apps/cli': '2.11',
-  '@types/bun': '1.4',
-  '@types/node': '26.6',
-  '@types/semver': '7.8',
-  'jsonc-parser': '3.3',
-  knip: '6.35',
-  'oxc-parser': '0.150',
-  oxlint: '1.83',
-  parse5: '8.0',
-  playwright: '1.63',
-  'playwright-core': '1.63',
-  react: '19.3',
-  'react-dom': '19.3',
-  semver: '7.8',
-  typescript: '7.0',
-  vite: '8.3',
+  '@axe-core/playwright': '4.13.0',
+  '@babel/parser': '8.0.5',
+  '@babel/traverse': '8.0.5',
+  '@babel/types': '8.0.5',
+  '@biomejs/biome': '2.5.14',
+  '@deepseek-ai/cordis': '4.0.2',
+  '@deepseek-ai/cordis-plugin-loader': '1.0.3',
+  '@deepseek-ai/dsh-api-session-controller': '0.1.2',
+  '@deepseek-ai/dsh-brand': '0.1.2',
+  '@deepseek-ai/dsh-client-modules': '0.1.2',
+  '@deepseek-ai/dsh-client-store': '0.1.2',
+  '@deepseek-ai/dsh-client-ui-primitives': '0.1.2',
+  '@deepseek-ai/dsh-client-ui-slots': '0.1.2',
+  '@deepseek-ai/dsh-client-web': '0.1.2',
+  '@deepseek-ai/dsh-invariants': '0.1.2',
+  '@deepseek-ai/dsh-jobs': '0.1.2',
+  '@deepseek-ai/dsh-session': '0.1.2',
+  '@deepseek-ai/dsh-tools': '0.1.2',
+  '@deepseek-ai/dsh-util-values': '0.1.2',
+  '@deepseek-ai/schemastery': '3.18.2',
+  '@deeptail/host-fleet': '0.1.0',
+  '@happy-dom/global-registrator': '20.14.5',
+  '@stryker-mutator/core': '10.0.0',
+  '@tauri-apps/api': '2.11.1',
+  '@tauri-apps/cli': '2.11.4',
+  '@types/bun': '1.4.2',
+  '@types/node': '26.6.1',
+  '@types/semver': '7.8.0',
+  'jsonc-parser': '3.3.1',
+  knip: '6.35.1',
+  'oxc-parser': '0.150.0',
+  oxlint: '1.83.0',
+  parse5: '8.0.1',
+  playwright: '1.63.0',
+  'playwright-core': '1.63.0',
+  react: '19.3.0',
+  'react-dom': '19.3.0',
+  semver: '7.8.5',
+  typescript: '7.0.2',
+  vite: '8.3.0',
 }
 
 /**
@@ -89,7 +92,7 @@ function belowFloor(found: ReadonlyMap<string, string>): string[] {
       behind.push(`${name} declares an unreadable range: ${range}`)
       continue
     }
-    if (!gte(pinned, `${floor}.0`)) behind.push(`${name} ${range} is below the ${floor} floor`)
+    if (!gte(pinned, floor)) behind.push(`${name} ${range} is below the ${floor} floor`)
   }
   return behind
 }
@@ -110,7 +113,7 @@ function unstatedFloors(declared: ReadonlyMap<string, string>): string[] {
     }
     const pinned = coerce(range)
     if (pinned === null) continue
-    if (`${major(pinned)}.${minor(pinned)}` !== floor) {
+    if (pinned.version !== floor) {
       unstated.push(`${name} ${range} is held at a floor that no longer matches it: ${floor}`)
     }
   }
@@ -155,7 +158,7 @@ describe('stack floors', () => {
       if (shape === 'workspace') {
         expect(read).toEqual(['typescript declares an unreadable range: workspace:*'])
       } else {
-        expect(read).toEqual([`typescript ${range} is below the 7.0 floor`])
+        expect(read).toEqual([`typescript ${range} is below the 7.0.2 floor`])
       }
     }
   })
@@ -168,19 +171,38 @@ describe('stack floors refuse an old major', () => {
     expect(major(pinned)).toBe(7)
   })
 
-  it('names a TypeScript 6 pin, a React 18 pin and a Tauri v1 pin', () => {
+  it('names every previous major this stack can slip back on', () => {
     const driven = new Map([
       ...Object.entries(FLOORS),
-      ['typescript', '6.9.2'],
-      ['react', '18.3.1'],
+      ['@biomejs/biome', '1.0.0'],
+      ['@stryker-mutator/core', '9.0.0'],
       ['@tauri-apps/api', '1.6.0'],
+      ['oxlint', '0.1.0'],
       ['playwright', '1.62.1'],
+      ['react', '18.3.1'],
+      ['typescript', '6.9.2'],
+      ['vite', '7.3.6'],
     ])
     expect(belowFloor(driven)).toEqual([
-      '@tauri-apps/api 1.6.0 is below the 2.11 floor',
-      'playwright 1.62.1 is below the 1.63 floor',
-      'react 18.3.1 is below the 19.3 floor',
-      'typescript 6.9.2 is below the 7.0 floor',
+      '@biomejs/biome 1.0.0 is below the 2.5.14 floor',
+      '@stryker-mutator/core 9.0.0 is below the 10.0.0 floor',
+      '@tauri-apps/api 1.6.0 is below the 2.11.1 floor',
+      'oxlint 0.1.0 is below the 1.83.0 floor',
+      'playwright 1.62.1 is below the 1.63.0 floor',
+      'react 18.3.1 is below the 19.3.0 floor',
+      'typescript 6.9.2 is below the 7.0.2 floor',
+      'vite 7.3.6 is below the 8.3.0 floor',
+    ])
+  })
+
+  it('names a downgrade inside the same minor, which a floor at the major and minor admits', () => {
+    // The exactness the table is held to: a floor stated at `7.0` admitted
+    // 7.0.1 and 7.0.0 alike, so the pin could walk backwards a patch at a time
+    // with every gate green.
+    const driven = new Map([...Object.entries(FLOORS), ['@biomejs/biome', '2.5.13'], ['typescript', '7.0.1']])
+    expect(belowFloor(driven)).toEqual([
+      '@biomejs/biome 2.5.13 is below the 2.5.14 floor',
+      'typescript 7.0.1 is below the 7.0.2 floor',
     ])
   })
 })
@@ -193,6 +215,23 @@ describe('stack floors read a range', () => {
     expect(maxSatisfying(['1.2.3', '1.9.0'], '^1.2.3')).toBe('1.9.0')
     expect(satisfies('1.9.0', '^1.2.3')).toBe(true)
     expect(satisfies('2.0.0', '^1.2.3')).toBe(false)
+  })
+})
+
+describe('the Node floor', () => {
+  it('admits the versions the manifest states and refuses the ones below them', async () => {
+    // Driven off the declared engine range rather than a remembered number: a
+    // manifest widened to admit an older runtime fails the first line, and one
+    // that drops the current line fails the last.
+    const manifest = readJsonc(await readFile('package.json', 'utf8'))
+    const engines = isJsonObject(manifest['engines']) ? manifest['engines'] : EMPTY_SECTION
+    const node = typeof engines['node'] === 'string' ? engines['node'] : ''
+    expect(node).not.toBe('')
+    expect(satisfies('22.18.0', node)).toBe(false)
+    expect(satisfies('22.19.0', node)).toBe(true)
+    expect(satisfies('23.5.0', node)).toBe(false)
+    expect(satisfies('24.0.0', node)).toBe(true)
+    expect(satisfies('26.6.1', node)).toBe(true)
   })
 })
 

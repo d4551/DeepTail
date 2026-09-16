@@ -23,10 +23,12 @@
 import { STYLE_EXTENSIONS } from './extensions.ts'
 import { CONSOLE, type Gate, readGate, reportGate } from './gate-runner.ts'
 import type { Offence } from './offence.ts'
+import { DRAWN_LENGTHS } from './sheet-declarations.ts'
 import { TOKEN_SHEET } from './sheet-gate.ts'
 import { blocksOf } from './sheet-reader.ts'
 import {
   absentRungs,
+  BORDER,
   declaredTokens,
   LADDERS,
   type Ladder,
@@ -261,6 +263,18 @@ export function scaleOffences(label: string, text: string): Offence[] {
     const read = readLadder(label, ladder, rungs, pixels)
     offences.push(...read.offences)
     for (const [property, px] of read.pixels) pixels.set(property, px)
+    // The drawn ladder and the allowance a sheet writes a drawn length under
+    // are one decision read in two places: a rung whose value is outside the
+    // allowance is a width no sheet could restate and no reader would know.
+    if (ladder.stem !== BORDER) continue
+    for (const rung of rungs) {
+      if (DRAWN_LENGTHS.has(rung.value)) continue
+      offences.push({
+        label,
+        line: rung.line,
+        why: `${rung.property} is ${rung.value}, which is no drawn length; a border, a rule and a ring are drawn at ${[...DRAWN_LENGTHS].join(', ')}`,
+      })
+    }
   }
   for (const { ladder, rungs } of ratios) offences.push(...readLadder(label, ladder, rungs, pixels).offences)
   return offences.toSorted((left, right) => left.line - right.line)

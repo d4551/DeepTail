@@ -106,10 +106,25 @@ it('keeps keyboard focus on a row when the roster rebuilds beneath it', async ()
   expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toContain(
     'Write the release notes',
   )
-  // The roving stop moved with it, so the next arrow key continues from here.
-  await page.keyboard.press('ArrowDown')
-  expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).not.toContain(
-    'Write the release notes',
+  // The roving stop moved with the row, so the next arrow key continues from
+  // here. The row it has to land on is read from the roster's own order rather
+  // than restated, and the assertion names that row: a rebuild that dropped
+  // focus on the floor would leave nothing focused, which a "not this row"
+  // assertion would have called a pass.
+  const order = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-deeptail-session]')].map(
+      (row) => row.getAttribute('data-deeptail-session') ?? '',
+    ),
   )
+  expect(order).toContain('s-idle')
+  expect(order.length).toBeGreaterThan(1)
+  const follows = order[(order.indexOf('s-idle') + 1) % order.length] ?? ''
+  expect(follows).not.toBe('')
+  await page.keyboard.press('ArrowDown')
+  expect(
+    await page.evaluate(
+      () => document.activeElement?.closest('[data-deeptail-session]')?.getAttribute('data-deeptail-session') ?? null,
+    ),
+  ).toBe(follows)
   await page.close()
 })
