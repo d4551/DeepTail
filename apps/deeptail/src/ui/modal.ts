@@ -92,6 +92,46 @@ function inertSiblings(root: HTMLElement): Disposer {
   }
 }
 
+/** Every element the platform hands focus to. */
+const CONTROLS = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
+/**
+ * Ask the platform to focus a node, and report whether it took.
+ *
+ * `focus()` is silent when it refuses — a control inside an inert subtree, or
+ * one a rule has hidden, takes no focus and throws nothing — so whether it
+ * landed is the only account of what happened.
+ * @param node - the node to focus.
+ * @returns whether the node now holds focus.
+ */
+function takesFocus(node: Element): boolean {
+  if (!(node instanceof HTMLElement) || !node.isConnected) return false
+  node.focus()
+  return document.activeElement === node
+}
+
+/**
+ * Hand focus back to the control that opened the dialog.
+ *
+ * That control can be out of play by the time the dialog closes: a roster row
+ * shows its actions while the pointer is over the row, so a dismissal made by
+ * pressing the mask leaves the control that opened the sheet hidden, and the
+ * mask itself is what the frame dismisses the drawer under. Focus goes to the
+ * nearest control that can still take it — the opener first, else the first
+ * reachable control in the region the opener sat in, one region at a time —
+ * so dismissing never drops focus on the document.
+ * @param opener - the element that held focus when the dialog opened.
+ */
+function handBackFocus(opener: Element | null): void {
+  if (opener !== null && takesFocus(opener)) return
+  let region = opener?.parentElement ?? null
+  while (region !== null && region !== document.body) {
+    const control = [...region.querySelectorAll(CONTROLS)].find(takesFocus)
+    if (control !== undefined) return
+    region = region.parentElement
+  }
+}
+
 /**
  * Open a dialog.
  * @param title - accessible name and visible heading.
@@ -113,7 +153,7 @@ export function openDialog(title: string): Dialog {
     root.remove()
     restore?.()
     restore = undefined
-    if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+    handBackFocus(opener)
   }
 
   function onKeyDown(event: KeyboardEvent): void {

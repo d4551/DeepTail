@@ -159,7 +159,10 @@ describe('the dispatcher', () => {
           if (outcome.kind !== 'executed') return [...seen, `${id}: ${outcome.kind}`]
           const made = calls.names.slice(before)
           if (made.join('|') === EFFECT[id].join('|')) return seen
-          return [...seen, `${id}: asked for ${made.join(', ') || 'nothing'}, where ${EFFECT[id].join(', ')} is what the action is`]
+          return [
+            ...seen,
+            `${id}: asked for ${made.join(', ') || 'nothing'}, where ${EFFECT[id].join(', ')} is what the action is`,
+          ]
         }),
       Promise.resolve([]),
     )

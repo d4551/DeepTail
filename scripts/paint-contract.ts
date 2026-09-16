@@ -224,7 +224,9 @@ export function documentOffences(html: string): string[] {
   if (titles.length !== 1 || textOf(titles[0] ?? parsed) === '') {
     refused.push(`the document carries ${String(titles.length)} non-empty titles; a document carries one`)
   }
-  const viewport = elements.filter((element) => tagOf(element) === 'meta' && attributeOf(element, 'name') === 'viewport')
+  const viewport = elements.filter(
+    (element) => tagOf(element) === 'meta' && attributeOf(element, 'name') === 'viewport',
+  )
   if (viewport.length !== 1 || !(attributeOf(viewport[0] ?? parsed, 'content') ?? '').includes('width=device-width')) {
     refused.push('the document carries no viewport meta that states width=device-width')
   }

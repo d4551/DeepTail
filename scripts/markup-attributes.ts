@@ -141,14 +141,15 @@ const PRESENTATIONAL_ATTRIBUTES = new Set([
  *
  * `data-theme` is the daisyUI theme hook: the palette this product ships is
  * tokens.css, and a second theme switch on the tag is a second palette. The
- * `x-`, `@` and `:` prefixes are the Alpine and Vue directive shorthands, one
- * more way a listener or a binding can move into the tag where no module
- * ships it and no gate reads it.
+ * `x-`, `@`, `:` and `#` prefixes are the Alpine and Vue directive shorthands,
+ * one more way a listener or a binding can move into the tag where no module
+ * ships it and no gate reads it: `v-bind` is written `:` and `v-on` is written
+ * `@`, and `v-slot` is written `#`.
  */
 const DIRECTIVE_ATTRIBUTES: readonly { readonly pattern: RegExp; readonly why: string }[] = [
   { pattern: /^data-theme$/iu, why: 'data-theme is the daisyUI theme hook; the palette lives in tokens.css' },
   {
-    pattern: /^(?:x-|@|:)/u,
+    pattern: /^(?:x-|@|:|#)/u,
     why: 'a directive attribute wires behaviour into the tag; attach the listener in a module',
   },
   {
