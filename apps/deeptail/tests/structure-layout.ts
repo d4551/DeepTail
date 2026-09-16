@@ -1,15 +1,11 @@
 /**
- * The structural checks that measure boxes and read computed declarations
- * rather than judge markup.
+ * The structural checks that measure boxes rather than judge markup.
  *
  * Geometry is the half of conformance no rule engine reports: an element can be
  * correctly labelled, correctly nested and still be scrolled out of reach, cut
  * off by the box it sits in, or laid a few pixels off the row it belongs to.
- * The same read answers the questions a stylesheet settles rather than a
- * document does: whether a reader who asked for less motion gets it, and how
- * far text a reader enlarges has to travel before it is lost. These run inside
- * the page like the rest, so they may only use DOM APIs and what they are
- * handed.
+ * These run inside the page like the rest, so they may only use DOM APIs and
+ * what they are handed.
  *
  * @module
  */
@@ -26,9 +22,8 @@ import { describe, type Report } from './structure-report.ts'
  * defect whether or not both are scrolling yet.
  *
  * Vertical only. CSS computes `overflow-x: visible` to `auto` as soon as
- * `overflow-y` is anything else, so every vertical pane reads as a horizontal
- * one too and no measurement separates the two. Sideways scroll has its own
- * check, which forbids it on the document outright.
+ * `overflow-y` is anything else, so no measurement separates the two axes here;
+ * sideways scroll has its own check, which forbids it on the document.
  * @param node - the element to measure.
  * @returns true when the box scrolls its own vertical overflow.
  */
@@ -55,9 +50,7 @@ function checkHorizontalOverflow(add: Report): void {
  * their text spacing to the sizes WCAG 1.4.12 names, or their text size to the
  * 200% of 1.4.4, does not make a box wider — they make the text inside it
  * taller, so the line that leaves a fixed-height box is cut off by exactly the
- * declaration that used to be a harmless `overflow: hidden`. Sideways was the
- * only axis this rule read while every sheet here laid its text on one line;
- * the block axis is the half those two criteria actually break.
+ * declaration that used to be a harmless `overflow: hidden`.
  *
  * A single nowrap line carrying an ellipsis is the one deliberate truncation:
  * the reader is told the text continues. The same declaration on a box that
@@ -96,10 +89,8 @@ function checkClipping(add: Report): void {
  * A `textarea` long enough to need scrolling scrolls the text being edited,
  * and a `select` its own option list. Neither is a pane the layout put inside
  * another pane: they are leaves, and they cannot be made not to scroll without
- * losing the content they hold. Reading them as nested panes made the rule
- * forbid a shape every dialog needs — a dialog that scrolls and holds a text
- * field — so the rule stayed silent until the dialog's scroll containment was
- * deleted, and then stayed silent about that too.
+ * losing the content they hold — and reading them as panes made the rule forbid
+ * a shape every dialog needs, a dialog that scrolls and holds a text field.
  *
  * `contenteditable` joins the form controls: it is an editor whatever tag
  * carries it. The tag list is written inside the function because this source
@@ -169,18 +160,16 @@ function checkAlignment(add: Report, limits: { readonly scope: string }): void {
  *
  * A row is placed by its container, so a box a few pixels off its neighbours is
  * a decision no sheet states: a control nudged by a margin, a label dropped by
- * its own line box, an icon centred beside something taller. Each box is still
- * labelled, still inside its viewport, still reachable, so no rule engine and
- * no other check here reports it — the row simply reads as sloppy, which is the
- * kind of defect a reviewer notices by eye and nothing else does.
+ * its own line box, an icon centred beside something taller. Every box is still
+ * labelled, visible and reachable, so nothing else reports it — the row reads
+ * as sloppy, and that is the defect a reviewer sees by eye and no rule does.
  *
  * Only a flex or grid container is read, because those are the containers that
  * place children side by side, so a box off the line is the container's doing.
- * A block container stacks its children, and two of its boxes that happen to
- * overlap vertically are a float or a positioned child — layout this rule has
- * no business in. `align-items: baseline` is skipped for the same reason: the
- * engine aligns those baselines itself, whatever heights the boxes have, so a
- * row under it cannot be off the line.
+ * A block container stacks its children, and two of its boxes overlapping
+ * vertically is a float or a positioned child — layout this rule has no
+ * business in. `align-items: baseline` is skipped for the same reason: the
+ * engine aligns those baselines itself, whatever heights the boxes have.
  *
  * Edges are compared with one CSS pixel of tolerance, the rounding a fractional
  * layout leaves behind at other densities and other text scales.
@@ -189,19 +178,6 @@ function checkAlignment(add: Report, limits: { readonly scope: string }): void {
  */
 function checkSiblingAlignment(add: Report, limits: { readonly scope: string }): void {
   const tolerance = 1
-  const edgesOf = (node: Element): number[] => {
-    const box = node.getBoundingClientRect()
-    return [box.top, box.bottom, box.top + box.height / 2]
-  }
-  const near = (one: number, other: number): boolean => Math.abs(one - other) <= tolerance
-  const sharesEdge = (one: readonly number[], other: readonly number[]): boolean =>
-    one.some((edge, index) => near(edge, other[index] ?? edge))
-  const sharesLine = (one: Element, other: Element): boolean => {
-    const held = one.getBoundingClientRect()
-    const box = other.getBoundingClientRect()
-    const overlap = Math.min(held.bottom, box.bottom) - Math.max(held.top, box.top)
-    return overlap > 0 && overlap > Math.min(held.height, box.height) / 2
-  }
   for (const root of document.querySelectorAll(limits.scope)) {
     for (const parent of [root, ...root.querySelectorAll('*')]) {
       const style = getComputedStyle(parent)
@@ -210,10 +186,13 @@ function checkSiblingAlignment(add: Report, limits: { readonly scope: string }):
       const rows: HTMLElement[][] = []
       for (const child of parent.children) {
         if (!(child instanceof HTMLElement) || !child.checkVisibility()) continue
-        if (child.getBoundingClientRect().height <= 0) continue
+        const box = child.getBoundingClientRect()
+        if (box.height <= 0) continue
         const seated = rows.find((row) => {
-          const lead = row[0]
-          return lead !== undefined && sharesLine(lead, child)
+          const lead = row[0]?.getBoundingClientRect()
+          if (lead === undefined) return false
+          const overlap = Math.min(lead.bottom, box.bottom) - Math.max(lead.top, box.top)
+          return overlap > 0 && overlap > Math.min(lead.height, box.height) / 2
         })
         if (seated === undefined) rows.push([child])
         else seated.push(child)
@@ -221,8 +200,16 @@ function checkSiblingAlignment(add: Report, limits: { readonly scope: string }):
       for (const row of rows) {
         const lead = row[0]
         if (lead === undefined || row.length < 2) continue
-        const reference = edgesOf(lead)
-        const adrift = row.find((one) => !sharesEdge(reference, edgesOf(one)))
+        const reference = lead.getBoundingClientRect()
+        const middle = reference.top + reference.height / 2
+        const adrift = row.find((one) => {
+          const box = one.getBoundingClientRect()
+          return (
+            Math.abs(box.top - reference.top) > tolerance &&
+            Math.abs(box.bottom - reference.bottom) > tolerance &&
+            Math.abs(box.top + box.height / 2 - middle) > tolerance
+          )
+        })
         if (adrift !== undefined) {
           add(
             'sibling-misalignment',
@@ -279,58 +266,6 @@ function checkListGutters(add: Report, limits: { readonly scope: string }): void
 }
 
 /**
- * A reader who asked for less motion gets less motion.
- *
- * `prefers-reduced-motion` is the one setting a stylesheet cannot honour by
- * itself: the sheet declares what motion costs, and every surface that moves
- * has to pay for it out of the same budget. A transition written with a literal
- * duration is a surface that never reads the budget, so it keeps moving at full
- * speed for exactly the readers the setting exists for, and nothing reports it:
- * the page is correct, accessible and still animating.
- *
- * The budget is the page's own `--ds-transition-duration`, read from the live
- * document rather than assumed, so the rule measures against whatever the sheet
- * declares for this reader: under `reduce` that token holds the near-zero value
- * the sheet substitutes, and a surface that reads it cannot exceed it. A page
- * that names no budget leaves this check nothing to measure against, and every
- * duration above zero is then over it — stated in the finding, because that is
- * the fact the reader is living with.
- * @param add - collects a finding.
- * @param limits - the product surfaces to read.
- */
-function checkReducedMotion(add: Report, limits: { readonly scope: string }): void {
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  const declared = getComputedStyle(document.documentElement).getPropertyValue('--ds-transition-duration').trim()
-  const seconds = (value: string): number[] =>
-    value
-      .split(',')
-      .map((one) => {
-        const text = one.trim()
-        if (text.endsWith('ms')) return Number.parseFloat(text) / 1000
-        return text.endsWith('s') ? Number.parseFloat(text) : Number.NaN
-      })
-      .filter((one) => Number.isFinite(one))
-  const budget = seconds(declared)[0] ?? 0
-  const report = (node: Element, what: string, durations: readonly number[]): void => {
-    for (const duration of durations) {
-      if (duration <= budget) continue
-      add(
-        'motion-not-reduced',
-        `${describe(node)} runs a ${what} of ${String(duration)}s while the reader asked for less motion, where the page's own budget is ${String(budget)}s`,
-      )
-    }
-  }
-  for (const root of document.querySelectorAll(limits.scope)) {
-    for (const element of [root, ...root.querySelectorAll('*')]) {
-      const style = getComputedStyle(element)
-      report(element, 'transition', seconds(style.transitionDuration))
-      report(element, 'transition delay', seconds(style.transitionDelay))
-      if (style.animationName !== 'none') report(element, 'animation', seconds(style.animationDuration))
-    }
-  }
-}
-
-/**
  * A grid nested in a grid, or a table used as a grid, is layout the sheets do
  * not own.
  *
@@ -380,7 +315,6 @@ export {
   checkHorizontalOverflow,
   checkListGutters,
   checkNestedScroll,
-  checkReducedMotion,
   checkSiblingAlignment,
   gridAncestor,
   scrolls,

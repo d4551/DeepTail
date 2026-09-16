@@ -10,11 +10,11 @@
  * @module
  */
 
-import { parseFragment } from 'parse5'
 import type { DefaultTreeAdapterTypes } from 'parse5'
+import { parseFragment } from 'parse5'
 
 /** One node of a parsed document, as parse5's own tree builder writes it. */
-export type MarkupNode = DefaultTreeAdapterTypes.Node
+type MarkupNode = DefaultTreeAdapterTypes.Node
 
 /**
  * The children one node carries.
@@ -31,7 +31,7 @@ function childrenOf(node: MarkupNode): readonly MarkupNode[] {
  * @param depth - how deep the node itself sits.
  * @returns one line per tag, in document order.
  */
-export function tagTree(node: MarkupNode, depth = 0): string[] {
+function tagTree(node: MarkupNode, depth = 0): string[] {
   const here = 'tagName' in node ? [`${'  '.repeat(depth)}${node.tagName}`] : []
   return [...here, ...childrenOf(node).flatMap((child) => tagTree(child, depth + 1))]
 }
@@ -63,4 +63,4 @@ export const NESTED_ACTIVATION_TARGET = '<button>a<button>b</button></button>'
  * silent for the parser's sake is read as that rather than as a rule that
  * stopped working.
  */
-export const NESTED_ACTIVATION_TARGET_TREE: readonly string[] = ['  button', '  button']
+export const NESTED_ACTIVATION_TARGET_TREE: string[] = ['  button', '  button']

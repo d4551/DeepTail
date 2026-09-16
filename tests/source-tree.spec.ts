@@ -8,7 +8,14 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { LISTING_COMMAND, listedFiles, onlyPresent, readListing, ROOT, repositoryFiles } from '../scripts/source-tree.ts'
+import {
+  LISTING_COMMAND,
+  listedFiles,
+  onlyPresent,
+  ROOT,
+  readListing,
+  repositoryFiles,
+} from '../scripts/source-tree.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**

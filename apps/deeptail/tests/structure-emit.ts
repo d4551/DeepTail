@@ -2,7 +2,9 @@
  * The source a page evaluates to run the structural checks.
  *
  * Split from `structure.ts` so that module stays under the file-size limit.
- * The checks themselves live there; this file only serialises them.
+ * The checks themselves live there; this file only serialises them — every
+ * function the entry point reaches, and the limits they measure against, read
+ * from the sheets that declare them rather than restated here.
  *
  * @module
  */
@@ -22,17 +24,36 @@ import {
   checkClipping,
   checkGrid,
   checkHorizontalOverflow,
+  checkListGutters,
   checkNestedScroll,
+  checkSiblingAlignment,
   gridAncestor,
   isLayoutPane,
   scrolls,
 } from './structure-layout.ts'
-import { checkOverlappingTargets, checkTouchTargets, drawnBox } from './structure-pointer.ts'
-import { describe } from './structure-report.ts'
-import { checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
-import { checkClassVocabulary } from './structure-vocabulary.ts'
+import {
+  checkFocusRing,
+  checkFocusVisible,
+  checkOverlappingTargets,
+  checkTouchTargets,
+  colourAlpha,
+  coveringAt,
+  drawnBox,
+  readFocusRing,
+} from './structure-pointer.ts'
+import { describe, pixelLength } from './structure-report.ts'
+import { checkDialogContract, checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
+import {
+  checkClassVocabulary,
+  checkReducedMotion,
+  checkTypography,
+  durationsInSeconds,
+  familyListOf,
+  type TypographyRamp,
+  typographyRampFrom,
+} from './structure-vocabulary.ts'
 
-/** The sheet that names the two pointer floors. */
+/** The sheet that names the two pointer floors and the type ladder. */
 const TOKEN_SHEET = `${ROOT}apps/deeptail/src/styles/tokens.css`
 
 /**
@@ -55,6 +76,14 @@ export function pointerTargetFloorFrom(text: string, name: 'fine' | 'coarse'): n
  */
 export async function pointerTargetFloor(name: 'fine' | 'coarse'): Promise<number> {
   return pointerTargetFloorFrom(await Bun.file(TOKEN_SHEET).text(), name)
+}
+
+/**
+ * The type ladder as the shipped token sheet declares it.
+ * @returns the sizes, their line boxes, and the shipped family lists.
+ */
+export async function typographyRamp(): Promise<TypographyRamp> {
+  return typographyRampFrom(await Bun.file(TOKEN_SHEET).text())
 }
 
 /** An animation whose iteration count can be read. */
@@ -104,9 +133,14 @@ export async function structureCheckSource(coarsePointer: boolean, vocabulary: r
     interactive: INTERACTIVE,
     scope: PRODUCT_SURFACES,
     vocabulary,
+    typography: await typographyRamp(),
   }
   const functions = [
     describe,
+    pixelLength,
+    colourAlpha,
+    familyListOf,
+    durationsInSeconds,
     checkDuplicateIds,
     checkNestedInteractive,
     checkHeadingOrder,
@@ -114,6 +148,7 @@ export async function structureCheckSource(coarsePointer: boolean, vocabulary: r
     checkListOwnership,
     checkGroupNames,
     checkClassVocabulary,
+    checkTypography,
     checkHorizontalOverflow,
     scrolls,
     isLayoutPane,
@@ -123,11 +158,19 @@ export async function structureCheckSource(coarsePointer: boolean, vocabulary: r
     checkOverlappingTargets,
     checkTouchTargets,
     checkAlignment,
+    checkSiblingAlignment,
+    checkListGutters,
     gridAncestor,
     checkGrid,
     checkShell,
+    checkDialogContract,
     checkInlineScripts,
     checkOneOffScripts,
+    checkReducedMotion,
+    readFocusRing,
+    checkFocusRing,
+    coveringAt,
+    checkFocusVisible,
     findStructureDefects,
     finiteAnimations,
     waitForFiniteAnimations,

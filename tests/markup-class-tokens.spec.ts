@@ -51,6 +51,17 @@ describe('a class attribute carrying more than one token', () => {
     expect(retiredClassTokens(' ')).toEqual([])
     expect(retiredClassTokens('')).toEqual([])
   })
+
+  it('judges a token through the variant and the importance written around it', () => {
+    // The same component class, written the way a utility pipeline spells a
+    // variant and the two majors spell importance: those parts are punctuation
+    // around the name, and the name underneath is what the list is about. A
+    // reader that matched each token as written would report the lists below as
+    // carrying none of them.
+    expect(retiredClassTokens(`shell md:${RETIRED} sidebar`)).toEqual([`md:${RETIRED}`])
+    expect(retiredClassTokens(`shell !${RETIRED}`)).toEqual([`!${RETIRED}`])
+    expect(retiredClassTokens(`shell ${RETIRED}!`)).toEqual([`${RETIRED}!`])
+  })
 })
 
 describe('one class token on its own', () => {

@@ -8,6 +8,13 @@
  * scrolls inside a pane that also scrolls, a control drawn over another control,
  * a class outside the shipped vocabulary, or a touch target below the platform
  * minimum.
+ *
+ * The same pass answers the questions that only exist while the page is live:
+ * whether a control that takes focus shows it and is not buried under something
+ * else, whether a reader who asked for less motion got it, whether a row of
+ * siblings agrees on where its line is, whether a repeated list keeps its own
+ * rhythm, whether every rendered type size lands on a rung of the shipped
+ * scale, and whether each dialog and mask came from the frame that owns them.
  * Each returns a list of offending selectors, so a failure names the element
  * rather than a count.
  *
@@ -19,12 +26,19 @@ import {
   checkClipping,
   checkGrid,
   checkHorizontalOverflow,
+  checkListGutters,
   checkNestedScroll,
+  checkSiblingAlignment,
 } from './structure-layout.ts'
-import { checkOverlappingTargets, checkTouchTargets } from './structure-pointer.ts'
+import { checkFocusVisible, checkOverlappingTargets, checkTouchTargets } from './structure-pointer.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
-import { checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
-import { checkClassVocabulary } from './structure-vocabulary.ts'
+import { checkDialogContract, checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
+import {
+  checkClassVocabulary,
+  checkReducedMotion,
+  checkTypography,
+  type TypographyRamp,
+} from './structure-vocabulary.ts'
 
 export type { StructureFinding }
 
@@ -52,6 +66,8 @@ interface StructureLimits {
   readonly scope: string
   /** Every class name the shipped stylesheets define. */
   readonly vocabulary: readonly string[]
+  /** The type ladder the shipped token sheet declares, resolved to pixels. */
+  readonly typography: TypographyRamp
 }
 
 /**
@@ -187,6 +203,10 @@ function checkGroupNames(add: Report): void {
  * Every structural defect on the current page.
  *
  * Runs in the browser, so it may only use DOM APIs and what it is handed.
+ *
+ * The focus rule is last because it is the one check that drives the page: it
+ * focuses every control in turn and puts focus back where it found it, so
+ * everything measured before it is measured on the page as the reader left it.
  * @param limits - what the checks measure against.
  * @returns every finding, empty when the page conforms.
  */
@@ -202,16 +222,22 @@ function findStructureDefects(limits: StructureLimits): StructureFinding[] {
   checkListOwnership(add)
   checkGroupNames(add)
   checkClassVocabulary(add, limits)
+  checkTypography(add, limits)
   checkHorizontalOverflow(add)
   checkClipping(add)
   checkNestedScroll(add)
   checkOverlappingTargets(add, limits)
   checkTouchTargets(add, limits)
   checkAlignment(add, limits)
+  checkSiblingAlignment(add, limits)
+  checkListGutters(add, limits)
   checkGrid(add, limits)
   checkShell(add, limits)
+  checkDialogContract(add, limits)
   checkInlineScripts(add, limits)
   checkOneOffScripts(add, limits)
+  checkReducedMotion(add, limits)
+  checkFocusVisible(add, limits)
   return findings
 }
 
