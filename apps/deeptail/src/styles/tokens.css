@@ -57,7 +57,7 @@
   }
 }
 
-/* The spacing, radius and type scale.
+/* The scale: one ladder each for spacing, radius, type and leading.
  *
  * Both sheets held these as bare lengths — twenty-nine distinct spacing values,
  * nine radii and five type sizes — so a value used in two places was two
@@ -65,9 +65,23 @@
  * pointer and 4px apart on touch. A gate rejects a bare length outside this
  * file, so a new one has to be named here first.
  *
+ * `scripts/check-scale.ts` reads each family below as one ladder. It refuses a
+ * token in a family whose name is not one of that family's rungs; a rung that
+ * is not a whole pixel, is out of order, or takes a narrower step than the rung
+ * before it; a token declared twice; a leading rung whose ratio does not land
+ * on a whole pixel against the type rung it pairs with; and a `--dsh-` name
+ * this sheet declares that is neither a rung nor one of the singles named
+ * below. A consumer sheet pairs a type rung with the leading rung of the same
+ * name, and the gate reads every sheet for that.
+ *
  * The rungs are the ones the two sheets already used, kept as they were: this
- * names what is there rather than restyling the product. */
+ * names what is there rather than restyling the product. A value that stood off
+ * its ladder moved to the rung nearest it — the 10px radii to 8px, the 10px
+ * control inset to 8px, the 18px pill to 16px — two pixels each, and every rung
+ * below is read by a shipped sheet. */
 :root {
+  /* Spacing: 2px apart at the tight end, 4px through the middle, widening to
+   * 16px at the top, and never a step narrower than the one before it. */
   --dsh-space-0: 2px;
   --dsh-space-1: 4px;
   --dsh-space-2: 6px;
@@ -78,37 +92,55 @@
   --dsh-space-7: 24px;
   --dsh-space-8: 32px;
   --dsh-space-9: 48px;
-  /* The odd rungs the two sheets already stood on. They are named so a value
-   * used twice is one decision, not two; the ramp above is what new work
-   * reaches for. */
-  --dsh-space-inset-sm: 7px;
-  --dsh-space-inset-md: 10px;
-  --dsh-space-inset-lg: 11px;
-  --dsh-space-inset-xl: 14px;
-  --dsh-space-inset-2xl: 22px;
-  --dsh-space-inset-3xl: 28px;
 
+  /* Radius: one 4px step, from a hairline to the 24px a dialog stands on. A
+   * corner nested in another is the outer rung less the padding between them:
+   * a menu item at sm inside a menu at md, its padding one rung below. */
   --dsh-radius-xs: 4px;
   --dsh-radius-sm: 8px;
   --dsh-radius-md: 12px;
   --dsh-radius-lg: 16px;
   --dsh-radius-xl: 20px;
-  --dsh-radius-control: 10px;
-  --dsh-radius-chip: 18px;
-  --dsh-radius-action: 22px;
-  --dsh-radius-sheet: 24px;
+  --dsh-radius-2xl: 24px;
 
+  /* Type. */
   --dsh-text-sm: 12px;
   --dsh-text-md: 13px;
   --dsh-text-lg: 14px;
   --dsh-text-body: 16px;
   --dsh-text-title: 18px;
 
-  --dsh-leading-sm: 16px;
-  --dsh-leading-md: 18px;
-  --dsh-leading-lg: 20px;
-  --dsh-leading-control: 22px;
-  --dsh-leading-body: 24px;
+  /* Leading, as ratios rather than fixed lengths. A pinned line box is the one
+   * part of a text style a reader's own text-spacing and text-size preferences
+   * cannot move, which is what WCAG 1.4.4 Resize Text and 1.4.12 Text Spacing
+   * ask a sheet to leave open: the ratio follows the type, so a reader who
+   * raises their text size keeps their leading with it.
+   *
+   * Each rung pairs with the type rung of the same name, and states the line
+   * box it resolves to there. The pairings, with the arithmetic:
+   *
+   *   --dsh-leading-sm     3/2  x 12px (text-sm)    = 18px
+   *   --dsh-leading-md    20/13 x 13px (text-md)    = 20px
+   *   --dsh-leading-lg    11/7  x 14px (text-lg)    = 22px
+   *   --dsh-leading-body   3/2  x 16px (text-body)  = 24px
+   *   --dsh-leading-title 13/9  x 18px (text-title) = 26px
+   *
+   * Those boxes — 18, 20, 22, 24, 26 — are this ladder, one 2px step
+   * throughout. The gate resolves each ratio against its pairing and reads the
+   * ladder off the boxes, so a rung that lands between two pixels is refused
+   * rather than rounded by the engine. */
+  --dsh-leading-sm: calc(3 / 2);
+  --dsh-leading-md: calc(20 / 13);
+  --dsh-leading-lg: calc(11 / 7);
+  --dsh-leading-body: calc(3 / 2);
+  --dsh-leading-title: calc(13 / 9);
+
+  /* The tracking the two display names stand on, read from the harness sheets
+   * this file's values come from: the sidebar brand at 0.04em beside an 18px
+   * name (ui-sidebar/src/client/SidebarRoot.module.css:153) and the boot
+   * wordmark at 0.08em (web/src/boot-page.module.css:37). */
+  --dsh-tracking-brand: 0.04em;
+  --dsh-tracking-wordmark: 0.08em;
 
   /* The heights the shell's controls stand at, and the widths its regions are
    * laid out on. Each was written wherever it was needed; a width restated is

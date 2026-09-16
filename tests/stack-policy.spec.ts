@@ -1,12 +1,13 @@
 /**
- * The stack policy bans: what the workspace must not install, and what it must
- * ship exactly one of.
+ * The stack policy: what the workspace must not install, and what an installed
+ * package's own manifest says it ships.
  *
- * A floor table can only refuse a version below a line; it cannot refuse a
- * framework the design system retired, a config file for a pipeline that no
- * longer runs, a second page shell, or a package manager pin that drifted from
- * the runtime. These are the policies stated as tests, so a reintroduction
- * fails where it is written rather than where a user meets it.
+ * The bans are read from the tree itself — every manifest and the lockfile — so
+ * a reintroduction fails where it is written rather than where a user meets it.
+ * The dialect cases drive the derivation against the exact cheat it exists for,
+ * and against the packages this repository installs.
+ *
+ * @module
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -15,72 +16,33 @@ import { coerce, gte } from 'semver'
 import { readJsonc } from '../scripts/jsonc.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { everyDependency, lockfileNames } from './manifests.ts'
+import { dialectPackageOffences, installedManifest, isRetiredPackage, isRetiredVocabulary } from './stack-policy.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
+import { installedVite, viteDialectSuffixes } from './vite-face.ts'
 
-/**
- * The UI frameworks this product retired, by name.
- *
- * The design system is tokens.css and shipped sheets only: a utility pipeline
- * or a component framework is a second vocabulary no gate reads. Installing
- * one — at any version — is the regression, so the check is absence, not a
- * floor. The prefix checks cover the scoped packages each framework publishes.
- */
-const RETIRED_FRAMEWORKS = new Set([
-  'daisyui',
-  'tailwindcss',
-  'htmx.org',
-  'htmx',
-  'alpinejs',
-  'jquery',
-  'bootstrap',
-  'bootstrap-icons',
-  'bulma',
-  'foundation-sites',
-  'materialize-css',
-  'semantic-ui',
-  'uikit',
-  'animate.css',
-  'vue',
-  'nuxt',
-])
-
-/**
- * Whether a package name belongs to a framework the design system retired.
- * @param name - the package name, as a manifest or a lockfile writes it.
- * @returns true when the name is one of the retired frameworks or their scopes.
- */
-function isRetiredFramework(name: string): boolean {
-  return (
-    RETIRED_FRAMEWORKS.has(name) ||
-    name.startsWith('@tailwindcss/') ||
-    name.startsWith('@daisyui/') ||
-    name.startsWith('@alpinejs/') ||
-    name.startsWith('@htmx.org/') ||
-    name.startsWith('@vue/') ||
-    name.startsWith('@nuxt/')
-  )
-}
+/** The dialect suffixes the installed bundler compiles, read once. */
+const DIALECTS = new Set(viteDialectSuffixes(installedVite('.js')))
 
 describe('the stack policy bans', () => {
   it(
-    'installs none of the UI frameworks the design system retired',
+    'installs none of the packages the design system retired',
     async () => {
       // Absence, not a floor: a retired framework at its newest version is still
       // a second vocabulary the tokens and the sheets never read. The manifests
-      // and the lockfile are both read, so a declaration that never resolves
-      // cannot hide in either.
+      // are read for every retired package, and the lockfile for the
+      // vocabularies alone: the bundler pulls a pipeline of its own, and what
+      // nothing may pull in is a second styling vocabulary.
       const declared = [...(await everyDependency()).keys()]
-      expect(declared.filter((name) => isRetiredFramework(name))).toEqual([])
-      expect([...lockfileNames()].filter((name) => isRetiredFramework(name))).toEqual([])
+      expect(declared.filter((name) => isRetiredPackage(name))).toEqual([])
+      expect([...lockfileNames()].filter((name) => isRetiredVocabulary(name))).toEqual([])
     },
     TREE_SCAN_BUDGET_MS,
   )
 })
 
 describe('the stack policy names a planted reintroduction', () => {
-  it('including Vue, Nuxt, daisyUI, Tailwind and HTMX', () => {
-    const planted = ['vue', 'nuxt', '@vue/runtime-dom', '@nuxt/kit', 'daisyui', 'tailwindcss', 'htmx.org', 'typescript']
-    expect(planted.filter((name) => isRetiredFramework(name))).toEqual([
+  it('by vocabulary, by preprocessor, and by the scope a vendor publishes under', () => {
+    const planted = [
       'vue',
       'nuxt',
       '@vue/runtime-dom',
@@ -88,8 +50,81 @@ describe('the stack policy names a planted reintroduction', () => {
       'daisyui',
       'tailwindcss',
       'htmx.org',
+      '@base-ui-components/core',
+      'open-props',
+      'picocss',
+      'water.css',
+      'panda-css',
+      '@pandacss/dev',
+      '@vanilla-extract/css',
+      'styled-components',
+      '@emotion/css',
+      'sass',
+      'less',
+      'stylus',
+      'postcss',
+      'lightningcss',
+      'unocss',
+      '@unocss/core',
+      'windi',
+      'windicss',
+    ]
+    expect(planted.filter((name) => isRetiredPackage(name))).toEqual(planted)
+    expect(
+      ['typescript', 'react', 'vite', '@biomejs/biome', 'oxlint'].filter((name) => isRetiredPackage(name)),
+    ).toEqual([])
+    // The narrower reading is what the lockfile is held to: a pipeline that
+    // arrives through the bundler is not a package this workspace declares.
+    expect(['postcss', 'lightningcss'].filter((name) => isRetiredVocabulary(name))).toEqual([])
+    expect(['tailwindcss', '@emotion/react'].filter((name) => isRetiredVocabulary(name))).toEqual([
+      'tailwindcss',
+      '@emotion/react',
     ])
   })
+})
+
+describe('the dialect a package declares in its own manifest', () => {
+  it('names a sidecar, an entry point, a pipeline bin and a pipeline config', () => {
+    expect(dialectPackageOffences('a', { sass: './src/index.scss' }, DIALECTS)).toEqual([
+      'a states a sass sidecar: ./src/index.scss',
+    ])
+    expect(dialectPackageOffences('a', { style: './dist/index.scss' }, DIALECTS)).toEqual([
+      'a states a style sidecar: ./dist/index.scss',
+    ])
+    expect(dialectPackageOffences('a', { exports: { './x': './dist/x.scss' } }, DIALECTS)).toEqual([
+      'a points exports at ./dist/x.scss, a .scss stylesheet',
+    ])
+    expect(dialectPackageOffences('a', { bin: { lessc: './bin/lessc.js' } }, DIALECTS)).toEqual([
+      'a installs a lessc command, which is a CSS pipeline',
+    ])
+    expect(dialectPackageOffences('a', { postcss: { plugins: {} } }, DIALECTS)).toEqual([
+      'a configures its own postcss pipeline in its manifest',
+    ])
+  })
+
+  it('reads a plain stylesheet, a plain entry point and a plain bin as nothing of the sort', () => {
+    expect(dialectPackageOffences('a', { style: './dist/index.css' }, DIALECTS)).toEqual([])
+    expect(dialectPackageOffences('a', { main: './index.js', exports: { '.': './index.js' } }, DIALECTS)).toEqual([])
+    expect(dialectPackageOffences('a', { bin: { a: './bin.js' } }, DIALECTS)).toEqual([])
+    expect(dialectPackageOffences('a', { dependencies: { postcss: '^8' } }, DIALECTS)).toEqual([])
+  })
+
+  it(
+    'holds every installed dependency to the manifest it ships',
+    async () => {
+      // The derived half of the policy: a package whose name says nothing can
+      // still ship a dialect, and this is what reads its own manifest for it.
+      const declared = [...(await everyDependency()).keys()]
+      const installed = declared.flatMap((name) => {
+        const manifest = installedManifest(name)
+        return manifest === undefined ? [] : dialectPackageOffences(name, manifest, DIALECTS)
+      })
+      expect(installed).toEqual([])
+      expect(declared.filter((name) => installedManifest(name) !== undefined).length).toBeGreaterThan(0)
+      expect(installedManifest('@deeptail/host-fleet-never-published')).toBeUndefined()
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
 })
 
 describe('the stack policy bans the rest of the ship list', () => {
@@ -130,7 +165,7 @@ describe('the stack policy bans the rest of the ship list', () => {
     const match = /^bun@(\d+\.\d+\.\d+)$/u.exec(manager)
     if (match === null) throw new Error('package.json must pin the package manager as bun@x.y.z')
     if (match[1] === undefined) throw new Error('the bun pin is unreadable')
-    const pinned = coerce(match[1] ?? '')
+    const pinned = coerce(match[1])
     if (pinned === null) throw new Error('the bun pin is unreadable')
     expect(gte(pinned, '1.4.2')).toBe(true)
     // The pin and the runtime drift apart silently — an upgraded bun with a

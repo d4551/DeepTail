@@ -45,10 +45,13 @@
    * the actions become unreachable rather than merely out of sight. */
   max-height: 100%;
   overflow: hidden;
-  padding: var(--dsh-space-inset-2xl) var(--dsh-space-7) var(--dsh-space-7);
+  /* One 24px inset on every side, the rung its corner stands on: the heading
+   * and the action row then sit the same distance from the edge the corner
+   * curves away from. */
+  padding: var(--dsh-space-7);
   box-sizing: border-box;
   border: 1px solid var(--dsw-alias-border-inverted);
-  border-radius: var(--dsh-radius-sheet);
+  border-radius: var(--dsh-radius-2xl);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv3);
 }
@@ -88,12 +91,14 @@
 .textarea {
   min-height: var(--dsh-compose-min);
   max-height: var(--dsh-menu-max);
-  padding: var(--dsh-space-inset-lg) var(--dsh-space-inset-xl);
+  padding: var(--dsh-space-4);
   border-radius: var(--dsh-radius-lg);
   resize: none;
   overflow-y: auto;
   font-family: inherit;
-  line-height: var(--dsh-leading-body);
+  /* Its type comes from the chrome it shares (text-lg), so its leading is that
+   * rung's, not the body one. */
+  line-height: var(--dsh-leading-lg);
 }
 
 .select {

@@ -38,7 +38,7 @@
 .brand-name {
   font-size: var(--dsh-text-title);
   font-weight: 600;
-  line-height: var(--dsh-leading-body);
+  line-height: var(--dsh-leading-title);
   letter-spacing: var(--dsh-tracking-brand);
   color: var(--dsw-alias-label-primary);
 }
@@ -61,7 +61,7 @@
   color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-text-lg);
   font-weight: 500;
-  line-height: var(--dsh-leading-control);
+  line-height: var(--dsh-leading-lg);
   cursor: pointer;
 }
 
@@ -88,14 +88,14 @@
   gap: var(--dsh-space-3);
   width: 100%;
   min-height: var(--dsh-control-lg);
-  padding: var(--dsh-space-3) var(--dsh-space-inset-md);
+  padding: var(--dsh-space-3);
   box-sizing: border-box;
   border: none;
   border-radius: var(--dsh-radius-md);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-text-lg);
-  line-height: var(--dsh-leading-control);
+  line-height: var(--dsh-leading-lg);
   text-align: start;
   cursor: pointer;
 }
@@ -141,13 +141,13 @@
   gap: var(--dsh-space-3);
   width: 100%;
   min-height: var(--dsh-control-lg);
-  padding: var(--dsh-space-3) var(--dsh-space-inset-md);
+  padding: var(--dsh-space-3);
   border: none;
-  border-radius: var(--dsh-radius-control);
+  border-radius: var(--dsh-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-text-lg);
-  line-height: var(--dsh-leading-control);
+  line-height: var(--dsh-leading-lg);
   text-align: start;
   cursor: pointer;
 }
@@ -165,19 +165,21 @@
   outline-offset: -2px;
 }
 
-/* Sits under the host it belongs to, quiet until the row is read. */
+/* Sits under the host it belongs to, quiet until the row is read. Its text
+ * starts where an item's label starts: the item's own inline padding, the width
+ * of its status dot, and the gap before the label. */
 .menu-repair {
   display: flex;
   align-items: center;
   width: 100%;
   min-height: var(--dsh-space-8);
-  padding: 0 var(--dsh-space-inset-md) 0 var(--dsh-space-inset-3xl);
+  padding: 0 var(--dsh-space-3) 0 calc(var(--dsh-space-3) + var(--dsh-dot-size) + var(--dsh-space-3));
   border: none;
   border-radius: var(--dsh-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-text-sm);
-  line-height: var(--dsh-leading-md);
+  line-height: var(--dsh-leading-sm);
   text-align: start;
   cursor: pointer;
 }
@@ -199,7 +201,7 @@
 .menu-choice::after {
   flex: none;
   width: var(--dsh-space-2);
-  height: var(--dsh-space-inset-lg);
+  height: var(--dsh-space-4);
   margin-inline-start: auto;
   border: solid var(--dsw-alias-label-primary);
   border-width: 0 2px 2px 0;

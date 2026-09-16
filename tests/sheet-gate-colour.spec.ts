@@ -184,6 +184,19 @@ describe('the palette rule reads one declaration', () => {
 })
 
 describe('the palette rule on the definition sheet', () => {
+  it('in either case on the definition sheet, whose reader is its own expression', () => {
+    // The definition path answers to a separate expression from the sheet
+    // path, so the case coverage above does not reach it: these upper-case
+    // spellings are driven here, or a reader that lost its case would still
+    // answer for the one sheet that states the palette.
+    expect(scanColour('apps/deeptail/src/styles/tokens.css', HEX_UPPER, 5, true)).toEqual([
+      { label: 'apps/deeptail/src/styles/tokens.css', line: 5, why: raw(HEX_UPPER) },
+    ])
+    expect(scanColour('apps/deeptail/src/styles/tokens.css', joined('TOM', 'ATO'), 5, true)).toEqual([
+      { label: 'apps/deeptail/src/styles/tokens.css', line: 5, why: raw(joined('TOM', 'ATO')) },
+    ])
+  })
+
   it('and refuses the override on the definition sheet exactly as anywhere else', () => {
     const flag = ['!', 'important'].join('')
     expect(scanColour('apps/deeptail/src/styles/tokens.css', `var(--x) ${flag}`, 4, true)).toEqual([

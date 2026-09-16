@@ -28,7 +28,7 @@
   width: min(var(--dsh-card-width), 100%);
   padding: var(--dsh-space-7);
   border: 1px solid var(--dsw-alias-border-inverted);
-  border-radius: var(--dsh-radius-sheet);
+  border-radius: var(--dsh-radius-2xl);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv3);
 }
@@ -44,7 +44,7 @@
 .lede {
   margin: 0;
   font-size: var(--dsh-text-lg);
-  line-height: var(--dsh-leading-control);
+  line-height: var(--dsh-leading-lg);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -67,9 +67,9 @@
   gap: var(--dsh-space-3);
   width: 100%;
   min-height: var(--dsh-space-9);
-  padding: var(--dsh-space-2) var(--dsh-space-inset-md);
+  padding: var(--dsh-space-2) var(--dsh-space-3);
   border: none;
-  border-radius: var(--dsh-radius-control);
+  border-radius: var(--dsh-radius-sm);
   background: transparent;
   cursor: pointer;
   text-align: start;
@@ -122,7 +122,7 @@
 
 .row-origin {
   font-size: var(--dsh-text-sm);
-  line-height: var(--dsh-leading-md);
+  line-height: var(--dsh-leading-sm);
   color: var(--dsw-alias-label-secondary);
   word-break: break-all;
 }
@@ -187,12 +187,12 @@
   justify-content: center;
   gap: var(--dsh-space-1);
   height: var(--dsh-control-sm);
-  padding: 0 var(--dsh-space-inset-xl);
+  padding: 0 var(--dsh-space-5);
   border: none;
-  border-radius: var(--dsh-radius-chip);
+  border-radius: var(--dsh-radius-lg);
   cursor: pointer;
   font-size: var(--dsh-text-lg);
-  line-height: var(--dsh-leading-control);
+  line-height: var(--dsh-leading-lg);
   color: var(--dsw-alias-label-primary);
   background: transparent;
 }

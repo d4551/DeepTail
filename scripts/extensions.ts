@@ -12,13 +12,13 @@
  */
 
 /** Extensions whose contents are read off a syntax tree. */
-export const SCRIPT_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const;
+export const SCRIPT_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const
 
 /** Extensions read line by line, having no parser here. */
-export const PLAIN_EXTENSIONS = ['.rs', '.toml', '.yml', '.yaml', '.json'] as const;
+export const PLAIN_EXTENSIONS = ['.rs', '.toml', '.yml', '.yaml', '.json'] as const
 
 /** Extensions whose contents are markup. */
-export const MARKUP_EXTENSIONS = ['.html', '.htm'] as const;
+export const MARKUP_EXTENSIONS = ['.html', '.htm'] as const
 
 /** Extensions whose contents are stylesheets. */
-export const STYLE_EXTENSIONS = ['.css'] as const;
+export const STYLE_EXTENSIONS = ['.css'] as const

@@ -22,7 +22,7 @@
 
 .label {
   font-size: var(--dsh-text-sm);
-  line-height: var(--dsh-leading-md);
+  line-height: var(--dsh-leading-sm);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -76,7 +76,7 @@
    native form control sits too. */
 .choice-label {
   font-size: var(--dsh-text-sm);
-  line-height: var(--dsh-leading-md);
+  line-height: var(--dsh-leading-sm);
   color: var(--dsw-alias-label-primary);
 }
 
@@ -89,13 +89,13 @@
   box-sizing: border-box;
   width: 100%;
   height: var(--dsh-target-coarse);
-  padding: var(--dsh-space-inset-sm) var(--dsh-space-inset-xl);
+  padding: var(--dsh-space-3) var(--dsh-space-4);
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsh-radius-action);
+  border-radius: var(--dsh-radius-xl);
   outline: none;
   background: transparent;
   font-size: var(--dsh-text-lg);
-  line-height: var(--dsh-leading-control);
+  line-height: var(--dsh-leading-lg);
   color: var(--dsw-alias-label-primary);
 }
 
@@ -124,9 +124,9 @@
 /* ---- status strips ------------------------------------------------------ */
 
 .status {
-  padding: var(--dsh-space-inset-md);
+  padding: var(--dsh-space-3);
   font-size: var(--dsh-text-md);
-  line-height: var(--dsh-leading-lg);
+  line-height: var(--dsh-leading-md);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -136,12 +136,12 @@
   justify-content: space-between;
   gap: var(--dsh-space-3);
   min-width: 0;
-  padding: var(--dsh-space-inset-sm) var(--dsh-space-3);
+  padding: var(--dsh-space-3);
   border-radius: var(--dsh-radius-sm);
   background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-text-sm);
-  line-height: var(--dsh-leading-md);
+  line-height: var(--dsh-leading-sm);
   border-inline-start: 3px solid var(--dsw-alias-label-error);
 }
 
@@ -207,7 +207,7 @@
 .centered {
   display: flex;
   align-items: center;
-  gap: var(--dsh-space-inset-md);
+  gap: var(--dsh-space-3);
 }
 
 /* A coarse pointer has no hover to reveal anything with and a fingertip to hit

@@ -13,81 +13,37 @@
  * writes as something else reads as absent rather than as itself.
  *
  * @module
- */function stryNS_9fa48() {
-  var g = typeof globalThis === 'object' && globalThis && globalThis.Math === Math && globalThis || new Function("return this")();
-  var ns = g.__stryker__ || (g.__stryker__ = {});
-  if (ns.activeMutant === undefined && g.process && g.process.env && g.process.env.__STRYKER_ACTIVE_MUTANT__) {
-    ns.activeMutant = g.process.env.__STRYKER_ACTIVE_MUTANT__;
-  }
-  function retrieveNS() {
-    return ns;
-  }
-  stryNS_9fa48 = retrieveNS;
-  return retrieveNS();
-}
-stryNS_9fa48();
-function stryCov_9fa48() {
-  var ns = stryNS_9fa48();
-  var cov = ns.mutantCoverage || (ns.mutantCoverage = {
-    static: {},
-    perTest: {}
-  });
-  function cover() {
-    var c = cov.static;
-    if (ns.currentTestId) {
-      c = cov.perTest[ns.currentTestId] = cov.perTest[ns.currentTestId] || {};
-    }
-    var a = arguments;
-    for (var i = 0; i < a.length; i++) {
-      c[a[i]] = (c[a[i]] || 0) + 1;
-    }
-  }
-  stryCov_9fa48 = cover;
-  cover.apply(null, arguments);
-}
-function stryMutAct_9fa48(id) {
-  var ns = stryNS_9fa48();
-  function isActive(id) {
-    if (ns.activeMutant === id) {
-      if (ns.hitCount !== void 0 && ++ns.hitCount > ns.hitLimit) {
-        throw new Error('Stryker: Hit count limit reached (' + ns.hitCount + ')');
-      }
-      return true;
-    }
-    return false;
-  }
-  stryMutAct_9fa48 = isActive;
-  return isActive(id);
-}
-import { isJsonObject, type Json, readJsonc } from './jsonc.ts';
-import { readManifest } from './manifest.ts';
-import { repositoryFiles } from './source-tree.ts';
+ */
+
+import { isJsonObject, type Json, readJsonc } from './jsonc.ts'
+import { readManifest } from './manifest.ts'
+import { repositoryFiles } from './source-tree.ts'
 
 /** The scores a run is held to. */
 export interface Thresholds {
-  readonly high: number | undefined;
-  readonly low: number | undefined;
-  readonly break: number | undefined;
+  readonly high: number | undefined
+  readonly low: number | undefined
+  readonly break: number | undefined
 }
 
 /** One mutation scope, as far as the rules that read it go. */
 export interface ScopeConfig {
   /** The configuration file, by repository-relative path. */
-  readonly label: string;
+  readonly label: string
   /** The command the scope judges its mutants with. */
-  readonly command: string;
+  readonly command: string
   /** What the scope mutates, as written. */
-  readonly mutate: readonly string[];
+  readonly mutate: readonly string[]
   /** The coverage analysis it asks its runner for. */
-  readonly coverageAnalysis: string | undefined;
+  readonly coverageAnalysis: string | undefined
   /** The runner it names, which the built-in one is not. */
-  readonly testRunner: string | undefined;
+  readonly testRunner: string | undefined
   /** Whether it mutates the tree in place. */
-  readonly inPlace: boolean | undefined;
+  readonly inPlace: boolean | undefined
   /** Whether it reuses a stored verdict rather than re-reading every mutant. */
-  readonly incremental: boolean | undefined;
+  readonly incremental: boolean | undefined
   /** The scores it is held to. */
-  readonly thresholds: Thresholds;
+  readonly thresholds: Thresholds
 }
 
 /**
@@ -96,16 +52,9 @@ export interface ScopeConfig {
  * @param key - the key.
  * @returns the number, or undefined.
  */
-function numberAt(held: {
-  [key: string]: Json;
-}, key: string): number | undefined {
-  if (stryMutAct_9fa48("2654")) {
-    {}
-  } else {
-    stryCov_9fa48("2654");
-    const value = held[key];
-    return (stryMutAct_9fa48("2657") ? typeof value !== 'number' : stryMutAct_9fa48("2656") ? false : stryMutAct_9fa48("2655") ? true : (stryCov_9fa48("2655", "2656", "2657"), typeof value === (stryMutAct_9fa48("2658") ? "" : (stryCov_9fa48("2658"), 'number')))) ? value : undefined;
-  }
+function numberAt(held: { [key: string]: Json }, key: string): number | undefined {
+  const value = held[key]
+  return typeof value === 'number' ? value : undefined
 }
 
 /**
@@ -114,16 +63,9 @@ function numberAt(held: {
  * @param key - the key.
  * @returns the string, or undefined.
  */
-function stringAt(held: {
-  [key: string]: Json;
-}, key: string): string | undefined {
-  if (stryMutAct_9fa48("2659")) {
-    {}
-  } else {
-    stryCov_9fa48("2659");
-    const value = held[key];
-    return (stryMutAct_9fa48("2662") ? typeof value !== 'string' : stryMutAct_9fa48("2661") ? false : stryMutAct_9fa48("2660") ? true : (stryCov_9fa48("2660", "2661", "2662"), typeof value === (stryMutAct_9fa48("2663") ? "" : (stryCov_9fa48("2663"), 'string')))) ? value : undefined;
-  }
+function stringAt(held: { [key: string]: Json }, key: string): string | undefined {
+  const value = held[key]
+  return typeof value === 'string' ? value : undefined
 }
 
 /**
@@ -132,16 +74,9 @@ function stringAt(held: {
  * @param key - the key.
  * @returns the boolean, or undefined.
  */
-function booleanAt(held: {
-  [key: string]: Json;
-}, key: string): boolean | undefined {
-  if (stryMutAct_9fa48("2664")) {
-    {}
-  } else {
-    stryCov_9fa48("2664");
-    const value = held[key];
-    return (stryMutAct_9fa48("2667") ? typeof value !== 'boolean' : stryMutAct_9fa48("2666") ? false : stryMutAct_9fa48("2665") ? true : (stryCov_9fa48("2665", "2666", "2667"), typeof value === (stryMutAct_9fa48("2668") ? "" : (stryCov_9fa48("2668"), 'boolean')))) ? value : undefined;
-  }
+function booleanAt(held: { [key: string]: Json }, key: string): boolean | undefined {
+  const value = held[key]
+  return typeof value === 'boolean' ? value : undefined
 }
 
 /**
@@ -153,17 +88,10 @@ function booleanAt(held: {
  * @param key - the key.
  * @returns the strings, or an empty list.
  */
-function stringsAt(held: {
-  [key: string]: Json;
-}, key: string): readonly string[] {
-  if (stryMutAct_9fa48("2669")) {
-    {}
-  } else {
-    stryCov_9fa48("2669");
-    const value = held[key];
-    if (stryMutAct_9fa48("2672") ? false : stryMutAct_9fa48("2671") ? true : stryMutAct_9fa48("2670") ? Array.isArray(value) : (stryCov_9fa48("2670", "2671", "2672"), !Array.isArray(value))) return stryMutAct_9fa48("2673") ? ["Stryker was here"] : (stryCov_9fa48("2673"), []);
-    return stryMutAct_9fa48("2674") ? value : (stryCov_9fa48("2674"), value.filter(stryMutAct_9fa48("2675") ? () => undefined : (stryCov_9fa48("2675"), entry => stryMutAct_9fa48("2678") ? typeof entry !== 'string' : stryMutAct_9fa48("2677") ? false : stryMutAct_9fa48("2676") ? true : (stryCov_9fa48("2676", "2677", "2678"), typeof entry === (stryMutAct_9fa48("2679") ? "" : (stryCov_9fa48("2679"), 'string'))))));
-  }
+function stringsAt(held: { [key: string]: Json }, key: string): readonly string[] {
+  const value = held[key]
+  if (!Array.isArray(value)) return []
+  return value.filter((entry) => typeof entry === 'string')
 }
 
 /**
@@ -172,30 +100,23 @@ function stringsAt(held: {
  * @param document - the parsed document.
  * @returns the scope.
  */
-export function readScopeConfig(label: string, document: {
-  [key: string]: Json;
-}): ScopeConfig {
-  if (stryMutAct_9fa48("2680")) {
-    {}
-  } else {
-    stryCov_9fa48("2680");
-    const runner = document[stryMutAct_9fa48("2681") ? "" : (stryCov_9fa48("2681"), 'commandRunner')];
-    const thresholds = document[stryMutAct_9fa48("2682") ? "" : (stryCov_9fa48("2682"), 'thresholds')];
-    const scores = isJsonObject(thresholds) ? thresholds : {};
-    return stryMutAct_9fa48("2683") ? {} : (stryCov_9fa48("2683"), {
-      label,
-      command: isJsonObject(runner) ? stryMutAct_9fa48("2684") ? stringAt(runner, 'command') && '' : (stryCov_9fa48("2684"), stringAt(runner, stryMutAct_9fa48("2685") ? "" : (stryCov_9fa48("2685"), 'command')) ?? (stryMutAct_9fa48("2686") ? "Stryker was here!" : (stryCov_9fa48("2686"), ''))) : stryMutAct_9fa48("2687") ? "Stryker was here!" : (stryCov_9fa48("2687"), ''),
-      mutate: stringsAt(document, stryMutAct_9fa48("2688") ? "" : (stryCov_9fa48("2688"), 'mutate')),
-      coverageAnalysis: stringAt(document, stryMutAct_9fa48("2689") ? "" : (stryCov_9fa48("2689"), 'coverageAnalysis')),
-      testRunner: stringAt(document, stryMutAct_9fa48("2690") ? "" : (stryCov_9fa48("2690"), 'testRunner')),
-      inPlace: booleanAt(document, stryMutAct_9fa48("2691") ? "" : (stryCov_9fa48("2691"), 'inPlace')),
-      incremental: booleanAt(document, stryMutAct_9fa48("2692") ? "" : (stryCov_9fa48("2692"), 'incremental')),
-      thresholds: stryMutAct_9fa48("2693") ? {} : (stryCov_9fa48("2693"), {
-        high: numberAt(scores, stryMutAct_9fa48("2694") ? "" : (stryCov_9fa48("2694"), 'high')),
-        low: numberAt(scores, stryMutAct_9fa48("2695") ? "" : (stryCov_9fa48("2695"), 'low')),
-        break: numberAt(scores, stryMutAct_9fa48("2696") ? "" : (stryCov_9fa48("2696"), 'break'))
-      })
-    });
+export function readScopeConfig(label: string, document: { [key: string]: Json }): ScopeConfig {
+  const runner = document['commandRunner']
+  const thresholds = document['thresholds']
+  const scores = isJsonObject(thresholds) ? thresholds : {}
+  return {
+    label,
+    command: isJsonObject(runner) ? (stringAt(runner, 'command') ?? '') : '',
+    mutate: stringsAt(document, 'mutate'),
+    coverageAnalysis: stringAt(document, 'coverageAnalysis'),
+    testRunner: stringAt(document, 'testRunner'),
+    inPlace: booleanAt(document, 'inPlace'),
+    incremental: booleanAt(document, 'incremental'),
+    thresholds: {
+      high: numberAt(scores, 'high'),
+      low: numberAt(scores, 'low'),
+      break: numberAt(scores, 'break'),
+    },
   }
 }
 
@@ -204,12 +125,9 @@ export function readScopeConfig(label: string, document: {
  * @returns one entry per configuration file, in path order.
  */
 export function scopeConfigs(): readonly ScopeConfig[] {
-  if (stryMutAct_9fa48("2697")) {
-    {}
-  } else {
-    stryCov_9fa48("2697");
-    return stryMutAct_9fa48("2698") ? repositoryFiles(['.json']).map(file => readScopeConfig(file.label, readManifest(file.path))) : (stryCov_9fa48("2698"), repositoryFiles(stryMutAct_9fa48("2699") ? [] : (stryCov_9fa48("2699"), [stryMutAct_9fa48("2700") ? "" : (stryCov_9fa48("2700"), '.json')])).filter(stryMutAct_9fa48("2701") ? () => undefined : (stryCov_9fa48("2701"), file => (stryMutAct_9fa48("2704") ? /^stryker\..\.json$/u : stryMutAct_9fa48("2703") ? /^stryker\..*\.json/u : stryMutAct_9fa48("2702") ? /stryker\..*\.json$/u : (stryCov_9fa48("2702", "2703", "2704"), /^stryker\..*\.json$/u)).test(file.label))).map(stryMutAct_9fa48("2705") ? () => undefined : (stryCov_9fa48("2705"), file => readScopeConfig(file.label, readManifest(file.path)))));
-  }
+  return repositoryFiles(['.json'])
+    .filter((file) => /^stryker\..*\.json$/u.test(file.label))
+    .map((file) => readScopeConfig(file.label, readManifest(file.path)))
 }
 
 /**
@@ -219,10 +137,5 @@ export function scopeConfigs(): readonly ScopeConfig[] {
  * @returns the scope.
  */
 export function scopeConfigOf(label: string, text: string): ScopeConfig {
-  if (stryMutAct_9fa48("2706")) {
-    {}
-  } else {
-    stryCov_9fa48("2706");
-    return readScopeConfig(label, readJsonc(text));
-  }
+  return readScopeConfig(label, readJsonc(text))
 }

@@ -20,7 +20,7 @@
   box-sizing: border-box;
   color: var(--dsw-alias-label-secondary);
   font-size: var(--dsh-text-sm);
-  line-height: var(--dsh-leading-md);
+  line-height: var(--dsh-leading-sm);
 }
 
 /* The seat is the sidebar's flex item, so it carries the shrink the roster
@@ -86,7 +86,7 @@
 .group-count {
   flex: none;
   font-size: var(--dsh-text-sm);
-  line-height: var(--dsh-leading-lg);
+  line-height: var(--dsh-leading-sm);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -145,7 +145,7 @@
 .session-time {
   flex: none;
   font-size: var(--dsh-text-sm);
-  line-height: var(--dsh-leading-lg);
+  line-height: var(--dsh-leading-sm);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -229,7 +229,7 @@
   }
 
   .row-actions {
-    margin-inline-start: var(--dsh-space-inset-xl);
+    margin-inline-start: var(--dsh-space-4);
   }
 
   /* Every control a finger reaches clears the platform minimum, not only the

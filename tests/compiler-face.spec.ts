@@ -1,19 +1,16 @@
 /**
- * The canonical TypeScript 7 compiler face.
+ * The superseded TypeScript face, driven against the cheat it exists for and
+ * against every configuration this repository ships.
  *
- * TypeScript 7 writes a recommended configuration with `tsc --init`. This suite
- * holds `tsconfig.base.json` to that face option by option: every option the
- * generated file enables is stated here at the value it carries there, plus the
- * two style options this repository turns on beyond it. Stating each option in
- * the file, rather than inheriting it, is what keeps an upgrade from moving a
- * default underneath a build.
+ * The cheat is the canonical `tsc --init` configuration: a project that adopts
+ * it wholesale, or that turns one of its options off, is read here as the
+ * TypeScript 6 face it is rather than as a configuration nobody compares.
  *
- * `skipLibCheck` is the one generated recommendation this repository declines,
- * so it is asserted absent: a configuration that silences a dependency's
- * diagnostics is the shape this suite reports.
+ * @module
  */
 
 import { describe, expect, it } from 'bun:test'
+import { readFile } from 'node:fs/promises'
 import { compilerFaceOffences } from '../scripts/compiler-face.ts'
 import { EMPTY_SECTION, isJsonObject, type Json, readJsonc } from '../scripts/jsonc.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
@@ -58,8 +55,8 @@ const CANONICAL: readonly (readonly [string, string | boolean])[] = [
  * @returns its options, or the empty section when it declares none.
  */
 async function compilerOptionsOf(path: string): Promise<{ [key: string]: Json }> {
-  const document = readJsonc(await Bun.file(path).text())
-  const options = document['compilerOptions']
+  const parsed = readJsonc(await readFile(path, 'utf8'))
+  const options = parsed['compilerOptions']
   if (options === undefined) return EMPTY_SECTION
   if (!isJsonObject(options)) throw new Error(`${path}: compilerOptions is not an object`)
   return options
