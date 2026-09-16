@@ -24,8 +24,21 @@ import {
   checkNestedInteractive,
   findStructureDefects,
 } from '../apps/deeptail/tests/structure.ts'
+import { typographyRamp } from '../apps/deeptail/tests/structure-emit.ts'
 import { resetDocument } from './dom.ts'
-import { collector } from './structure-double.ts'
+import { collector, paintType } from './structure-double.ts'
+
+/**
+ * The ladder the shipped token sheet declares, read once for the limits below.
+ *
+ * The entry point hands every check the same limits, so the typography ramp
+ * travels with the floors and the vocabulary; reading it here rather than
+ * restating rungs keeps the one ladder the one ladder.
+ */
+const TYPOGRAPHY = await typographyRamp()
+
+/** The rung the conforming page's text is painted at: the ladder's last. */
+const RUNG = TYPOGRAPHY.sizes.length - 1
 
 beforeEach(() => {
   resetDocument()
@@ -52,14 +65,26 @@ it('reports a control nested in another, and stays silent for siblings', () => {
   const button = document.createElement('button')
   document.body.append(link, button)
   const silent = collector()
-  checkNestedInteractive(silent.add, { target: 24, interactive: 'a[href], button', scope: '', vocabulary: [] })
+  checkNestedInteractive(silent.add, {
+    target: 24,
+    interactive: 'a[href], button',
+    scope: '',
+    vocabulary: [],
+    typography: TYPOGRAPHY,
+  })
   expect(silent.findings).toEqual([])
   const card = document.createElement('a')
   card.setAttribute('href', '/sessions')
   card.append(button)
   document.body.append(card)
   const { findings, add } = collector()
-  checkNestedInteractive(add, { target: 24, interactive: 'a[href], button', scope: '', vocabulary: [] })
+  checkNestedInteractive(add, {
+    target: 24,
+    interactive: 'a[href], button',
+    scope: '',
+    vocabulary: [],
+    typography: TYPOGRAPHY,
+  })
   expect(findings).toEqual([{ rule: 'nested-interactive', detail: 'button sits inside a' }])
 })
 
@@ -276,7 +301,17 @@ it('reads a conforming page as conforming, and wires the markup checks into one 
   main.append(heading, trigger, pane, list, fieldset)
   shell.append(main)
   document.body.append(shell)
-  const limits = { target: 24, interactive: 'button', scope: '[data-deeptail-shell]', vocabulary: [] }
+  // happy-dom renders no type of its own, so every element carrying text is
+  // painted at one rung of the shipped ladder — the browser suites remain the
+  // account of what the loaded sheet renders.
+  for (const carrier of [heading, item, legend]) paintType(carrier, TYPOGRAPHY, RUNG)
+  const limits = {
+    target: 24,
+    interactive: 'button',
+    scope: '[data-deeptail-shell]',
+    vocabulary: [],
+    typography: TYPOGRAPHY,
+  }
   const silent = findStructureDefects(limits)
   expect(silent).toEqual([])
   const repeated = document.createElement('div')

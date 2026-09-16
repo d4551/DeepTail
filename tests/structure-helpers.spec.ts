@@ -18,6 +18,7 @@ import {
   checkClipping,
   checkGrid,
   checkHorizontalOverflow,
+  checkListGutters,
   checkNestedScroll,
   gridAncestor,
   isLayoutPane,
@@ -235,6 +236,51 @@ it('reports physical or justified text alignment computed at runtime, and start 
     {
       rule: 'alignment',
       detail: `p.align-${PHYSICAL_JUSTIFY} uses physical or justified text-align ${PHYSICAL_JUSTIFY}`,
+    },
+  ])
+})
+
+it('reads a list whose rows keep one rhythm as conforming, and a list with no visible rows', () => {
+  const root = surface('div')
+  const list = document.createElement('div')
+  list.setAttribute('role', 'list')
+  const first = document.createElement('div')
+  const second = document.createElement('div')
+  const third = document.createElement('div')
+  list.append(first, second, third)
+  const empty = document.createElement('div')
+  empty.setAttribute('role', 'list')
+  root.append(list, empty)
+  document.body.append(root)
+  paintBox(first, { top: 0, left: 0, right: 100, bottom: 20 })
+  paintBox(second, { top: 30, left: 0, right: 100, bottom: 50 })
+  paintBox(third, { top: 60, left: 0, right: 100, bottom: 80 })
+  const silent = collector()
+  checkListGutters(silent.add, { scope: '[data-structure-scope]' })
+  expect(silent.findings).toEqual([])
+})
+
+it("reports a row off the list's own rhythm, and stays silent within a pixel of it", () => {
+  const root = surface('div')
+  const list = document.createElement('div')
+  list.setAttribute('role', 'list')
+  const first = document.createElement('div')
+  const second = document.createElement('div')
+  const third = document.createElement('div')
+  const adrift = document.createElement('div')
+  list.append(first, second, third, adrift)
+  root.append(list)
+  document.body.append(root)
+  paintBox(first, { top: 0, left: 0, right: 100, bottom: 20 })
+  paintBox(second, { top: 30, left: 0, right: 100, bottom: 50 })
+  paintBox(third, { top: 60, left: 0, right: 100, bottom: 80 })
+  paintBox(adrift, { top: 104, left: 0, right: 100, bottom: 124 })
+  const { findings, add } = collector()
+  checkListGutters(add, { scope: '[data-structure-scope]' })
+  expect(findings).toEqual([
+    {
+      rule: 'inconsistent-gutter',
+      detail: "div sits 24px below the row above, where the list's own rhythm is 10px",
     },
   ])
 })

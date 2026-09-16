@@ -32,25 +32,38 @@ const SHIPPED_CHECKS: readonly string[] = [
   'checkAriaReferences',
   'checkClassVocabulary',
   'checkClipping',
+  'checkDialogContract',
   'checkDuplicateIds',
+  'checkFocusRing',
+  'checkFocusVisible',
   'checkGrid',
   'checkGroupNames',
   'checkHeadingOrder',
   'checkHorizontalOverflow',
   'checkInlineScripts',
+  'checkListGutters',
   'checkListOwnership',
   'checkNestedInteractive',
   'checkNestedScroll',
   'checkOneOffScripts',
   'checkOverlappingTargets',
+  'checkReducedMotion',
   'checkShell',
+  'checkSiblingAlignment',
   'checkTouchTargets',
+  'checkTypography',
+  'colourAlpha',
+  'coveringAt',
   'describe',
   'drawnBox',
+  'durationsInSeconds',
+  'familyListOf',
   'findStructureDefects',
   'finiteAnimations',
   'gridAncestor',
   'isLayoutPane',
+  'pixelLength',
+  'readFocusRing',
   'scrolls',
   'waitForFiniteAnimations',
 ]
@@ -114,6 +127,11 @@ describe('the structure checks the browser suite evaluates', () => {
       // The vocabulary travels with the floors: a vocabulary the page never
       // receives would refuse every class — or, refused by nothing, check none.
       expect(source).toContain('"vocabulary":["shell"]')
+      // The type ladder travels with them, read out of the token sheet rather
+      // than restated: a ramp the page never receives would measure nothing,
+      // and one restated here would measure against a scale nobody ships.
+      expect(source).toContain('"sizes":[12,13,14,16,18]')
+      expect(source).toContain('"leadings":[18,20,22,24,26]')
       // The whole selector list, not a prefix of it: asserting the opening two
       // surfaces left the boot-error and return surfaces free to be dropped
       // with this still green, and nothing else reads them.
@@ -122,10 +140,16 @@ describe('the structure checks the browser suite evaluates', () => {
       )
       for (const rule of [
         '"alignment"',
-        '"nested-grid"',
-        '"split-shell"',
+        '"dialog-contract"',
         '"empty-root"',
+        '"focus-invisible"',
+        '"inconsistent-gutter"',
         '"inline-script"',
+        '"motion-not-reduced"',
+        '"nested-grid"',
+        '"off-scale-type"',
+        '"sibling-misalignment"',
+        '"split-shell"',
         '"target-size"',
       ]) {
         expect(source).toContain(rule)
