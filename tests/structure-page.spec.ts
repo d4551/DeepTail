@@ -50,6 +50,16 @@ const SHIPPED_FAMILY = TYPOGRAPHY.families[0] ?? ''
 /** A family no shipped sheet names, which the off-family case renders in. */
 const OFF_FAMILY = ['ui-monospace', 'monospace'].join(', ')
 
+/** The fixture classes, named once: the rules, the markup, and the expected
+ * findings all read the same name, since a finding names the element it is
+ * about by its class. */
+const BETWEEN_RUNGS_CLASS = 'type-between-rungs'
+const OFF_LEADING_CLASS = 'type-off-leading'
+const NO_LEADING_CLASS = 'type-no-leading'
+const OFF_FAMILY_CLASS = 'type-off-family'
+const MOTION_OVER_CLASS = 'motion-over-budget'
+const MOTION_AT_CLASS = 'motion-at-budget'
+
 /**
  * The declarations the type and motion cases read, as one stylesheet the
  * document carries. A declaration lives in a stylesheet even here, so a case
@@ -57,12 +67,12 @@ const OFF_FAMILY = ['ui-monospace', 'monospace'].join(', ')
  * the geometry suites follow.
  */
 const DECLARATIONS = [
-  `.type-between-rungs { font-size: 15px; line-height: 24px; ${FAMILY_PROPERTY}: ${SHIPPED_FAMILY}; }`,
-  `.type-off-leading { font-size: ${String(RUNG_SIZE)}px; line-height: 30px; ${FAMILY_PROPERTY}: ${SHIPPED_FAMILY}; }`,
-  `.type-no-leading { font-size: ${String(RUNG_SIZE)}px; ${FAMILY_PROPERTY}: ${SHIPPED_FAMILY}; }`,
-  `.type-off-family { font-size: ${String(RUNG_SIZE)}px; line-height: ${String(RUNG_LEADING)}px; ${FAMILY_PROPERTY}: ${OFF_FAMILY}; }`,
-  '.motion-over-budget { transition-duration: 0.3s; }',
-  '.motion-at-budget { transition-duration: 0s; }',
+  `.${BETWEEN_RUNGS_CLASS} { font-size: 15px; line-height: 24px; ${FAMILY_PROPERTY}: ${SHIPPED_FAMILY}; }`,
+  `.${OFF_LEADING_CLASS} { font-size: ${String(RUNG_SIZE)}px; line-height: 30px; ${FAMILY_PROPERTY}: ${SHIPPED_FAMILY}; }`,
+  `.${NO_LEADING_CLASS} { font-size: ${String(RUNG_SIZE)}px; ${FAMILY_PROPERTY}: ${SHIPPED_FAMILY}; }`,
+  `.${OFF_FAMILY_CLASS} { font-size: ${String(RUNG_SIZE)}px; line-height: ${String(RUNG_LEADING)}px; ${FAMILY_PROPERTY}: ${OFF_FAMILY}; }`,
+  `.${MOTION_OVER_CLASS} { transition-duration: 0.3s; }`,
+  `.${MOTION_AT_CLASS} { transition-duration: 0s; }`,
 ].join('\n')
 
 /**
@@ -70,10 +80,13 @@ const DECLARATIONS = [
  * ladder, and the line box that no longer pairs with any rung at all.
  */
 const OFF_SCALE_FINDINGS = [
-  { rule: 'off-scale-type', detail: 'p renders its text at 15px, which is no rung of the shipped type ladder' },
+  {
+    rule: 'off-scale-type',
+    detail: `p.${BETWEEN_RUNGS_CLASS} renders its text at 15px, which is no rung of the shipped type ladder`,
+  },
   {
     rule: 'off-scale-leading',
-    detail: 'p sets a 24px line box, which is not the leading rung that pairs with its size',
+    detail: `p.${BETWEEN_RUNGS_CLASS} sets a 24px line box, which is not the leading rung that pairs with its size`,
   },
 ]
 
@@ -86,7 +99,7 @@ const OFF_SCALE_FINDINGS = [
 function offScaleText(): HTMLParagraphElement {
   const text = document.createElement('p')
   text.textContent = 'Sessions'
-  text.className = 'type-between-rungs'
+  text.className = BETWEEN_RUNGS_CLASS
   return text
 }
 
@@ -129,9 +142,9 @@ function underReduce() {
 function motionFindings(): StructureFinding[] {
   const root = surface('div')
   const mover = document.createElement('div')
-  mover.className = 'motion-over-budget'
+  mover.className = MOTION_OVER_CLASS
   const still = document.createElement('div')
-  still.className = 'motion-at-budget'
+  still.className = MOTION_AT_CLASS
   root.append(mover, still)
   document.body.append(root)
   const { findings, add } = collector()
@@ -267,26 +280,29 @@ it('reports a size off the ladder, with the line box that no longer pairs with i
 })
 
 it('reports a line box off the rung its own size pairs with, and stays silent on the pair', () => {
-  expect(typeFindings('type-off-leading')).toEqual([
+  expect(typeFindings(OFF_LEADING_CLASS)).toEqual([
     {
       rule: 'off-scale-leading',
-      detail: 'p sets a 30px line box, which is not the leading rung that pairs with its size',
+      detail: `p.${OFF_LEADING_CLASS} sets a 30px line box, which is not the leading rung that pairs with its size`,
     },
   ])
 })
 
 it('reports the engine line box, which no rung of the ladder reaches', () => {
-  expect(typeFindings('type-no-leading')).toEqual([
+  expect(typeFindings(NO_LEADING_CLASS)).toEqual([
     {
       rule: 'off-scale-leading',
-      detail: "p renders with the engine's own normal line box rather than a rung of the ladder",
+      detail: `p.${NO_LEADING_CLASS} renders with the engine's own normal line box rather than a rung of the ladder`,
     },
   ])
 })
 
 it('reports a family no shipped sheet names', () => {
-  expect(typeFindings('type-off-family')).toEqual([
-    { rule: 'off-scale-family', detail: `p renders in ${OFF_FAMILY}, which no shipped sheet names` },
+  expect(typeFindings(OFF_FAMILY_CLASS)).toEqual([
+    {
+      rule: 'off-scale-family',
+      detail: `p.${OFF_FAMILY_CLASS} renders in ${OFF_FAMILY}, which no shipped sheet names`,
+    },
   ])
 })
 
@@ -307,7 +323,7 @@ it('reports motion over the page budget under reduce, and stays silent at or und
   expect(findings).toEqual([
     {
       rule: 'motion-not-reduced',
-      detail: "div runs a transition of 0.3s while the reader asked for less motion, where the page's own budget is 0s",
+      detail: `div.${MOTION_OVER_CLASS} runs a transition of 0.3s while the reader asked for less motion, where the page's own budget is 0s`,
     },
   ])
 })

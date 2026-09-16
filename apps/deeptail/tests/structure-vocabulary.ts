@@ -1,7 +1,7 @@
 /**
  * What the page shows has to be something the shipped sheets named: the classes
- * it carries, the type every piece of its text lands on, and the motion it
- * spends.
+ * it carries, the type and font every piece of its text lands on, and the motion
+ * it spends.
  *
  * A class outside the vocabulary is a styling or hooking decision made outside
  * the design system: a one-off per-page name no gate reads and no sheet styles,
@@ -9,19 +9,34 @@
  * in. The page is the ground truth — a class composed at runtime shows up here
  * in its final spelling.
  *
- * Type and motion are the same question asked of values rather than names. The
- * scale in `tokens.css` is one ladder of sizes, one of leading ratios that
- * pairs with it rung for rung, the families the product ships, and the budget
- * every surface that moves pays for its motion out of; a size, a line box, a
- * family or a duration outside those is a decision taken outside the sheet, and
- * the page renders it whether or not a sheet declares it — from an injected
- * stylesheet, a browser default, or a rule that never named a rung.
+ * Type, weight, tracking, case and measure are the same question asked of values
+ * rather than names. The scale in `tokens.css` is one ladder of sizes, one of
+ * leading ratios that pairs with it rung for rung, the weights a face is drawn
+ * at, the tracking two display names carry, the families the product ships, and
+ * the budget every surface that moves pays for its motion out of; a size, a line
+ * box, a weight, a tracking or a family outside those is a decision taken
+ * outside the sheet, and the page renders it whether or not a sheet declares it
+ * — from an injected stylesheet, a browser default, or a rule that never named a
+ * rung. A letter case is the same question with no rung to read: the declared
+ * set is the whole declaration, and a case outside it is a second one. A measure
+ * has no declaration site at all, so the page reports any line that runs past
+ * the stated maximum whatever box the layout happened to give it.
  *
  * @module
  */
 
 import { declarationsOf } from '../../../scripts/sheet-reader.ts'
-import { declaredTokens, LADDERS, ladderRungs } from '../../../scripts/sheet-scale.ts'
+import {
+  CASINGS,
+  declaredTokens,
+  LADDERS,
+  LEADING,
+  ladderRungs,
+  MEASURE_MAX,
+  TRACKING,
+  TYPE,
+  WEIGHT,
+} from '../../../scripts/sheet-scale.ts'
 import { describe, pixelLength, type Report } from './structure-report.ts'
 
 /** What the vocabulary check reads, as the caller hands it to the page. */
@@ -58,6 +73,14 @@ export interface TypographyRamp {
   readonly leadings: readonly number[]
   /** The family lists the shipped sheets declare, normalized for comparison. */
   readonly families: readonly string[]
+  /** The weights the shipped weight ladder declares, in ladder order. */
+  readonly weights: readonly number[]
+  /** The tracking rungs, as the fraction of the type each sits beside. */
+  readonly trackings: readonly number[]
+  /** The letter cases a sheet may set. */
+  readonly casings: readonly string[]
+  /** The longest line of text the product draws, in CSS pixels. */
+  readonly measure: number
 }
 
 /** The declarations the shipped family lists are read out of. */
@@ -65,6 +88,9 @@ const FAMILY_TOKENS: ReadonlySet<string> = new Set(['--dsw-font-family', '--ds-f
 
 /** A leading rung, holding a ratio between two whole numbers. */
 const RATIO = /^calc\(\s*(\d+)\s*\/\s*(\d+)\s*\)$/u
+
+/** A tracking rung, holding a fraction of the type it sits beside. */
+const TRACKING_EM = /^(\d+(?:\.\d+)?)em$/u
 
 /**
  * The pixels a leading rung's ratio resolves to against its type rung.
@@ -103,21 +129,34 @@ function familyListOf(value: string): string {
 }
 
 /**
- * Resolve the typography ladder out of the token sheet.
+ * The values one family of the scale declares, in ladder order.
+ * @param written - every token the shipped token sheet writes.
+ * @param stem - the family to read.
+ * @returns the values, as the sheet writes them.
+ */
+function declaredRungValues(written: ReadonlyMap<string, { readonly first: { readonly value: string } }>, stem: string) {
+  const ladder = LADDERS.find((one) => one.stem === stem)
+  if (ladder === undefined) throw new Error(`deeptail: the scale declares no ${stem} family to read`)
+  return ladderRungs(ladder, written).rungs.map((rung) => rung.value)
+}
+
+/**
+ * Resolve the typography scale out of the token sheet.
  *
- * The sheet is read rather than restated: a ramp copied into the test tree is a
+ * The sheet is read rather than restated: a scale copied into the test tree is a
  * second ladder that agrees with the shipped one until the day it does not, and
  * the check would then measure the product against a scale nobody ships. The
  * rungs come back in ladder order from the one module that declares the
  * ladders, so the leading rung at an index pairs with the type rung at the same
  * index by construction rather than by a second list of names.
  * @param text - the token sheet's contents.
- * @returns the sizes, their line boxes, and the shipped family lists.
+ * @returns the sizes, their line boxes, the families, the weights, the tracking
+ * rungs, the letter cases, and the measure the page is read against.
  */
 export function typographyRampFrom(text: string): TypographyRamp {
   const written = declaredTokens(text)
-  const type = LADDERS.find((one) => one.stem === '--dsh-text-')
-  const leading = LADDERS.find((one) => one.stem === '--dsh-leading-')
+  const type = LADDERS.find((one) => one.stem === TYPE)
+  const leading = LADDERS.find((one) => one.stem === LEADING)
   if (type === undefined || leading === undefined) {
     throw new Error('deeptail: the scale declares no type ladder or no leading ladder to pair it with')
   }
@@ -129,10 +168,19 @@ export function typographyRampFrom(text: string): TypographyRamp {
   const families = declarationsOf(text)
     .filter((declaration) => FAMILY_TOKENS.has(declaration.property))
     .map((declaration) => familyListOf(declaration.value))
+  const trackings = declaredRungValues(written, TRACKING).map((value) => {
+    const em = TRACKING_EM.exec(value)?.[1]
+    if (em === undefined) throw new Error(`deeptail: ${value} is not a tracking written as a fraction of em`)
+    return Number(em)
+  })
   return {
     sizes,
     leadings: sizes.map((size, index) => leadingPixels(ratios[index]?.value ?? '', size)),
     families,
+    weights: declaredRungValues(written, WEIGHT).map(Number),
+    trackings,
+    casings: [...CASINGS],
+    measure: MEASURE_MAX,
   }
 }
 
@@ -140,12 +188,46 @@ export function typographyRampFrom(text: string): TypographyRamp {
 interface TypographyLimits {
   /** The surfaces to read: the product's own, and every dialog frame it opens. */
   readonly scope: string
-  /** The ladder the page's type has to land on. */
+  /** The scale the page's type has to land on. */
   readonly typography: TypographyRamp
 }
 
 /**
- * Every rendered text size, line box and family lands on a rung of the scale.
+ * The width of every line box the text of one element paints.
+ *
+ * A line runs as wide as the box around it happens to be, which is why a
+ * measure has no declaration site: the reading is decided by whatever the
+ * layout gave the text rather than by the sheet. Each text run is measured
+ * through a range, which reports one rectangle per line box, so the answer is
+ * the line the reader reads rather than the box the line sits in.
+ *
+ * Two shapes are left out, and both are the box rather than the reading
+ * deciding: text truncated with an ellipsis, where the reader is told the rest
+ * is there, and text whose own box is already narrower than the maximum, where
+ * nothing can run past it.
+ * @param element - the element whose own text is measured.
+ * @param measure - the declared maximum, in CSS pixels.
+ * @returns the width of each line, in CSS pixels.
+ */
+function lineBoxWidths(element: Element, measure: number): number[] {
+  const style = getComputedStyle(element)
+  if (element.getBoundingClientRect().width < measure) return []
+  if (style.whiteSpace === 'nowrap' && style.textOverflow === 'ellipsis') return []
+  const range = document.createRange()
+  const widths: number[] = []
+  for (const child of element.childNodes) {
+    if (child.nodeType !== Node.TEXT_NODE || (child.textContent ?? '').trim() === '') continue
+    range.selectNodeContents(child)
+    for (const rect of range.getClientRects()) {
+      if (rect.width > 0) widths.push(rect.width)
+    }
+  }
+  return widths
+}
+
+/**
+ * Every rendered text size, line box, family, weight, tracking, case and line
+ * length lands on what the sheets declare.
  *
  * Nothing else asks this. The sheet gate reads what a *sheet* declares, so a
  * value arriving from anywhere else — a browser default on a control no rule
@@ -153,20 +235,25 @@ interface TypographyLimits {
  * ladder had set — is invisible to it, and the rendered page is the only place
  * the two spellings of one decision meet. A page whose control renders at the
  * engine's own 13.33px default is a page that shipped two type scales, one of
- * them by accident.
+ * them by accident; a page whose heading renders at the engine's own bold is
+ * one that shipped a second weight set the same way.
  *
  * Only elements carrying their own text are read: an element that holds nothing
  * but another's text inherits whatever that text was given, so reporting it
  * too would name the tree rather than the decision. Each element's leading is
- * read against the leading rung that pairs with its own size, which is what
- * makes the comparison meaningful at all — a page may use any rung, but the
- * type and the leading on one element have to be the same rung's.
+ * read against the leading rung that pairs with its own size, and its tracking
+ * against the type size it renders at, which is what makes the comparisons
+ * meaningful at all — a page may use any rung, but the type and the leading on
+ * one element have to be the same rung's, and a tracking is a fraction of the
+ * type it sits beside.
  *
  * Sizes are compared to within a hundredth of a pixel, the rounding a relative
  * size leaves behind; a line box the engine chose for itself (`normal`) is
- * reported, because that is a leading no rung of the ladder reaches.
+ * reported, because that is a leading no rung of the ladder reaches. A tracking
+ * the engine reports as `normal` is the absence of one and reads as nought,
+ * which every element that is not a display name renders at.
  * @param add - collects a finding.
- * @param limits - the surfaces to read and the ladder to read against.
+ * @param limits - the surfaces to read and the scale to read against.
  */
 function checkTypography(add: Report, limits: TypographyLimits): void {
   const roots = [...document.querySelectorAll(limits.scope), ...document.querySelectorAll('[data-deeptail-dialog]')]
@@ -200,6 +287,33 @@ function checkTypography(add: Report, limits: TypographyLimits): void {
       const family = familyListOf(style.fontFamily)
       if (!limits.typography.families.includes(family)) {
         add('off-scale-family', `${describe(element)} renders in ${family}, which no shipped sheet names`)
+      }
+      if (!limits.typography.weights.includes(Number(style.fontWeight))) {
+        add(
+          'off-scale-weight',
+          `${describe(element)} renders at font-weight ${style.fontWeight}, which is no rung of the shipped weight ladder`,
+        )
+      }
+      const tracking = style.letterSpacing.trim() === 'normal' ? 0 : pixelLength(style.letterSpacing)
+      const tracked = limits.typography.trackings.some((ratio) => Math.abs(ratio * size - tracking) <= 0.01)
+      if (!tracked) {
+        add(
+          'off-scale-tracking',
+          `${describe(element)} renders with ${style.letterSpacing} letter spacing at ${style.fontSize}, which is no rung of the shipped tracking ladder`,
+        )
+      }
+      if (!limits.typography.casings.includes(style.textTransform)) {
+        add(
+          'off-scale-casing',
+          `${describe(element)} renders text-transform ${style.textTransform}, which is no case the product declares`,
+        )
+      }
+      for (const width of lineBoxWidths(element, limits.typography.measure)) {
+        if (width <= limits.typography.measure) continue
+        add(
+          'off-scale-measure',
+          `${describe(element)} renders a line of ${String(Math.round(width))}px, past the ${String(limits.typography.measure)}px measure the sheets declare`,
+        )
       }
     }
   }

@@ -60,6 +60,34 @@ export const REMOTE_URL = /^(?:https?:)?\/\//iu
 const HTMX_ATTRIBUTE = /^(?:(?:data-)?hx(?:-.*)?|htmx-partial)$/iu
 
 /**
+ * An htmx extension attribute.
+ *
+ * The SSE and WebSocket extensions wire an element to a server-pushed stream
+ * through names of their own rather than through the core prefix, and they move
+ * the same behaviour into the tag: the listener and the swap are decided where
+ * the markup is written.
+ */
+const HTMX_EXTENSION_ATTRIBUTE = /^(?:sse|ws)-(?:swap|connect|send)$/iu
+
+/**
+ * A Vue 2 slot attribute.
+ *
+ * The current major replaced the scoped slot with the `v-slot` directive, so a
+ * page still writing one is a page on the previous major — and the name carries
+ * no `v-` prefix for the directive rule to read.
+ */
+const VUE2_SLOT_ATTRIBUTE = /^slot-scope$/iu
+
+/**
+ * A jQuery Mobile hook.
+ *
+ * The framework decides a link's transport, a page's transition and a widget's
+ * role in the tag, which is the same per-page wiring the directive rules refuse
+ * under other names.
+ */
+const JQUERY_MOBILE_ATTRIBUTE = /^data-(?:ajax|role|transition)$/iu
+
+/**
  * A Tailwind arbitrary-value utility in a class list.
  *
  * A token whose bracketed payload follows a hyphen — a width, a colour, a font

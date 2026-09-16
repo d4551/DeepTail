@@ -18,55 +18,8 @@ import * as bans from '../scripts/ban-gate.ts'
 import { onlyPresent, ROOT, repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
 import * as styles from '../scripts/style-gate.ts'
 import { fragmentTree } from './markup-tree.ts'
+import { SHIPPED_CHECKS } from './structure-shipped.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
-
-/**
- * Every function the structure checks ship to the page, by definition.
- *
- * Held as a whole set rather than a chosen few: a helper dropped from what is
- * shipped is a `ReferenceError` the moment the page evaluates this, and every
- * structural check on that page then reports nothing at all.
- */
-const SHIPPED_CHECKS: readonly string[] = [
-  'checkAlignment',
-  'checkAriaReferences',
-  'checkClassVocabulary',
-  'checkClipping',
-  'checkDialogContract',
-  'checkDuplicateIds',
-  'checkFocusRing',
-  'checkFocusVisible',
-  'checkGrid',
-  'checkGroupNames',
-  'checkHeadingOrder',
-  'checkHorizontalOverflow',
-  'checkInlineScripts',
-  'checkListGutters',
-  'checkListOwnership',
-  'checkNestedInteractive',
-  'checkNestedScroll',
-  'checkOneOffScripts',
-  'checkOverlappingTargets',
-  'checkReducedMotion',
-  'checkShell',
-  'checkSiblingAlignment',
-  'checkTouchTargets',
-  'checkTypography',
-  'colourAlpha',
-  'coveringAt',
-  'describe',
-  'drawnBox',
-  'durationsInSeconds',
-  'familyListOf',
-  'findStructureDefects',
-  'finiteAnimations',
-  'gridAncestor',
-  'isLayoutPane',
-  'pixelLength',
-  'readFocusRing',
-  'scrolls',
-  'waitForFiniteAnimations',
-]
 
 describe('the file list both gates read', () => {
   it(

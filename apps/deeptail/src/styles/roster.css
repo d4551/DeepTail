@@ -9,7 +9,7 @@
 
 .section-header {
   margin: 0;
-  font-weight: inherit;
+  font-weight: var(--dsh-weight-regular);
   flex: none;
   display: flex;
   align-items: center;
@@ -61,7 +61,7 @@
 
 .group-title {
   margin: 0;
-  font-weight: inherit;
+  font-weight: var(--dsh-weight-regular);
   display: flex;
   align-items: center;
   gap: var(--dsh-space-2);
@@ -80,7 +80,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: var(--dsh-weight-medium);
 }
 
 .group-count {
@@ -127,8 +127,8 @@
 
 /* The roster clips both axes, so the ring is drawn inward or it is cut off. */
 .session-open:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: -2px;
+  outline: var(--dsh-border-ring) solid var(--dsw-alias-state-business-primary);
+  outline-offset: calc(var(--dsh-border-ring) * -1);
   border-radius: var(--dsh-radius-sm);
 }
 
@@ -178,8 +178,8 @@
 }
 
 .row-action:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: -2px;
+  outline: var(--dsh-border-ring) solid var(--dsw-alias-state-business-primary);
+  outline-offset: calc(var(--dsh-border-ring) * -1);
 }
 
 .row-action:disabled {

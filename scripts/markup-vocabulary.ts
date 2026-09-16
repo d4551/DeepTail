@@ -104,6 +104,67 @@ const RETIRED_EXACT = new Set([
   'container-fluid',
   'navbar-toggler',
   'sr-only',
+  // The previous major's spellings of the utilities this one renamed. A page
+  // written against the previous major writes the grow and shrink pair where
+  // the current one writes `grow` and `shrink`, spells the text clipping
+  // utility as an overflow, and names the decoration pair as bare words rather
+  // than under the `box-decoration-` family. Every rule stated about the
+  // current name reads straight past all of them.
+  'flex-grow',
+  'flex-grow-0',
+  'flex-shrink',
+  'flex-shrink-0',
+  'overflow-ellipsis',
+  'decoration-slice',
+  'decoration-clone',
+  // The component the current major replaced with the platform's own dialog.
+  'modal-open',
+  // Bootstrap 4 and 5: the form, type, float and sticky helpers a Bootstrap
+  // page writes. `visually-hidden` is deliberately absent — this product names
+  // its own screen-reader-only class the same way, so the word is this design
+  // system's vocabulary before it is Bootstrap's.
+  'form-label',
+  'form-text',
+  'form-select',
+  'form-check',
+  'form-floating',
+  'text-center',
+  'text-muted',
+  'text-danger',
+  'text-nowrap',
+  'float-start',
+  'float-end',
+  'fw-bold',
+  'fw-normal',
+  'sticky-top',
+  'fixed-top',
+  // Bulma's component names, none of which this product uses as a class.
+  'box',
+  'breadcrumb',
+  'column',
+  'columns',
+  'control',
+  'delete',
+  'help',
+  'level',
+  'media',
+  'message',
+  'notification',
+  'panel',
+  'tile',
+  // Materialize's component names.
+  'chip',
+  'collection',
+  'collapsible',
+  'input-field',
+  'materialboxed',
+  'parallax',
+  'preloader',
+  'sidenav',
+  // Semantic UI's root class, which every component beneath it is written with,
+  // and its section component.
+  'ui',
+  'segment',
 ])
 
 /**
@@ -131,10 +192,7 @@ const RETIRED_PREFIXES = [
   'loading-',
   'mockup-',
   'theme-',
-  'card-body',
-  'card-title',
-  'card-actions',
-  'card-compact',
+  'card-',
   'modal-box',
   'modal-backdrop',
   'drawer-side',
@@ -196,6 +254,34 @@ const RETIRED_PREFIXES = [
   'progress-',
   'fieldset-',
   'calendar-',
+  // The component families the previous major of each framework decides with a
+  // prefix: daisyUI's card, select, textarea, indicator and chat components,
+  // Bulma's and Pico's modifier namespaces, Bootstrap's display, flex and
+  // font-size helpers, UIKit's own namespace, and the prefix jQuery UI and
+  // Semantic UI both publish every widget under.
+  'select-',
+  'textarea-',
+  'ui-',
+  'uk-',
+  'is-',
+  'has-',
+  'link-',
+  'chat-',
+  'indicator-',
+  'waves-',
+  'z-depth-',
+  'justify-content-',
+  'align-items-',
+  'align-self-',
+  'form-check-',
+  'fw-',
+  'fs-',
+  'd-print-',
+  'd-table',
+  'd-table-cell',
+  'd-table-row',
+  'd-inline-block',
+  'bg-gradient-to-',
 ]
 
 /**
@@ -232,13 +318,27 @@ const TAILWIND_UTILITY_RE = new RegExp(`^(?:${TAILWIND_UTILITY})${TAILWIND_SCALE
  */
 function utilityOf(token: string): string {
   // Tailwind 3 wrote important as a prefix and Tailwind 4 writes it as a
-  // suffix. Peeling only the prefix meant `p-4!` — the current spelling of a
-  // token the gate already refuses as `p-4` — was not recognised at all.
-  const leading = token.startsWith('!') ? token.slice(1) : token
-  const important = leading.endsWith('!') ? leading.slice(0, -1) : leading
-  const parts = important.split(':')
-  return parts.at(-1) ?? important
+  // suffix; peeling the prefix alone read `p-4!` — the current spelling of a
+  // token the gate already refuses as `p-4` — as neither. The previous major
+  // also writes the prefix marker after a variant rather than opening the
+  // token, so `md:!p-4` carries the marker inside its last segment and both
+  // ends are peeled.
+  const important = token.endsWith('!') ? token.slice(0, -1) : token
+  const segment = important.split(':').at(-1) ?? important
+  return segment.startsWith('!') ? segment.slice(1) : segment
 }
+
+/**
+ * A class name a CSS-in-JS runtime generates at build time.
+ *
+ * A styled-components or emotion build writes a hashed class into the markup
+ * and ships the rule that styles it from JavaScript, so the class is a second
+ * vocabulary with no sheet behind it and no gate to read. The hash is what
+ * tells a generated name from this design system's own: a generated one
+ * carries a digit or a capital inside its trailing run, where a class written
+ * by hand is lowercase words.
+ */
+const RUNTIME_GENERATED_CLASS = /^(?:sc|css|emotion|jsx)-[a-z0-9]*[0-9A-Z][a-z0-9]{3,}$/u
 
 /**
  * Whether one class token belongs to a retired framework.
@@ -250,6 +350,7 @@ export function isRetiredClassToken(token: string): boolean {
   const utility = utilityOf(token)
   if (RETIRED_EXACT.has(utility) || RETIRED_EXACT.has(token)) return true
   if (TAILWIND_NAMED.test(utility) || TAILWIND_UTILITY_RE.test(utility)) return true
+  if (RUNTIME_GENERATED_CLASS.test(utility) || RUNTIME_GENERATED_CLASS.test(token)) return true
   return RETIRED_PREFIXES.some((prefix) => utility.startsWith(prefix) || token.startsWith(prefix))
 }
 

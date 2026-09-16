@@ -27,7 +27,7 @@
   padding: var(--dsh-space-2) var(--dsh-space-4);
   box-sizing: border-box;
   background: var(--dsw-specific-sidebar-fill);
-  border-inline-end: 1px solid var(--dsw-alias-border-l1);
+  border-inline-end: var(--dsh-border-hairline) solid var(--dsw-alias-border-l1);
   /* The sidebar's own box is the constraint its head responds to: the grid
    * track and the frame rows size it wide, the drawer's insets size it narrow,
    * so neither axis depends on its contents and it can be a size container. */
@@ -54,13 +54,13 @@
   min-height: var(--dsh-space-9);
   padding: var(--dsh-space-4) var(--dsh-space-6);
   box-sizing: border-box;
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  border-bottom: var(--dsh-border-hairline) solid var(--dsw-alias-border-l2);
 }
 
 .main-title {
   margin: 0;
   font-size: var(--dsh-text-body);
-  font-weight: 500;
+  font-weight: var(--dsh-weight-medium);
   line-height: var(--dsh-leading-body);
   color: var(--dsw-alias-label-primary);
 }
@@ -99,7 +99,7 @@
   justify-content: center;
   min-height: var(--dsh-target-coarse);
   padding: 0 var(--dsh-space-3);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: var(--dsh-border-hairline) solid var(--dsw-alias-border-l2);
   border-radius: var(--dsh-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
@@ -109,8 +109,8 @@
 }
 
 .drawer-toggle:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: 2px;
+  outline: var(--dsh-border-ring) solid var(--dsw-alias-state-business-primary);
+  outline-offset: var(--dsh-border-ring);
 }
 
 /* Below the harness's own sidebar breakpoint the column becomes a drawer, so a
@@ -195,7 +195,7 @@
   min-height: var(--dsh-target-coarse);
   padding: 0 var(--dsh-space-4);
   margin-bottom: var(--dsh-space-3);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: var(--dsh-border-hairline) solid var(--dsw-alias-border-l2);
   border-radius: var(--dsh-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
@@ -242,19 +242,19 @@
  * against the system colour keywords the mode guarantees. */
 @media (forced-colors: active) {
   .sidebar {
-    border-inline-end: 1px solid CanvasText;
+    border-inline-end: var(--dsh-border-hairline) solid CanvasText;
   }
 
   .menu,
   .modal-dialog {
-    border: 1px solid CanvasText;
+    border: var(--dsh-border-hairline) solid CanvasText;
   }
 
   .session-row:hover,
   .menu-item:hover,
   .session-open:focus-visible,
   .row-action:focus-visible {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
+    outline: var(--dsh-border-ring) solid Highlight;
+    outline-offset: calc(var(--dsh-border-ring) * -1);
   }
 }

@@ -4,14 +4,16 @@
  * An empty `#root` is a client-invented tree. These cases drive the same
  * factories the webview mounts, so a paint that returned nothing, skipped the
  * mount, or drifted from the live tree would fail here rather than in a
- * screenshot. The page painter's own cases, which read and stamp files, live
- * in `paint-page.spec.ts`.
+ * screenshot. What that markup must be once it is painted is stated and driven
+ * in `paint-contract.ts` and `paint-page.spec.ts`, which read and stamp the
+ * page this build ships; these cases read the factories themselves.
  *
  * @module
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { assertPaintedShell, firstPaintMarkup } from '../scripts/paint-index.ts'
+import { assertPaintedShell, paintOffences } from '../scripts/paint-contract.ts'
+import { firstPaintMarkup } from '../scripts/paint-index.ts'
 import { resetDocument } from './dom.ts'
 import { mountedRoot, mountLiveChrome, seatedDismiss, seatedToggle } from './shell-chrome-double.ts'
 
@@ -28,6 +30,10 @@ describe('the first-paint factories', () => {
     expect(painted.includes('class="drawer-toggle"')).toBe(true)
     expect(painted.includes('class="placeholder"')).toBe(true)
     expect(painted.split('<main').length - 1).toBe(1)
+  })
+
+  it('paint a chrome that satisfies the contract the build holds it to', () => {
+    expect(paintOffences(firstPaintMarkup())).toEqual([])
   })
 
   it('paints the same tree the live mount builds', () => {

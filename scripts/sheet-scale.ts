@@ -38,8 +38,17 @@ export const TYPE = '--dsh-text-'
 /** The leading family, holding a ratio against its type rung rather than a length. */
 export const LEADING = '--dsh-leading-'
 
-/** The tracking family, which names two decisions rather than a ladder. */
+/** The tracking family. */
 export const TRACKING = '--dsh-tracking-'
+
+/** The font-weight family, whose rungs hold the number a face is drawn at. */
+export const WEIGHT = '--dsh-weight-'
+
+/** The control-height family: the heights the shell's controls stand at. */
+export const CONTROL = '--dsh-control-'
+
+/** The drawn-width family: the line widths a border, a rule or a focus ring is painted at. */
+export const BORDER = '--dsh-border-'
 
 /** A numbered rung name: a whole number, written without a leading nought. */
 const DIGITS = /^(?:0|[1-9]\d*)$/u
@@ -47,7 +56,16 @@ const DIGITS = /^(?:0|[1-9]\d*)$/u
 /** How a ladder names its rungs. */
 type RungNames = { readonly kind: 'numbered' } | { readonly kind: 'named'; readonly names: readonly string[] }
 
-/** One ladder of the scale: a family of names and what each rung of it holds. */
+/**
+ * One ladder of the scale: a family of names and what each rung of it holds.
+ *
+ * Three kinds of rung are read. A `px` rung holds a whole number of pixels and
+ * the ladder is read as a rising staircase. A `ratio` rung holds a fraction of
+ * the rung it pairs with, resolved against it. A `set` rung holds a written
+ * value that is one of the family's own vocabulary — the number a face is drawn
+ * at, the tracking a display name carries — where the family is a set of
+ * decisions rather than a staircase, so there is no order to read.
+ */
 export type Ladder =
   | { readonly stem: string; readonly rungs: RungNames; readonly unit: 'px' }
   | {
@@ -57,6 +75,16 @@ export type Ladder =
       /** The stem of the ladder each rung resolves against, rung for rung. */
       readonly resolves: string
     }
+  | {
+      readonly stem: string
+      readonly rungs: RungNames
+      readonly unit: 'set'
+      /** What a rung of this family holds, as a whole-value pattern. */
+      readonly values: RegExp
+    }
+
+/** A ladder whose rungs hold a length, and so land on a pixel the reader can compare. */
+export type MeasuredLadder = Extract<Ladder, { readonly unit: 'px' | 'ratio' }>
 
 /** The type rungs, which the leading ladder pairs with one for one. */
 export const TYPE_RUNGS: readonly string[] = ['sm', 'md', 'lg', 'body', 'title']
@@ -80,12 +108,19 @@ export const LADDERS: readonly Ladder[] = [
   { stem: SPACING, rungs: { kind: 'numbered' }, unit: 'px' },
   { stem: RADIUS, rungs: { kind: 'named', names: ['xs', 'sm', 'md', 'lg', 'xl', '2xl'] }, unit: 'px' },
   { stem: TYPE, rungs: { kind: 'named', names: TYPE_RUNGS }, unit: 'px' },
+  { stem: CONTROL, rungs: { kind: 'named', names: ['xs', 'sm', 'md', 'lg', 'xl'] }, unit: 'px' },
+  { stem: BORDER, rungs: { kind: 'named', names: ['hairline', 'ring', 'accent'] }, unit: 'px' },
+  // A weight is a numbered face, and a tracking is a fraction of the type it
+  // sits beside: both are sets of decisions rather than staircases, so each is
+  // read as one written value out of the family's vocabulary and not as a rise.
+  { stem: WEIGHT, rungs: { kind: 'named', names: ['regular', 'medium', 'semibold'] }, unit: 'set', values: /^\d{3}$/u },
+  { stem: TRACKING, rungs: { kind: 'named', names: ['brand', 'wordmark'] }, unit: 'set', values: /^-?\d+\.\d+em$/u },
 ]
 
 /**
  * The names the token sheet writes that are decisions rather than points on a
- * ladder: heights a control stands at, the width of a region, a plane of the
- * stacking order, and the tracking two display names carry.
+ * ladder: the width of a region, the size of a status dot, and a plane of the
+ * stacking order.
  *
  * Each is a value the product reads once apiece, and each is named here once. A
  * `--dsh-` name that is neither a rung nor one of these is a value written
@@ -98,11 +133,6 @@ export const SINGLES: readonly string[] = [
   '--dsh-action-min',
   '--dsh-card-width',
   '--dsh-compose-min',
-  '--dsh-control-lg',
-  '--dsh-control-md',
-  '--dsh-control-sm',
-  '--dsh-control-xl',
-  '--dsh-control-xs',
   '--dsh-dot-size',
   '--dsh-drawer',
   '--dsh-drawer-width',
@@ -119,8 +149,6 @@ export const SINGLES: readonly string[] = [
   '--dsh-spin-period',
   '--dsh-target-coarse',
   '--dsh-target-fine',
-  '--dsh-tracking-brand',
-  '--dsh-tracking-wordmark',
   '--dsh-z-dialog',
   '--dsh-z-drawer',
   '--dsh-z-menu',
@@ -128,6 +156,28 @@ export const SINGLES: readonly string[] = [
   '--dsh-z-return',
   '--dsh-z-scrim',
 ]
+
+/**
+ * The letter cases a sheet may set, which is the whole vocabulary of
+ * `text-transform`.
+ *
+ * A case is a decision about the reader rather than a length, so it has no rung
+ * to read and no staircase to rise: the set itself is the declaration, and both
+ * the sheet gate and the page check measure against it. `none` is in the set
+ * because a sheet that resets a case has set one.
+ */
+export const CASINGS: readonly string[] = ['none', 'uppercase', 'lowercase', 'capitalize']
+
+/**
+ * The longest line of text the product draws, in CSS pixels.
+ *
+ * A measure is the one typographic decision with no declaration site: a line
+ * runs as wide as the box around it happens to be, and the box is sized by the
+ * layout rather than by the reading. Stating the maximum here is what lets the
+ * page check ask whether any rendered line box exceeds it, whatever width the
+ * viewport it was laid out under.
+ */
+export const MEASURE_MAX = 640
 
 /** Where one declaration of a custom property sits in the sheet. */
 export interface Placement {

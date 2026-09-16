@@ -9,10 +9,11 @@
  * points at an id that is not there, or that carries a second inline script is
  * refused where it is built rather than in an engine nobody runs at build time.
  *
- * Two halves, and they are the two a build can check. `paintOffences` reads the
+ * Two entry points and one set of rules behind them. `paintOffences` reads the
  * chrome the factories paint; `documentOffences` reads the built page, the
- * chrome included. Both are driven case by case in `paint-page.spec.ts`, which
- * plants each defect and reads the shipped page as it ships.
+ * chrome included, through the same chrome rules rather than a second reading
+ * of them. Both are driven case by case in `paint-page.spec.ts`, which plants
+ * each defect and reads the shipped page as it ships.
  *
  * @module
  */
@@ -29,13 +30,13 @@ const LIVE_ROLES = new Set(['alert', 'log', 'status'])
 /** The live-region attribute itself, for an element that names its own. */
 const LIVE_ATTRIBUTE = 'aria-live'
 
-/** The attribute values read as one id reference each. */
-const ID_REFERENCES = new Set(['aria-controls', 'aria-describedby', 'aria-labelledby', 'aria-owns'])
-
-/** The live-region attribute, whose value may be a space-separated list. */
+/** The values of that attribute which announce a change. */
 const LIVE_VALUES = new Set(['polite', 'assertive'])
 
-/** The name the shell's own heading carries, which the contract reads. */
+/** The attributes read as one id reference each. */
+const ID_REFERENCES = new Set(['aria-controls', 'aria-describedby', 'aria-labelledby', 'aria-owns'])
+
+/** The class the shell's own title element carries, which the contract reads. */
 const TITLE = 'main-title'
 
 /** One parsed node, as parse5's own tree builder writes it. */
@@ -92,8 +93,8 @@ function elementsOf(node: Parsed): Parsed[] {
 
 /**
  * The text one element carries, however deeply it nests it.
- * @param node - the element to read.
- * @returns its text, whitespace-collapsed.
+ * @param node - the node to read.
+ * @returns its text, with whitespace collapsed.
  */
 function textOf(node: Parsed): string {
   const here = 'value' in node ? node.value : ''
@@ -101,9 +102,9 @@ function textOf(node: Parsed): string {
 }
 
 /**
- * Every id one element carries, once.
+ * Every id one element carries.
  * @param elements - the elements to read.
- * @returns the ids, in document order.
+ * @returns the ids, in document order, blanks left out.
  */
 function idsOf(elements: readonly Parsed[]): string[] {
   return elements.flatMap((element) => {
@@ -113,54 +114,76 @@ function idsOf(elements: readonly Parsed[]): string[] {
 }
 
 /**
- * Every id an element's attributes reference, with the attribute that names it.
- * @param elements - the elements to read.
- * @returns one entry per reference.
- */
-function referencesOf(elements: readonly Parsed[]): { readonly from: string; readonly to: string }[] {
-  return elements.flatMap((element) =>
-    attrsOf(element)
-      .filter((attr) => ID_REFERENCES.has(attr.name))
-      .flatMap((attr) => attr.value.split(/\s+/u).filter((id) => id !== '').map((id) => ({ from: attr.name, to: id }))),
-  )
-}
-
-/**
  * Whether one element announces a change on its own.
  * @param element - the element to read.
  * @returns true when it carries a live role or a live-region value.
  */
 function isLiveRegion(element: Parsed): boolean {
-  const role = attributeOf(element, 'role') ?? ''
-  if (LIVE_ROLES.has(role)) return true
-  const live = attributeOf(element, LIVE_ATTRIBUTE) ?? ''
-  return live.split(/\s+/u).some((value) => LIVE_VALUES.has(value))
+  if (LIVE_ROLES.has(attributeOf(element, 'role') ?? '')) return true
+  return (attributeOf(element, LIVE_ATTRIBUTE) ?? '').split(/\s+/u).some((value) => LIVE_VALUES.has(value))
 }
 
 /**
- * The refusals one element list carries between them: the shell's own shape,
- * the ids it states, and the references those ids must answer.
- * @param elements - every element of the page, in document order.
- * @param shell - whether the list is the shell's own chrome.
+ * What a chrome carrying the same id twice, or a reference to an id it never
+ * states, is refused for.
+ * @param elements - every element of the chrome, in document order.
  * @returns one line per refusal.
  */
-function sharedOffences(elements: readonly Parsed[], shell: boolean): string[] {
+function referenceOffences(elements: readonly Parsed[]): string[] {
   const refused: string[] = []
-  const ids = idsOf(elements)
-  const seen = new Set<string>()
-  for (const id of ids) {
-    if (seen.has(id)) refused.push(`an id is stated twice, so a reference to it reaches neither: ${id}`)
-    seen.add(id)
+  const ids = new Set<string>()
+  for (const id of idsOf(elements)) {
+    if (ids.has(id)) refused.push(`an id is stated twice, so a reference to it reaches neither: ${id}`)
+    ids.add(id)
   }
-  for (const reference of referencesOf(elements)) {
-    if (!seen.has(reference.to)) {
-      refused.push(`${reference.from} points at ${reference.to}, which is no id on the page`)
+  for (const element of elements) {
+    for (const attribute of attrsOf(element).filter((attr) => ID_REFERENCES.has(attr.name))) {
+      for (const id of attribute.value.split(/\s+/u).filter((word) => word !== '')) {
+        if (!ids.has(id)) refused.push(`${attribute.name} points at ${id}, which is no id on the page`)
+      }
     }
   }
-  if (!shell) return refused
-  const headings = elements.filter((element) => tagOf(element) === 'h1')
-  if (headings.length !== 1) refused.push(`the shell carries ${String(headings.length)} h1 headings; a page carries one`)
   return refused
+}
+
+/**
+ * Every refusal one product shell carries.
+ *
+ * The chrome's own landmarks and references are read here rather than in each
+ * caller, so the built document and the painted chrome are held to one set of
+ * rules and neither can be the weaker reading.
+ * @param shell - the element carrying the shell attribute.
+ * @returns one line per refusal.
+ */
+function chromeOffences(shell: Parsed): string[] {
+  const chrome = [shell, ...elementsOf(shell)]
+  const refused: string[] = []
+  const main = chrome.find((element) => tagOf(element) === 'main')
+  if (main === undefined) {
+    refused.push('the shell carries no main landmark, so the chrome has no reading region')
+  }
+  if (!chrome.some((element) => tagOf(element) === 'nav' && attributeOf(element, 'aria-label') !== undefined)) {
+    refused.push('the shell carries no nav landmark named for a reader')
+  }
+  if (!chrome.some(isLiveRegion)) {
+    refused.push('the shell carries no live region, so a change it announces reaches no reader')
+  }
+  if (!chrome.some((element) => attributeOf(element, 'aria-controls') !== undefined)) {
+    refused.push('the shell carries no control that names the region it opens')
+  }
+  const heading = chrome.find((element) => attributeOf(element, 'class') === TITLE)
+  if (heading === undefined || textOf(heading) === '') {
+    refused.push('the shell carries no titled heading, so the first paint names no page')
+  }
+  const headings = chrome.filter((element) => tagOf(element) === 'h1')
+  if (headings.length !== 1) {
+    refused.push(`the shell carries ${String(headings.length)} h1 headings; a page carries one`)
+  }
+  const named = main === undefined ? [] : elementsOf(main).filter((element) => tagOf(element) === 'h1')
+  if (headings.length === 1 && main !== undefined && named.length === 0) {
+    refused.push('the shell carries its one h1 outside its reading region, so the page names itself outside main')
+  }
+  return [...refused, ...referenceOffences(chrome)]
 }
 
 /**
@@ -175,33 +198,13 @@ function sharedOffences(elements: readonly Parsed[], shell: boolean): string[] {
 export function paintOffences(markup: string): string[] {
   const refused = markupOffences(markup).map((offence) => `line ${String(offence.line)}: ${offence.why}`)
   const parsed = parse(markup)
-  const elements = elementsOf(parsed)
-  const shells = elements.filter((element) => attributeOf(element, SHELL) !== undefined)
+  const shells = elementsOf(parsed).filter((element) => attributeOf(element, SHELL) !== undefined)
   if (shells.length !== 1) {
     refused.push(`the chrome carries ${String(shells.length)} product shells; a document carries one`)
     return refused
   }
   const shell = shells[0]
-  if (shell === undefined) return refused
-  const chrome = [shell, ...elementsOf(shell)]
-  if (!chrome.some((element) => tagOf(element) === 'main')) {
-    refused.push('the shell carries no main landmark, so the chrome has no reading region')
-  }
-  if (!chrome.some((element) => tagOf(element) === 'nav' && attributeOf(element, 'aria-label') !== undefined)) {
-    refused.push('the shell carries no nav landmark named for a reader')
-  }
-  if (!chrome.some(isLiveRegion)) {
-    refused.push('the shell carries no live region, so a change it announces reaches no reader')
-  }
-  const drawer = chrome.filter((element) => attributeOf(element, 'aria-controls') !== undefined)
-  if (drawer.length === 0) {
-    refused.push('the shell carries no control that names the region it opens')
-  }
-  const heading = chrome.find((element) => attributeOf(element, 'class') === TITLE)
-  if (heading === undefined || textOf(heading) === '') {
-    refused.push('the shell carries no titled heading, so the first paint names no page')
-  }
-  return [...refused, ...sharedOffences(chrome, true)]
+  return shell === undefined ? refused : [...refused, ...chromeOffences(shell)]
 }
 
 /**
@@ -213,17 +216,15 @@ export function documentOffences(html: string): string[] {
   const refused = markupOffences(html).map((offence) => `line ${String(offence.line)}: ${offence.why}`)
   const parsed = parse(html)
   const elements = elementsOf(parsed)
-  const html_ = elements.find((element) => tagOf(element) === 'html')
-  if (html_ === undefined || (attributeOf(html_, 'lang') ?? '') === '') {
+  const root = elements.find((element) => tagOf(element) === 'html')
+  if (root === undefined || (attributeOf(root, 'lang') ?? '') === '') {
     refused.push('the document states no language, so a reader is given no pronunciation')
   }
   const titles = elements.filter((element) => tagOf(element) === 'title')
   if (titles.length !== 1 || textOf(titles[0] ?? parsed) === '') {
     refused.push(`the document carries ${String(titles.length)} non-empty titles; a document carries one`)
   }
-  const viewport = elements.filter(
-    (element) => tagOf(element) === 'meta' && attributeOf(element, 'name') === 'viewport',
-  )
+  const viewport = elements.filter((element) => tagOf(element) === 'meta' && attributeOf(element, 'name') === 'viewport')
   if (viewport.length !== 1 || !(attributeOf(viewport[0] ?? parsed, 'content') ?? '').includes('width=device-width')) {
     refused.push('the document carries no viewport meta that states width=device-width')
   }
@@ -235,23 +236,22 @@ export function documentOffences(html: string): string[] {
   if (scripts.length !== 1 || attributeOf(scripts[0] ?? parsed, 'type') !== 'module') {
     refused.push(`the document carries ${String(scripts.length)} scripts; a page carries one module entry`)
   }
-  const roots = elements.filter((element) => attributeOf(element, 'id') === 'root')
-  if (roots.length !== 1) {
-    refused.push(`the document carries ${String(roots.length)} mounts; a page carries one`)
-  }
+  const mounts = elements.filter((element) => attributeOf(element, 'id') === 'root')
+  if (mounts.length !== 1) refused.push(`the document carries ${String(mounts.length)} mounts; a page carries one`)
   const mains = elements.filter((element) => tagOf(element) === 'main')
-  if (mains.length !== 1) refused.push(`the document carries ${String(mains.length)} main landmarks; a page carries one`)
+  if (mains.length !== 1) {
+    refused.push(`the document carries ${String(mains.length)} main landmarks; a page carries one`)
+  }
   const shells = elements.filter((element) => attributeOf(element, SHELL) !== undefined)
-  const root = roots[0]
-  const seated = root === undefined ? [] : elementsOf(root)
-  if (shells.length !== 1 || !seated.some((element) => attributeOf(element, SHELL) !== undefined)) {
+  if (shells.length !== 1) {
+    refused.push(`the document carries ${String(shells.length)} product shells; a document carries one`)
+  }
+  const seated = mounts[0] === undefined ? [] : elementsOf(mounts[0])
+  if (!seated.some((element) => attributeOf(element, SHELL) !== undefined)) {
     refused.push('the mount carries no product shell, so the shipped page is a client-invented tree')
   }
-  const chrome = shells[0]
-  if (chrome !== undefined) {
-    refused.push(...sharedOffences([chrome, ...elementsOf(chrome)], true))
-  }
-  return refused
+  const shell = shells[0]
+  return shell === undefined ? refused : [...refused, ...chromeOffences(shell)]
 }
 
 /**

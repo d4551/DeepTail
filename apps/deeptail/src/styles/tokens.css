@@ -57,7 +57,8 @@
   }
 }
 
-/* The scale: one ladder each for spacing, radius, type and leading.
+/* The scale: one ladder each for spacing, radius, type, leading, control
+ * height, drawn width, weight and tracking.
  *
  * Both sheets held these as bare lengths — twenty-nine distinct spacing values,
  * nine radii and five type sizes — so a value used in two places was two
@@ -68,11 +69,13 @@
  * `scripts/check-scale.ts` reads each family below as one ladder. It refuses a
  * token in a family whose name is not one of that family's rungs; a rung that
  * is not a whole pixel, is out of order, or takes a narrower step than the rung
- * before it; a token declared twice; a leading rung whose ratio does not land
- * on a whole pixel against the type rung it pairs with; and a `--dsh-` name
- * this sheet declares that is neither a rung nor one of the singles named
- * below. A consumer sheet pairs a type rung with the leading rung of the same
- * name, and the gate reads every sheet for that.
+ * before it; a rung of a written-value family that holds a value outside that
+ * family's own vocabulary; a token declared twice; a leading rung whose ratio
+ * does not land on a whole pixel against the type rung it pairs with; and a
+ * `--dsh-` name this sheet declares that is neither a rung nor one of the
+ * singles named below. A consumer sheet pairs a type rung with the leading rung
+ * of the same name, and reads a weight, a tracking or a drawn width as the rung
+ * it names; the gate reads every sheet for all of that.
  *
  * The rungs are the ones the two sheets already used, kept as they were: this
  * names what is there rather than restyling the product. A value that stood off
@@ -110,6 +113,14 @@
   --dsh-text-body: 16px;
   --dsh-text-title: 18px;
 
+  /* The weight a face is drawn at. Three rungs, because three are used: the
+   * regular text of a row, the medium of a title or a row that has to hold its
+   * own against one, and the semibold a brand or a wordmark stands on. A sheet
+   * that wants a fourth names it here first. */
+  --dsh-weight-regular: 400;
+  --dsh-weight-medium: 500;
+  --dsh-weight-semibold: 600;
+
   /* Leading, as ratios rather than fixed lengths. A pinned line box is the one
    * part of a text style a reader's own text-spacing and text-size preferences
    * cannot move, which is what WCAG 1.4.4 Resize Text and 1.4.12 Text Spacing
@@ -138,9 +149,20 @@
   /* The tracking the two display names stand on, read from the harness sheets
    * this file's values come from: the sidebar brand at 0.04em beside an 18px
    * name (ui-sidebar/src/client/SidebarRoot.module.css:153) and the boot
-   * wordmark at 0.08em (web/src/boot-page.module.css:37). */
+   * wordmark at 0.08em (web/src/boot-page.module.css:37). A tracking is a
+   * fraction of the type it sits beside, so it follows a reader who raises
+   * their text size rather than pinning a length. */
   --dsh-tracking-brand: 0.04em;
   --dsh-tracking-wordmark: 0.08em;
+
+  /* The drawn widths: the line a border, a rule or a focus ring is painted at.
+   * A hairline separates two surfaces, the ring is the indicator a keyboard
+   * reader follows, and the accent is the 3px edge a status strip is known by.
+   * Each was written wherever a border was declared; a sheet reads the rung
+   * now, so the width is one decision rather than one per rule. */
+  --dsh-border-hairline: 1px;
+  --dsh-border-ring: 2px;
+  --dsh-border-accent: 3px;
 
   /* The heights the shell's controls stand at, and the widths its regions are
    * laid out on. Each was written wherever it was needed; a width restated is
@@ -302,8 +324,8 @@ summary:focus-visible,
 [role="button"]:focus-visible,
 [role="menuitem"]:focus-visible,
 [role="menuitemradio"]:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: 2px;
+  outline: var(--dsh-border-ring) solid var(--dsw-alias-state-business-primary);
+  outline-offset: var(--dsh-border-ring);
 }
 
 /* A row's seat in a `role="list"`. Both products seat their rows the same way,

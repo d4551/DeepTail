@@ -50,7 +50,7 @@
    * curves away from. */
   padding: var(--dsh-space-7);
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-inverted);
+  border: var(--dsh-border-hairline) solid var(--dsw-alias-border-inverted);
   border-radius: var(--dsh-radius-2xl);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv3);
@@ -59,7 +59,7 @@
 .modal-title {
   margin: 0;
   font-size: var(--dsh-text-body);
-  font-weight: 500;
+  font-weight: var(--dsh-weight-medium);
   line-height: var(--dsh-leading-body);
   color: var(--dsw-alias-label-primary);
 }

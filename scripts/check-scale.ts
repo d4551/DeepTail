@@ -32,10 +32,12 @@ import {
   type Ladder,
   LEADING,
   ladderRungs,
+  type MeasuredLadder,
   outsideScale,
   type Rung,
   TRACKING,
   TYPE,
+  WEIGHT,
 } from './sheet-scale.ts'
 
 /** A rung holding a whole number of pixels. */
@@ -87,7 +89,7 @@ function gapsInNumbering(label: string, ladder: Ladder, rungs: readonly Rung[]):
  * @param paired - the pixels the ladder this one resolves against landed on, by property.
  * @returns the pixel it resolves to, or why it resolves to nothing.
  */
-function resolvedRung(ladder: Ladder, rung: Rung, paired: ReadonlyMap<string, number>): Resolved {
+function resolvedRung(ladder: MeasuredLadder, rung: Rung, paired: ReadonlyMap<string, number>): Resolved {
   if (ladder.unit === 'px') {
     const digits = PIXELS.exec(rung.value)?.at(1)
     if (digits === undefined) {
@@ -119,6 +121,42 @@ function resolvedRung(ladder: Ladder, rung: Rung, paired: ReadonlyMap<string, nu
     }
   }
   return { ok: true, px }
+}
+
+/**
+ * Every rung of a family that holds a written value rather than a length.
+ *
+ * A weight and a tracking are sets of decisions rather than staircases: 400, 500
+ * and 600 are three weights with no distance between them to read, and `0.04em`
+ * is a fraction of whatever type it sits beside. So the one question asked of
+ * each rung is whether it holds a value from the family's own vocabulary, and
+ * there is no pixel for the ladder to land on.
+ * @param label - the path to report offences under.
+ * @param ladder - the ladder to read.
+ * @param rungs - its rungs, in ladder order.
+ * @returns one offence per rung whose value is outside the vocabulary.
+ */
+function readSetLadder(label: string, ladder: Ladder, rungs: readonly Rung[]): Offence[] {
+  if (ladder.unit !== 'set') return []
+  const offences: Offence[] = []
+  if (rungs.length === 1) {
+    for (const only of rungs) {
+      offences.push({
+        label,
+        line: only.line,
+        why: `${ladder.stem} declares one rung (${only.property}); a family is read from two rungs up`,
+      })
+    }
+  }
+  for (const rung of rungs) {
+    if (ladder.values.test(rung.value)) continue
+    offences.push({
+      label,
+      line: rung.line,
+      why: `${rung.property} is ${rung.value}, which is no value of ${ladder.stem}${ladder.values.source} describes`,
+    })
+  }
+  return offences
 }
 
 /**
@@ -165,7 +203,7 @@ function outOfOrder(label: string, landed: readonly Landed[]): Offence[] {
  */
 function readLadder(
   label: string,
-  ladder: Ladder,
+  ladder: MeasuredLadder,
   rungs: readonly Rung[],
   paired: ReadonlyMap<string, number>,
 ): LadderRead {
@@ -207,11 +245,15 @@ function readLadder(
 export function scaleOffences(label: string, text: string): Offence[] {
   const written = declaredTokens(text)
   const offences: Offence[] = [...outsideScale(label, written)]
-  const ratios: { readonly ladder: Ladder; readonly rungs: readonly Rung[] }[] = []
+  const ratios: { readonly ladder: MeasuredLadder; readonly rungs: readonly Rung[] }[] = []
   const pixels = new Map<string, number>()
   for (const ladder of LADDERS) {
     const { rungs, absent } = ladderRungs(ladder, written)
     offences.push(...absentRungs(label, ladder, absent), ...gapsInNumbering(label, ladder, rungs))
+    if (ladder.unit === 'set') {
+      offences.push(...readSetLadder(label, ladder, rungs))
+      continue
+    }
     if (ladder.unit === 'ratio') {
       ratios.push({ ladder, rungs })
       continue
@@ -229,6 +271,7 @@ const READS: readonly (readonly [property: string, stem: string, family: string]
   ['font-size', TYPE, 'type'],
   ['line-height', LEADING, 'leading'],
   ['letter-spacing', TRACKING, 'tracking'],
+  ['font-weight', WEIGHT, 'weight'],
 ]
 
 /** The rung one value reads, when its whole value is a read of a rung in that family. */

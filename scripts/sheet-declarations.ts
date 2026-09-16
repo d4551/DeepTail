@@ -12,16 +12,20 @@
 import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
 import { declarationsOf } from './sheet-reader.ts'
+import { CASINGS } from './sheet-scale.ts'
 
 /**
  * Lengths any sheet may write.
  *
- * A hairline and a focus ring are drawn, not spaced: they are one device pixel
- * and two, at every density and every scale, and naming them would be naming
- * the same number twice. Everything else is a spacing, radius or type decision
- * and belongs to the scale.
+ * An inset of nought asks for no space, and a `0` on any other scaled property
+ * is that property's reset: neither is a point on the scale, and both are
+ * written where the layout needs them rather than where a decision was taken.
+ * Every other length on a scaled property — a hairline's width included — is a
+ * spacing, radius or type decision and belongs to the scale, so a 1px or a 2px
+ * standing in for one is refused like any other off-scale value. The drawn
+ * widths themselves have a ladder of their own, read below.
  */
-export const DRAWN_LENGTHS: ReadonlySet<string> = new Set(['0px', '1px', '2px', '3px'])
+export const DRAWN_LENGTHS: ReadonlySet<string> = new Set(['0px'])
 
 /** A stacking order written as a bare number. */
 const STACKING = /^-?\d+$/u
@@ -30,6 +34,37 @@ const STACKING = /^-?\d+$/u
 // No `g` flag: this is tested with RegExp.test across declarations, and a
 // global regex keeps lastIndex between calls, so one match would hide the next.
 const REMOTE_URL_VALUE = /url\(\s*["']?(?:https?:)?\/\//iu
+
+/**
+ * The properties that paint a drawn width: a border, a rule or a focus ring.
+ *
+ * Each takes a line width, and every line width the product draws is one of the
+ * drawn rungs in tokens.css. Read as a family of their own because the width of
+ * a line is not a space between things: a sheet that writes `4px` here is
+ * drawing a line no other surface draws, which is the decision this refuses.
+ */
+const DRAWN_WIDTHS: ReadonlySet<string> = new Set([
+  'border',
+  'border-width',
+  'border-top',
+  'border-bottom',
+  'border-block-start',
+  'border-block-end',
+  'border-inline-start',
+  'border-inline-end',
+  'column-rule',
+  'outline',
+  'outline-width',
+])
+
+/**
+ * A bare pixel width in a drawn value.
+ *
+ * Tested once per word rather than matched across the value, so the pattern
+ * carries no global flag: a global pattern keeps its `lastIndex` between calls,
+ * and one match would then hide the next.
+ */
+const DRAWN_WIDTH_BARE = /\d+px/u
 
 /**
  * The viewport units that report a box the reader cannot see.
@@ -121,7 +156,62 @@ function propertyOffences(label: string, property: string, value: string, line: 
       },
     ]
   }
+  if (property === 'text-transform') {
+    return CASINGS.includes(value)
+      ? []
+      : [
+          {
+            label,
+            line,
+            why: `${value} is no letter case the product sets; the declared cases are ${CASINGS.join(', ')}`,
+          },
+        ]
+  }
+  if (property === 'font') {
+    // The shorthand carries a size, a family and a leading in one value, and
+    // every one of those is a rung: a `font: 14px/1.4 sans-serif` states three
+    // scale decisions where no reader of the scale would look for them, which
+    // is a way past the type, leading and family rules at once. `inherit` takes
+    // the parent's font whole, deciding nothing, and is the one spelling that
+    // says so.
+    return value === 'inherit'
+      ? []
+      : [
+          {
+            label,
+            line,
+            why: `${value} restates a size, a leading and a family inside the font shorthand; declare font-size, line-height and font-family as rungs, or take the parent's font whole with inherit`,
+          },
+        ]
+  }
+  if (DRAWN_WIDTHS.has(property)) return drawnWidthOffences(label, property, value, line)
   return scaledLengthOffences(label, property, value, line)
+}
+
+/**
+ * Every drawn width a sheet states outside the drawn ladder.
+ *
+ * A width is read as a whole value rather than as a length inside a value: the
+ * shapes a border takes are `none`, a width, a style and a colour in any order,
+ * so the width is the one token in the value that is either a drawn rung, a
+ * keyword CSS names, or nought.
+ * @param label - the path to report offences under.
+ * @param property - the property being written.
+ * @param value - what it is set to.
+ * @param line - the line it is written on.
+ * @returns the offences, or an empty list.
+ */
+function drawnWidthOffences(label: string, property: string, value: string, line: number): Offence[] {
+  const words = value.split(/\s+/u).filter((word) => word !== '')
+  const bare = words.filter((word) => DRAWN_WIDTH_BARE.test(word))
+  if (bare.length === 0) return []
+  return [
+    {
+      label,
+      line,
+      why: `drawn-width: ${bare.join(', ')} on ${property} is not a drawn rung; a border, a rule and a ring are drawn at --dsh-border-hairline, --dsh-border-ring or --dsh-border-accent in tokens.css`,
+    },
+  ]
 }
 
 /**

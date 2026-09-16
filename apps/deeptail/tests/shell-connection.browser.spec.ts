@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { fleet, HOSTS, oneHost, sessions } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
+import { until } from './wait.ts'
 
 let harness: Harness
 
@@ -131,6 +132,63 @@ it('takes the rows the open menu covers out of play', async () => {
   await page.close()
 })
 
+it('makes the host a menu row names the selected one', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  // The selection is the plane's own active-host fact, and choosing a host
+  // re-reads that host's roster rather than leaving the snapshot a passing
+  // outage left behind. Both are read around the press, so what moved is what
+  // the action did rather than what the page already held.
+  const rosterReads = async (host: string): Promise<number> =>
+    (await harness.calls(page)).filter((call) => call.host === host && call.endpoint === 'session/list').length
+  const menu = page.locator('[data-deeptail-connection="menu"]')
+  expect(await textOf(page, '.connection-label')).toBe('Workstation')
+  const before = await rosterReads('lab-2')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await menu.locator('[data-deeptail-host="lab-2"][data-deeptail-action="select-host"]').click()
+  expect(await textOf(page, '.connection-label')).toBe('Lab box')
+  await until(async () => (await rosterReads('lab-2')) > before)
+  expect(await rosterReads('lab-2')).toBeGreaterThan(before)
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  expect(await menu.locator('[data-deeptail-host="lab-2"]').getAttribute('aria-checked')).toBe('true')
+  expect(await menu.locator('[data-deeptail-host="dev-1"]').getAttribute('aria-checked')).toBe('false')
+  await page.close()
+})
+
+it('opens the picker from the menu’s own pair item', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-action="pair"]').click()
+  // Pairing leaves the control plane for the picker, which lists what is paired
+  // and offers the form a link is pasted into. The shell going away is what
+  // tells this item's action from a menu that merely closed over it, and the
+  // form arriving is what tells the picker was opened to pair rather than
+  // merely re-read.
+  await page.locator('[data-deeptail-picker]').waitFor({ state: 'visible' })
+  expect(await page.locator('[data-deeptail-shell]').count()).toBe(0)
+  await page.getByRole('button', { name: 'Pair a host' }).click()
+  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+  await page.close()
+})
+
+it('forgets the selected host through the native registry', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  const registryReads = async (): Promise<number> =>
+    (await harness.commands(page)).filter((command) => command === 'list_hosts').length
+  const before = await registryReads()
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-action="unpair"]').click()
+  // Forgetting a host spends the native registry and comes back over the hosts
+  // that are left, rather than editing the roster the page is already holding.
+  expect((await harness.commands(page)).filter((command) => command === 'forget_host')).toEqual(['forget_host'])
+  await until(async () => (await registryReads()) > before)
+  expect(await registryReads()).toBeGreaterThan(before)
+  await page.locator('[data-deeptail-shell]').waitFor({ state: 'visible' })
+  await page.close()
+})
+
 it('opens the pairing form under the name of the host being re-paired', async () => {
   const page = await harness.open({
     hosts: HOSTS,
@@ -154,15 +212,20 @@ it('dismisses the menu when a pointer lands outside it, without taking focus bac
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
   // An open menu overlaps what is behind it, so it must not stay open once the
   // operator has moved on. Focus stays where the pointer put it: pulling it
-  // back to the trigger would override whatever they just reached for.
+  // back to the trigger would override whatever they just reached for, so the
+  // assertion names what does hold focus rather than what does not.
   await page.locator('.main-body').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
   expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
   expect(
-    await page.evaluate(() =>
-      document.activeElement instanceof HTMLElement ? document.activeElement.dataset['deeptailConnection'] : undefined,
-    ),
-  ).not.toBe('trigger')
+    await page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? '',
+      connection:
+        document.activeElement instanceof HTMLElement
+          ? (document.activeElement.dataset['deeptailConnection'] ?? '')
+          : '',
+    })),
+  ).toEqual({ tag: 'BODY', connection: '' })
   await page.close()
 })
 

@@ -27,7 +27,7 @@
   gap: var(--dsh-space-5);
   width: min(var(--dsh-card-width), 100%);
   padding: var(--dsh-space-7);
-  border: 1px solid var(--dsw-alias-border-inverted);
+  border: var(--dsh-border-hairline) solid var(--dsw-alias-border-inverted);
   border-radius: var(--dsh-radius-2xl);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv3);
@@ -36,7 +36,7 @@
 .wordmark {
   font-size: var(--dsh-text-body);
   line-height: var(--dsh-leading-body);
-  font-weight: 600;
+  font-weight: var(--dsh-weight-semibold);
   letter-spacing: var(--dsh-tracking-wordmark);
   color: var(--dsw-alias-label-primary);
 }
@@ -102,8 +102,8 @@
 
 /* A scrolling box is never overflow:visible, so the ring turns inward. */
 .row:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: -2px;
+  outline: var(--dsh-border-ring) solid var(--dsw-alias-state-business-primary);
+  outline-offset: calc(var(--dsh-border-ring) * -1);
 }
 
 .row-text {
@@ -171,7 +171,7 @@
 .dot[data-state="forbidden"]::after {
   inset: 30%;
   background: transparent;
-  border: 1px solid currentcolor;
+  border: var(--dsh-border-hairline) solid currentcolor;
   border-radius: 50%;
 }
 
@@ -212,7 +212,7 @@
 }
 
 .button-outline {
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: var(--dsh-border-hairline) solid var(--dsw-alias-border-l2);
 }
 
 .button-outline:hover:not(:disabled) {
@@ -237,7 +237,7 @@
   gap: var(--dsh-space-3);
   margin-top: var(--dsh-space-1);
   padding-top: var(--dsh-space-4);
-  border-top: 1px solid var(--dsw-alias-border-l2);
+  border-top: var(--dsh-border-hairline) solid var(--dsw-alias-border-l2);
 }
 
 /* A finger is not a mouse. On a touch pointer the row and the button clear the
@@ -274,7 +274,7 @@
  * picker-form.css. */
 @media (forced-colors: active) {
   .dot {
-    border: 1px solid CanvasText;
+    border: var(--dsh-border-hairline) solid CanvasText;
     forced-color-adjust: none;
   }
 

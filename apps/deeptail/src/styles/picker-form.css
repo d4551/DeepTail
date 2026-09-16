@@ -90,7 +90,7 @@
   width: 100%;
   height: var(--dsh-target-coarse);
   padding: var(--dsh-space-3) var(--dsh-space-4);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: var(--dsh-border-hairline) solid var(--dsw-alias-border-l2);
   border-radius: var(--dsh-radius-xl);
   outline: none;
   background: transparent;
@@ -111,8 +111,8 @@
 .input:focus-visible,
 .select:focus-visible,
 .textarea:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: 2px;
+  outline: var(--dsh-border-ring) solid var(--dsw-alias-state-business-primary);
+  outline-offset: var(--dsh-border-ring);
 }
 
 .input:focus,
@@ -142,7 +142,7 @@
   color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-text-sm);
   line-height: var(--dsh-leading-sm);
-  border-inline-start: 3px solid var(--dsw-alias-label-error);
+  border-inline-start: var(--dsh-border-accent) solid var(--dsw-alias-label-error);
 }
 
 /* `.error` sets `display`, and any author rule outranks the UA sheet's
@@ -160,7 +160,7 @@
   color: var(--dsw-alias-label-primary);
   /* The state has to survive both a contrast floor and a colourblind reader, so
    * it is carried by a rule the text colour does not have to encode. */
-  border-inline-start: 3px solid var(--dsw-alias-state-warn-primary);
+  border-inline-start: var(--dsh-border-accent) solid var(--dsw-alias-state-warn-primary);
 }
 
 /* It inherits the strip's 12px/18px type, which left an 18px-tall target — under
@@ -174,7 +174,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--dsh-weight-semibold);
   cursor: pointer;
 }
 
@@ -185,7 +185,7 @@
   width: var(--dsh-space-6);
   height: var(--dsh-space-6);
   border-radius: 50%;
-  border: 2px solid var(--dsw-alias-border-l2);
+  border: var(--dsh-border-ring) solid var(--dsw-alias-border-l2);
   border-top-color: var(--dsw-alias-brand-primary);
   animation: deeptail-spin var(--dsh-spin-period) linear infinite;
 }
@@ -240,6 +240,6 @@
 @media (forced-colors: active) {
   .warning,
   .error {
-    border: 1px solid CanvasText;
+    border: var(--dsh-border-hairline) solid CanvasText;
   }
 }

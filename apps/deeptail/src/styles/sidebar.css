@@ -37,7 +37,7 @@
 
 .brand-name {
   font-size: var(--dsh-text-title);
-  font-weight: 600;
+  font-weight: var(--dsh-weight-semibold);
   line-height: var(--dsh-leading-title);
   letter-spacing: var(--dsh-tracking-brand);
   color: var(--dsw-alias-label-primary);
@@ -55,12 +55,12 @@
   padding: var(--dsh-space-3) var(--dsh-space-5);
   margin: 0 var(--dsh-space-0) var(--dsh-space-3);
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: var(--dsh-border-hairline) solid var(--dsw-alias-border-l2);
   border-radius: var(--dsh-radius-md);
   background: var(--dsw-alias-button-elevated-fill);
   color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-text-lg);
-  font-weight: 500;
+  font-weight: var(--dsh-weight-medium);
   line-height: var(--dsh-leading-lg);
   cursor: pointer;
 }
@@ -129,7 +129,7 @@
   display: flex;
   flex-direction: column;
   padding: var(--dsh-space-1);
-  border: 1px solid var(--dsw-alias-border-inverted);
+  border: var(--dsh-border-hairline) solid var(--dsw-alias-border-inverted);
   border-radius: var(--dsh-radius-md);
   background: var(--dsw-specific-menu);
   box-shadow: var(--dsw-shadow-lv3);
@@ -161,8 +161,8 @@
  * whole — the same treatment `.session-open` and the picker's rows carry. */
 .menu-item:focus-visible,
 .menu-repair:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: -2px;
+  outline: var(--dsh-border-ring) solid var(--dsw-alias-state-business-primary);
+  outline-offset: calc(var(--dsh-border-ring) * -1);
 }
 
 /* Sits under the host it belongs to, quiet until the row is read. Its text
@@ -204,7 +204,7 @@
   height: var(--dsh-space-4);
   margin-inline-start: auto;
   border: solid var(--dsw-alias-label-primary);
-  border-width: 0 2px 2px 0;
+  border-width: 0 var(--dsh-border-ring) var(--dsh-border-ring) 0;
   transform: rotate(45deg);
   content: "";
   opacity: 0;
@@ -233,5 +233,5 @@
   flex-direction: column;
   margin-top: var(--dsh-space-1);
   padding-top: var(--dsh-space-1);
-  border-top: 1px solid var(--dsw-alias-border-l2);
+  border-top: var(--dsh-border-hairline) solid var(--dsw-alias-border-l2);
 }
