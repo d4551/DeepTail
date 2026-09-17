@@ -14,6 +14,7 @@
  * @module
  */
 
+import { carriesText, surfaceElements } from './structure-elements.ts'
 import { familyListOf, type TypographyRamp } from './structure-ramp.ts'
 import { clippedAway, describe, pixelLength, type Report } from './structure-report.ts'
 
@@ -224,27 +225,26 @@ export function reportMeasure(add: Report, element: Element, ramp: TypographyRam
  * meaningful at all — a page may use any rung, but the type and the leading on
  * one element have to be the same rung's, and a tracking is a fraction of the
  * type it sits beside.
+ *
+ * A dialog is read whether or not it sits inside a product surface: the shared
+ * frame portals one to `document.body`, so the marker is what says a frame is
+ * the product's own and not the harness client's.
  * @param add - collects a finding.
  * @param limits - the surfaces to read and the scale to read against.
  */
 export function checkTypography(add: Report, limits: TypographyLimits): void {
   const ramp = limits.typography
-  const roots = [...document.querySelectorAll(limits.scope), ...document.querySelectorAll('[data-deeptail-dialog]')]
-  for (const root of roots) {
-    for (const element of [root, ...root.querySelectorAll('*')]) {
-      const carries = [...element.childNodes].some(
-        (child) => child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').trim() !== '',
-      )
-      if (!carries) continue
-      const style = getComputedStyle(element)
-      if (clippedAway(style)) continue
-      const rung = reportSize(add, element, style, ramp)
-      reportLeading(add, element, style, ramp, rung)
-      reportFamily(add, element, style, ramp)
-      reportWeight(add, element, style, ramp)
-      reportTracking(add, element, style, ramp)
-      reportCasing(add, element, style, ramp)
-      reportMeasure(add, element, ramp)
-    }
+  const roots = [...surfaceElements(limits.scope), ...surfaceElements('[data-deeptail-dialog]')]
+  for (const element of roots) {
+    if (!carriesText(element)) continue
+    const style = getComputedStyle(element)
+    if (clippedAway(style)) continue
+    const rung = reportSize(add, element, style, ramp)
+    reportLeading(add, element, style, ramp, rung)
+    reportFamily(add, element, style, ramp)
+    reportWeight(add, element, style, ramp)
+    reportTracking(add, element, style, ramp)
+    reportCasing(add, element, style, ramp)
+    reportMeasure(add, element, ramp)
   }
 }

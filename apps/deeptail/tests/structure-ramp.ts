@@ -18,6 +18,7 @@ import {
   declaredTokens,
   LADDERS,
   LEADING,
+  type Ladder,
   ladderRungs,
   MEASURE_MAX,
   TRACKING,
@@ -52,6 +53,24 @@ const RATIO = /^calc\(\s*(\d+)\s*\/\s*(\d+)\s*\)$/u
 
 /** A tracking rung, holding a fraction of the type it sits beside. */
 const TRACKING_EM = /^(\d+(?:\.\d+)?)em$/u
+
+/**
+ * One ladder of the scale, by the stem its rungs are named under.
+ *
+ * One lookup for the four ladders a ramp resolves — the type ladder, the
+ * leading ladder that pairs with it, and the tracking and weight ladders it
+ * reads beside them — so a scale table that does not carry one of them fails
+ * here, by the stem that is missing, rather than resolving a ramp against
+ * nothing. Exported because the unit chain drives this guard with a stem no
+ * ladder carries, which is the failure it exists to catch.
+ * @param stem - the family's stem.
+ * @returns the ladder.
+ */
+export function ladderFor(stem: string): Ladder {
+  const ladder = LADDERS.find((one) => one.stem === stem)
+  if (ladder === undefined) throw new Error(`deeptail: the scale declares no ${stem} ladder to read`)
+  return ladder
+}
 
 /**
  * The pixels a leading rung's ratio resolves to against its type rung.
@@ -111,16 +130,10 @@ export function familyListOf(value: string): string {
  */
 export function typographyRampFrom(text: string): TypographyRamp {
   const written = declaredTokens(text)
-  const type = LADDERS.find((one) => one.stem === TYPE)
-  const leading = LADDERS.find((one) => one.stem === LEADING)
-  if (type === undefined || leading === undefined) {
-    throw new Error('deeptail: the scale declares no type ladder or no leading ladder to pair it with')
-  }
-  const rungValues = (stem: string): string[] => {
-    const ladder = LADDERS.find((one) => one.stem === stem)
-    if (ladder === undefined) throw new Error(`deeptail: the scale declares no ${stem} family to read`)
-    return ladderRungs(ladder, written).rungs.map((rung) => rung.value)
-  }
+  const type = ladderFor(TYPE)
+  const leading = ladderFor(LEADING)
+  const rungValues = (stem: string): string[] =>
+    ladderRungs(ladderFor(stem), written).rungs.map((rung) => rung.value)
   const sizes = ladderRungs(type, written).rungs.map((rung) => pixelLength(rung.value))
   const ratios = ladderRungs(leading, written).rungs
   if (sizes.length !== ratios.length) {

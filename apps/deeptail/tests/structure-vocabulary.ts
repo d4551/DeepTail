@@ -15,6 +15,7 @@
  * @module
  */
 
+import { surfaceElements } from './structure-elements.ts'
 import { describe, type Report } from './structure-report.ts'
 
 /** What the vocabulary check reads, as the caller hands it to the page. */
@@ -32,12 +33,10 @@ interface VocabularyLimits {
  */
 function checkClassVocabulary(add: Report, limits: VocabularyLimits): void {
   const known = new Set(limits.vocabulary)
-  for (const node of document.querySelectorAll(limits.scope)) {
-    for (const element of [node, ...node.querySelectorAll('*')]) {
-      for (const token of element.classList) {
-        if (!known.has(token)) {
-          add('unknown-class', `${describe(element)} carries class "${token}", which no shipped sheet defines`)
-        }
+  for (const element of surfaceElements(limits.scope)) {
+    for (const token of element.classList) {
+      if (!known.has(token)) {
+        add('unknown-class', `${describe(element)} carries class "${token}", which no shipped sheet defines`)
       }
     }
   }
@@ -98,13 +97,11 @@ function checkReducedMotion(add: Report, limits: { readonly scope: string }): vo
       )
     }
   }
-  for (const root of document.querySelectorAll(limits.scope)) {
-    for (const element of [root, ...root.querySelectorAll('*')]) {
-      const style = getComputedStyle(element)
-      report(element, 'transition', durationsInSeconds(style.transitionDuration))
-      report(element, 'transition delay', durationsInSeconds(style.transitionDelay))
-      if (style.animationName !== 'none') report(element, 'animation', durationsInSeconds(style.animationDuration))
-    }
+  for (const element of surfaceElements(limits.scope)) {
+    const style = getComputedStyle(element)
+    report(element, 'transition', durationsInSeconds(style.transitionDuration))
+    report(element, 'transition delay', durationsInSeconds(style.transitionDelay))
+    if (style.animationName !== 'none') report(element, 'animation', durationsInSeconds(style.animationDuration))
   }
 }
 

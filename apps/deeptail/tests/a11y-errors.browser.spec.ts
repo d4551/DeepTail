@@ -1,12 +1,17 @@
 /**
- * WCAG 2.2 AA over the error surfaces the matrix in a11y.browser.spec.ts
- * does not open: spawn, shell-boot, pair, and tailnet-connect refusals.
+ * WCAG 2.2 AA over the refusals the product reports: the picker's unreadable
+ * registry, a spawn the host refused, a boot the host refused, a pairing the
+ * link refused, and a tailnet connection that never came up.
+ *
+ * Like the surfaces suite, every refusal is arranged in `a11y-surfaces.ts`, so
+ * the same refusals are what the `a11y` script audits under every rule axe
+ * enables.
  */
 
 import { afterAll, beforeAll, it } from 'bun:test'
-import { oneHost } from './fixtures.ts'
+import { expectNoViolationsAtEachWidth } from './a11y-audit.ts'
+import { REFUSAL_SURFACES } from './a11y-surfaces.ts'
 import { type Harness, startHarness } from './harness.ts'
-import { auditShellAtEachWidth, expectNoViolationsAtEachWidth, openPairingForm } from './surfaces.ts'
 
 let harness: Harness
 
@@ -18,48 +23,8 @@ afterAll(async () => {
   await harness?.stop()
 })
 
-it('has no WCAG violations on a spawn refusal at every designed width, in both palettes', async () => {
-  await auditShellAtEachWidth(
-    harness,
-    oneHost({
-      remoteErrors: { 'session/create': 'no such preset' },
-      remoteErrorCodes: { 'session/create': 'agent-preset-not-found' },
-      remoteErrorDetails: { 'session/create': { available: ['standard', 'ptc'] } },
-    }),
-    async (page) => {
-      await page.locator('[data-deeptail-action="new-session"]').click()
-      await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
-      await page.locator('[data-deeptail-field="preset"]').fill('nope')
-      await page.locator('[data-deeptail-action="spawn-create"]').click()
-      await page.locator('[data-deeptail-state="spawn-error"]').waitFor({ state: 'visible' })
-    },
-  )
-}, 180_000)
-
-it('has no WCAG violations on a shell-error at every designed width, in both palettes', async () => {
-  await auditShellAtEachWidth(harness, oneHost({ bootError: 'host refused the boot table' }), async (page) => {
-    await page.locator('[data-deeptail-session="s-running"] .session-open').click()
-    await page.locator('[data-deeptail-state="shell-error"]').waitFor({ state: 'visible' })
-  })
-}, 180_000)
-
-it('has no WCAG violations on a pairing refusal at every designed width, in both palettes', async () => {
-  await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openPairingForm(harness, view)
-    await page.locator('[data-deeptail-field="link"]').fill('not a link')
-    await page.locator('[data-deeptail-action="pair-submit"]').click()
-    await page.locator('[data-deeptail-state="pair-error"]').waitFor({ state: 'visible' })
-    return page
-  })
-}, 180_000)
-
-it('has no WCAG violations on a tailnet connect refusal at every designed width, in both palettes', async () => {
-  await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await harness.open({ hosts: [], tailnetConnected: false }, view)
-    await page.waitForSelector('[data-deeptail-picker]')
-    await page.locator('[data-deeptail-action="tailnet"]').click()
-    await page.locator('[data-deeptail-action="tailnet-connect"]').click()
-    await page.locator('[data-deeptail-state="tailnet-error"]').waitFor({ state: 'visible' })
-    return page
-  })
-}, 180_000)
+for (const surface of REFUSAL_SURFACES) {
+  it(`has no WCAG violations on ${surface.name} at every designed width, in both palettes`, async () => {
+    await expectNoViolationsAtEachWidth(harness, surface)
+  }, 180_000)
+}

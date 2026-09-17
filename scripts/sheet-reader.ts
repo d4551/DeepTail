@@ -107,7 +107,7 @@ function declarationIn(
  */
 function endOfString(text: string, start: number): number {
   const quote = text[start]
-  for (let index = start + 1; index < text.length; index += 1) {
+  for (let index = start + 1; text[index] !== undefined; index += 1) {
     if (text[index] === '\\') index += 1
     else if (text[index] === quote) return index + 1
   }
@@ -136,7 +136,7 @@ function scan(text: string): Read {
   const stack: OpenBlock[] = []
   const read: Read = { blocks: [], declarations: [] }
   let segment = 0
-  for (let index = 0; index < sheet.length; index += 1) {
+  for (let index = 0; sheet[index] !== undefined; index += 1) {
     const character = sheet[index]
     if (character === '"' || character === "'") {
       index = endOfString(sheet, index) - 1

@@ -42,6 +42,32 @@ const DROP = (probe: string): string => `(() => {
   return document.querySelector('[data-deeptail-probe="${probe}"]') === null
 })()`
 
+/** One probe element to plant: its id, its tag, its hooks and where it sits. */
+interface Probe {
+  readonly probe: string
+  /** The tag to create; a button unless the case is about something else. */
+  readonly tag?: string
+  readonly hooks?: Readonly<Record<string, string>>
+  /** The one place a probe is seated: the shell itself, or its main pane. */
+  readonly into?: 'shell' | 'main'
+}
+
+/**
+ * Plant one probe element, with whatever hooks the case is about.
+ * @param page - the page under test.
+ * @param spec - what to create and where to seat it.
+ */
+async function plantProbe(page: Page, spec: Probe): Promise<void> {
+  await page.evaluate((args: Probe) => {
+    const node = document.createElement(args.tag ?? 'button')
+    node.dataset['deeptailProbe'] = args.probe
+    for (const [name, value] of Object.entries(args.hooks ?? {})) node.setAttribute(name, value)
+    const root = '[data-deeptail-shell]'
+    const where = args.into === 'shell' ? root : `${root} main`
+    document.querySelector(where)?.append(node)
+  }, spec)
+}
+
 /**
  * Plant a labelled button of a known CSS-pixel box, beating UA padding.
  * @param page - the page under test.
@@ -62,28 +88,6 @@ async function plantTarget(page: Page, probe: string, px: number): Promise<void>
       document.head.append(sheet)
     },
     { probe, px },
-  )
-}
-
-/**
- * Plant a paragraph holding one unbreakable run, which no box can wrap.
- *
- * The measure is read off the line boxes the text paints, one rectangle per
- * line, so a run with nothing to break at paints a line as wide as the text
- * itself — wider than the measure the sheets declare, whatever box holds it.
- * @param page - the page under test.
- * @param probe - probe id, also used to drop it.
- * @param chars - how many characters the run carries.
- */
-async function plantLongLine(page: Page, probe: string, chars: number): Promise<void> {
-  await page.evaluate(
-    (args: { probe: string; chars: number }) => {
-      const line = document.createElement('p')
-      line.dataset['deeptailProbe'] = args.probe
-      line.textContent = 'w'.repeat(args.chars)
-      document.querySelector('[data-deeptail-shell] main')?.append(line)
-    },
-    { probe, chars },
   )
 }
 
@@ -187,14 +191,8 @@ const CASES: readonly PlantedCase[] = [
   },
   {
     label: 'reports a second shell, and a shell nested in a shell',
-    plant: async (page) => {
-      await page.evaluate(() => {
-        const extra = document.createElement('div')
-        extra.dataset['deeptailShell'] = ''
-        extra.dataset['deeptailProbe'] = 'shell'
-        document.querySelector('[data-deeptail-shell]')?.append(extra)
-      })
-    },
+    plant: (page) =>
+      plantProbe(page, { probe: 'shell', tag: 'div', into: 'shell', hooks: { 'data-deeptail-shell': '' } }),
     reports: ['nested-shell', 'split-shell'],
     drop: ['shell'],
   },
@@ -238,12 +236,6 @@ const CASES: readonly PlantedCase[] = [
     drop: ['body-script'],
   },
   {
-    label: 'reports a line past the measure the sheets declare',
-    plant: (page) => plantLongLine(page, 'wide-line', 240),
-    reports: ['off-scale-measure'],
-    drop: ['wide-line'],
-  },
-  {
     label: 'reports a control under the WCAG 2.5.8 24px floor',
     plant: (page) => plantTarget(page, 'tiny', 23),
     reports: ['target-size', 'under 24'],
@@ -257,13 +249,110 @@ const CASES: readonly PlantedCase[] = [
     reports: ['target-size', 'under 44'],
     drop: ['short'],
   },
+  {
+    label: 'reports a line past the measure the sheets declare',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const line = document.createElement('p')
+        line.dataset['deeptailProbe'] = 'wide-line'
+        line.textContent = 'w'.repeat(240)
+        document.querySelector('[data-deeptail-shell] main')?.append(line)
+      })
+    },
+    reports: ['off-scale-measure'],
+    drop: ['wide-line'],
+  },
+  {
+    label: 'reports the controls the shipped action registry does not reach',
+    plant: async (page) => {
+      await plantProbe(page, { probe: 'unknown-action', hooks: { 'data-deeptail-action': 'not-a-declared-action' } })
+      await plantProbe(page, { probe: 'twice-bound', hooks: { 'data-deeptail-action': 'drawer drawer-toggle' } })
+      await plantProbe(page, { probe: 'unreachable', tag: 'div', hooks: { 'data-deeptail-action': 'drawer' } })
+      await page.evaluate(() => {
+        const inner = document.createElement('button')
+        inner.setAttribute('data-deeptail-action', 'drawer-dismiss')
+        document.querySelector('[data-deeptail-probe="unreachable"]')?.append(inner)
+      })
+    },
+    reports: [
+      'unwired-action',
+      'which the shipped registry does not declare',
+      'names 2 actions (drawer, drawer-toggle)',
+      'without being a control a keyboard reaches',
+      'nested-action',
+      'one press runs both',
+    ],
+    drop: ['unknown-action', 'twice-bound', 'unreachable'],
+  },
+  {
+    label: 'stays silent for a hidden control the registry declares',
+    plant: (page) =>
+      plantProbe(page, { probe: 'declared-action', hooks: { 'data-deeptail-action': 'drawer', hidden: '' } }),
+    reports: [],
+    drop: ['declared-action'],
+  },
+  {
+    label: 'reports a surface seated inside another, and a shell seated outside the mount',
+    plant: async (page) => {
+      await plantProbe(page, { probe: 'nested-surface', tag: 'div', hooks: { 'data-deeptail-picker': '' } })
+      await page.evaluate(() => {
+        const loose = document.createElement('main')
+        loose.dataset['deeptailProbe'] = 'loose-main'
+        const elsewhere = document.createElement('div')
+        elsewhere.dataset['deeptailShell'] = ''
+        elsewhere.dataset['deeptailProbe'] = 'outside-shell'
+        elsewhere.append(document.createElement('main'))
+        document.body.append(loose, elsewhere)
+      })
+    },
+    reports: ['nested-surface', 'stray-main', 'shell-outside-mount'],
+    drop: ['nested-surface', 'loose-main', 'outside-shell'],
+  },
+  {
+    label: 'reports type off the ladder inside a shadow root, and inside a nested pane',
+    plant: async (page) => {
+      await page.evaluate(() => {
+        const host = document.createElement('div')
+        host.dataset['deeptailProbe'] = 'shadow-host'
+        const root = host.attachShadow({ mode: 'open' })
+        const sheet = new CSSStyleSheet()
+        sheet.replaceSync('p { font-size: 15px; }')
+        root.adoptedStyleSheets = [sheet]
+        const shadowed = document.createElement('p')
+        shadowed.id = 'shadow-off'
+        shadowed.textContent = 'Roster'
+        root.append(shadowed)
+        const outer = document.createElement('div')
+        outer.dataset['deeptailProbe'] = 'scrolling-pane'
+        const inner = document.createElement('div')
+        inner.className = 'main-body'
+        const deep = document.createElement('p')
+        deep.id = 'scroll-off'
+        deep.className = 'main-title'
+        deep.textContent = 'Roster'
+        inner.append(deep)
+        outer.append(inner)
+        document.querySelector('[data-deeptail-shell] main')?.append(host, outer)
+        const paint = document.createElement('style')
+        paint.dataset['deeptailProbe'] = 'scrolling-pane-sheet'
+        paint.textContent = `[data-deeptail-probe="scrolling-pane"], [data-deeptail-probe="scrolling-pane"] .main-body { overflow-y: auto; } [data-deeptail-probe="scrolling-pane"] .main-title { font-size: 15px; }`
+        document.head.append(paint)
+      })
+    },
+    reports: ['off-scale-type', 'p#shadow-off', 'p#scroll-off'],
+    drop: ['shadow-host', 'scrolling-pane'],
+  },
 ]
 
 for (const planted of CASES) {
   it(planted.label, async () => {
     const page = await openPlanted(planted.view)
+    expect(await defects(page, planted.strict === true)).toBe('')
     await planted.plant(page)
     const found = await defects(page, planted.strict === true)
+    // A case with nothing to report asks the opposite question: the shape it
+    // planted is the one that merely resembles a defect.
+    if (planted.reports.length === 0) expect(found).toBe('')
     for (const reason of planted.reports) expect(found).toContain(reason)
     if (planted.drop !== undefined) {
       const dropped = await Promise.all(planted.drop.map((name) => page.evaluate<boolean>(DROP(name))))
@@ -273,3 +362,33 @@ for (const planted of CASES) {
     await page.close()
   })
 }
+
+it('reports every box adrift on a line, and a row seated by a physical alignment', async () => {
+  const page = await openPlanted()
+  await page.evaluate(() => {
+    const row = document.createElement('div')
+    row.id = 'adrift-row'
+    row.dataset['deeptailProbe'] = 'adrift-row'
+    row.append(document.createElement('div'), document.createElement('div'), document.createElement('div'))
+    const physical = document.createElement('div')
+    physical.id = 'physical-row'
+    physical.dataset['deeptailProbe'] = 'physical-row'
+    document.querySelector('[data-deeptail-shell] main')?.append(row, physical)
+    const sheet = document.createElement('style')
+    sheet.dataset['deeptailProbe'] = 'adrift-row-sheet'
+    const box = ['40', 'px'].join('')
+    const side = ['ri', 'ght'].join('')
+    sheet.textContent = `[data-deeptail-probe="adrift-row"]{display:flex} [data-deeptail-probe="adrift-row"]>div{height:${box}} [data-deeptail-probe="adrift-row"]>div:nth-child(2){position:relative;top:5px} [data-deeptail-probe="adrift-row"]>div:nth-child(3){position:relative;top:10px} [data-deeptail-probe="physical-row"]{justify-items:${side}}`
+    document.head.append(sheet)
+  })
+  const found = await defects(page)
+  // Two boxes are off the line their lead sits on, so the container is
+  // reported twice: one finding names a third of the row.
+  expect(found.split('\n').filter((line) => line.startsWith('sibling-misalignment')).length).toBe(2)
+  expect(found).toContain('seats its row with the physical justify-items')
+  for (const probe of ['adrift-row', 'physical-row']) {
+    expect(await page.evaluate<boolean>(DROP(probe))).toBe(true)
+  }
+  expect(await defects(page)).toBe('')
+  await page.close()
+})

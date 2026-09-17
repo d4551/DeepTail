@@ -1,22 +1,107 @@
 /**
- * The stack policy: the packages this workspace must not install, the files a
- * retired pipeline is configured by, and the dialect an installed package's own
- * manifest says it ships.
+ * The stack policy: the exact line every dependency is held at, the packages
+ * this workspace must not install, and the files a retired pipeline is
+ * configured by.
  *
  * A floor table refuses a version below a line; it says nothing about a second
  * styling vocabulary arriving under a new name. That is held here, and what can
- * be derived is derived: a package's own manifest decides what dialect it ships.
- * The names listed by hand are the residue a manifest does not state. The faces
- * the installed bundler and test runner declare are held in `vite-face.ts` and
- * `playwright-face.ts`.
+ * be derived is derived elsewhere: what an installed package's own manifest
+ * says it ships is read by `stack-packages.ts`, the faces the installed
+ * bundler and test runner declare are held in `vite-face.ts` and
+ * `playwright-face.ts`, and the retired idioms a correct version can still
+ * carry are held in `stack-patterns.ts`.
  *
  * @module
  */
 
-import { existsSync, readFileSync } from 'node:fs'
 import { fieldOf, isNode, type Node, unwrap } from '../scripts/ast.ts'
-import { isJsonObject, type Json, readJsonc } from '../scripts/jsonc.ts'
-import { ROOT } from '../scripts/source-tree.ts'
+
+/**
+ * The exact version every dependency this repository declares is held at.
+ *
+ * Every one of them, not only the tools at the root: a workspace manifest is
+ * exactly as able to slip back a version, and `vite` sat two minors above a
+ * floor that only the root was ever checked against — the rot this table exists
+ * to prevent, present and unreported.
+ *
+ * Each entry is the current line of that tool and the exact version the
+ * manifests declare, and the two are held equal deliberately. A floor written
+ * below what is installed can never fail, so it rots into decoration: stated at
+ * the major and minor alone it admitted every patch downgrade inside the same
+ * minor, and an upgrade said nothing. Holding them equal means a downgrade of
+ * any depth fails against this table and an upgrade has to be stated here, and
+ * every tool the repository installs must appear, so nothing joins without a
+ * floor. The readers live in `stack-floors.ts` and the cases in `stack.spec.ts`.
+ */
+export const FLOORS: Readonly<Record<string, string>> = {
+  '@axe-core/playwright': '4.13.0',
+  '@babel/parser': '8.0.5',
+  '@babel/traverse': '8.0.5',
+  '@babel/types': '8.0.5',
+  '@biomejs/biome': '2.5.14',
+  '@deepseek-ai/cordis': '4.0.2',
+  '@deepseek-ai/cordis-plugin-loader': '1.0.3',
+  '@deepseek-ai/dsh-api-session-controller': '0.1.2',
+  '@deepseek-ai/dsh-brand': '0.1.2',
+  '@deepseek-ai/dsh-client-modules': '0.1.2',
+  '@deepseek-ai/dsh-client-store': '0.1.2',
+  '@deepseek-ai/dsh-client-ui-primitives': '0.1.2',
+  '@deepseek-ai/dsh-client-ui-slots': '0.1.2',
+  '@deepseek-ai/dsh-client-web': '0.1.2',
+  '@deepseek-ai/dsh-invariants': '0.1.2',
+  '@deepseek-ai/dsh-jobs': '0.1.2',
+  '@deepseek-ai/dsh-session': '0.1.2',
+  '@deepseek-ai/dsh-tools': '0.1.2',
+  '@deepseek-ai/dsh-util-values': '0.1.2',
+  '@deepseek-ai/schemastery': '3.18.2',
+  '@deeptail/host-fleet': '0.1.0',
+  '@happy-dom/global-registrator': '20.14.5',
+  '@stryker-mutator/core': '10.0.0',
+  '@tauri-apps/api': '2.11.1',
+  '@tauri-apps/cli': '2.11.4',
+  '@types/bun': '1.4.2',
+  '@types/node': '26.6.1',
+  '@types/semver': '7.8.0',
+  'jsonc-parser': '3.3.1',
+  knip: '6.36.0',
+  'oxc-parser': '0.150.0',
+  oxlint: '1.83.0',
+  parse5: '8.0.1',
+  playwright: '1.63.0',
+  'playwright-core': '1.63.0',
+  react: '19.3.0',
+  'react-dom': '19.3.0',
+  semver: '7.8.5',
+  typescript: '7.0.2',
+  vite: '8.3.0',
+}
+
+/**
+ * The version each tool was on before its floor, for the technologies whose
+ * line is one this stack could actually slip back to.
+ *
+ * The floors above are what the manifests declare; this is the released line
+ * immediately before, read from the tool's own feed: the major before the
+ * current one where the tool has had more than one, and the previous released
+ * line where the major has not moved in years — Playwright and axe-core are
+ * both on `1.x` and `4.x`, so for them the line before is a minor. It is data
+ * rather than a number written into a case so the reintroduction is refused at
+ * the version it would really be declared at. The Bun line is here under the
+ * types package whose floor the `packageManager` pin is held to.
+ */
+export const PREVIOUS_LINES: Readonly<Record<string, string>> = {
+  '@axe-core/playwright': '4.12.1',
+  '@biomejs/biome': '1.9.4',
+  '@stryker-mutator/core': '9.6.1',
+  '@tauri-apps/api': '1.6.0',
+  '@types/bun': '1.3.9',
+  knip: '5.63.0',
+  oxlint: '0.16.0',
+  playwright: '1.62.1',
+  react: '18.3.1',
+  typescript: '6.9.2',
+  vite: '7.3.6',
+}
 
 /**
  * The styling vocabularies this design system retired, by name.
@@ -27,7 +112,10 @@ import { ROOT } from '../scripts/source-tree.ts'
  * modules and ordinary sheets, so its manifest reads like any library's — which
  * is why these are refused by name rather than by metadata. Each framework is
  * listed under every name it publishes under, because the refusal is about the
- * vocabulary and not about the spelling npm happens to use for it.
+ * vocabulary and not about the spelling npm happens to use for it. That
+ * includes the name a framework carried before it republished: `rome` is the
+ * tool that ships today as `@biomejs/biome`, and the installed Biome still
+ * carries the licence file it was renamed from.
  */
 const RETIRED_VOCABULARIES = new Set([
   '@base-ui-components/core',
@@ -58,10 +146,12 @@ const RETIRED_VOCABULARIES = new Set([
   'panda-css',
   'picocss',
   'react-bootstrap',
+  'rome',
   'semantic-ui',
   'semantic-ui-css',
   'semantic-ui-react',
   'styled-components',
+  'stryker',
   'tailwindcss',
   'uikit',
   'vue',
@@ -71,11 +161,10 @@ const RETIRED_VOCABULARIES = new Set([
 /**
  * The preprocessors and CSS pipelines this design system retired, by name.
  *
- * Each is also derivable from its own manifest once installed — a preprocessor
- * is its bin table, a pipeline is its `postcss` key, a dialect is its sidecar
- * field — and `dialectPackageOffences` below reads exactly that. The names stay
- * listed because a declared pin whose bytes are not installed has no manifest
- * to read: the manifests reach those, and the derivation reaches the package.
+ * Each is also derivable from its own manifest once installed, and
+ * `stack-packages.ts` reads exactly that. The names stay listed because a
+ * declared pin whose bytes are not installed has no manifest to read: the
+ * manifests reach those, and the derivation reaches the package.
  */
 const RETIRED_PIPELINES = new Set([
   '@unocss/preset-wind3',
@@ -96,10 +185,16 @@ const RETIRED_PIPELINES = new Set([
 ])
 
 /**
- * The scopes a retired vocabulary publishes its packages under.
+ * The prefixes a retired vocabulary publishes its packages under.
  *
  * A scoped package is the same framework under a name the set does not hold:
- * the scope is the vendor, and the packages beneath it are the vocabulary.
+ * the scope is the vendor, and the packages beneath it are the vocabulary. A
+ * flat prefix is the same idea for a publisher that renamed itself: Stryker
+ * shipped as `stryker`, `stryker-api`, `stryker-typescript` and the runners of
+ * the same shape, and republished the whole family under `@stryker-mutator/`,
+ * which is the scope this repository installs today. Rome, which republished
+ * under `@biomejs/`, is named by the flat name `rome` above and by the vendor
+ * scope it used to publish its parts under, which is here.
  */
 const RETIRED_SCOPES: readonly string[] = [
   '@alpinejs/',
@@ -111,10 +206,12 @@ const RETIRED_SCOPES: readonly string[] = [
   '@nuxt/',
   '@pandacss/',
   '@picocss/',
+  '@rometools/',
   '@tailwindcss/',
   '@unocss/',
   '@vanilla-extract/',
   '@vue/',
+  'stryker-',
 ]
 
 /**
@@ -125,6 +222,8 @@ const RETIRED_SCOPES: readonly string[] = [
  * first, and the pipelines name their configuration by the same convention —
  * `<tool>.config.<extension>`, the short `uno` alias the utility engine ships,
  * and the dotfile `rc` forms a pipeline reads when no config file is present.
+ * The bundler and transformer Vite 8 replaced name their own files the same
+ * way, and those two are held in `stack-patterns.ts`.
  */
 const RETIRED_PIPELINE_CONFIG =
   /(?:^|\/)(?:(?:autoprefixer|daisyui|postcss|purgecss|tailwind|uno|unocss|windicss)\.config\.[a-z]+|\.(?:postcssrc|unocssrc)(?:\.[a-z]+)?)$/u
@@ -159,113 +258,6 @@ export function isRetiredPackage(name: string): boolean {
  */
 export function isRetiredPipelineConfig(label: string): boolean {
   return RETIRED_PIPELINE_CONFIG.test(label)
-}
-
-/** The directories this workspace installs dependencies into. */
-const INSTALL_DIRECTORIES: readonly string[] = [
-  'apps/deeptail/node_modules/',
-  'packages/host-fleet/node_modules/',
-  'node_modules/',
-]
-
-/**
- * The manifest of an installed dependency, when its bytes are there.
- *
- * Read from the install directories rather than resolved through the package
- * manager, so a dependency that is declared but not installed reads as no
- * manifest at all — the state the name lists above exist for.
- * @param name - the package name.
- * @returns its parsed manifest, or undefined when it is not installed.
- */
-export function installedManifest(name: string): { [key: string]: Json } | undefined {
-  for (const directory of INSTALL_DIRECTORIES) {
-    const path = `${ROOT}${directory}${name}/package.json`
-    if (existsSync(path)) return readJsonc(readFileSync(path, 'utf8'))
-  }
-  return undefined
-}
-
-/** The fields a package states one of its stylesheets in. */
-const SIDECAR_FIELDS = ['style', 'sass', 'less', 'stylus'] as const
-
-/** The fields a package states one of its entry points in. */
-const ENTRY_FIELDS = ['main', 'module', 'browser', 'exports'] as const
-
-/** The manifest keys that mean a package runs its own CSS pipeline. */
-const PIPELINE_KEYS = ['postcss', 'unocss'] as const
-
-/** The names a CSS pipeline installs into a package's bin table. */
-const PIPELINE_BINS = new Set([
-  'lessc',
-  'lightningcss',
-  'panda',
-  'postcss',
-  'sass',
-  'sassc',
-  'stylus',
-  'tailwindcss',
-  'unocss',
-  'windicss',
-])
-
-/**
- * The entries a field states, however deeply the field nests them.
- * @param value - the field's JSON value.
- * @returns the strings it carries, in the order it writes them.
- */
-function statedStrings(value: Json | undefined): string[] {
-  if (typeof value === 'string') return [value]
-  if (Array.isArray(value)) return value.flatMap((entry) => statedStrings(entry))
-  if (isJsonObject(value)) return Object.values(value).flatMap((entry) => statedStrings(entry))
-  return []
-}
-
-/**
- * Every dialect a package declares it ships, in its own manifest.
- *
- * Derived, because a manifest states each of these: a `sass` or `less` sidecar
- * field is the preprocessor's own entry point, a `style` field naming a `.scss`
- * file is a dialect stylesheet, a bin named `sass` or `postcss` is the command
- * a pipeline installs, and a `postcss` key is a package configuring that
- * pipeline for itself. A dependency is deliberately not read: the installed
- * bundler itself depends on a pipeline, so a dependency states nothing about
- * the package that carries it. What no manifest states is a package's purpose,
- * which is what the name lists above are for.
- * @param name - the package name, for the report.
- * @param manifest - the package's own manifest.
- * @param dialects - the dialect suffixes the installed bundler compiles.
- * @returns one line per dialect it declares, empty when it declares none.
- */
-export function dialectPackageOffences(
-  name: string,
-  manifest: { [key: string]: Json },
-  dialects: ReadonlySet<string>,
-): string[] {
-  const offences: string[] = []
-  const names = [...dialects]
-  for (const field of SIDECAR_FIELDS) {
-    const stated = manifest[field]
-    if (stated === undefined) continue
-    const values = statedStrings(stated)
-    const dialect = values.some((value) => names.some((suffix) => value.endsWith(suffix)))
-    if (field === 'style' && !dialect) continue
-    offences.push(`${name} states a ${field} sidecar: ${values.join(', ')}`)
-  }
-  for (const field of ENTRY_FIELDS) {
-    for (const value of statedStrings(manifest[field])) {
-      const suffix = names.find((dialect) => value.endsWith(dialect))
-      if (suffix !== undefined) offences.push(`${name} points ${field} at ${value}, a ${suffix} stylesheet`)
-    }
-  }
-  const bins = manifest['bin']
-  const binNames = typeof bins === 'string' ? [name] : Object.keys(isJsonObject(bins) ? bins : {})
-  for (const bin of binNames) {
-    if (PIPELINE_BINS.has(bin)) offences.push(`${name} installs a ${bin} command, which is a CSS pipeline`)
-  }
-  for (const key of PIPELINE_KEYS) {
-    if (manifest[key] !== undefined) offences.push(`${name} configures its own ${key} pipeline in its manifest`)
-  }
-  return offences
 }
 
 /**

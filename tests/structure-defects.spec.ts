@@ -1,20 +1,21 @@
 /**
  * The markup-defect halves of the page-contract structure checks: what the
- * duplicate-id, nested-interactive, heading, ARIA-reference, list-ownership,
- * and group-name checks report for markup built right here, and that the
- * page-contract entry point reads a conforming page as conforming while wiring
- * every check into one report.
+ * duplicate-id, nested-interactive, heading, ARIA-reference, list-ownership and
+ * group-name checks report for markup built right here.
  *
  * These checks are module-private in the page source the browser evaluates, so
  * they are exported for this suite — the face widening `structure.ts`
  * documents — and driven under happy-dom for the reason `tests/dom.ts`
  * records: the markup a case builds is the part a mutation run can judge, and
  * the browser suites remain the account of what a real page does with it. The
- * geometry halves are held in `structure-helpers.spec.ts`, the shell and
- * vocabulary halves in `structure-page.spec.ts`.
+ * geometry halves are held in `structure-helpers.spec.ts` and its siblings, the
+ * shell and vocabulary halves in `structure-page-shell.spec.ts` and
+ * `structure-vocabulary.spec.ts`, and the entry point in
+ * `structure-dispatch.spec.ts`.
  */
 
 import { beforeEach, expect, it } from 'bun:test'
+import { typographyRamp } from '../apps/deeptail/tests/structure-emit.ts'
 import {
   checkAriaReferences,
   checkDuplicateIds,
@@ -22,11 +23,9 @@ import {
   checkHeadingOrder,
   checkListOwnership,
   checkNestedInteractive,
-  findStructureDefects,
 } from '../apps/deeptail/tests/structure.ts'
-import { typographyRamp } from '../apps/deeptail/tests/structure-emit.ts'
 import { resetDocument } from './dom.ts'
-import { collector, paintType } from './structure-double.ts'
+import { collector } from './structure-double.ts'
 
 /**
  * The ladder the shipped token sheet declares, read once for the limits below.
@@ -37,8 +36,14 @@ import { collector, paintType } from './structure-double.ts'
  */
 const TYPOGRAPHY = await typographyRamp()
 
-/** The rung the conforming page's text is painted at: the ladder's last. */
-const RUNG = TYPOGRAPHY.sizes.length - 1
+/** What the markup checks measure against, where they measure anything. */
+const LIMITS = {
+  target: 24,
+  interactive: 'a[href], button',
+  scope: '',
+  vocabulary: [],
+  typography: TYPOGRAPHY,
+}
 
 beforeEach(() => {
   resetDocument()
@@ -65,26 +70,14 @@ it('reports a control nested in another, and stays silent for siblings', () => {
   const button = document.createElement('button')
   document.body.append(link, button)
   const silent = collector()
-  checkNestedInteractive(silent.add, {
-    target: 24,
-    interactive: 'a[href], button',
-    scope: '',
-    vocabulary: [],
-    typography: TYPOGRAPHY,
-  })
+  checkNestedInteractive(silent.add, LIMITS)
   expect(silent.findings).toEqual([])
   const card = document.createElement('a')
   card.setAttribute('href', '/sessions')
   card.append(button)
   document.body.append(card)
   const { findings, add } = collector()
-  checkNestedInteractive(add, {
-    target: 24,
-    interactive: 'a[href], button',
-    scope: '',
-    vocabulary: [],
-    typography: TYPOGRAPHY,
-  })
+  checkNestedInteractive(add, LIMITS)
   expect(findings).toEqual([{ rule: 'nested-interactive', detail: 'button sits inside a' }])
 })
 
@@ -148,6 +141,33 @@ it('reports a heading level skipped, and stays silent for a stepped outline', ()
   const { findings, add } = collector()
   checkHeadingOrder(add)
   expect(findings).toEqual([{ rule: 'heading-skip', detail: 'h1 is followed by h3' }])
+})
+
+it('reads the outline the reader hears, so a heading the engine hides is not a step in it', () => {
+  const sheet = document.createElement('style')
+  sheet.textContent = '.off-page { display: none; }'
+  document.head.append(sheet)
+  const first = document.createElement('h1')
+  first.textContent = 'Topics'
+  const hidden = document.createElement('h2')
+  hidden.textContent = 'DeepTail'
+  hidden.className = 'off-page'
+  hidden.id = 'hidden-step'
+  const third = document.createElement('h3')
+  third.textContent = 'Machines'
+  const shown = document.createElement('div')
+  shown.dataset['deeptailDialog'] = ''
+  const fixed = document.createElement('h2')
+  fixed.textContent = 'Roster'
+  shown.append(fixed)
+  document.body.append(first, hidden, third, shown)
+  const { findings, add } = collector()
+  checkHeadingOrder(add)
+  // The h2 the engine hides is not a step the reader hears, so the heading
+  // after the h1 is the h3 and the outline skips; the h2 inside a dialog is
+  // read even though `offsetParent` is null for everything `position: fixed`.
+  expect(findings).toEqual([{ rule: 'heading-skip', detail: 'h1 is followed by h3' }])
+  expect(hidden.checkVisibility()).toBe(false)
 })
 
 it('reports an ARIA reference pointing at nothing, and stays silent while every target exists', () => {
@@ -271,65 +291,4 @@ it('reports a fieldset, a radiogroup, and a group named by nothing, and stays si
   const silent = collector()
   checkGroupNames(silent.add)
   expect(silent.findings).toEqual([])
-})
-
-it('reads a conforming page as conforming, and wires the markup checks into one report', () => {
-  const shell = document.createElement('div')
-  shell.dataset['deeptailShell'] = ''
-  const main = document.createElement('main')
-  const heading = document.createElement('h1')
-  heading.id = 'session-heading'
-  heading.textContent = 'Sessions'
-  const trigger = document.createElement('div')
-  trigger.setAttribute('aria-controls', 'session-pane')
-  trigger.setAttribute('aria-labelledby', 'session-heading')
-  const pane = document.createElement('div')
-  pane.id = 'session-pane'
-  const list = document.createElement('div')
-  list.id = 'machines'
-  list.setAttribute('role', 'list')
-  const item = document.createElement('div')
-  item.id = 'machines-row'
-  item.setAttribute('role', 'listitem')
-  item.textContent = 'alpha'
-  const fieldset = document.createElement('fieldset')
-  fieldset.id = 'auth'
-  const legend = document.createElement('legend')
-  legend.textContent = 'Host'
-  fieldset.append(legend)
-  list.append(item)
-  main.append(heading, trigger, pane, list, fieldset)
-  shell.append(main)
-  document.body.append(shell)
-  // happy-dom renders no type of its own, so every element carrying text is
-  // painted at one rung of the shipped ladder — the browser suites remain the
-  // account of what the loaded sheet renders.
-  for (const carrier of [heading, item, legend]) paintType(carrier, TYPOGRAPHY, RUNG)
-  const limits = {
-    target: 24,
-    interactive: 'button',
-    scope: '[data-deeptail-shell]',
-    vocabulary: [],
-    typography: TYPOGRAPHY,
-  }
-  const silent = findStructureDefects(limits)
-  expect(silent).toEqual([])
-  const repeated = document.createElement('div')
-  repeated.id = 'dup'
-  const twin = document.createElement('div')
-  twin.id = 'dup'
-  const dangling = document.createElement('div')
-  dangling.setAttribute('aria-controls', 'missing-pane')
-  const orphan = document.createElement('div')
-  orphan.id = 'orphan'
-  orphan.setAttribute('role', 'listitem')
-  const bare = document.createElement('fieldset')
-  bare.id = 'bare'
-  document.body.append(repeated, twin, dangling, orphan, bare)
-  expect(findStructureDefects(limits)).toEqual([
-    { rule: 'duplicate-id', detail: 'div#dup repeats id "dup"' },
-    { rule: 'dangling-aria-reference', detail: 'div aria-controls points at missing "missing-pane"' },
-    { rule: 'item-outside-list', detail: 'div#orphan sits outside a list' },
-    { rule: 'unnamed-group', detail: 'fieldset#bare groups controls under no name' },
-  ])
 })

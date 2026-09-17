@@ -25,21 +25,17 @@ import { CONSOLE, type Gate, readGate, reportGate } from './gate-runner.ts'
 import type { Offence } from './offence.ts'
 import { DRAWN_LENGTHS } from './sheet-declarations.ts'
 import { TOKEN_SHEET } from './sheet-gate.ts'
-import { blocksOf } from './sheet-reader.ts'
+import { referenceOffences } from './sheet-reading-scale.ts'
 import {
   absentRungs,
   BORDER,
   declaredTokens,
   LADDERS,
   type Ladder,
-  LEADING,
   ladderRungs,
   type MeasuredLadder,
   outsideScale,
   type Rung,
-  TRACKING,
-  TYPE,
-  WEIGHT,
 } from './sheet-scale.ts'
 
 /** A rung holding a whole number of pixels. */
@@ -47,9 +43,6 @@ const PIXELS = /^(\d+)px$/u
 
 /** A leading rung, holding a ratio: two whole numbers between `calc(` and `)`. */
 const RATIO = /^calc\(\s*(\d+)\s*\/\s*(\d+)\s*\)$/u
-
-/** A value reading one rung of the scale. */
-const RUNG = /^var\(\s*(--dsh-[a-z0-9-]+)\s*\)$/u
 
 /** What a rung resolves to, or why it resolves to nothing. */
 type Resolved = { readonly ok: true; readonly px: number } | { readonly ok: false; readonly why: string }
@@ -100,14 +93,16 @@ function resolvedRung(ladder: MeasuredLadder, rung: Rung, paired: ReadonlyMap<st
     return { ok: true, px: Number(digits) }
   }
   const found = RATIO.exec(rung.value)
-  const numerator = found?.at(1)
-  const denominator = found?.at(2)
-  if (numerator === undefined || denominator === undefined) {
+  if (found === null) {
     return {
       ok: false,
       why: `${rung.property} is ${rung.value}; a rung of ${ladder.stem} is a ratio written calc(<whole> / <whole>)`,
     }
   }
+  // Both wholes are captured, so a match carries both: they are read as the two
+  // numbers they are rather than defended against an absence the pattern cannot
+  // leave.
+  const [, numerator, denominator] = found
   const against = paired.get(`${ladder.resolves}${rung.name}`)
   if (against === undefined) {
     return {
@@ -170,7 +165,9 @@ function readSetLadder(label: string, ladder: Ladder, rungs: readonly Rung[]): O
 function outOfOrder(label: string, landed: readonly Landed[]): Offence[] {
   const offences: Offence[] = []
   let previous: Landed | undefined
-  let step: number | undefined
+  // The first rung of a ladder has no step above it, and every rise that
+  // reaches the comparison below is already above nought.
+  let step = 0
   for (const one of landed) {
     if (previous !== undefined) {
       const rise = one.px - previous.px
@@ -180,7 +177,7 @@ function outOfOrder(label: string, landed: readonly Landed[]): Offence[] {
           line: one.rung.line,
           why: `${one.rung.property} is ${String(one.px)}px, not above ${previous.rung.property} at ${String(previous.px)}px; a ladder rises from rung to rung`,
         })
-      } else if (step !== undefined && rise < step) {
+      } else if (rise < step) {
         offences.push({
           label,
           line: one.rung.line,
@@ -280,68 +277,12 @@ export function scaleOffences(label: string, text: string): Offence[] {
   return offences.toSorted((left, right) => left.line - right.line)
 }
 
-/** One property a shipped sheet has to read a rung for, and the family it reads. */
-const READS: readonly (readonly [property: string, stem: string, family: string])[] = [
-  ['font-size', TYPE, 'type'],
-  ['line-height', LEADING, 'leading'],
-  ['letter-spacing', TRACKING, 'tracking'],
-  ['font-weight', WEIGHT, 'weight'],
-]
-
-/** The rung one value reads, when its whole value is a read of a rung in that family. */
-function rungRead(stem: string, value: string): string | undefined {
-  const read = RUNG.exec(value)?.at(1)
-  return read?.startsWith(stem) === true ? read : undefined
-}
-
-/**
- * Every rule a shipped sheet answers about the scale it reads.
- * @param label - the path to report offences under.
- * @param text - the sheet's contents.
- * @returns one offence per rejected declaration.
- */
-export function referenceOffences(label: string, text: string): Offence[] {
-  const offences: Offence[] = []
-  for (const block of blocksOf(text)) {
-    const read = new Map<string, Rung>()
-    for (const declaration of block.declarations) {
-      const wanted = READS.find(([property]) => property === declaration.property)
-      if (wanted === undefined) continue
-      const [property, stem, family] = wanted
-      const whole = rungRead(stem, declaration.value)
-      if (whole === undefined) {
-        offences.push({
-          label,
-          line: declaration.line,
-          why: `${property}: ${declaration.value} is not a rung of the ${family} ladder in tokens.css; read one of ${stem}<rung>`,
-        })
-        continue
-      }
-      read.set(property, {
-        property: whole,
-        name: whole.slice(stem.length),
-        value: declaration.value,
-        line: declaration.line,
-      })
-    }
-    const size = read.get('font-size')
-    const leading = read.get('line-height')
-    if (size !== undefined && leading !== undefined && size.name !== leading.name) {
-      offences.push({
-        label,
-        line: leading.line,
-        why: `${leading.property} is not the rung that pairs with ${size.property}; a type rung pairs with the leading rung of the same name`,
-      })
-    }
-  }
-  return offences
-}
-
 /**
  * Every rule, over one sheet.
  *
  * The one sheet whose custom properties define the scale is read as the scale;
- * every other sheet is read as a reader of it.
+ * every other sheet is read as a reader of it, which is the rule
+ * `sheet-reading-scale.ts` owns and this module dispatches to.
  * @param label - the path to report offences under.
  * @param text - the sheet's contents.
  * @returns one offence per rejected declaration.
@@ -349,6 +290,9 @@ export function referenceOffences(label: string, text: string): Offence[] {
 export function scanScale(label: string, text: string): Offence[] {
   return label === TOKEN_SHEET ? scaleOffences(label, text) : referenceOffences(label, text)
 }
+
+/** The rule read from a sheet that consumes the scale, owned by its own module. */
+export { referenceOffences }
 
 /** What this gate reads and refuses. */
 export const GATE: Gate = {

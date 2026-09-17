@@ -14,25 +14,29 @@
  * else, whether a reader who asked for less motion got it, whether a row of
  * siblings agrees on where its line is, whether a repeated list keeps its own
  * rhythm, whether every rendered type size lands on a rung of the shipped
- * scale, and whether each dialog and mask came from the frame that owns them.
- * Each returns a list of offending selectors, so a failure names the element
- * rather than a count.
+ * scale, whether every control the page draws is wired to one action the
+ * shipped registry declares, and whether each dialog and mask came from the
+ * frame that owns them. Each returns a list of offending selectors, so a failure
+ * names the element rather than a count.
+ *
+ * This module is the dispatcher: the markup checks the page runs are declared
+ * here, and every check that measures a box lives in the module named for what
+ * it measures — `structure-layout.ts` for what a box does with its content,
+ * `structure-scroll.ts` for what scrolls, `structure-rows.ts` for where a row's
+ * boxes sit, `structure-pointer.ts` for what a pointer reaches and what a
+ * keyboard is shown, `structure-shell.ts` for what the document seats and what
+ * its controls are wired to, and `structure-elements.ts` for the reads more than
+ * one of them makes.
  *
  * @module
  */
 
-import {
-  checkAlignment,
-  checkClipping,
-  checkGrid,
-  checkHorizontalOverflow,
-  checkListGutters,
-  checkNestedScroll,
-  checkSiblingAlignment,
-} from './structure-layout.ts'
+import { checkClipping, checkGrid } from './structure-layout.ts'
 import { checkFocusVisible, checkOverlappingTargets, checkTouchTargets } from './structure-pointer.ts'
 import type { TypographyRamp } from './structure-ramp.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
+import { checkAlignment, checkListGutters, checkSiblingAlignment } from './structure-rows.ts'
+import { checkHorizontalOverflow, checkNestedScroll } from './structure-scroll.ts'
 import { checkDialogContract, checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import { checkTypography } from './structure-typography.ts'
 import { checkClassVocabulary, checkReducedMotion } from './structure-vocabulary.ts'
@@ -48,6 +52,13 @@ export type { StructureFinding }
  * `ReferenceError` in the browser — or worse, nothing at all, because a
  * transpiler that folds a literal into the text hides the omission until the
  * day the value stops being a literal.
+ *
+ * Two of these are optional because the suites that build markup by hand call
+ * the checks without them: an action registry and a mount are facts about a
+ * page that was seated, and only the pass that measures a real one has them.
+ * Every one of the checks that reads them says what it does with none — the
+ * control wiring reads an empty registry, which reports every control naming an
+ * action, and the mount rule has no mount to measure against and stays quiet.
  */
 interface StructureLimits {
   /** The smallest target this pointer admits, in CSS pixels. */
@@ -65,6 +76,10 @@ interface StructureLimits {
   readonly vocabulary: readonly string[]
   /** The type ladder the shipped token sheet declares, resolved to pixels. */
   readonly typography: TypographyRamp
+  /** Every action marker the shipped action registry declares. */
+  readonly actions?: readonly string[]
+  /** The element the shipped document mounts its product surfaces in. */
+  readonly mount?: string
 }
 
 /**

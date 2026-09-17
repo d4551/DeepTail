@@ -6,6 +6,11 @@
  * line does not, and against the README this repository actually ships, which
  * must agree with every manifest pin at the depth it states one.
  *
+ * The toolchain the planted cases read is stated here at the versions the
+ * manifests pin — 2.5.14 for Biome and 8.3.0 for Vite, as the registry reports
+ * them — rather than read from the same manifests the drift reader reads, so a
+ * drift message is compared against a literal instead of against its own input.
+ *
  * @module
  */
 
@@ -16,6 +21,7 @@ import {
   badgeVersions,
   documentationConflicts,
   documentationDrift,
+  documentedNames,
   statedClaims,
   statedVersions,
   statesPin,
@@ -25,17 +31,17 @@ import { isJsonObject, readJsonc } from '../scripts/jsonc.ts'
 import { everyDependency } from './manifests.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
-/** Every tool the toolchain line names, at the versions a manifest pins them to. */
+/** Every tool the toolchain line names, at the versions the manifests pin them to. */
 const TOOLCHAIN: Toolchain = {
   declared: new Map([
-    ['@biomejs/biome', '2.5.13'],
+    ['@biomejs/biome', '2.5.14'],
     ['@stryker-mutator/core', '10.0.0'],
     ['@tauri-apps/api', '2.11.1'],
     ['oxlint', '1.83.0'],
     ['playwright', '1.63.0'],
     ['react', '19.3.0'],
     ['typescript', '7.0.2'],
-    ['vite', '8.2.2'],
+    ['vite', '8.3.0'],
   ]),
   manager: 'bun@1.4.2',
   engines: '^22.19.0 || >=24.0.0',
@@ -108,14 +114,15 @@ describe('the toolchain the README ships', () => {
       const readme = await readFile('README.md', 'utf8')
       const manifest = readJsonc(await readFile('package.json', 'utf8'))
       const engines = manifest['engines']
+      const declared = everyDependency()
       const stated = statedVersions(readme)
       // A reader that found nothing would report no drift at all, which is what
       // the toolchain line looked like to every gate before this one.
       expect(stated.size).toBeGreaterThan(0)
-      expect(documentationConflicts(readme)).toEqual([])
+      expect(documentationConflicts(readme, documentedNames(declared))).toEqual([])
       expect(
         documentationDrift(stated, {
-          declared: await everyDependency(),
+          declared,
           manager: typeof manifest['packageManager'] === 'string' ? manifest['packageManager'] : '',
           engines: isJsonObject(engines) && typeof engines['node'] === 'string' ? engines['node'] : '',
           edition: cargoEdition(await readFile('apps/deeptail/src-tauri/Cargo.toml', 'utf8')),
@@ -134,9 +141,9 @@ describe('the documented toolchain', () => {
     expect(statesPin('2.11', '2.11.1')).toBe(true)
     expect(statesPin('1.63.0', '1.63.0')).toBe(true)
     expect(statesPin('1.62.1', '1.63.0')).toBe(false)
-    expect(statesPin('8', '8.2.2')).toBe(true)
-    expect(statesPin('9', '8.2.2')).toBe(false)
-    expect(statesPin('8.2.2.1', '8.2.2')).toBe(false)
+    expect(statesPin('8', '8.3.0')).toBe(true)
+    expect(statesPin('9', '8.3.0')).toBe(false)
+    expect(statesPin('8.3.0.1', '8.3.0')).toBe(false)
     const sparse: Toolchain = { ...TOOLCHAIN, declared: new Map([['playwright', '1.63.0']]) }
     expect(documentationDrift(statedVersions('Playwright 1.62.1'), sparse)).toEqual([
       'TypeScript: nothing declares typescript',
@@ -164,7 +171,7 @@ describe('the tools the toolchain line names', () => {
     // stating a version for any of them went unchecked before this case.
     const drift = (sentence: string): string[] =>
       documentationDrift(statedVersions(`${AGREEING} ${sentence}`), TOOLCHAIN)
-    expect(drift('Biome 2.4.1')).toEqual(['Biome is documented as 2.4.1 and pinned at 2.5.13'])
+    expect(drift('Biome 2.4.1')).toEqual(['Biome is documented as 2.4.1 and pinned at 2.5.14'])
     expect(drift('Biome 2.5')).toEqual([])
     expect(drift('Oxlint 1.82.0')).toEqual(['Oxlint is documented as 1.82.0 and pinned at 1.83.0'])
     expect(drift('Stryker 9.4.1')).toEqual(['Stryker is documented as 9.4.1 and pinned at 10.0.0'])
@@ -187,7 +194,7 @@ describe('the badge the README carries', () => {
     expect(documentationDrift(statedVersions(badge('Playwright', '1.63')), TOOLCHAIN)).toEqual([
       'TypeScript is pinned at 7.0.2 and the toolchain line no longer names it',
       'Tauri is pinned at 2.11.1 and the toolchain line no longer names it',
-      'Vite is pinned at 8.2.2 and the toolchain line no longer names it',
+      'Vite is pinned at 8.3.0 and the toolchain line no longer names it',
       'Bun is pinned at 1.4.2 and the toolchain line no longer names it',
       'Node is pinned at ^22.19.0 || >=24.0.0 and the toolchain line no longer names it',
       'Rust edition is 2024 and the toolchain line no longer names it',
@@ -217,5 +224,21 @@ describe('the documented toolchain contradicts itself', () => {
     expect(documentationConflicts('Tauri 2.11 · Tauri 2.11.1')).toEqual([])
     expect(documentationConflicts(AGREEING)).toEqual([])
     expect(documentationConflicts('Kubernetes 1.30 · Kubernetes 1.29')).toEqual([])
+  })
+
+  it('holds a package the line never names, read under its own basename', () => {
+    // The names a contradiction is reported for are the four the line must
+    // name plus every package the repository declares: `@biomejs/biome` is
+    // documented as `Biome`, and a stale Biome badge written above a correct
+    // Biome sentence is exactly the claim last-wins keeps out of sight.
+    const names = documentedNames(TOOLCHAIN.declared)
+    expect(
+      [...['Biome', 'Stryker', 'Bun', 'Rust edition', 'TypeScript', 'React']].filter((name) => names.has(name)),
+    ).toEqual(['Biome', 'Stryker', 'Bun', 'Rust edition', 'TypeScript', 'React'])
+    expect(names.has('Kubernetes')).toBe(false)
+    const readme = `${badge('Biome', '2.4.1')}\n\n${AGREEING} Biome 2.5.14.`
+    expect(documentationDrift(statedVersions(readme), TOOLCHAIN)).toEqual([])
+    expect(documentationConflicts(readme)).toEqual([])
+    expect(documentationConflicts(readme, names)).toEqual(['Biome is documented as both 2.4.1 and 2.5.14'])
   })
 })

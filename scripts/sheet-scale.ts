@@ -22,6 +22,7 @@
 
 import type { Offence } from './offence.ts'
 import { blocksOf } from './sheet-reader.ts'
+import { CASINGS, MEASURE_MAX, SINGLES } from './sheet-scale-vocabulary.ts'
 
 /** The custom-property namespace this scale owns, and the palette's is not. */
 export const OWNED = '--dsh-'

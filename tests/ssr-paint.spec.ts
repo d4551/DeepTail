@@ -8,6 +8,10 @@
  * in `paint-contract.ts` and `paint-page.spec.ts`, which read and stamp the
  * page this build ships; these cases read the factories themselves.
  *
+ * The landmarks the contract names are driven over the paint the factories
+ * really produce, by dropping each one out of it: a landmark is proved present
+ * by the refusal its absence earns, not by a fixture written to look like it.
+ *
  * @module
  */
 
@@ -15,7 +19,25 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { assertPaintedShell, paintOffences } from '../scripts/paint-contract.ts'
 import { firstPaintMarkup } from '../scripts/paint-index.ts'
 import { resetDocument } from './dom.ts'
+import { planted } from './paint-fixture.ts'
 import { mountedRoot, mountLiveChrome, seatedDismiss, seatedToggle } from './shell-chrome-double.ts'
+
+/** Each landmark the contract names, the part of the paint that carries it, and what its absence is refused for. */
+const LANDMARKS: readonly (readonly [string, string, string])[] = [
+  [
+    '<main class="main">',
+    '<div class="main">',
+    'the shell carries no main landmark, so the chrome has no reading region',
+  ],
+  [' aria-label="Session navigation"', ' ', 'the shell carries no nav landmark named for a reader'],
+  [
+    '<div class="visually-hidden" role="status" aria-live="polite"></div>',
+    '',
+    'the shell carries no live region, so a change it announces reaches no reader',
+  ],
+  [' aria-controls="deeptail-sidebar"', ' ', 'the shell carries no control that names the region it opens'],
+  ['class="main-title"', '', 'the shell carries no titled heading, so the first paint names no page'],
+]
 
 beforeEach(() => {
   resetDocument()
@@ -34,6 +56,16 @@ describe('the first-paint factories', () => {
 
   it('paint a chrome that satisfies the contract the build holds it to', () => {
     expect(paintOffences(firstPaintMarkup())).toEqual([])
+  })
+
+  it('refuses the paint the moment any one landmark the contract names is dropped', () => {
+    // Each part is planted into what the factories paint now, so a landmark
+    // this product stopped painting fails by name rather than passing because
+    // the same factory wrote both sides of the case.
+    for (const [part, instead, why] of LANDMARKS) {
+      const dropped = planted(firstPaintMarkup(), part, instead)
+      expect([why, paintOffences(dropped)]).toEqual([why, [{ line: 1, why }]])
+    }
   })
 
   it('paints the same tree the live mount builds', () => {

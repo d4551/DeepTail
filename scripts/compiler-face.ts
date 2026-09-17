@@ -27,6 +27,42 @@ const SUPERSEDED_TARGETS = new Set(
   'es3 es5 es6 es2015 es2016 es2017 es2018 es2019 es2020 es2021 es2022 es2023 es2024'.split(' '),
 )
 
+/**
+ * The options the TypeScript 6.0 release notes deprecated whatever they carry,
+ * and TypeScript 7 dropped outright.
+ *
+ * TypeScript 6 shipped as the last release of the JavaScript compiler and
+ * deprecated each of these by name — `baseUrl`, which resolved every bare
+ * specifier from one directory, and `outFile`, which concatenated the whole
+ * program into one file. Its announcement states the term that decides this
+ * table: "TypeScript 7.0 will not support any of these deprecated options." A
+ * configuration still stating one is a TypeScript 6 face whatever it resolves
+ * to there.
+ */
+const TS6_DROPPED_OPTIONS: ReadonlyMap<string, string> = new Map([
+  ['baseUrl', 'baseUrl is the TypeScript 6 paths base TypeScript 7 dropped; prefix each paths entry instead'],
+  ['outFile', 'outFile is the TypeScript 6 single-file emit TypeScript 7 dropped; let the bundler bundle'],
+])
+
+/**
+ * The options TypeScript 6 allowed a project to switch off, which TypeScript 7
+ * keeps on and refuses to have turned off.
+ *
+ * The same release notes list them: `--esModuleInterop false` and
+ * `--allowSyntheticDefaultImports false` together, and `--alwaysStrict false`
+ * on its own. Each is read only when the value is exactly `false`, because an
+ * option that is absent has the compiler's own default rather than the
+ * project's decision.
+ */
+const TS6_SWITCHED_OFF: ReadonlyMap<string, string> = new Map([
+  ['esModuleInterop', 'esModuleInterop is off; the TypeScript 7 face keeps the ESM interop on'],
+  [
+    'allowSyntheticDefaultImports',
+    'allowSyntheticDefaultImports is off; the TypeScript 7 face keeps the synthetic defaults on',
+  ],
+  ['alwaysStrict', 'alwaysStrict is off; the TypeScript 7 face keeps every file strict'],
+])
+
 /** The value an option states, when the set names it, lowercased. */
 function statedOneOf(value: Json | undefined, named: ReadonlySet<string>): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -57,6 +93,12 @@ export function compilerFaceOffences(options: { readonly [key: string]: Json }):
     if (options[flag] !== undefined) {
       offences.push(`${flag} is a TypeScript 6 module-interop flag; TypeScript 7 verbatimModuleSyntax replaced it`)
     }
+  }
+  for (const [option, why] of TS6_DROPPED_OPTIONS) {
+    if (options[option] !== undefined) offences.push(why)
+  }
+  for (const [option, why] of TS6_SWITCHED_OFF) {
+    if (options[option] === false) offences.push(why)
   }
   if (options['skipLibCheck'] === true) {
     offences.push("skipLibCheck silences a dependency's diagnostics instead of fixing them")

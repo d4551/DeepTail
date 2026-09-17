@@ -8,7 +8,8 @@
  */
 
 import { type Browser, chromium, type Page } from 'playwright'
-import { auditPage, type Violation } from './audit.ts'
+import { type AuditEvidence, auditEvidence, auditPage, type RuleSelection, type Violation } from './audit.ts'
+import { type EntryReading, paintedSnapshotSource, readEntryFirst } from './painted-entry.ts'
 import { type AnswerTable, type ForwardedEvent, initScriptSource, type RecordedCall } from './tauri-ipc.ts'
 import { PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
 
@@ -43,6 +44,17 @@ interface OpenOptions {
   readonly width?: number
   readonly height?: number
   readonly locale?: string
+  /**
+   * Read the document's own tree before its one module entry can touch it.
+   *
+   * `'hold'` releases the entry once the shipped tree has been recorded, so a
+   * case can tell the nodes the document carried from ones a bundle built;
+   * `'block'` never releases it, which is the page a reader whose bundle never
+   * arrived is left with. Absent, the entry runs as it does in the product.
+   */
+  readonly entry?: EntryReading
+  /** Load the document with scripting off: a reader whose engine runs no line of the bundle. */
+  readonly scriptingOff?: boolean
 }
 
 /** A running harness. */
@@ -71,10 +83,24 @@ export interface Harness {
    * be made to pass by rewriting the check.
    */
   audit(page: Page): Promise<readonly Violation[]>
+  /**
+   * Run axe-core over the page and return every finding, with what ran.
+   *
+   * `audit` answers the conformance question; this answers that and whether the
+   * answer can be read at all — a pass that evaluated no rule proves nothing,
+   * however empty its findings are.
+   * @param page - the page to audit.
+   * @param selections - which of axe's rules to run.
+   */
+  auditEvidence(page: Page, selections?: readonly RuleSelection[]): Promise<AuditEvidence>
   stop(): Promise<void>
 }
 
 const DIST = new URL('../dist/', import.meta.url)
+
+/** The one page the build writes, which every browser case loads. */
+export const BUILT_PAGE = new URL('index.html', DIST)
+
 const SHOTS = new URL('./screenshots/', import.meta.url).pathname
 const TYPES: Readonly<Record<string, string>> = {
   '.html': 'text/html; charset=utf-8',
@@ -125,6 +151,7 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
   const height = options.height ?? preset?.height
   const context = await browser.newContext({
     colorScheme: options.dark === true ? 'dark' : 'light',
+    ...(options.scriptingOff === true ? { javaScriptEnabled: false } : {}),
     // A phone viewport is not a phone: the row actions are revealed by
     // `not (hover: hover)`, which only holds once the context emulates a touch
     // device rather than merely a narrow window. An explicit width (320 CSS
@@ -143,6 +170,7 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
     ...(options.reducedMotion === true ? { reducedMotion: 'reduce' as const } : {}),
   })
   await context.addInitScript({ content: initScriptSource(table) })
+  if (options.entry !== undefined) await context.addInitScript({ content: paintedSnapshotSource() })
   if (options.direction !== undefined) {
     await context.addInitScript((value) => {
       // An init script runs before the parser has created the root element,
@@ -156,6 +184,9 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
   }
   const page = await context.newPage()
   if (coarse) await emulateCoarsePointer(page)
+  // Registered before the navigation: the entry is held from the moment the
+  // parser asks for it, not once the page has already run.
+  if (options.entry !== undefined) await readEntryFirst(page, BUILT_PAGE, options.entry)
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
   return page
 }
@@ -164,8 +195,8 @@ async function openPage(browser: Browser, origin: string, table: AnswerTable, op
  * Make CSS `(pointer: coarse)` and `(hover: none)` true.
  *
  * `hasTouch` enables touch events. It does not change the media features the
- * sheets switch the 44px floor on, so a phone viewport would still measure as
- * a fine pointer and the Apple HIG bump would never apply.
+ * sheets switch the 44px floor on, so a phone viewport would still measure as a
+ * fine pointer and the Apple HIG bump would never apply.
  * @param page - the page to emulate on.
  */
 async function emulateCoarsePointer(page: Page): Promise<void> {
@@ -194,6 +225,7 @@ export async function startHarness(): Promise<Harness> {
       await page.screenshot({ path: `${SHOTS}${name}.png`, fullPage: true, animations: 'disabled' })
     },
     audit: (page) => auditPage(page),
+    auditEvidence: (page, selections) => auditEvidence(page, selections),
     forward: (page, event, args) =>
       page.evaluate(
         (pair: readonly [string, ForwardedEvent['args']]) => {

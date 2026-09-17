@@ -1,13 +1,15 @@
 /**
  * The page choreography every browser suite shares: open the shell over a
- * fixture, wait until it is showing, and — for the accessibility suite — audit
- * what is showing. One module, so the suites cannot drift on how a page is
- * opened or what "clean" means.
+ * fixture, wait until it is showing, and settle the page at one designed width.
+ * One module, so the suites cannot drift on how a page is opened.
+ *
+ * What "clean" means, and the arrangements the accessibility audit drives, live
+ * beside it: `audit.ts` decides it, `a11y-surfaces.ts` names the surfaces, and
+ * `a11y-audit.ts` drives them.
  *
  * @module
  */
 
-import { expect } from 'bun:test'
 import type { Page } from 'playwright'
 import { fleet } from './fixtures.ts'
 import type { Harness, Violation } from './harness.ts'
@@ -79,15 +81,6 @@ export async function realizeView(page: Page, view: Pick<AuditView, 'width' | 'h
 }
 
 /**
- * Expect one page to carry no WCAG violation.
- * @param harness - the suite's browser harness.
- * @param page - the page under audit.
- */
-export async function expectNoViolations(harness: Harness, page: Page): Promise<void> {
-  expect(describeViolations(await harness.audit(page))).toBe('')
-}
-
-/**
  * Describe every violation an audit found, one line each, or nothing.
  * @param violations - the violations axe reported.
  * @returns the report, empty when nothing was found.
@@ -143,63 +136,6 @@ export async function openPairingForm(harness: Harness, view: AuditView): Promis
 }
 
 /**
- * Audit one arranged surface at mobile, tablet and desktop, in both palettes.
- * @param harness - the suite's browser harness.
- * @param open - opens the surface under one view and leaves it ready to audit.
- */
-export async function expectNoViolationsAtEachWidth(
-  harness: Harness,
-  open: (view: AuditView) => Promise<Page>,
-): Promise<void> {
-  const results = await Promise.all(
-    AUDIT_VIEWS.map(async (view) => {
-      const page = await open(view)
-      await realizeView(page, view)
-      const size = page.viewportSize()
-      const violations = describeViolations(await harness.audit(page))
-      await page.close()
-      return { label: view.label, size, violations }
-    }),
-  )
-  const realized = results.flatMap((result) =>
-    result.size === null || result.size === undefined
-      ? []
-      : [`${result.label} ${String(result.size.width)}x${String(result.size.height)}`],
-  )
-  const found = results
-    .filter((result) => result.violations !== '')
-    .map((result) => `${result.label} (${String(result.size?.width)}): ${result.violations}`)
-  expect(realized.toSorted()).toEqual(
-    AUDIT_VIEWS.map((view) => `${view.label} ${String(view.width)}x${String(view.height)}`).toSorted(),
-  )
-  expect(found).toEqual([])
-}
-
-/**
- * Audit one driven surface at every designed width, in both palettes.
- *
- * The shell is opened over the fixture with the roster shown, the case drives
- * it to the state under audit, and what is showing is audited and closed. The
- * open-drive-audit shape is stated once here; a case contributes only the
- * fixture and the driving it needs.
- * @param harness - the suite's browser harness.
- * @param fixture - the registry the page boots against.
- * @param drive - drives the opened page to the state under audit, under the
- * view it is being opened for.
- */
-export async function auditShellAtEachWidth(
-  harness: Harness,
-  fixture: Parameters<typeof fleet>[0],
-  drive: (page: Page, view: AuditView) => Promise<void>,
-): Promise<void> {
-  await expectNoViolationsAtEachWidth(harness, async (view) => {
-    const page = await openShellWithDrawer(harness, fixture, view)
-    await drive(page, view)
-    return page
-  })
-}
-
-/**
  * Open the shell over a fleet fixture and wait until it is showing.
  * @param harness - the suite's browser harness.
  * @param fixture - the registry the page boots against.
@@ -217,17 +153,17 @@ export async function openShell(
 }
 
 /**
- * Open the shell and show the roster, which on phone and tablet widths means
- * opening the drawer that seats it. Every suite that drives the shell with the
- * roster visible goes through `auditShellAtEachWidth`, which opens through
- * here; the shell suites that arrange one width at a time open through
- * `openShell` and call `openDrawerIfPresent` themselves.
+ * Open the shell and show the roster, which on a narrow width means opening the
+ * drawer that seats it.
+ *
+ * The surface list in `a11y-surfaces.ts` opens through here, so every roster
+ * arrangement reaches the state it names the same way.
  * @param harness - the suite's browser harness.
  * @param fixture - the registry the page boots against.
  * @param view - the viewport and palette the case is measured under.
  * @returns the page, showing the shell with the roster visible.
  */
-async function openShellWithDrawer(
+export async function openShellWithDrawer(
   harness: Harness,
   fixture: Parameters<typeof fleet>[0] = {},
   view?: Parameters<Harness['open']>[1],

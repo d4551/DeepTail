@@ -13,6 +13,7 @@
 
 export const SHIPPED_CHECKS: readonly string[] = [
   'asReported',
+  'carriesText',
   'checkAlignment',
   'checkAriaReferences',
   'checkClassVocabulary',
@@ -48,8 +49,10 @@ export const SHIPPED_CHECKS: readonly string[] = [
   'finiteAnimations',
   'gridAncestor',
   'isLayoutPane',
+  'laidOutChildren',
   'lineWidths',
   'pixelLength',
+  'reachableTargets',
   'readFocusRing',
   'reportCasing',
   'reportFamily',
@@ -59,5 +62,6 @@ export const SHIPPED_CHECKS: readonly string[] = [
   'reportTracking',
   'reportWeight',
   'scrolls',
+  'surfaceElements',
   'waitForFiniteAnimations',
 ]

@@ -16,7 +16,7 @@ import { createGrantLedger } from '../apps/deeptail/src/capabilities/grants.ts'
 import { createTranslate } from '../apps/deeptail/src/locales.ts'
 import { createAppRuntime } from '../apps/deeptail/src/runtime.ts'
 import { mountShellFrame } from '../apps/deeptail/src/ui/shell-frame.ts'
-import { assertPaintedShell, documentOffences } from './paint-contract.ts'
+import { assertPaintedDocument, assertPaintedShell } from './paint-contract.ts'
 
 /** The empty mount Vite writes, which this paint replaces. */
 export const EMPTY_ROOT = '<div id="root"></div>'
@@ -54,10 +54,7 @@ export function firstPaintMarkup(): string {
  */
 export function paintIndex(html: string): string {
   if (!html.includes(EMPTY_ROOT)) throw new Error('deeptail: dist/index.html has no empty #root to paint')
-  const painted = html.replace(EMPTY_ROOT, `<div id="root">${assertPaintedShell(firstPaintMarkup())}</div>`)
-  const refused = documentOffences(painted)
-  if (refused.length > 0) {
-    throw new Error(`deeptail: the stamped page is not the product document: ${refused.join('; ')}`)
-  }
-  return painted
+  return assertPaintedDocument(
+    html.replace(EMPTY_ROOT, `<div id="root">${assertPaintedShell(firstPaintMarkup())}</div>`),
+  )
 }

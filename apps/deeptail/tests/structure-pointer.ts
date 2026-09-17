@@ -13,6 +13,7 @@
  * @module
  */
 
+import { reachableTargets } from './structure-elements.ts'
 import { describe, pixelLength, type Report } from './structure-report.ts'
 
 /**
@@ -73,8 +74,7 @@ export function drawnBox(node: Element): {
  * @param limits - which elements take focus or activation, handed in by the caller.
  */
 export function checkOverlappingTargets(add: Report, limits: { readonly interactive: string }): void {
-  const drawn = [...document.querySelectorAll(limits.interactive)]
-    .filter((node) => node.closest('[inert]') === null && node instanceof HTMLElement && node.checkVisibility())
+  const drawn = reachableTargets(limits)
     .map((node) => ({ node, box: drawnBox(node) }))
     // Nothing painted, nothing to overlap. A control scrolled out of its own
     // pane still reports a layout box where it would sit if the pane were
@@ -104,15 +104,16 @@ interface PointerLimits {
 
 /**
  * Every control a finger reaches clears the platform minimum.
+ *
+ * An inert subtree is not reachable, so its geometry is not a target, and
+ * neither is a control that paints nothing — the shared read of what the
+ * caller's selector reaches excludes both before either measurement is taken.
  * @param add - collects a finding.
  * @param limits - what the checks measure against.
  */
 export function checkTouchTargets(add: Report, limits: PointerLimits): void {
   const floor = limits.target
-  for (const node of document.querySelectorAll(limits.interactive)) {
-    // An inert subtree is not reachable, so its geometry is not a target.
-    if (node.closest('[inert]') !== null) continue
-    if (!(node instanceof HTMLElement) || !node.checkVisibility()) continue
+  for (const node of reachableTargets(limits)) {
     const box = node.getBoundingClientRect()
     // A control that is shown and takes focus but paints nothing is unreachable
     // in fact: the operator cannot aim at what occupies no pixels.
@@ -261,17 +262,14 @@ export function coveringAt(node: HTMLElement): Element | undefined {
  * read, and the page put back the way it was found. `preventScroll` keeps the
  * measurement from moving the page out from under the other rules in the same
  * pass, and the opener is restored at the end. A control that does not take
- * focus is not this rule's subject.
+ * focus is not this rule's subject, and neither is a disabled one: focusing it
+ * would report the ring it never had a chance to paint.
  * @param add - collects a finding.
  * @param limits - which elements take focus or activation, handed in by the caller.
  */
 export function checkFocusVisible(add: Report, limits: { readonly interactive: string }): void {
   const opener = document.activeElement
-  for (const node of document.querySelectorAll(limits.interactive)) {
-    if (node.closest('[inert]') !== null) continue
-    if (!(node instanceof HTMLElement) || !node.checkVisibility()) continue
-    // A disabled control is not focusable, so focusing it would report the ring
-    // it never had a chance to paint.
+  for (const node of reachableTargets(limits)) {
     if (node.hasAttribute('disabled')) continue
     // Resting is the state a control is in when it does *not* hold focus, so the
     // read has to happen with focus somewhere else. The control the reader is

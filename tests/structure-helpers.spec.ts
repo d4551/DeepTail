@@ -1,41 +1,35 @@
 /**
- * The geometry halves of the browser-suite structure helpers: how an element
- * is named, what the declaration-only geometry reads, and what the layout and
- * pointer checks report for markup built right here.
+ * The shared reads and the scroll subject: how an element is named, what the
+ * computed values read, which elements a scope and a pointer's selector reach,
+ * and what a pane that scrolls reports.
  *
  * happy-dom paints no box, so every rectangle is zero — where a branch needs
  * one, the case paints a rectangle onto the element instance it belongs to,
  * and the painted-box arithmetic itself is still the browser suites' account
  * of what a real engine does. What a helper reads off the declaration and off
  * markup built here is driven here, where the mutation runs can judge it. The
- * page-contract halves are held in `structure-page.spec.ts` and the markup
- * defects in `structure-defects.spec.ts`.
+ * checks that read a box live in `structure-helpers-layout.spec.ts` and
+ * `structure-helpers-rows.spec.ts`, the pointer and focus halves in
+ * `structure-helpers-pointer.spec.ts` and `structure-helpers-focus.spec.ts`,
+ * and the markup defects in `structure-defects.spec.ts`.
  */
 
 import { beforeEach, expect, it } from 'bun:test'
 import {
-  checkAlignment,
-  checkClipping,
-  checkGrid,
+  carriesText,
+  laidOutChildren,
+  reachableTargets,
+  surfaceElements,
+} from '../apps/deeptail/tests/structure-elements.ts'
+import { clippedAway, describe, pixelLength } from '../apps/deeptail/tests/structure-report.ts'
+import {
   checkHorizontalOverflow,
-  checkListGutters,
   checkNestedScroll,
-  gridAncestor,
   isLayoutPane,
   scrolls,
-} from '../apps/deeptail/tests/structure-layout.ts'
-import { checkTouchTargets, drawnBox } from '../apps/deeptail/tests/structure-pointer.ts'
-import { describe } from '../apps/deeptail/tests/structure-report.ts'
+} from '../apps/deeptail/tests/structure-scroll.ts'
 import { resetDocument } from './dom.ts'
 import { collector, paintBox, surface } from './structure-double.ts'
-
-/**
- * The physical spellings the alignment check exists to report, assembled so
- * this file's own source carries none of them whole — the same read the
- * sheet-gate suite makes of its fixtures.
- */
-const PHYSICAL_LEFT = ['le', 'ft'].join('')
-const PHYSICAL_JUSTIFY = ['ju', 'stify'].join('')
 
 /**
  * The declarations the geometry checks read, as one stylesheet the document
@@ -47,15 +41,9 @@ const DECLARATIONS = [
   '.scroll-scroll { overflow-y: scroll; }',
   '.scroll-hidden { overflow-y: hidden; }',
   '.clip-x { overflow-x: hidden; }',
-  '.overflow-visible { overflow: visible; }',
-  '.ellipsis { text-overflow: ellipsis; }',
-  '.grid-root { display: grid; }',
-  '.grid-inline { display: inline-grid; }',
-  '.table-rows { display: table; }',
-  `.align-${PHYSICAL_LEFT} { text-align: ${PHYSICAL_LEFT}; }`,
-  `.align-${PHYSICAL_JUSTIFY} { text-align: ${PHYSICAL_JUSTIFY}; }`,
   '.off-page { display: none; }',
-  '.viewport-fixed { position: fixed; }',
+  '.visually-hidden { clip: rect(0px, 0px, 0px, 0px); }',
+  '.partly-clipped { clip: rect(1px, 1px, 1px, 1px); }',
 ].join('\n')
 
 beforeEach(() => {
@@ -74,6 +62,115 @@ it('names an element by its tag, its id, and its classes', () => {
   oneClass.className = 'label'
   expect(describe(oneClass)).toBe('span.label')
   expect(describe(document.createElement('button'))).toBe('button')
+})
+
+it('reads the pixels a computed length holds, and nought for a keyword that holds none', () => {
+  expect(pixelLength('12px')).toBe(12)
+  expect(pixelLength('13.33px')).toBe(13.33)
+  expect(pixelLength(' 2px ')).toBe(2)
+  // A keyword a font choice left in place has no length in it at all, and
+  // answering nought for it is what lets a caller tell the two apart.
+  expect(pixelLength('normal')).toBe(0)
+  expect(pixelLength('')).toBe(0)
+})
+
+it('reads a box its own clip leaves nothing to paint, and one with something to paint', () => {
+  const hidden = document.createElement('span')
+  hidden.className = 'visually-hidden'
+  const clipped = document.createElement('span')
+  clipped.className = 'partly-clipped'
+  const shown = document.createElement('span')
+  document.body.append(hidden, clipped, shown)
+  expect(clippedAway(getComputedStyle(hidden))).toBe(true)
+  expect(clippedAway(getComputedStyle(clipped))).toBe(false)
+  // Nothing declares a clip, so the computed value is the keyword.
+  expect(clippedAway(getComputedStyle(shown))).toBe(false)
+})
+
+it('reads text an element carries itself, rather than the text of a child', () => {
+  const own = document.createElement('p')
+  own.textContent = 'Sessions'
+  const blank = document.createElement('p')
+  blank.textContent = '   '
+  const holder = document.createElement('p')
+  holder.append(own)
+  const both = document.createElement('p')
+  both.append(holder, document.createTextNode('Roster'))
+  document.body.append(own, blank, holder, both)
+  expect([carriesText(own), carriesText(blank), carriesText(holder), carriesText(both)]).toEqual([
+    true,
+    false,
+    false,
+    true,
+  ])
+})
+
+it('reads the element children that paint a box, and leaves the hidden and the unlaid', () => {
+  const parent = document.createElement('div')
+  const painted = document.createElement('button')
+  painted.id = 'painted'
+  const collapsed = document.createElement('button')
+  collapsed.id = 'collapsed'
+  const hidden = document.createElement('button')
+  hidden.id = 'hidden'
+  hidden.className = 'off-page'
+  const drawing = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  parent.append(painted, collapsed, hidden, drawing)
+  document.body.append(parent)
+  paintBox(painted, { top: 0, left: 0, right: 20, bottom: 20 })
+  paintBox(collapsed, { top: 0, left: 0, right: 20, bottom: 0 })
+  paintBox(hidden, { top: 0, left: 0, right: 20, bottom: 20 })
+  paintBox(drawing, { top: 0, left: 0, right: 20, bottom: 20 })
+  expect(laidOutChildren(parent).map((one) => one.id)).toEqual(['painted'])
+})
+
+it('reads every element of every surface, each surface included and read once', () => {
+  const outer = surface('div')
+  outer.id = 'outer'
+  const inner = surface('div')
+  inner.id = 'inner'
+  const leaf = document.createElement('span')
+  inner.append(leaf)
+  outer.append(inner)
+  const single = surface('p')
+  single.id = 'single'
+  document.body.append(outer, single)
+  // The nested surface is reached by one walk and named once: a defect inside
+  // it is one finding, not one per root that can reach it.
+  expect(surfaceElements('[data-structure-scope]').map((one) => one.id)).toEqual([
+    'outer',
+    'inner',
+    '',
+    'single',
+  ])
+})
+
+it('reads the shadow content of a surface, which the document tree does not carry', () => {
+  const host = surface('div')
+  const shadow = host.attachShadow({ mode: 'open' })
+  const drawn = document.createElement('span')
+  drawn.id = 'in-shadow'
+  shadow.append(drawn)
+  document.body.append(host)
+  expect(surfaceElements('[data-structure-scope]').map((one) => one.id)).toEqual(['', 'in-shadow'])
+})
+
+it('reads the controls a pointer can reach, and leaves the inert, the hidden and the unrendered', () => {
+  const reachable = document.createElement('button')
+  reachable.id = 'reachable'
+  const hidden = document.createElement('button')
+  hidden.id = 'hidden'
+  hidden.className = 'off-page'
+  const walled = document.createElement('div')
+  walled.setAttribute('inert', '')
+  const inside = document.createElement('button')
+  inside.id = 'inside'
+  walled.append(inside)
+  const drawing = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  drawing.id = 'drawing'
+  drawing.setAttribute('role', 'button')
+  document.body.append(reachable, hidden, walled, drawing)
+  expect(reachableTargets({ interactive: 'button, [role="button"]' }).map((one) => one.id)).toEqual(['reachable'])
 })
 
 it('reads a vertical scroll container off the declaration, not off the overflow', () => {
@@ -134,6 +231,19 @@ it('does not read an editor scrolling its own value as a second pane', () => {
   expect(findings).toEqual([])
 })
 
+it('reads a pane with nothing scrolling above it, and a pane attached to nothing, as conforming', () => {
+  const outer = document.createElement('div')
+  const inner = document.createElement('div')
+  inner.className = 'scroll-auto'
+  outer.append(inner)
+  const loose = document.createElement('div')
+  loose.className = 'scroll-auto'
+  document.body.append(outer, loose)
+  const { findings, add } = collector()
+  checkNestedScroll(add)
+  expect(findings).toEqual([])
+})
+
 it('reads a document that fits its viewport as not overflowing sideways', () => {
   const wide = document.createElement('div')
   wide.textContent = 'Roster'
@@ -152,175 +262,4 @@ it('reports a document that scrolls past its own viewport', () => {
   Reflect.deleteProperty(doc, 'scrollWidth')
   Reflect.deleteProperty(doc, 'clientWidth')
   expect(findings).toEqual([{ rule: 'horizontal-overflow', detail: 'document scrolls to 900 in 600' }])
-})
-
-it('reads text that fits its box as not clipped', () => {
-  const label = document.createElement('span')
-  label.textContent = 'Pair host'
-  document.body.append(label)
-  const { findings, add } = collector()
-  checkClipping(add)
-  expect(findings).toEqual([])
-})
-
-it('reports text that overruns its box without a scroll or ellipsis, and stays silent for one pixel and an ellipsis', () => {
-  const overrun = document.createElement('span')
-  overrun.className = 'overflow-visible'
-  overrun.textContent = 'Pair host'
-  const boundary = document.createElement('span')
-  boundary.textContent = 'Pair host'
-  const truncated = document.createElement('span')
-  truncated.className = 'overflow-visible ellipsis'
-  truncated.textContent = 'Pair host'
-  document.body.append(overrun, boundary, truncated)
-  Object.defineProperty(overrun, 'scrollWidth', { value: 120, configurable: true })
-  Object.defineProperty(overrun, 'clientWidth', { value: 80, configurable: true })
-  Object.defineProperty(boundary, 'scrollWidth', { value: 81, configurable: true })
-  Object.defineProperty(boundary, 'clientWidth', { value: 80, configurable: true })
-  Object.defineProperty(truncated, 'scrollWidth', { value: 120, configurable: true })
-  Object.defineProperty(truncated, 'clientWidth', { value: 80, configurable: true })
-  const { findings, add } = collector()
-  checkClipping(add)
-  expect(findings).toEqual([
-    { rule: 'clipped-content', detail: 'span.overflow-visible overflows its box without a scroll or ellipsis' },
-  ])
-})
-
-it('names the nearest grid ancestor, and nothing when no ancestor is a grid', () => {
-  const root = surface('div')
-  root.className = 'grid-root'
-  const inner = document.createElement('div')
-  root.append(inner)
-  document.body.append(root)
-  expect(gridAncestor(inner)).toBe(root)
-  const flat = document.createElement('div')
-  document.body.append(flat)
-  expect(gridAncestor(flat)).toBeUndefined()
-  expect(gridAncestor(document.createElement('div'))).toBeUndefined()
-})
-
-it('reports a grid nested in a grid, a table used as a grid, and a headerless layout table', () => {
-  const root = surface('div')
-  root.className = 'grid-root'
-  const inner = document.createElement('div')
-  inner.className = 'grid-inline'
-  const tableStyled = document.createElement('div')
-  tableStyled.className = 'table-rows'
-  const layout = document.createElement('table')
-  const headed = document.createElement('table')
-  headed.append(document.createElement('th'))
-  root.append(inner, tableStyled, layout, headed)
-  document.body.append(root)
-  const { findings, add } = collector()
-  checkGrid(add, { scope: '[data-structure-scope]' })
-  expect(findings).toEqual([
-    { rule: 'nested-grid', detail: 'div.grid-inline is a grid inside div.grid-root, which is also a grid' },
-    { rule: 'hardcoded-grid', detail: 'div.table-rows uses display:table as a layout grid' },
-    { rule: 'layout-table', detail: 'table is a table with no header, used as a layout grid' },
-  ])
-})
-
-it('reports physical or justified text alignment computed at runtime, and start stays silent', () => {
-  const root = surface('div')
-  const left = document.createElement('p')
-  left.className = `align-${PHYSICAL_LEFT}`
-  const justified = document.createElement('p')
-  justified.className = `align-${PHYSICAL_JUSTIFY}`
-  const start = document.createElement('p')
-  root.append(left, justified, start)
-  document.body.append(root)
-  const { findings, add } = collector()
-  checkAlignment(add, { scope: '[data-structure-scope]' })
-  expect(findings).toEqual([
-    { rule: 'alignment', detail: `p.align-${PHYSICAL_LEFT} uses physical or justified text-align ${PHYSICAL_LEFT}` },
-    {
-      rule: 'alignment',
-      detail: `p.align-${PHYSICAL_JUSTIFY} uses physical or justified text-align ${PHYSICAL_JUSTIFY}`,
-    },
-  ])
-})
-
-it('reads a list whose rows keep one rhythm as conforming, and a list with no visible rows', () => {
-  const root = surface('div')
-  const list = document.createElement('div')
-  list.setAttribute('role', 'list')
-  const first = document.createElement('div')
-  const second = document.createElement('div')
-  const third = document.createElement('div')
-  list.append(first, second, third)
-  const empty = document.createElement('div')
-  empty.setAttribute('role', 'list')
-  root.append(list, empty)
-  document.body.append(root)
-  paintBox(first, { top: 0, left: 0, right: 100, bottom: 20 })
-  paintBox(second, { top: 30, left: 0, right: 100, bottom: 50 })
-  paintBox(third, { top: 60, left: 0, right: 100, bottom: 80 })
-  const silent = collector()
-  checkListGutters(silent.add, { scope: '[data-structure-scope]' })
-  expect(silent.findings).toEqual([])
-})
-
-it("reports a row off the list's own rhythm, and stays silent within a pixel of it", () => {
-  const root = surface('div')
-  const list = document.createElement('div')
-  list.setAttribute('role', 'list')
-  const first = document.createElement('div')
-  const second = document.createElement('div')
-  const third = document.createElement('div')
-  const adrift = document.createElement('div')
-  list.append(first, second, third, adrift)
-  root.append(list)
-  document.body.append(root)
-  paintBox(first, { top: 0, left: 0, right: 100, bottom: 20 })
-  paintBox(second, { top: 30, left: 0, right: 100, bottom: 50 })
-  paintBox(third, { top: 60, left: 0, right: 100, bottom: 80 })
-  paintBox(adrift, { top: 104, left: 0, right: 100, bottom: 124 })
-  const { findings, add } = collector()
-  checkListGutters(add, { scope: '[data-structure-scope]' })
-  expect(findings).toEqual([
-    {
-      rule: 'inconsistent-gutter',
-      detail: "div sits 24px below the row above, where the list's own rhythm is 10px",
-    },
-  ])
-})
-
-it('intersects a laid-out box with every ancestor that clips it, and stops at a fixed box', () => {
-  // happy-dom paints no box, so every edge reads zero; what is driven here is
-  // the walk itself — the clipping intersection, the fixed stop, and the
-  // detached stop. The painted-box arithmetic is the browser suites' account.
-  const pane = document.createElement('div')
-  pane.className = 'clip-x'
-  const target = document.createElement('button')
-  pane.append(target)
-  const pinned = document.createElement('div')
-  pinned.className = 'viewport-fixed'
-  document.body.append(pane, pinned)
-  expect(drawnBox(target)).toEqual({ top: 0, left: 0, right: 0, bottom: 0 })
-  expect(drawnBox(pinned)).toEqual({ top: 0, left: 0, right: 0, bottom: 0 })
-  expect(drawnBox(document.createElement('button'))).toEqual({ top: 0, left: 0, right: 0, bottom: 0 })
-})
-
-it('clips a drawn box into an ancestor that clips vertically, and leaves the horizontal edges to the x axis', () => {
-  const pane = document.createElement('div')
-  pane.className = 'scroll-scroll'
-  const target = document.createElement('button')
-  pane.append(target)
-  document.body.append(pane)
-  paintBox(target, { top: 10, left: 10, right: 110, bottom: 60 })
-  paintBox(pane, { top: 20, left: 40, right: 200, bottom: 50 })
-  expect(drawnBox(target)).toEqual({ top: 20, left: 10, right: 110, bottom: 50 })
-})
-
-it('reports a visible control that paints no box as collapsed, and skips what is not reachable', () => {
-  const live = document.createElement('button')
-  const hidden = document.createElement('button')
-  hidden.className = 'off-page'
-  const walled = document.createElement('div')
-  walled.setAttribute('inert', '')
-  walled.append(document.createElement('button'))
-  document.body.append(live, hidden, walled)
-  const { findings, add } = collector()
-  checkTouchTargets(add, { target: 24, interactive: 'button' })
-  expect(findings).toEqual([{ rule: 'target-collapsed', detail: 'button takes focus but paints no box' }])
 })

@@ -10,8 +10,15 @@
 
 import { rulesetsOf } from './sheet-reader.ts'
 
-/** How a selector may reach from one compound to the next. */
-const COMBINATORS = /\s*[>+~]\s*|\s+/gu
+/**
+ * A compound: one run of the characters a selector reaches through.
+ *
+ * Read as what a compound is made of rather than as the separators between two
+ * of them, so a chain is counted by its compounds: whitespace is one separator
+ * however wide the run is, and a selector that opens with a combinator opens
+ * with no compound at all — a run that is not there cannot be counted.
+ */
+const COMPOUND = /[^\s>+~]+/gu
 
 /**
  * The most compounds a selector may chain.
@@ -29,7 +36,7 @@ export const MAX_COMPOUNDS = 3
  * @returns the count of compounds the selector reaches through.
  */
 function compoundsOf(one: string): number {
-  return one.split(COMBINATORS).filter((compound) => compound !== '').length
+  return [...one.matchAll(COMPOUND)].length
 }
 
 /**

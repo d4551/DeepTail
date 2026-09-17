@@ -154,16 +154,19 @@ const PINNED_NAMES = new Set([
  * Every tool the prose names twice at versions that cannot both be true.
  *
  * A badge stating Playwright 1.62 and a toolchain line stating 1.63.0 used to
- * pass because the reader kept only the last match. Two claims that are not
- * coarsenings of each other are a lie, wherever they sit.
+ * pass because the reader kept one claim per name, and the badges are read
+ * last: a line stating a version the badge contradicts is exactly the claim
+ * last-wins hides. Two claims that are not coarsenings of each other are a lie,
+ * wherever they sit.
  * @param text - the prose to read.
+ * @param held - the names a contradiction is reported for, the named tools by default.
  * @returns one line per tool the prose contradicts itself about.
  */
-export function documentationConflicts(text: string): string[] {
+export function documentationConflicts(text: string, held: ReadonlySet<string> = PINNED_NAMES): string[] {
   const seen = new Map<string, string>()
   const conflicts: string[] = []
   for (const claim of statedClaims(text)) {
-    if (!PINNED_NAMES.has(claim.name)) continue
+    if (!held.has(claim.name)) continue
     const previous = seen.get(claim.name)
     if (previous === undefined) {
       seen.set(claim.name, claim.version)
@@ -218,6 +221,25 @@ function namedPackages(declared: ReadonlyMap<string, string>): Map<string, strin
     byBasename.set(name.toLowerCase(), packageName)
   }
   return byBasename
+}
+
+/**
+ * Every name a version in the documentation may be written under.
+ *
+ * The names the toolchain line is required to use, and every package this
+ * repository declares under the name its own basename gives it: `@biomejs/biome`
+ * is documented as `Biome`, so a sentence about Biome is a sentence about a pin,
+ * and two sentences that disagree about it are a contradiction like any other.
+ * @param declared - every dependency the repository declares.
+ * @returns the names a stated version is held to.
+ */
+export function documentedNames(declared: ReadonlyMap<string, string>): ReadonlySet<string> {
+  const names = new Set(PINNED_NAMES)
+  for (const name of declared.keys()) {
+    const basename = name.slice(name.lastIndexOf('/') + 1)
+    names.add(`${basename.charAt(0).toUpperCase()}${basename.slice(1)}`)
+  }
+  return names
 }
 
 /**
