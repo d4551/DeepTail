@@ -88,6 +88,10 @@ interface OpenSocket {
 
 /**
  * Open a collecting socket on one host, the way a case that drives frames wants.
+ *
+ * The frames go through the channel the double holds rather than the socket the
+ * case built, because that is the value Rust addresses: a case that drove its
+ * own copy would be reading a wire the backend never reaches.
  * @param host - the host to open against.
  * @returns the socket's subscriber list and the channel the wire delivers to.
  */
@@ -153,11 +157,11 @@ describe('a channel over the installed runtime', () => {
 
 describe('the frames a delivered socket receives', () => {
   it('reaches the subscriber that built it, inside the envelope the library unwraps', async () => {
-    const { arrived, opened } = await openCollectingSocket()
+    const collected = await openCollectingSocket()
     // An envelope the library could not read would leave this list empty, which
     // is what says the double delivered the frame rather than only recording it.
-    opened.receive(frameOf('roster'))
-    expect(arrived).toEqual(['roster'])
+    collected.opened.receive(frameOf('roster'))
+    expect(collected.arrived).toEqual(['roster'])
   })
 
   it('holds back a frame that arrives out of order, then releases it in the wire order', async () => {
@@ -180,10 +184,10 @@ describe('the frames a delivered socket receives', () => {
     // The numbering is what the library reads, not the frame's own contents: a
     // redelivery is a delivery, and the double says so by numbering it rather
     // than by holding it back. Nothing may infer the index from the frame.
-    const { arrived, opened } = await openCollectingSocket()
-    opened.receive(frameOf('roster'))
-    opened.receive(frameOf('roster'))
-    expect(arrived).toEqual(['roster', 'roster'])
+    const again = await openCollectingSocket()
+    again.opened.receive(frameOf('roster'))
+    again.opened.receive(frameOf('roster'))
+    expect(again.arrived).toEqual(['roster', 'roster'])
   })
 })
 

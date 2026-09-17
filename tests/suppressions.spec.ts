@@ -10,6 +10,10 @@
  * does, and reads as nothing at all in a diff. Neither linter names files to
  * skip: what each reads is decided by the repository's own ship list — git's —
  * and one list decides for every checker.
+ *
+ * The reads are bracket reads because `tsconfig.base.json` sets
+ * `noPropertyAccessFromIndexSignature`, and a parsed configuration is an index
+ * signature: the compiler is the authority on how a member of one is reached.
  */
 
 import { expect, it } from 'bun:test'
@@ -34,9 +38,9 @@ function section(held: Json | undefined, where: string): { readonly [key: string
 
 /** Pin the dead-code reader's configuration to its empty-handed shape. */
 function pinKnip(): void {
-  const declared = section(readManifest('knip.json').workspaces, 'knip.json workspaces')
+  const declared = section(readManifest('knip.json')['workspaces'], 'knip.json workspaces')
   for (const [name, workspace] of Object.entries(declared)) {
-    expect([name, section(workspace, `knip.json ${name}`).ignoreDependencies]).toEqual([name, undefined])
+    expect([name, section(workspace, `knip.json ${name}`)['ignoreDependencies']]).toEqual([name, undefined])
   }
 }
 
@@ -46,12 +50,11 @@ function pinBiome(): void {
   // Biome names no files of its own: coverage follows git's ship list through
   // the ignore file the repository keeps, and one list decides for every
   // checker.
-  expect(biome.files).toBeUndefined()
-  expect(section(biome.vcs, 'biome.json vcs').useIgnoreFile).toBe(true)
-  expect(biome.overrides).toBeUndefined()
-  const linter = section(biome.linter, 'biome.json linter')
-  const rules = section(linter.rules, 'biome.json linter.rules')
-  expect(rules.preset).toBe('recommended')
+  expect([biome['files'], biome['overrides']]).toEqual([undefined, undefined])
+  expect(section(biome['vcs'], 'biome.json vcs')['useIgnoreFile']).toBe(true)
+  const linter = section(biome['linter'], 'biome.json linter')
+  const rules = section(linter['rules'], 'biome.json linter.rules')
+  expect(rules['preset']).toBe('recommended')
   // Every level this config states, with the preset name -- which is not a
   // level -- left out. Filtering for `off` alone was the same oversight this
   // file's own header describes: a rule dropped to `warn` or `info` reports
@@ -60,7 +63,7 @@ function pinBiome(): void {
     isJsonObject(value) ? Object.values(value) : group === 'preset' ? [] : [value],
   )
   expect(levels.filter((level) => level !== 'error')).toEqual([])
-  expect(linter.enabled).not.toBe(false)
+  expect(linter['enabled']).not.toBe(false)
 }
 
 /** Pin the second linter: every category at `error`, no ignore list. */
@@ -69,17 +72,19 @@ function pinOxlint(): void {
   // `oxc` is on by default and a plugin list replaces that default rather than
   // adding to it, so leaving it out of the list switched a whole set of rules
   // off with nothing in the file saying so.
-  expect(oxlint.plugins).toEqual(['typescript', 'unicorn', 'promise', 'oxc'])
-  expect(oxlint.categories).toEqual({
+  expect(oxlint['plugins']).toEqual(['typescript', 'unicorn', 'promise', 'oxc'])
+  expect(oxlint['categories']).toEqual({
     correctness: 'error',
     suspicious: 'error',
     perf: 'error',
     pedantic: 'error',
   })
-  const rules = section(oxlint.rules, '.oxlintrc.json rules')
-  expect(Object.values(rules).filter((level) => level !== 'error')).toEqual([])
-  expect(oxlint.ignorePatterns).toBeUndefined()
-  expect(oxlint.overrides).toBeUndefined()
+  // Named for what it holds: this suite pins the second linter's rule map empty
+  // of anything but `error`, which is the same reading the stack suite makes of
+  // the same file — one read there and one here, each named for its own reader.
+  const stated = section(oxlint['rules'], '.oxlintrc.json rules')
+  expect(Object.values(stated).filter((level) => level !== 'error')).toEqual([])
+  expect([oxlint['ignorePatterns'], oxlint['overrides']]).toEqual([undefined, undefined])
 }
 
 it('keeps every suppression list empty', () => {

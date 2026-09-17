@@ -36,7 +36,7 @@ interface Offence {
 function calleeName(node: Field | undefined): string | undefined {
   const callee = unwrap(fieldOf(node, 'callee'))
   if (!isNode(callee)) return undefined
-  if (callee.type === 'Identifier') return typeof callee.name === 'string' ? callee.name : undefined
+  if (callee.type === 'Identifier') return typeof callee['name'] === 'string' ? callee['name'] : undefined
   return memberName(callee)
 }
 
@@ -50,7 +50,7 @@ function callFlags(node: Field | undefined): string | undefined {
   if (!Array.isArray(args) || args.length < 2) return undefined
   const flags = unwrap(args[1])
   if (!isNode(flags) || flags.type !== 'Literal') return undefined
-  return typeof flags.value === 'string' ? flags.value : undefined
+  return typeof flags['value'] === 'string' ? flags['value'] : undefined
 }
 
 /**
@@ -68,7 +68,7 @@ function flaglessRegexes(label: string, text: string): readonly Offence[] {
   const parsed = parseScript(label, text)
   const found: Offence[] = []
   walk(parsed.body, (node) => {
-    const line = parsed.lineAt(node.start)
+    const line = parsed.lineAt(node['start'])
     const regex = fieldOf(node, 'regex')
     if (regex !== null && regex !== undefined) {
       const flags = fieldOf(regex, 'flags')

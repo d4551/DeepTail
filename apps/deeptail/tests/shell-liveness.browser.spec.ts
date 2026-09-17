@@ -112,7 +112,7 @@ it('keeps keyboard focus on a row when the roster rebuilds beneath it', async ()
   // the floor would leave nothing focused.
   const order = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>('[data-deeptail-session]')].map(
-      (row) => row.dataset.deeptailSession ?? '',
+      (row) => row.getAttribute('data-deeptail-session') ?? '',
     ),
   )
   expect(order).toContain('s-idle')
@@ -122,7 +122,10 @@ it('keeps keyboard focus on a row when the roster rebuilds beneath it', async ()
   await page.keyboard.press('ArrowDown')
   expect(
     await page.evaluate(
-      () => document.activeElement?.closest<HTMLElement>('[data-deeptail-session]')?.dataset.deeptailSession ?? null,
+      () =>
+        document.activeElement
+          ?.closest<HTMLElement>('[data-deeptail-session]')
+          ?.getAttribute('data-deeptail-session') ?? null,
     ),
   ).toBe(follows)
   await page.close()

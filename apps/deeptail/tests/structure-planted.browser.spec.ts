@@ -23,9 +23,9 @@ const MARKUP_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const outer = document.createElement('button')
-        outer.dataset.deeptailProbe = 'nest-outer'
+        outer.setAttribute('data-deeptail-probe', 'nest-outer')
         const inner = document.createElement('button')
-        inner.dataset.deeptailProbe = 'nest-inner'
+        inner.setAttribute('data-deeptail-probe', 'nest-inner')
         outer.append(inner)
         document.querySelector('[data-deeptail-shell] main')?.append(outer)
       })
@@ -38,10 +38,10 @@ const MARKUP_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const heading = document.createElement('h3')
-        heading.dataset.deeptailProbe = 'skip-h3'
+        heading.setAttribute('data-deeptail-probe', 'skip-h3')
         heading.textContent = 'Skipped'
         const extra = document.createElement('h1')
-        extra.dataset.deeptailProbe = 'extra-h1'
+        extra.setAttribute('data-deeptail-probe', 'extra-h1')
         extra.textContent = 'Also'
         document.querySelector('[data-deeptail-shell] main')?.append(heading, extra)
       })
@@ -54,7 +54,7 @@ const MARKUP_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const node = document.createElement('div')
-        node.dataset.deeptailProbe = 'dangling'
+        node.setAttribute('data-deeptail-probe', 'dangling')
         node.setAttribute('aria-controls', 'nowhere-at-all')
         document.querySelector('[data-deeptail-shell] main')?.append(node)
       })
@@ -67,7 +67,7 @@ const MARKUP_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const list = document.createElement('div')
-        list.dataset.deeptailProbe = 'bad-list'
+        list.setAttribute('data-deeptail-probe', 'bad-list')
         list.setAttribute('role', 'list')
         const stray = document.createElement('div')
         stray.textContent = 'not an item'
@@ -83,7 +83,7 @@ const MARKUP_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const group = document.createElement('fieldset')
-        group.dataset.deeptailProbe = 'bare-fieldset'
+        group.setAttribute('data-deeptail-probe', 'bare-fieldset')
         group.append(document.createElement('input'))
         document.querySelector('[data-deeptail-shell] main')?.append(group)
       })
@@ -96,7 +96,7 @@ const MARKUP_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const node = document.createElement('div')
-        node.dataset.deeptailProbe = 'stray-class'
+        node.setAttribute('data-deeptail-probe', 'stray-class')
         node.className = 'not-a-shipped-class'
         document.querySelector('[data-deeptail-shell] main')?.append(node)
       })
@@ -109,7 +109,7 @@ const MARKUP_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const table = document.createElement('table')
-        table.dataset.deeptailProbe = 'table'
+        table.setAttribute('data-deeptail-probe', 'table')
         const row = table.insertRow()
         row.insertCell().textContent = 'layout'
         document.querySelector('[data-deeptail-shell]')?.append(table)
@@ -137,7 +137,7 @@ const MARKUP_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const line = document.createElement('p')
-        line.dataset.deeptailProbe = 'wide-line'
+        line.setAttribute('data-deeptail-probe', 'wide-line')
         line.textContent = 'w'.repeat(240)
         document.querySelector('[data-deeptail-shell] main')?.append(line)
       })
@@ -150,7 +150,7 @@ const MARKUP_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const host = document.createElement('div')
-        host.dataset.deeptailProbe = 'shadow-host'
+        host.setAttribute('data-deeptail-probe', 'shadow-host')
         const root = host.attachShadow({ mode: 'open' })
         const sheet = new CSSStyleSheet()
         sheet.replaceSync('p { font-size: 15px; }')
@@ -160,7 +160,7 @@ const MARKUP_SHAPES: readonly Planted[] = [
         shadowed.textContent = 'Roster'
         root.append(shadowed)
         const outer = document.createElement('div')
-        outer.dataset.deeptailProbe = 'scrolling-pane'
+        outer.setAttribute('data-deeptail-probe', 'scrolling-pane')
         const inner = document.createElement('div')
         inner.className = 'main-body'
         const deep = document.createElement('p')
@@ -171,7 +171,7 @@ const MARKUP_SHAPES: readonly Planted[] = [
         outer.append(inner)
         document.querySelector('[data-deeptail-shell] main')?.append(host, outer)
         const paint = document.createElement('style')
-        paint.dataset.deeptailProbe = 'scrolling-pane-sheet'
+        paint.setAttribute('data-deeptail-probe', 'scrolling-pane-sheet')
         paint.textContent = `[data-deeptail-probe="scrolling-pane"], [data-deeptail-probe="scrolling-pane"] .main-body { overflow-y: auto; } [data-deeptail-probe="scrolling-pane"] .main-title { font-size: 15px; }`
         document.head.append(paint)
       })
@@ -188,14 +188,14 @@ it('reports every box adrift on a line, and a row seated by a physical alignment
   await page.evaluate(() => {
     const row = document.createElement('div')
     row.id = 'adrift-row'
-    row.dataset.deeptailProbe = 'adrift-row'
+    row.setAttribute('data-deeptail-probe', 'adrift-row')
     row.append(document.createElement('div'), document.createElement('div'), document.createElement('div'))
     const physical = document.createElement('div')
     physical.id = 'physical-row'
-    physical.dataset.deeptailProbe = 'physical-row'
+    physical.setAttribute('data-deeptail-probe', 'physical-row')
     document.querySelector('[data-deeptail-shell] main')?.append(row, physical)
     const sheet = document.createElement('style')
-    sheet.dataset.deeptailProbe = 'adrift-row-sheet'
+    sheet.setAttribute('data-deeptail-probe', 'adrift-row-sheet')
     const box = ['40', 'px'].join('')
     const side = ['ri', 'ght'].join('')
     sheet.textContent = `[data-deeptail-probe="adrift-row"]{display:flex} [data-deeptail-probe="adrift-row"]>div{height:${box}} [data-deeptail-probe="adrift-row"]>div:nth-child(2){position:relative;top:5px} [data-deeptail-probe="adrift-row"]>div:nth-child(3){position:relative;top:10px} [data-deeptail-probe="physical-row"]{justify-items:${side}}`

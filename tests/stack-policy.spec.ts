@@ -19,7 +19,7 @@ import { type Json, readJsonc } from '../scripts/jsonc.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { joined } from './fixtures.ts'
 import { everyDependency, lockfileNames } from './manifests.ts'
-import { dialectPackageOffences, installedManifest } from './stack-packages.ts'
+import { absentControls, dialectPackageOffences, installedManifest, SHIPPED_CONTROLS } from './stack-packages.ts'
 import {
   FLOORS,
   isRetiredPackage,
@@ -234,10 +234,14 @@ describe('the stack policy refuses a retired pipeline’s configuration file', (
       expect(shipped.filter((label) => isRetiredPipelineConfig(label))).toEqual([])
       // The controls: the bundler, the linter, the type checker, the dead-code
       // finder, the mutation runner and the installer are configured by files of
-      // the same shape, and none of them is a CSS pipeline's.
-      expect(shipped).toContain('apps/deeptail/vite.config.ts')
-      expect(shipped).toContain('bunfig.toml')
-      expect(shipped).toContain('biome.json')
+      // the same shape, and none of them is a CSS pipeline's. The paths are the
+      // shared table in `stack-packages.ts`, so the other suite reading the same
+      // tree holds the same control rather than one of its own.
+      // Three of the controls, and the count is the assertion: a tree the walk
+      // stopped reading early would come back missing them, and a list of three
+      // that matched by luck would not say how many it was given.
+      expect(absentControls(shipped)).toHaveLength(0)
+      expect(SHIPPED_CONTROLS.length).toBe(3)
     },
     TREE_SCAN_BUDGET_MS,
   )
@@ -261,7 +265,7 @@ describe('the stack policy bans the rest of the ship list', () => {
 
   it('runs on a bun at the floor, and pins the manager to exactly what runs', async () => {
     const manifest = readJsonc(await readFile('package.json', 'utf8'))
-    const declared = managerPin(manifest.packageManager)
+    const declared = managerPin(manifest['packageManager'])
     if (declared === null) throw new Error('package.json must pin the package manager as bun@x.y.z')
     const [name, version] = declared
     // The floor is read from the table rather than written here: the pin and the

@@ -28,7 +28,7 @@ const SHELL_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const script = document.createElement('script')
-        script.dataset.deeptailProbe = 'script'
+        script.setAttribute('data-deeptail-probe', 'script')
         script.textContent = 'void 0'
         document.querySelector('[data-deeptail-shell]')?.append(script)
       })
@@ -41,7 +41,7 @@ const SHELL_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const script = document.createElement('script')
-        script.dataset.deeptailProbe = 'src-script'
+        script.setAttribute('data-deeptail-probe', 'src-script')
         script.src = '/one-off-helper.js'
         document.querySelector('[data-deeptail-shell]')?.append(script)
       })
@@ -54,7 +54,7 @@ const SHELL_SHAPES: readonly Planted[] = [
     plant: async (page) => {
       await page.evaluate(() => {
         const script = document.createElement('script')
-        script.dataset.deeptailProbe = 'body-script'
+        script.setAttribute('data-deeptail-probe', 'body-script')
         script.src = '/body-helper.js'
         document.body.append(script)
       })
@@ -72,7 +72,7 @@ const SHELL_SHAPES: readonly Planted[] = [
       ])
       await page.evaluate(() => {
         const inner = document.createElement('button')
-        inner.dataset.deeptailAction = 'drawer-dismiss'
+        inner.setAttribute('data-deeptail-action', 'drawer-dismiss')
         document.querySelector('[data-deeptail-probe="unreachable"]')?.append(inner)
       })
     },
@@ -98,10 +98,10 @@ const SHELL_SHAPES: readonly Planted[] = [
       await plantProbe(page, { probe: 'nested-surface', tag: 'div', picker: true })
       await page.evaluate(() => {
         const loose = document.createElement('main')
-        loose.dataset.deeptailProbe = 'loose-main'
+        loose.setAttribute('data-deeptail-probe', 'loose-main')
         const elsewhere = document.createElement('div')
-        elsewhere.dataset.deeptailShell = ''
-        elsewhere.dataset.deeptailProbe = 'outside-shell'
+        elsewhere.setAttribute('data-deeptail-shell', '')
+        elsewhere.setAttribute('data-deeptail-probe', 'outside-shell')
         elsewhere.append(document.createElement('main'))
         document.body.append(loose, elsewhere)
       })

@@ -64,7 +64,7 @@ export function scanEntry(label: string, text: string): Offence[] {
     if (DECLARATIONS.has(statement.type) || isEntryGuard(statement)) continue
     offences.push({
       label,
-      line: parsed.lineAt(statement.start),
+      line: parsed.lineAt(statement['start']),
       why: 'this runs when the module is imported; put the work behind `if (import.meta.main)`',
     })
   }

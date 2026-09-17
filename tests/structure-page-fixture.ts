@@ -9,6 +9,13 @@
  * the frame that keeps every promise of the dialog contract are what two suites
  * read, and a copy in each would drift.
  *
+ * Every marker is written by a function here that names its own attribute as a
+ * literal. That is not tidiness: the style gate reads the attribute name at the
+ * `setAttribute` call, so a helper that took the name as a parameter would be a
+ * name the gate cannot read, and it refuses exactly that. The same reason is why
+ * the writes are attributes rather than `dataset` members — a parsed attribute
+ * map is an index signature, and the compiler requires a bracket read of one.
+ *
  * @module
  */
 
@@ -18,15 +25,89 @@ import { paintBox } from './structure-double.ts'
 export const SCOPE = '[data-deeptail-shell], [data-deeptail-picker]'
 
 /**
+ * Mark one element as the shell, so the reader finds it by the attribute.
+ *
+ * Written through `setAttribute` with the name spelt out, rather than as a
+ * `dataset` member: `DOMStringMap` is an index signature, and
+ * `tsconfig.base.json` sets `noPropertyAccessFromIndexSignature`, so a `dataset`
+ * write of this name is a compiler error. The style gate reads the attribute
+ * name at the call, which is why the name is written here rather than passed in.
+ */
+function markShell(shell: HTMLElement): void {
+  shell.setAttribute('data-deeptail-shell', '')
+}
+
+/** Mark one element as the picker, so the reader finds it by the attribute. */
+function markPicker(picker: HTMLElement): void {
+  picker.setAttribute('data-deeptail-picker', '')
+}
+
+/** Mark one element as a dialog the shared frame built. */
+function markDialog(dialog: HTMLElement): void {
+  dialog.setAttribute('data-deeptail-dialog', '')
+}
+
+/**
+ * Mark one element with the action hook, so the shell check reads it.
+ * @param element - the control to mark.
+ * @param hook - the action names the hook carries.
+ */
+function markAction(element: HTMLElement, hook: string): void {
+  element.setAttribute('data-deeptail-action', hook)
+}
+
+/**
+ * One element marked as the shell, seated in the document.
+ * @param id - the element's id, when a finding's text has to name it.
+ * @returns the shell root.
+ */
+export function bareShell(id = ''): HTMLElement {
+  const shell = document.createElement('div')
+  if (id !== '') shell.id = id
+  markShell(shell)
+  document.body.append(shell)
+  return shell
+}
+
+/**
+ * One element marked as the picker, seated in the document.
+ * @param id - the element's id, when a finding's text has to name it.
+ * @returns the picker surface.
+ */
+export function barePicker(id = ''): HTMLElement {
+  const picker = document.createElement('div')
+  if (id !== '') picker.id = id
+  markPicker(picker)
+  document.body.append(picker)
+  return picker
+}
+
+/**
+ * One element carrying the action hook, seated in the document.
+ *
+ * The tag is the case's to choose because it is part of what the check reads: a
+ * `button` is a control a keyboard reaches and a `div` is not, and a case about
+ * an unreachable hook has to be able to say which it made.
+ * @param hook - the action names the hook carries.
+ * @param id - the element's id, when a finding's text has to name it.
+ * @param tag - the element to build, `button` by default.
+ * @returns the element.
+ */
+export function actionControl(hook: string, id = '', tag: 'button' | 'div' = 'button'): HTMLElement {
+  const control = document.createElement(tag)
+  if (id !== '') control.id = id
+  markAction(control, hook)
+  document.body.append(control)
+  return control
+}
+
+/**
  * One shell with an id and one main landmark in it, seated in the document.
  * @returns the shell.
  */
 export function shellWithMain(): HTMLElement {
-  const shell = document.createElement('div')
-  shell.dataset.deeptailShell = ''
-  shell.id = 'shell'
+  const shell = bareShell('shell')
   shell.append(document.createElement('main'))
-  document.body.append(shell)
   return shell
 }
 
@@ -43,7 +124,7 @@ export function framedDialog(holder: HTMLElement): HTMLElement {
   dialog.id = 'dialog'
   dialog.setAttribute('role', 'dialog')
   dialog.setAttribute('aria-modal', 'true')
-  dialog.dataset.deeptailDialog = ''
+  markDialog(dialog)
   dialog.setAttribute('aria-labelledby', 'dialog-title')
   const title = document.createElement('h2')
   title.id = 'dialog-title'

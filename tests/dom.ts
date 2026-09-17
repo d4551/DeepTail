@@ -87,12 +87,12 @@ const RECLAIMED = { writable: true, configurable: true, enumerable: false } as c
  * a computed attribute name cannot read a name it is not given.
  */
 export function reclaimNetworkGlobals(): void {
-  Object.defineProperty(globalThis, 'fetch', { ...RECLAIMED, value: NATIVE.fetch })
-  Object.defineProperty(globalThis, 'Request', { ...RECLAIMED, value: NATIVE.Request })
-  Object.defineProperty(globalThis, 'Response', { ...RECLAIMED, value: NATIVE.Response })
-  Object.defineProperty(globalThis, 'Headers', { ...RECLAIMED, value: NATIVE.Headers })
-  Object.defineProperty(globalThis, 'WebSocket', { ...RECLAIMED, value: NATIVE.WebSocket })
-  Object.defineProperty(globalThis, 'FormData', { ...RECLAIMED, value: NATIVE.FormData })
+  Object.defineProperty(globalThis, 'fetch', { ...RECLAIMED, value: NATIVE['fetch'] })
+  Object.defineProperty(globalThis, 'Request', { ...RECLAIMED, value: NATIVE['Request'] })
+  Object.defineProperty(globalThis, 'Response', { ...RECLAIMED, value: NATIVE['Response'] })
+  Object.defineProperty(globalThis, 'Headers', { ...RECLAIMED, value: NATIVE['Headers'] })
+  Object.defineProperty(globalThis, 'WebSocket', { ...RECLAIMED, value: NATIVE['WebSocket'] })
+  Object.defineProperty(globalThis, 'FormData', { ...RECLAIMED, value: NATIVE['FormData'] })
 }
 
 if (!Object.hasOwn(globalThis, INSTALLED_KEY)) {
@@ -107,5 +107,5 @@ if (!Object.hasOwn(globalThis, INSTALLED_KEY)) {
 export function resetDocument(): void {
   document.body.replaceChildren()
   document.head.replaceChildren()
-  delete document.body.dataset.dsDarkTheme
+  delete document.body.dataset['dsDarkTheme']
 }

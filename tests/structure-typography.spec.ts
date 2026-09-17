@@ -162,7 +162,7 @@ it('reports the engine own bold, which is no rung of the shipped weight ladder',
 
 it('reads a dialog frame the product surfaces do not cover', () => {
   const frame = document.createElement('div')
-  frame.dataset.deeptailDialog = ''
+  frame.setAttribute('data-deeptail-dialog', '')
   frame.append(paragraph(BETWEEN_RUNGS_CLASS))
   document.body.append(frame)
   const { findings, add } = collector()

@@ -208,8 +208,8 @@ describe('the Node floor', () => {
     // manifest widened to admit an older runtime fails the first line, and one
     // that drops the current line fails the last.
     const manifest = readJsonc(await readFile('package.json', 'utf8'))
-    const engines = isJsonObject(manifest.engines) ? manifest.engines : EMPTY_SECTION
-    const node = typeof engines.node === 'string' ? engines.node : ''
+    const engines = isJsonObject(manifest['engines']) ? manifest['engines'] : EMPTY_SECTION
+    const node = typeof engines['node'] === 'string' ? engines['node'] : ''
     expect(node).not.toBe('')
     expect(satisfies('22.18.0', node)).toBe(false)
     expect(satisfies('22.19.0', node)).toBe(true)
@@ -222,8 +222,8 @@ describe('the Node floor', () => {
 describe('the checker configuration', () => {
   it('runs the TypeScript compiler the manifest pins, with no parallel checker', async () => {
     const manifest = readJsonc(await readFile('package.json', 'utf8'))
-    const scripts = isJsonObject(manifest.scripts) ? manifest.scripts : EMPTY_SECTION
-    const typecheck = typeof scripts.typecheck === 'string' ? scripts.typecheck : ''
+    const scripts = isJsonObject(manifest['scripts']) ? manifest['scripts'] : EMPTY_SECTION
+    const typecheck = typeof scripts['typecheck'] === 'string' ? scripts['typecheck'] : ''
     expect(typecheck).toContain('tsc')
     expect(typecheck).not.toContain('tsgo')
   })
@@ -240,8 +240,8 @@ describe('the checker configuration', () => {
 
   it('keeps every linter category enabled', async () => {
     const config = readJsonc(await readFile('.oxlintrc.json', 'utf8'))
-    const categories = isJsonObject(config.categories) ? config.categories : EMPTY_SECTION
-    const rules = isJsonObject(config.rules) ? config.rules : EMPTY_SECTION
+    const categories = isJsonObject(config['categories']) ? config['categories'] : EMPTY_SECTION
+    const rules = isJsonObject(config['rules']) ? config['rules'] : EMPTY_SECTION
     for (const category of ['correctness', 'suspicious', 'perf', 'pedantic']) {
       expect(categories[category]).toBe('error')
     }
@@ -249,8 +249,9 @@ describe('the checker configuration', () => {
     // `off` alone was the hole this suite's own header describes.
     expect(Object.values(rules).filter((level) => level !== 'error')).toEqual([])
     // The linter carries no ignore list: what it reads is decided by the
-    // repository's own ship list, not by a second list here.
-    expect(config.ignorePatterns).toBeUndefined()
-    expect(config.overrides).toBeUndefined()
+    // repository's own ship list, not by a second list here. The key's absence
+    // is what is asserted, not a value read off it.
+    expect(Object.hasOwn(config, 'ignorePatterns')).toBe(false)
+    expect(Object.hasOwn(config, 'overrides')).toBe(false)
   })
 })

@@ -26,7 +26,7 @@
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { oneHost } from './fixtures.ts'
-import { type Harness, startHarness } from './harness.ts'
+import { type Harness, type OpenedPage, startHarness } from './harness.ts'
 import { openShellWithRoster } from './surfaces.ts'
 
 let harness: Harness
@@ -39,6 +39,18 @@ afterAll(async () => {
   await harness?.stop()
 })
 
+/**
+ * The page the runtime readings are taken from: the built shell, booted.
+ *
+ * The runtime itself exists before the bundle runs either way, but the socket's
+ * registration only exists once the carrier has opened it, so what every reading
+ * below wants is a page whose shell has seated.
+ * @returns the loaded page, which the caller closes.
+ */
+function booted(): Promise<OpenedPage> {
+  return openShellWithRoster(harness)
+}
+
 it('is installed before any module runs, so a page that boots has one to read', async () => {
   // Held back to the moment the parser asks for the entry, so what is read is
   // the runtime the page was served with rather than one a module left behind.
@@ -49,7 +61,7 @@ it('is installed before any module runs, so a page that boots has one to read', 
 }, 60_000)
 
 it('exposes the four members the installed library resolves, and no fifth', async () => {
-  const page = await openShellWithRoster(harness)
+  const page = await booted()
   const members = await page.evaluate(() => window.deeptailRuntimeMembers?.() ?? [])
   await page.close()
   // `invoke` is the command boundary, `transformCallback` is how a channel
@@ -61,7 +73,7 @@ it('exposes the four members the installed library resolves, and no fifth', asyn
 }, 60_000)
 
 it('mints an identifier the wire can carry, holds the callback, and delivers through it', async () => {
-  const page = await openShell()
+  const page = await booted()
   // The whole interchange happens inside the page: a function cannot cross back
   // out through `page.evaluate`, so what a case reads is the report and never the
   // callback, and nothing here can assert against a value it did not receive.
@@ -83,7 +95,7 @@ it('mints an identifier the wire can carry, holds the callback, and delivers thr
 }, 60_000)
 
 it('holds the callback the page’s own mux socket registered, which is what Rust addresses', async () => {
-  const page = await openShell()
+  const page = await booted()
   // The carrier opens one socket per paired host at boot, and that socket is
   // built by the shipped `Channel`, so the page's runtime holds a callback for
   // it before any frame arrives.

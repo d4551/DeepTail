@@ -23,6 +23,7 @@ import { compilerFaceOffences } from '../scripts/compiler-face.ts'
 import { isJsonObject, readJsonc } from '../scripts/jsonc.ts'
 import { repositoryFiles } from '../scripts/source-tree.ts'
 import { joined, source } from './fixtures.ts'
+import { absentControls } from './stack-packages.ts'
 import { isRetiredBuildPipeline, retiredSheetOffences } from './stack-patterns.ts'
 import { isRetiredPipelineConfig } from './stack-policy.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
@@ -118,9 +119,10 @@ describe('the two pipeline file rules each answer for their own subject', () => 
       )
       expect(shipped.filter((label) => isRetiredBuildPipeline(label))).toEqual([])
       // The controls: the bundler and the installer are configured by files of
-      // the same shape, and neither of them belongs to a replaced tool.
-      expect(shipped).toContain('apps/deeptail/vite.config.ts')
-      expect(shipped).toContain('bunfig.toml')
+      // the same shape, and neither of them belongs to a replaced tool. The
+      // reader comes from the shared table, so this suite and the policy suite
+      // ask the same question of the same control rather than one each.
+      expect(absentControls(shipped).length).toBe(0)
     },
     TREE_SCAN_BUDGET_MS,
   )
@@ -254,7 +256,7 @@ describe('the values those five options may state', () => {
       const stated = await Promise.all(
         labels.map(async (label) => {
           const parsed = readJsonc(await readFile(label, 'utf8'))
-          const options = parsed.compilerOptions
+          const options = parsed['compilerOptions']
           const section = isJsonObject(options) ? options : {}
           return DROPPED_OPTIONS.filter((option) => section[option] !== undefined).map(
             (option) => `${label}: ${option}`,

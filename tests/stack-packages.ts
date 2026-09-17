@@ -19,6 +19,33 @@ import { existsSync, readFileSync } from 'node:fs'
 import { isJsonObject, type Json, readJsonc } from '../scripts/jsonc.ts'
 import { ROOT } from '../scripts/source-tree.ts'
 
+/**
+ * The configuration files this repository ships that are not a retired CSS
+ * pipeline's.
+ *
+ * Two suites read the tree for a config file a replaced tool owned, and both
+ * need the same control: a file of that shape that the pipeline rules must leave
+ * alone, so a reader that refused every config file would fail rather than pass.
+ * The paths are a fact about this repository, not about either suite, so they
+ * live here once — a second copy would let one suite's control go stale while
+ * the other kept passing.
+ */
+export const SHIPPED_CONTROLS: readonly string[] = ['apps/deeptail/vite.config.ts', 'bunfig.toml', 'biome.json']
+
+/**
+ * The controls a ship list is missing.
+ *
+ * Both suites that read the tree for a replaced tool's config file ask the same
+ * question of the same list, so the question is written once: a reader that
+ * refused every config file would otherwise fail in one suite and pass in the
+ * other, depending on which copy of the assertion was maintained.
+ * @param shipped - the labels a suite read out of the tree.
+ * @returns the controls absent from that list; empty when it carries them all.
+ */
+export function absentControls(shipped: readonly string[]): string[] {
+  return SHIPPED_CONTROLS.filter((label) => !shipped.includes(label))
+}
+
 /** The directories this workspace installs dependencies into. */
 const INSTALL_DIRECTORIES: readonly string[] = [
   'apps/deeptail/node_modules/',
@@ -115,7 +142,7 @@ export function dialectPackageOffences(
       if (suffix !== undefined) offences.push(`${name} points ${field} at ${value}, a ${suffix} stylesheet`)
     }
   }
-  const bins = manifest.bin
+  const bins = manifest['bin']
   const binNames = typeof bins === 'string' ? [name] : Object.keys(isJsonObject(bins) ? bins : {})
   for (const bin of binNames) {
     if (PIPELINE_BINS.has(bin)) offences.push(`${name} installs a ${bin} command, which is a CSS pipeline`)

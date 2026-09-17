@@ -16,8 +16,8 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
+import { openShellWithRoster, RUNNING_ROW } from './surfaces.ts'
 
 let harness: Harness
 
@@ -29,32 +29,18 @@ afterAll(async () => {
   await harness?.stop()
 })
 
-it('boots the shell with nothing on the console and every command answered', async () => {
-  const page = await harness.open(oneHost())
-  const faults: string[] = []
-  page.on('pageerror', (fault) => {
-    faults.push(String(fault))
-  })
-  page.on('console', (message) => {
-    if (message.type() === 'error') faults.push(`console: ${message.text()}`)
-  })
-  await page.waitForSelector('[data-deeptail-shell]')
-  // The boot's own work is not done when the shell is attached: the registry, the
-  // grant table and the roster read all land after it, and a fault in any of them
-  // arrives on the console rather than as a missing element.
-  await page.locator('[data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
-  const commands = await harness.commands(page)
-  const seated = await page.locator('[data-deeptail-session]').count()
+it('seats the rows the seeded IPC answers, which a recorded call cannot show', async () => {
+  const page = await openShellWithRoster(harness)
+  // `carrier_fetch` is recorded before it is answered, so a seeded function
+  // missing from the emitted sources is a call that appears in the list and a
+  // roster that stays empty. The rows are what tells the two apart.
+  const seated = await page.locator(RUNNING_ROW).count()
   await page.close()
-  expect(faults).toEqual([])
-  expect(commands).toContain('carrier_fetch')
-  expect(seated).toBe(2)
+  expect(seated).toBe(1)
 }, 60_000)
 
 it('has answered every session read it recorded, so no call was left in flight', async () => {
-  const page = await harness.open(oneHost())
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
+  const page = await openShellWithRoster(harness)
   const recorded = await harness.calls(page)
   await page.close()
   // A read the carrier recorded is a read the page sent; the roster showing the

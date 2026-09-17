@@ -274,6 +274,6 @@ export function objectKey(property: Node): string | undefined {
   if (fieldOf(property, 'computed') === true) return undefined
   const key = unwrap(fieldOf(property, 'key'))
   if (!isNode(key)) return undefined
-  const written = key.type === 'Identifier' ? key.name : key.value
+  const written = key.type === 'Identifier' ? key['name'] : key['value']
   return typeof written === 'string' ? written : undefined
 }

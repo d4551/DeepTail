@@ -80,6 +80,20 @@ function fieldOf(form: HTMLFormElement, field: string): HTMLInputElement {
   return input
 }
 
+/**
+ * The connect form built on the state given, with its actions recorded.
+ * @param current - the state to render.
+ * @returns the form, the context it was built on, and what was recorded.
+ */
+function connectForm(current: TailnetConnectState): {
+  form: HTMLFormElement
+  ctx: Parameters<typeof tailnetConnectView>[0]
+  actions: Actions
+} {
+  const { ctx, actions } = contextDouble(current)
+  return { form: formOf(tailnetConnectView(ctx)), ctx, actions }
+}
+
 beforeEach(() => {
   resetDocument()
 })
@@ -116,15 +130,13 @@ describe('whether a draft carries every value its kind needs', () => {
 
 describe('the controls the connect form lays out', () => {
   it('marks itself for the suites and keeps the browser’s own bubbles off', () => {
-    const { ctx } = contextDouble(OPEN)
-    const form = formOf(tailnetConnectView(ctx))
-    expect(form.dataset.deeptailView).toBe('tailnet-connect')
+    const { form } = connectForm(OPEN)
+    expect(form.dataset['deeptailView']).toBe('tailnet-connect')
     expect(form.noValidate).toBe(true)
   })
 
   it('offers the two credential kinds as radios, with the draft’s kind checked', () => {
-    const { ctx } = contextDouble(OPEN)
-    const form = formOf(tailnetConnectView(ctx))
+    const { form } = connectForm(OPEN)
     const radios = form.querySelectorAll<HTMLInputElement>('input[type="radio"]')
     expect(radios.length).toBe(2)
     expect(radios[0]?.value).toBe('apiKey')
@@ -134,8 +146,7 @@ describe('the controls the connect form lays out', () => {
   })
 
   it('carries one password field for an API key, seeded from the draft', () => {
-    const { ctx } = contextDouble({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, key: 'tskey-9' } })
-    const form = formOf(tailnetConnectView(ctx))
+    const { form } = connectForm({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, key: 'tskey-9' } })
     const key = fieldOf(form, 'api-key')
     expect(key.type).toBe('password')
     expect(key.autocomplete).toBe('off')
@@ -144,24 +155,30 @@ describe('the controls the connect form lays out', () => {
   })
 
   it('carries a text client id and a password secret for an OAuth client', () => {
-    const { ctx } = contextDouble({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, kind: 'oauthClient' } })
-    const form = formOf(tailnetConnectView(ctx))
+    const { form } = connectForm({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, kind: 'oauthClient' } })
     expect(fieldOf(form, 'client-id').type).toBe('text')
     expect(fieldOf(form, 'client-secret').type).toBe('password')
     expect(form.querySelector('[data-deeptail-field="api-key"]')).toBeNull()
   })
 
   it('carries the optional tailnet name, seeded from the draft', () => {
-    const { ctx } = contextDouble({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, tailnet: 'example.ts.net' } })
-    const form = formOf(tailnetConnectView(ctx))
+    const { form } = connectForm({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, tailnet: 'example.ts.net' } })
     expect(fieldOf(form, 'tailnet').value).toBe('example.ts.net')
   })
 })
 
 describe('what the connect form does', () => {
+  /** The form under test, built on the open state, with its actions recorded. */
+  let form: HTMLFormElement
+  let actions: Actions
+
+  beforeEach(() => {
+    const built = connectForm(OPEN)
+    form = built.form
+    actions = built.actions
+  })
+
   it('switches kind when the other radio is chosen', () => {
-    const { ctx, actions } = contextDouble(OPEN)
-    const form = formOf(tailnetConnectView(ctx))
     const oauth = fieldOf(form, 'kind-oauthClient')
     oauth.checked = true
     oauth.dispatchEvent(new Event('change'))
@@ -170,8 +187,6 @@ describe('what the connect form does', () => {
   })
 
   it('writes each keystroke into the draft the submit receives', () => {
-    const { ctx, actions } = contextDouble(OPEN)
-    const form = formOf(tailnetConnectView(ctx))
     const key = fieldOf(form, 'api-key')
     key.value = 'tskey-2'
     key.dispatchEvent(new Event('input'))
@@ -181,23 +196,23 @@ describe('what the connect form does', () => {
   })
 
   it('writes both OAuth halves into the draft the submit receives', () => {
-    const { ctx, actions } = contextDouble({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, kind: 'oauthClient' } })
-    const form = formOf(tailnetConnectView(ctx))
-    const id = fieldOf(form, 'client-id')
+    const { form: oauthForm, actions: oauthActions } = connectForm({
+      ...OPEN,
+      draft: { ...EMPTY_TAILNET_DRAFT, kind: 'oauthClient' },
+    })
+    const id = fieldOf(oauthForm, 'client-id')
     id.value = 'client-9'
     id.dispatchEvent(new Event('input'))
-    const secret = fieldOf(form, 'client-secret')
+    const secret = fieldOf(oauthForm, 'client-secret')
     secret.value = 'secret-9'
     secret.dispatchEvent(new Event('input'))
-    form.dispatchEvent(new Event('submit'))
-    expect(actions.submitted.length).toBe(1)
-    expect(actions.submitted[0]?.clientId).toBe('client-9')
-    expect(actions.submitted[0]?.clientSecret).toBe('secret-9')
+    oauthForm.dispatchEvent(new Event('submit'))
+    expect(oauthActions.submitted.length).toBe(1)
+    expect(oauthActions.submitted[0]?.clientId).toBe('client-9')
+    expect(oauthActions.submitted[0]?.clientSecret).toBe('secret-9')
   })
 
   it('writes the tailnet name back the same way', () => {
-    const { ctx, actions } = contextDouble(OPEN)
-    const form = formOf(tailnetConnectView(ctx))
     const tailnet = fieldOf(form, 'tailnet')
     tailnet.value = 'other.ts.net'
     tailnet.dispatchEvent(new Event('input'))
@@ -207,35 +222,39 @@ describe('what the connect form does', () => {
 })
 
 describe('the form’s edges', () => {
+  /** The form under test, built on the open state, with its actions recorded. */
+  let form: HTMLFormElement
+  let actions: Actions
+
+  beforeEach(() => {
+    const built = connectForm(OPEN)
+    form = built.form
+    actions = built.actions
+  })
+
   it('submits through the form’s own event, which Enter in a field also fires', () => {
-    const { ctx, actions } = contextDouble(OPEN)
-    const form = formOf(tailnetConnectView(ctx))
     form.dispatchEvent(new Event('submit'))
     expect(actions.submitted.length).toBe(1)
   })
 
   it('returns to the roster when the viewer cancels', () => {
-    const { ctx, actions } = contextDouble(OPEN)
-    const form = formOf(tailnetConnectView(ctx))
     const cancel = form.querySelector<HTMLButtonElement>('button[type="button"]')
     cancel?.click()
     expect(actions.cancelled).toBe(1)
   })
 
   it('disables both actions while an attempt is in flight', () => {
-    const { ctx } = contextDouble({ ...OPEN, busy: true })
-    const form = formOf(tailnetConnectView(ctx))
-    const buttons = form.querySelectorAll<HTMLButtonElement>('button')
+    const { form: busyForm } = connectForm({ ...OPEN, busy: true })
+    const buttons = busyForm.querySelectorAll<HTMLButtonElement>('button')
     expect([...buttons].map((node) => node.disabled)).toEqual([true, true])
-    const radio = form.querySelector<HTMLInputElement>('input[type="radio"]')
+    const radio = busyForm.querySelector<HTMLInputElement>('input[type="radio"]')
     expect(radio?.disabled).toBe(true)
   })
 })
 
 describe('a refused credential', () => {
   it('mounts the refusal strip, fills it, and points the first field at it', () => {
-    const { ctx } = contextDouble({ ...OPEN, error: 'the token was refused' })
-    const form = formOf(tailnetConnectView(ctx))
+    const { form } = connectForm({ ...OPEN, error: 'the token was refused' })
     const strip = form.querySelector('[data-deeptail-state="tailnet-error"]')
     expect(strip?.id).toBe('deeptail-tailnet-error')
     expect(strip?.textContent).toBe('the token was refused')
@@ -245,8 +264,7 @@ describe('a refused credential', () => {
   })
 
   it('names the field the form actually carries, whichever kind it collects', () => {
-    const { ctx } = contextDouble({ ...OPEN, error: 'refused' })
-    const form = formOf(tailnetConnectView(ctx))
+    const { form } = connectForm({ ...OPEN, error: 'refused' })
     expect(form.querySelector('[aria-describedby="deeptail-tailnet-error"]')).not.toBeNull()
   })
 })

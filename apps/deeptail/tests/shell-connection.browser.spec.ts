@@ -21,9 +21,42 @@ afterAll(async () => {
   await harness?.stop()
 })
 
-it('marks the active host with a trailing check, not a fill', async () => {
-  const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: sessions() } } })
+/** The page object a harness case drives. */
+type ShellPage = Awaited<ReturnType<Harness['open']>>
+
+/**
+ * Open the shell on the given fleet and wait for it to be interactive.
+ * @param extra - the fleet fixture to open, and any browser options.
+ * @returns the page showing the shell.
+ */
+async function _openedShell(...extra: Parameters<Harness['open']>): Promise<ShellPage> {
+  const page = await harness.open(...extra)
   await page.waitForSelector('[data-deeptail-shell]')
+  return page
+}
+
+/**
+ * Open the host switcher from the shell, and wait for the menu to be visible.
+ * @param page - the page the shell is on.
+ * @returns the menu.
+ */
+async function _openedMenu(page: ShellPage): Promise<ReturnType<ShellPage['locator']>> {
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  const menu = page.locator('[data-deeptail-connection="menu"]')
+  await menu.waitFor({ state: 'visible' })
+  return menu
+}
+
+/**
+ * Wait until the host switcher has been dismissed.
+ * @param page - the page the menu was open on.
+ */
+async function _menuDismissed(page: ShellPage): Promise<void> {
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
+}
+
+it('marks the active host with a trailing check, not a fill', async () => {
+  const page = await openedShell({ hosts: HOSTS, remote: { 'session/list': { items: sessions() } } })
   await page.locator('[data-deeptail-connection="trigger"]').click()
   const menu = page.locator('[data-deeptail-connection="menu"]')
   expect(await menu.getAttribute('role')).toBe('menu')
@@ -37,8 +70,7 @@ it('marks the active host with a trailing check, not a fill', async () => {
 })
 
 it('closes the connection menu on Escape', async () => {
-  const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: sessions() } } })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openedShell({ hosts: HOSTS, remote: { 'session/list': { items: sessions() } } })
   const trigger = page.locator('[data-deeptail-connection="trigger"]')
   await trigger.click()
   expect(await trigger.getAttribute('aria-expanded')).toBe('true')
@@ -48,8 +80,7 @@ it('closes the connection menu on Escape', async () => {
 })
 
 it('reports a revoked token as needing re-pairing and offers the way out', async () => {
-  const page = await harness.open(oneHost({ remoteStatuses: { 'session/list': 401 } }))
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openedShell(oneHost({ remoteStatuses: { 'session/list': 401 } }))
   // The state is spoken, not merely coloured, so the dot is never the only cue.
   expect(await textOf(page, '.connection-trigger')).toContain('Needs re-pairing')
   await page.locator('[data-deeptail-connection="trigger"]').click()
@@ -184,7 +215,9 @@ it('dismisses the menu when a pointer lands outside it, without taking focus bac
     await page.evaluate(() => ({
       tag: document.activeElement?.tagName ?? '',
       connection:
-        document.activeElement instanceof HTMLElement ? (document.activeElement.dataset.deeptailConnection ?? '') : '',
+        document.activeElement instanceof HTMLElement
+          ? (document.activeElement.getAttribute('data-deeptail-connection') ?? '')
+          : '',
     })),
   ).toEqual({ tag: 'BODY', connection: '' })
   await page.close()

@@ -56,8 +56,8 @@ export function keyOf(env: Constants, holder: Field | undefined, computed: boole
   const node = unwrap(holder)
   if (!isNode(node)) return undefined
   if (!computed) {
-    if (node.type === 'Identifier' && typeof node.name === 'string') return node.name
-    if (node.type === 'Literal' && typeof node.value === 'string') return node.value
+    if (node.type === 'Identifier' && typeof node['name'] === 'string') return node['name']
+    if (node.type === 'Literal' && typeof node['value'] === 'string') return node['value']
     return undefined
   }
   return staticString(env, node)
@@ -71,13 +71,13 @@ export function keyOf(env: Constants, holder: Field | undefined, computed: boole
  * @param report - records an offence.
  */
 export function inspectCall(env: Constants, node: Node, report: (node: Node, why: string) => void): void {
-  const callee = unwrap(node.callee)
+  const callee = unwrap(node['callee'])
   if (!isNode(callee) || callee.type !== 'MemberExpression') return
   // A method reached through brackets is the same method. Reading only the
   // plainly written form let one pair of brackets step past every rule below.
-  const method = memberName(callee) ?? staticString(env, callee.property)
+  const method = memberName(callee) ?? staticString(env, callee['property'])
   if (method === undefined) return
-  const args = Array.isArray(node.arguments) ? node.arguments : []
+  const args = Array.isArray(node['arguments']) ? node['arguments'] : []
   const opaque = OPAQUE_ATTRIBUTE_CALLS.get(method)
   if (opaque !== undefined) {
     report(node, opaque)
@@ -88,9 +88,9 @@ export function inspectCall(env: Constants, node: Node, report: (node: Node, why
     checkName(env, node, args[setter], 'attribute', report)
     return
   }
-  const host = unwrap(callee.object)
-  if (!isNode(host) || host.type !== 'Identifier' || typeof host.name !== 'string') return
-  if (!KEYED_WRITE_HOSTS.has(host.name)) return
+  const host = unwrap(callee['object'])
+  if (!isNode(host) || host.type !== 'Identifier' || typeof host['name'] !== 'string') return
+  if (!KEYED_WRITE_HOSTS.has(host['name'])) return
   const keyed = KEYED_WRITES.get(method)
   if (keyed !== undefined) {
     checkName(env, node, args[keyed], 'property', report)
@@ -111,11 +111,11 @@ export function inspectCall(env: Constants, node: Node, report: (node: Node, why
 function inspectMergedKeys(env: Constants, merged: Field | undefined, report: (node: Node, why: string) => void): void {
   const argument = unwrap(merged)
   if (!isNode(argument) || argument.type !== 'ObjectExpression') return
-  const properties = argument.properties
+  const properties = argument['properties']
   if (!Array.isArray(properties)) return
   for (const property of properties) {
     if (!isNode(property) || property.type !== 'Property') continue
-    const key = keyOf(env, property.key, property.computed === true)
+    const key = keyOf(env, property['key'], property['computed'] === true)
     const why = key === undefined ? undefined : STYLE_PROPERTIES.get(key.toLowerCase())
     if (why !== undefined) report(property, why)
   }

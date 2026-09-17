@@ -166,11 +166,11 @@ it('has no structural defects with a row action revealed', async () => {
 const PLANT_STRANGERS = `(() => {
   const stranger = document.createElement('div')
   stranger.className = 'btn p-4'
-  stranger.dataset.deeptailProbe = 'stranger'
+  stranger.setAttribute('data-deeptail-probe', 'stranger')
   document.querySelector('[data-deeptail-shell]').append(stranger)
   const outsider = document.createElement('div')
   outsider.className = 'btn p-4'
-  outsider.dataset.deeptailProbe = 'outsider'
+  outsider.setAttribute('data-deeptail-probe', 'outsider')
   document.body.append(outsider)
 })()`
 
@@ -212,9 +212,9 @@ it('reports a class the shipped vocabulary does not define, and only inside the 
 const PLANT_COLLAPSED = `(() => {
   const gone = document.createElement('button')
   gone.textContent = 'vanished'
-  gone.dataset.deeptailProbe = 'collapsed'
+  gone.setAttribute('data-deeptail-probe', 'collapsed')
   const sheet = document.createElement('style')
-  sheet.dataset.deeptailProbe = 'collapsed-sheet'
+  sheet.setAttribute('data-deeptail-probe', 'collapsed-sheet')
   sheet.textContent =
     '[data-deeptail-probe="collapsed"]{width:0;height:0;min-width:0;min-height:0;padding:0;border:0;margin:0;overflow:hidden}'
   document.head.append(sheet)

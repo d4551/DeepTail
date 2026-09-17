@@ -118,6 +118,37 @@ async function refusalOf<T>(call: Promise<T>): Promise<RemoteError | undefined> 
   return outcome.status === 'rejected' && outcome.reason instanceof RemoteError ? outcome.reason : undefined
 }
 
+/**
+ * List sessions through a carrier that answers with the envelope given, and
+ * read the call's outcome as data.
+ * @param status - the status the carrier answers with.
+ * @param reply - the reply body.
+ * @returns the failure, or undefined when the call answered instead.
+ */
+async function refusedList(status: number, reply: ReplyEnvelope): Promise<RemoteError | undefined> {
+  const { hooks } = carrierDouble(status, reply)
+  return refusalOf(createHostApi(hooks).listSessions())
+}
+
+/**
+ * A carrier that answers every call with success, recording what was sent.
+ * @returns the hooks and what was sent so far.
+ */
+function answeredCarrier(): { hooks: CarrierHooks; sent: Sent[] } {
+  return carrierDouble(200, ok())
+}
+
+/**
+ * Run one call against a carrier that answers with success.
+ * @param call - the call to make, given the api it runs through.
+ * @returns what the carrier recorded of the sends.
+ */
+async function sentOf(call: (api: ReturnType<typeof createHostApi>) => Promise<void>): Promise<Sent[]> {
+  const { hooks, sent } = answeredCarrier()
+  await call(createHostApi(hooks))
+  return sent
+}
+
 /** One roster row with every field the summary reads. */
 const ROW = {
   sessionId: 's-1',
@@ -135,43 +166,39 @@ describe('listing sessions', () => {
   })
 
   it('refuses a reply that carries no items list, naming the endpoint', async () => {
-    const { hooks } = carrierDouble(200, ok({}))
-    const failure = await refusalOf(createHostApi(hooks).listSessions())
+    const failure = await refusedList(200, ok({}))
     expect(failure?.code).toBe(PROTOCOL)
-    expect(failure?.details.endpoint).toBe('session/list')
-    expect(failure?.details.detail).toBe('no items')
+    expect(failure?.details['endpoint']).toBe('session/list')
+    expect(failure?.details['detail']).toBe('no items')
   })
 
   it('refuses a reply that is no envelope at all', async () => {
-    const { hooks } = carrierDouble(200, { type: 'server-response', rpcId: '0', result: { ok: true, value: null } })
-    const failure = await refusalOf(createHostApi(hooks).listSessions())
+    const failure = await refusedList(200, { type: 'server-response', rpcId: '0', result: { ok: true, value: null } })
     expect(failure?.code).toBe(PROTOCOL)
   })
 })
 
 describe('directing a session', () => {
   it('sends a prompt as the content list the host reads, with a fresh correlation', async () => {
-    const { hooks, sent } = carrierDouble(200, ok())
-    await createHostApi(hooks).prompt('s-1', 'please rerun the tests', 'queue')
+    const sent = await sentOf((api) => api.prompt('s-1', 'please rerun the tests', 'queue'))
     expect(sent.length).toBe(1)
     expect(sent[0]?.path).toBe('/api/session/prompt')
-    expect(sent[0]?.body.payload.args.sessionId).toBe('s-1')
-    expect(sent[0]?.body.payload.args.mode).toBe('queue')
-    expect(sent[0]?.body.payload.args.content).toEqual([{ type: 'text', text: 'please rerun the tests' }])
-    expect(typeof sent[0]?.body.payload.args.requestId).toBe('string')
+    expect(sent[0]?.body.payload.args['sessionId']).toBe('s-1')
+    expect(sent[0]?.body.payload.args['mode']).toBe('queue')
+    expect(sent[0]?.body.payload.args['content']).toEqual([{ type: 'text', text: 'please rerun the tests' }])
+    expect(typeof sent[0]?.body.payload.args['requestId']).toBe('string')
   })
 
   it('correlates each call with a fresh id, so two prompts never share one', async () => {
-    const { hooks, sent } = carrierDouble(200, ok())
+    const { hooks, sent } = answeredCarrier()
     const api = createHostApi(hooks)
     await api.prompt('s-1', 'first', 'queue')
     await api.prompt('s-1', 'second', 'steer')
-    expect(sent[0]?.body.payload.args.requestId).not.toBe(sent[1]?.body.payload.args.requestId)
+    expect(sent[0]?.body.payload.args['requestId']).not.toBe(sent[1]?.body.payload.args['requestId'])
   })
 
   it('sends a cancellation naming the session alone', async () => {
-    const { hooks, sent } = carrierDouble(200, ok())
-    await createHostApi(hooks).cancel('s-1')
+    const sent = await sentOf((api) => api.cancel('s-1'))
     expect(sent[0]?.path).toBe('/api/session/cancel')
     expect(sent[0]?.body.payload.args).toEqual({ sessionId: 's-1' })
   })
@@ -185,29 +212,26 @@ describe('directing a session', () => {
     const { hooks } = carrierDouble(200, ok({}))
     const failure = await refusalOf(createHostApi(hooks).createSession({}))
     expect(failure?.code).toBe(PROTOCOL)
-    expect(failure?.details.endpoint).toBe('session/create')
+    expect(failure?.details['endpoint']).toBe('session/create')
   })
 })
 
 describe('what an HTTP rejection is reported as', () => {
   it('reports a revoked token as unauthorized, the one failure re-pairing answers', async () => {
-    const { hooks } = carrierDouble(401, ok())
-    const failure = await refusalOf(createHostApi(hooks).listSessions())
+    const failure = await refusedList(401, ok())
     expect(failure?.code).toBe(UNAUTHORIZED)
     expect(failure?.message).toBe('session/list returned HTTP 401')
   })
 
   it('reports a refused request as forbidden, which re-pairing does not answer', async () => {
-    const { hooks } = carrierDouble(403, ok())
-    const failure = await refusalOf(createHostApi(hooks).listSessions())
+    const failure = await refusedList(403, ok())
     expect(failure?.code).toBe(FORBIDDEN)
   })
 
   it('reports every other status as a transport failure, with the status named', async () => {
-    const { hooks } = carrierDouble(503, ok())
-    const failure = await refusalOf(createHostApi(hooks).listSessions())
+    const failure = await refusedList(503, ok())
     expect(failure?.code).toBe(TRANSPORT)
-    expect(failure?.details.status).toBe(503)
+    expect(failure?.details['status']).toBe(503)
   })
 })
 
@@ -220,15 +244,14 @@ describe('what a host-reported failure carries', () => {
     const failure = await refusalOf(createHostApi(hooks).createSession({ agentPreset: 'nope' }))
     expect(failure?.code).toBe('agent-preset-not-found')
     expect(failure?.message).toBe('no such preset')
-    expect(failure?.details.available).toEqual(['standard'])
+    expect(failure?.details['available']).toEqual(['standard'])
   })
 
   it('fills the protocol defaults in for a failure that names neither code nor message', async () => {
-    const { hooks } = carrierDouble(200, { type: 'server-response', rpcId: '0', result: { ok: false } })
-    const failure = await refusalOf(createHostApi(hooks).listSessions())
+    const failure = await refusedList(200, { type: 'server-response', rpcId: '0', result: { ok: false } })
     expect(failure?.code).toBe('internal')
     expect(failure?.message).toBe('session/list failed')
     // The endpoint is the one detail the transport can supply itself.
-    expect(failure?.details.endpoint).toBe('session/list')
+    expect(failure?.details['endpoint']).toBe('session/list')
   })
 })

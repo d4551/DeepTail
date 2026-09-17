@@ -81,7 +81,7 @@ it('answers with both selections the suites behind it run, not one of them', asy
   const page = await openShell(harness)
   const planted = await page.evaluate(() => {
     const tiny = document.createElement('button')
-    tiny.dataset.deeptailProbe = 'tiny'
+    tiny.setAttribute('data-deeptail-probe', 'tiny')
     tiny.textContent = 'x'
     document.querySelector('[data-deeptail-shell]')?.append(tiny)
     return tiny.outerHTML

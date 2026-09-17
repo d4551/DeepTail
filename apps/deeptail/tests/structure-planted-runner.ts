@@ -73,8 +73,8 @@ export async function plantTarget(page: Page, probe: string, px: number): Promis
   await page.evaluate(
     (args: { readonly probe: string; readonly px: number }) => {
       const node = document.createElement('button')
-      node.dataset.deeptailProbe = args.probe
-      node.dataset.deeptailProbeSize = ''
+      node.setAttribute('data-deeptail-probe', args.probe)
+      node.setAttribute('data-deeptail-probe-size', '')
       node.textContent = 'target'
       document.querySelector('[data-deeptail-shell] main')?.append(node)
     },

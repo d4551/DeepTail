@@ -55,7 +55,7 @@ interface PageRuntime {
  * @throws Error when the page carries no runtime object.
  */
 function deeptailPageRuntime(): PageRuntime {
-  const runtime: PageRuntime | undefined = window.__TAURI_INTERNALS__
+  const runtime: PageRuntime | undefined = window['__TAURI_INTERNALS__']
   if (runtime === undefined) throw new Error('deeptail: the page carries no runtime object')
   return runtime
 }
@@ -65,7 +65,7 @@ function deeptailPageRuntime(): PageRuntime {
  * @returns the member names, sorted.
  */
 function deeptailRuntimeMembers(): string[] {
-  return Object.keys(window.__TAURI_INTERNALS__ ?? {}).toSorted()
+  return Object.keys(window['__TAURI_INTERNALS__'] ?? {}).toSorted()
 }
 
 /**

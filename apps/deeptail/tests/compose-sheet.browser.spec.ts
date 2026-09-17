@@ -43,6 +43,47 @@ async function openedSheet(
   return page
 }
 
+/** The page object a harness case drives. */
+type SheetPage = Awaited<ReturnType<Harness['open']>>
+
+/** The sheet's draft field. */
+function draftField(page: SheetPage): ReturnType<SheetPage['locator']> {
+  return page.locator('[data-deeptail-field="message"]')
+}
+
+/** The sheet's send control. */
+function sendControl(page: SheetPage): ReturnType<SheetPage['locator']> {
+  return page.locator('[data-deeptail-action="compose-send"]')
+}
+
+/** The sheet's steer control. */
+function steerControl(page: SheetPage): ReturnType<SheetPage['locator']> {
+  return page.locator('[data-deeptail-action="compose-steer"]')
+}
+
+/**
+ * Fill the draft and send it.
+ * @param page - the page the sheet is open on.
+ * @param draft - the text to send.
+ */
+async function sendDraft(page: SheetPage, draft: string): Promise<void> {
+  await draftField(page).fill(draft)
+  await sendControl(page).click()
+}
+
+/** The sheet's refusal strip. */
+function refusalStrip(page: SheetPage): ReturnType<SheetPage['locator']> {
+  return page.locator('[data-deeptail-state="compose-error"]')
+}
+
+/**
+ * Wait until the sheet has closed.
+ * @param page - the page the sheet was open on.
+ */
+async function sheetClosed(page: SheetPage): Promise<void> {
+  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
+}
+
 it('opens with the operator in the draft field, named by its visible label', async () => {
   const page = await openedSheet(harness)
   // The sheet asks for one thing, so that is where focus lands rather than on
@@ -66,7 +107,7 @@ it('opens with the operator in the draft field, named by its visible label', asy
 
 it('refuses an empty draft without reaching the host', async () => {
   const page = await openedSheet(harness)
-  await page.locator('[data-deeptail-action="compose-send"]').click()
+  await sendControl(page).click()
   expect(await page.locator('[data-deeptail-state="compose-error"]').textContent()).toContain('Type something to send.')
   // The refusal is about this field, so the field says so and takes focus back.
   expect(await page.locator('[data-deeptail-field="message"]').getAttribute('aria-invalid')).toBe('true')
@@ -83,38 +124,36 @@ it('sends on Enter and keeps Shift+Enter a newline', async () => {
   // A newline is editing, not sending: nothing may reach the host for it.
   expect((await harness.calls(page)).filter((call) => call.endpoint === 'session/prompt')).toEqual([])
   await field.press('Enter')
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
+  await sheetClosed(page)
   const sent = (await harness.calls(page)).filter((call) => call.endpoint === 'session/prompt')
   expect(sent.length).toBe(1)
-  expect(sent[0]?.args.mode).toBe('queue')
-  expect(sent[0]?.args.content).toEqual([{ type: 'text', text: 'line one\n' }])
+  expect(sent[0]?.args['mode']).toBe('queue')
+  expect(sent[0]?.args['content']).toEqual([{ type: 'text', text: 'line one\n' }])
   await page.close()
 })
 
 it('hands the sheet back, draft intact, when a send is refused', async () => {
   const page = await openedSheet(harness, { remoteErrors: { 'session/prompt': 'agent busy' } })
-  await page.locator('[data-deeptail-field="message"]').fill('please rerun the tests')
-  await page.locator('[data-deeptail-action="compose-send"]').click()
-  await page.locator('[data-deeptail-state="compose-error"]').waitFor({ state: 'visible' })
-  expect(await page.locator('[data-deeptail-state="compose-error"]').textContent()).toContain('agent busy')
+  await sendDraft(page, 'please rerun the tests')
+  await refusalStrip(page).waitFor({ state: 'visible' })
+  expect(await refusalStrip(page).textContent()).toContain('agent busy')
   // A failed send must not cost the operator what they typed, nor leave the
   // sheet dark: the controls are live again for the retry.
   expect(await page.locator('[data-deeptail-field="message"]').inputValue()).toBe('please rerun the tests')
   expect(await page.locator('[data-deeptail-action="compose-send"]').isDisabled()).toBe(false)
-  expect(await page.locator('[data-deeptail-action="compose-steer"]').isDisabled()).toBe(false)
+  expect(await steerControl(page).isDisabled()).toBe(false)
   expect(await page.locator('[data-deeptail-field="message"]').isDisabled()).toBe(false)
   await page.close()
 })
 
 it('holds the sheet still while a send is in flight', async () => {
   const page = await openedSheet(harness, { remotePending: ['session/prompt'] })
-  await page.locator('[data-deeptail-field="message"]').fill('please rerun the tests')
-  await page.locator('[data-deeptail-action="compose-send"]').click()
+  await sendDraft(page, 'hold the line')
   // The read never settles, so the held state is observable rather than a
   // frame wide: one send cannot be raced by a second.
   expect(await page.locator('[data-deeptail-field="message"]').isDisabled()).toBe(true)
   expect(await page.locator('[data-deeptail-action="compose-send"]').isDisabled()).toBe(true)
-  expect(await page.locator('[data-deeptail-action="compose-steer"]').isDisabled()).toBe(true)
+  expect(await steerControl(page).isDisabled()).toBe(true)
   expect(await page.getByRole('button', { name: 'Cancel' }).isDisabled()).toBe(true)
   expect(await page.locator('[data-deeptail-dialog] .modal-body').getAttribute('aria-busy')).toBe('true')
   await page.close()
@@ -122,7 +161,7 @@ it('holds the sheet still while a send is in flight', async () => {
 
 it('tells a refused send through the live region once the sheet has gone', async () => {
   const page = await openedSheet(harness, { remoteErrors: { 'session/prompt': 'agent busy' } })
-  await page.locator('[data-deeptail-field="message"]').fill('please rerun the tests')
+  await draftField(page).fill('escape mid flight')
   // Escape closes the sheet at any time, including mid-flight. The click and
   // the key are delivered in one pass so the dismissal is ordered before the
   // refusal lands: a failure reported into a detached strip would be lost, and
@@ -132,7 +171,7 @@ it('tells a refused send through the live region once the sheet has gone', async
     send?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
   })
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
+  await sheetClosed(page)
   // The refusal is delivered on the harness's own turn, which can land after
   // the dismissal this test already observed, so the announcement is waited
   // for rather than read once: a single read races the delivery and reports
@@ -146,9 +185,8 @@ it('tells a refused send through the live region once the sheet has gone', async
 
 it('announces a landed send through the live region', async () => {
   const page = await openedSheet(harness)
-  await page.locator('[data-deeptail-field="message"]').fill('please rerun the tests')
-  await page.locator('[data-deeptail-action="compose-send"]').click()
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
+  await sendDraft(page, 'announce the send')
+  await sheetClosed(page)
   // The sheet closes before the announcement: the live region sits inside the
   // root the dialog holds inert, and a mutation made while inert is never
   // spoken. The announcement is the success case's whole outcome on screen.

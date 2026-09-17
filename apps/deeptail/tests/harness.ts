@@ -98,6 +98,12 @@ export interface Harness {
   stop(): Promise<void>
 }
 
+/**
+ * A page this harness opened, named off the harness so a suite cannot drift from
+ * the engine it drives by restating the type.
+ */
+export type OpenedPage = Awaited<ReturnType<Harness['open']>>
+
 const DIST = new URL('../dist/', import.meta.url)
 
 /** The one page the build writes, which every browser case loads. */

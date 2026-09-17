@@ -123,7 +123,7 @@ describe('the toolchain the README ships', () => {
     async () => {
       const readme = await readFile('README.md', 'utf8')
       const manifest = readJsonc(await readFile('package.json', 'utf8'))
-      const engines = manifest.engines
+      const engines = manifest['engines']
       const declared = everyDependency()
       const stated = statedVersions(readme)
       // A reader that found nothing would report no drift at all, which is what
@@ -133,8 +133,8 @@ describe('the toolchain the README ships', () => {
       expect(
         documentationDrift(stated, {
           declared,
-          manager: typeof manifest.packageManager === 'string' ? manifest.packageManager : '',
-          engines: isJsonObject(engines) && typeof engines.node === 'string' ? engines.node : '',
+          manager: typeof manifest['packageManager'] === 'string' ? manifest['packageManager'] : '',
+          engines: isJsonObject(engines) && typeof engines['node'] === 'string' ? engines['node'] : '',
           edition: cargoEdition(await readFile('apps/deeptail/src-tauri/Cargo.toml', 'utf8')),
         }),
       ).toEqual([])

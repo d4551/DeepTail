@@ -77,7 +77,7 @@ function boxed(
  */
 export function conformingShell(): HTMLElement {
   const shell = document.createElement('div')
-  shell.dataset.deeptailShell = ''
+  shell.setAttribute('data-deeptail-shell', '')
   shell.id = 'shell'
   const main = document.createElement('main')
   const heading = document.createElement('h1')
@@ -267,7 +267,7 @@ function plantContracts(shell: HTMLElement): void {
  */
 export function plantedPage(): HTMLElement {
   const shell = document.createElement('div')
-  shell.dataset.deeptailShell = ''
+  shell.setAttribute('data-deeptail-shell', '')
   shell.id = 'shell'
   const firstMain = document.createElement('main')
   const secondMain = document.createElement('main')

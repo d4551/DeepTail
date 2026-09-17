@@ -69,7 +69,7 @@ export function collector(): { readonly findings: StructureFinding[]; readonly a
  */
 export function surface(tag: string): HTMLElement {
   const node = document.createElement(tag)
-  node.dataset.structureScope = ''
+  node.setAttribute('data-structure-scope', '')
   return node
 }
 
@@ -132,11 +132,11 @@ export function paintDeclarations(node: HTMLElement, declarations: string): void
   const marker = paintMarker(declarations)
   if (document.querySelector(`style[${PAINT}="${marker}"]`) === null) {
     const sheet = document.createElement('style')
-    sheet.dataset.deeptailPaint = marker
+    sheet.setAttribute('data-deeptail-paint', marker)
     sheet.textContent = `[${PAINT}="${marker}"] { ${declarations} }`
     document.head.append(sheet)
   }
-  node.dataset.deeptailPaint = marker
+  node.setAttribute('data-deeptail-paint', marker)
 }
 
 /**

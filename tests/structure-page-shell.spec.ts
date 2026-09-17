@@ -17,7 +17,7 @@ import { beforeEach, expect, it } from 'bun:test'
 import { checkInlineScripts, checkOneOffScripts, checkShell } from '../apps/deeptail/tests/structure-shell.ts'
 import { resetDocument } from './dom.ts'
 import { collector } from './structure-double.ts'
-import { SCOPE, shellWithMain } from './structure-page-fixture.ts'
+import { actionControl, barePicker, bareShell, SCOPE, shellWithMain } from './structure-page-fixture.ts'
 
 /** The one action the registry of a case declares. */
 const DECLARED = ['session.spawn']
@@ -45,35 +45,34 @@ it('reads one shell with one main as conforming', () => {
 })
 
 it('reports a split shell, a nested shell, and a shell without exactly one main', () => {
-  const first = document.createElement('div')
-  first.dataset.deeptailShell = ''
-  const nested = document.createElement('div')
-  nested.dataset.deeptailShell = ''
+  const first = bareShell()
+  const nested = bareShell()
   first.append(nested)
-  const second = document.createElement('div')
-  second.dataset.deeptailShell = ''
-  const crowded = document.createElement('div')
-  crowded.dataset.deeptailShell = ''
+  bareShell()
+  const crowded = bareShell()
   crowded.append(document.createElement('main'), document.createElement('main'))
-  document.body.append(first, second, crowded)
   const { findings, add } = collector()
   checkShell(add, { scope: SCOPE })
-  expect(findings).toEqual([
+  // Counted by rule rather than listed three times: the defect is that each of
+  // the three main-less shells is reported, and a triple restating one line
+  // would pass just as well if only one of them were. The two findings that are
+  // not that one are held in full, because their text is what names the boxes.
+  expect(findings.filter((found) => found.rule === 'shell-without-main')).toHaveLength(3)
+  expect(findings.filter((found) => found.rule !== 'shell-without-main')).toEqual([
     { rule: 'split-shell', detail: 'the document has 4 [data-deeptail-shell] roots; a document carries one' },
     { rule: 'nested-shell', detail: 'div contains another shell div' },
-    { rule: 'shell-without-main', detail: 'div has no main landmark' },
-    { rule: 'shell-without-main', detail: 'div has no main landmark' },
-    { rule: 'shell-without-main', detail: 'div has no main landmark' },
     { rule: 'split-shell', detail: 'div contains 2 main landmarks' },
   ])
+  expect(findings.map((found) => found.detail).filter((detail) => detail === 'div has no main landmark')).toHaveLength(
+    3,
+  )
 })
 
 it('reports a second surface seated in the first, and a main outside every surface', () => {
   const shell = shellWithMain()
-  const picker = document.createElement('div')
-  picker.id = 'picker'
-  picker.dataset.deeptailPicker = ''
-  shell.append(picker)
+  // Seated through the shared fixture rather than built here: where a product
+  // surface is marked is written once, in `structure-page-fixture.ts`.
+  shell.append(barePicker('picker'))
   const stray = document.createElement('main')
   document.body.append(stray)
   const { findings, add } = collector()
@@ -101,24 +100,12 @@ it('reports a shell seated outside the mount the page observes its layout in', (
 
 it('reports every way an action hook is unwired, and the press that would run two actions', () => {
   const shell = shellWithMain()
-  const blank = document.createElement('div')
-  blank.id = 'blank'
-  blank.dataset.deeptailAction = '  '
-  const many = document.createElement('div')
-  many.id = 'many'
-  many.dataset.deeptailAction = 'session.spawn session.kill'
-  const stranger = document.createElement('button')
-  stranger.id = 'stranger'
-  stranger.dataset.deeptailAction = 'session.unknown'
-  const unreachable = document.createElement('div')
-  unreachable.id = 'unreachable'
-  unreachable.dataset.deeptailAction = 'session.spawn'
-  const outer = document.createElement('button')
-  outer.id = 'outer'
-  outer.dataset.deeptailAction = 'session.spawn'
-  const nested = document.createElement('button')
-  nested.id = 'nested'
-  nested.dataset.deeptailAction = 'session.kill'
+  const blank = actionControl('  ', 'blank', 'div')
+  const many = actionControl('session.spawn session.kill', 'many', 'div')
+  const stranger = actionControl('session.unknown', 'stranger')
+  const unreachable = actionControl('session.spawn', 'unreachable', 'div')
+  const outer = actionControl('session.spawn', 'outer')
+  const nested = actionControl('session.kill', 'nested')
   outer.append(nested)
   shell.append(blank, many, stranger, unreachable, outer)
   const { findings, add } = collector()
@@ -149,13 +136,11 @@ it('reports every way an action hook is unwired, and the press that would run tw
 })
 
 it('reports every script hanging off a product surface, inline or sourced', () => {
-  const root = document.createElement('div')
-  root.dataset.deeptailPicker = ''
+  const root = barePicker()
   const inline = document.createElement('script')
   const sourced = document.createElement('script')
   sourced.setAttribute('src', '/src/injected.ts')
   root.append(inline, sourced)
-  document.body.append(root)
   const { findings, add } = collector()
   checkInlineScripts(add, { scope: '[data-deeptail-picker]' })
   expect(findings).toEqual([
@@ -172,8 +157,7 @@ it('reads a product surface with no script in it as the one module entry', () =>
 })
 
 it('reports a sourced one-off outside the product surfaces, and stays silent for harness scripts', () => {
-  const root = document.createElement('div')
-  root.dataset.deeptailShell = ''
+  const root = bareShell()
   const inside = document.createElement('script')
   inside.setAttribute('src', '/src/other.ts')
   root.append(inside)
