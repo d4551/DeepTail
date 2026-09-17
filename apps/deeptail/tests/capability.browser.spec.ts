@@ -49,11 +49,15 @@ it('asks again whenever the pairing set is read again', async () => {
   await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
   const before = (await harness.commands(page)).filter((name) => name === 'capability_grants').length
   await page.locator('[data-deeptail-connection="trigger"]').click()
-  // By its role and name, because this control carries no registry marker: it
-  // is one of the six the registry declares and the page never stamps.
-  await page.getByRole('menuitem', { name: 'Unpair' }).click()
+  // The switcher's own unpair item, driven by the marker the registry
+  // `connection.unpair` carries on it. Forgetting a host reads the registry
+  // again, and that read is where the page is issued anew for the hosts that
+  // are left.
+  await page.locator('[data-deeptail-action="unpair"]').click()
   await page.locator('[data-deeptail-shell]').waitFor({ state: 'visible' })
-  const after = (await harness.commands(page)).filter((name) => name === 'capability_grants').length
+  const commands = await harness.commands(page)
+  expect(commands.filter((name) => name === 'forget_host')).toEqual(['forget_host'])
+  const after = commands.filter((name) => name === 'capability_grants').length
   expect(after).toBeGreaterThan(before)
   await page.close()
 })

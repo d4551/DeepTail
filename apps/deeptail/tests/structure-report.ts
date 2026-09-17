@@ -1,6 +1,6 @@
 /**
- * What every structural check produces, how it names an element, and the one
- * computed value more than one of them has to read.
+ * What every structural check produces, how it names an element, and the two
+ * computed values more than one of them has to read.
  *
  * Shared by the markup checks and the geometry checks so both report in one
  * vocabulary; each is shipped to the page as its own source text, so nothing
@@ -43,4 +43,33 @@ export function describe(node: Element): string {
 export function pixelLength(value: string): number {
   const text = value.trim()
   return text.endsWith('px') ? Number(text.slice(0, -2)) : 0
+}
+
+/**
+ * Whether an element's own clip leaves it nothing to paint.
+ *
+ * The visually-hidden contract is a zero rectangle: the element stays in the
+ * accessibility tree for a reader's assistive technology while painting no
+ * pixels for a sighted one. Every rule that measures what a sighted reader
+ * sees — the type it reads, the box it is cut by — measures nothing here, and
+ * reporting the utility for doing exactly what it exists to do would name the
+ * contract a defect.
+ *
+ * The rectangle is read by its four lengths rather than by its spelling. A
+ * computed `clip` is not the author's: the engine writes each side out in CSS
+ * pixels and separates them the way that engine does, so `rect(0 0 0 0)` in a
+ * sheet arrives as `rect(0px, 0px, 0px, 0px)`. Comparing the text against the
+ * authored spelling read every one of those as a box with something to paint,
+ * which is the shape a rule reports a hidden label for. What is compared is
+ * what the four sides measure, and nothing else.
+ * @param style - the element's computed style.
+ * @returns true when the element's clip leaves it nothing to paint.
+ */
+export function clippedAway(style: CSSStyleDeclaration): boolean {
+  const sides = /^rect\(([^)]*)\)$/u.exec(style.clip.replaceAll(' ', ''))?.[1]
+  if (sides === undefined) return false
+  // A side carries the unit the engine resolved it to, so it is read as a zero
+  // length with or without its `px` — coercing the text instead would read
+  // every `0px` as not a number, and the element as one with a box to paint.
+  return sides.split(',').every((side) => /^0(?:\.0+)?(?:px)?$/u.test(side))
 }

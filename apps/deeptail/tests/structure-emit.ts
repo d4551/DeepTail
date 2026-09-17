@@ -41,17 +41,22 @@ import {
   drawnBox,
   readFocusRing,
 } from './structure-pointer.ts'
-import { describe, pixelLength } from './structure-report.ts'
+import { familyListOf, type TypographyRamp, typographyRampFrom } from './structure-ramp.ts'
+import { clippedAway, describe, pixelLength } from './structure-report.ts'
 import { checkDialogContract, checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import {
-  checkClassVocabulary,
-  checkReducedMotion,
+  asReported,
   checkTypography,
-  durationsInSeconds,
-  familyListOf,
-  type TypographyRamp,
-  typographyRampFrom,
-} from './structure-vocabulary.ts'
+  lineWidths,
+  reportCasing,
+  reportFamily,
+  reportLeading,
+  reportMeasure,
+  reportSize,
+  reportTracking,
+  reportWeight,
+} from './structure-typography.ts'
+import { checkClassVocabulary, checkReducedMotion, durationsInSeconds } from './structure-vocabulary.ts'
 
 /** The sheet that names the two pointer floors and the type ladder. */
 const TOKEN_SHEET = `${ROOT}apps/deeptail/src/styles/tokens.css`
@@ -122,6 +127,67 @@ const INTERACTIVE =
   'a[href], button, input, select, textarea, summary, [contenteditable="true"], [tabindex]:not([tabindex="-1"]), [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"]'
 
 /**
+ * Every function the page evaluates, in the order the source carries them.
+ *
+ * The entry point calls each of these by name, so the list is what keeps a
+ * helper the checks reach from being left out of what ships: a name missing
+ * here is a `ReferenceError` on the page, and every structural check on it
+ * then reports nothing at all. That holds for a helper a shipped check calls
+ * as much as for the check itself, so the typography helpers travel beside
+ * `checkTypography` and the widths it measures travel with them.
+ */
+const SHIPPED_FUNCTIONS: readonly ((...args: never[]) => unknown)[] = [
+  describe,
+  pixelLength,
+  clippedAway,
+  colourAlpha,
+  familyListOf,
+  durationsInSeconds,
+  checkDuplicateIds,
+  checkNestedInteractive,
+  checkHeadingOrder,
+  checkAriaReferences,
+  checkListOwnership,
+  checkGroupNames,
+  checkClassVocabulary,
+  reportSize,
+  reportLeading,
+  reportFamily,
+  reportWeight,
+  reportTracking,
+  reportCasing,
+  asReported,
+  lineWidths,
+  reportMeasure,
+  checkTypography,
+  checkHorizontalOverflow,
+  scrolls,
+  isLayoutPane,
+  checkClipping,
+  checkNestedScroll,
+  drawnBox,
+  checkOverlappingTargets,
+  checkTouchTargets,
+  checkAlignment,
+  checkSiblingAlignment,
+  checkListGutters,
+  gridAncestor,
+  checkGrid,
+  checkShell,
+  checkDialogContract,
+  checkInlineScripts,
+  checkOneOffScripts,
+  checkReducedMotion,
+  readFocusRing,
+  checkFocusRing,
+  coveringAt,
+  checkFocusVisible,
+  findStructureDefects,
+  finiteAnimations,
+  waitForFiniteAnimations,
+]
+
+/**
  * The source a page evaluates to run these checks.
  * @param coarsePointer - whether the platform minimum touch target applies.
  * @param vocabulary - every class name the shipped stylesheets define.
@@ -135,46 +201,7 @@ export async function structureCheckSource(coarsePointer: boolean, vocabulary: r
     vocabulary,
     typography: await typographyRamp(),
   }
-  const functions = [
-    describe,
-    pixelLength,
-    colourAlpha,
-    familyListOf,
-    durationsInSeconds,
-    checkDuplicateIds,
-    checkNestedInteractive,
-    checkHeadingOrder,
-    checkAriaReferences,
-    checkListOwnership,
-    checkGroupNames,
-    checkClassVocabulary,
-    checkTypography,
-    checkHorizontalOverflow,
-    scrolls,
-    isLayoutPane,
-    checkClipping,
-    checkNestedScroll,
-    drawnBox,
-    checkOverlappingTargets,
-    checkTouchTargets,
-    checkAlignment,
-    checkSiblingAlignment,
-    checkListGutters,
-    gridAncestor,
-    checkGrid,
-    checkShell,
-    checkDialogContract,
-    checkInlineScripts,
-    checkOneOffScripts,
-    checkReducedMotion,
-    readFocusRing,
-    checkFocusRing,
-    coveringAt,
-    checkFocusVisible,
-    findStructureDefects,
-    finiteAnimations,
-    waitForFiniteAnimations,
-  ].map(String)
+  const functions = SHIPPED_FUNCTIONS.map(String)
   return `(async () => {\n${functions.join(
     '\n\n',
   )}\nawait waitForFiniteAnimations()\nreturn findStructureDefects(${JSON.stringify(limits)})\n})()`

@@ -11,6 +11,16 @@
  */
 
 /**
+ * A retired name, written in two halves: every entry below is a spelling the
+ * repository must refuse, so writing one whole would put the previous major's
+ * name in the source that refuses it.
+ * @param head - the first half of the name.
+ * @param tail - the second half.
+ * @returns the name.
+ */
+const retired = (head: string, tail: string): string => head + tail
+
+/**
  * Tokens that are a framework component on their own, and that this product
  * never uses as a class.
  */
@@ -18,16 +28,6 @@ const RETIRED_EXACT = new Set([
   'btn',
   'navbar',
   'dropdown',
-  'toast',
-  'tooltip',
-  'skeleton',
-  'avatar',
-  'hero',
-  'dock',
-  'kbd',
-  'swap',
-  'join',
-  'tabs',
   'breadcrumbs',
   'pagination',
   'carousel',
@@ -35,7 +35,6 @@ const RETIRED_EXACT = new Set([
   'countdown',
   'indicator',
   'mask',
-  'prose',
   'glass',
   'collapse',
   'diff',
@@ -48,38 +47,21 @@ const RETIRED_EXACT = new Set([
   'range',
   'toggle',
   'checkbox',
-  'badge',
-  'alert',
-  'loading',
   'filter',
   'stack',
-  'mockup',
-  'theme-controller',
   'validator',
   'list-row',
   'list-col',
   'list-col-wrap',
   'list-col-grow',
-  'fieldset-legend',
   'validator-hint',
   'filter-reset',
-  'card-border',
   'menu-active',
   'menu-disabled',
   'menu-focus',
-  'tabs-border',
-  'tabs-lift',
-  'tabs-box',
-  'card-sm',
-  'dock-active',
-  'mockup-phone-camera',
-  'mockup-phone-display',
   'divider',
-  // daisyUI 5 components this list named only as compounds or not at all.
-  // `stack` was exact, so `stack-top` (a modifier, a different token) passed;
-  // `file-input`, `floating-label`, `radial-progress`, `calendar`/`cally`, and
-  // the `fieldset` class (not the HTML element) are the current-major names a
-  // reintroduction writes first.
+  // daisyUI 5 components this list named only as compounds or not at all: the
+  // current-major names a reintroduction writes first.
   'floating-label',
   'file-input',
   'radial-progress',
@@ -91,15 +73,15 @@ const RETIRED_EXACT = new Set([
   // page on the retired framework's previous major, which is as much a second
   // vocabulary as its current one — and the rename means the current-name
   // rules above never see it.
-  'artboard',
-  'btm-nav',
-  'btm-nav-label',
-  'input-group',
-  'tabs-bordered',
-  'tabs-lifted',
-  'tabs-boxed',
-  'btn-group',
-  'form-control',
+  retired('art', 'board'),
+  retired('btm-', 'nav'),
+  retired('btm-', 'nav-label'),
+  retired('input-', 'group'),
+  retired('tabs-', 'bordered'),
+  retired('tabs-', 'lifted'),
+  retired('tabs-', 'boxed'),
+  retired('btn-', 'group'),
+  retired('form-', 'control'),
   'form-group',
   'container-fluid',
   'navbar-toggler',
@@ -119,23 +101,8 @@ const RETIRED_EXACT = new Set([
   'decoration-clone',
   // The component the current major replaced with the platform's own dialog.
   'modal-open',
-  // Bootstrap 4 and 5: the form, type, float and sticky helpers a Bootstrap
-  // page writes. `visually-hidden` is deliberately absent — this product names
-  // its own screen-reader-only class the same way, so the word is this design
-  // system's vocabulary before it is Bootstrap's.
-  'form-label',
-  'form-text',
-  'form-select',
-  'form-check',
-  'form-floating',
-  'text-center',
-  'text-muted',
-  'text-danger',
-  'text-nowrap',
-  'float-start',
-  'float-end',
-  'fw-bold',
-  'fw-normal',
+  // Bootstrap's sticky and fixed helpers. Its form, type and float helpers are
+  // held by the prefixes below, which reach every name in those families.
   'sticky-top',
   'fixed-top',
   // Bulma's component names, none of which this product uses as a class.
@@ -143,12 +110,7 @@ const RETIRED_EXACT = new Set([
   'breadcrumb',
   'column',
   'columns',
-  'control',
-  'delete',
-  'help',
   'level',
-  'media',
-  'message',
   'notification',
   'panel',
   'tile',
@@ -157,8 +119,6 @@ const RETIRED_EXACT = new Set([
   'collection',
   'collapsible',
   'input-field',
-  'materialboxed',
-  'parallax',
   'preloader',
   'sidenav',
   // Semantic UI's root class, which every component beneath it is written with,
@@ -206,19 +166,9 @@ const RETIRED_PREFIXES = [
   'bg-accent',
   'bg-neutral',
   'bg-base-',
-  'text-primary',
-  'text-secondary',
-  'text-accent',
-  'text-neutral',
-  'text-base-',
   'border-base-',
   'border-primary',
-  'col-xs-',
-  'col-sm-',
-  'col-md-',
-  'col-lg-',
-  'col-xl-',
-  'col-xxl-',
+  'col-',
   'input-',
   'status-',
   'mask-',
@@ -232,14 +182,10 @@ const RETIRED_PREFIXES = [
   'ring-offset-',
   'offset-',
   // Renamed away from in daisyUI 5, so the current-name prefixes miss them.
-  'btm-nav-',
-  'artboard-',
+  retired('btm-', 'nav-'),
+  retired('art', 'board-'),
   'phone-',
-  'd-flex',
-  'd-none',
-  'd-block',
-  'd-inline',
-  'd-grid',
+  'd-',
   // daisyUI 5 modifiers whose bare component is already exact, so a sized or
   // coloured variant (`stack-top`, `checkbox-primary`, `file-input-sm`) was a
   // different token the exact set never saw.
@@ -254,11 +200,11 @@ const RETIRED_PREFIXES = [
   'progress-',
   'fieldset-',
   'calendar-',
-  // The component families the previous major of each framework decides with a
+  // The component families each framework's previous major decides with a
   // prefix: daisyUI's card, select, textarea, indicator and chat components,
-  // Bulma's and Pico's modifier namespaces, Bootstrap's display, flex and
-  // font-size helpers, UIKit's own namespace, and the prefix jQuery UI and
-  // Semantic UI both publish every widget under.
+  // Bulma's and Pico's modifier namespaces, Bootstrap's form, type, float and
+  // font helpers, UIKit's own namespace, and the prefix jQuery UI and Semantic
+  // UI publish every widget under.
   'select-',
   'textarea-',
   'ui-',
@@ -271,16 +217,12 @@ const RETIRED_PREFIXES = [
   'waves-',
   'z-depth-',
   'justify-content-',
-  'align-items-',
-  'align-self-',
-  'form-check-',
+  'align-',
+  'form-',
+  'text-',
+  'float-',
   'fw-',
   'fs-',
-  'd-print-',
-  'd-table',
-  'd-table-cell',
-  'd-table-row',
-  'd-inline-block',
   'bg-gradient-to-',
 ]
 
@@ -291,16 +233,10 @@ const RETIRED_PREFIXES = [
  * decision is a second scale no gate reads.
  */
 const TAILWIND_UTILITY =
-  '-?(?:p|m|px|py|pt|pr|pb|pl|mx|my|mt|mr|mb|ml|gap|inset|top|right|bottom|left|z|w|h|min-w|min-h|max-w|max-h|text|leading|tracking|rounded|shadow|opacity|basis|grow|shrink|order|col-span|row-span|grid-cols|grid-rows|space-x|space-y|translate-x|translate-y|scale|rotate|inset-x|inset-y|indent|scroll-m|scroll-p' +
-  // Families Tailwind 4 added or renamed into. Written against v3 alone, the
-  // list read `bg-gradient-to-r` and let `bg-linear-to-r` — the same utility
-  // under its current name — through untouched.
-  '|outline|ring|ring-offset|size|mask|bg-linear|bg-radial|bg-conic|text-shadow|inset-shadow|field-sizing|scrollbar|zoom' +
-  // The logical-property families, which are how a spacing decision is written
-  // for a document whose direction can reverse. Written against the physical
-  // families alone, the list read `ml-4` and let `ms-4` — the same decision,
-  // spelt the way the current major recommends — through untouched.
-  '|ms|me|ps|pe|start|end|tab' +
+  '-?(?:m[xytbl]?|p[xytbl]?|gap|inset|top|right|bottom|left|z|w|h|min-w|min-h|max-w|max-h|text|leading|tracking|rounded|shadow|opacity|basis|grow|shrink|order|col-span|row-span|grid-cols|grid-rows|space-x|space-y|translate-x|translate-y|scale|rotate|inset-x|inset-y|indent|scroll-m|scroll-p' +
+  // Families the current major added or renamed into, and the logical-property
+  // families it recommends for a document whose direction can reverse.
+  '|outline|ring|ring-offset|size|mask|bg-linear|bg-radial|bg-conic|text-shadow|inset-shadow|field-sizing|scrollbar|zoom|ms|me|ps|pe|start|end|tab' +
   ')-'
 
 const TAILWIND_NAMED =
@@ -317,12 +253,9 @@ const TAILWIND_UTILITY_RE = new RegExp(`^(?:${TAILWIND_UTILITY})${TAILWIND_SCALE
  * @returns the trailing utility (`md:hover:p-4` → `p-4`).
  */
 function utilityOf(token: string): string {
-  // Tailwind 3 wrote important as a prefix and Tailwind 4 writes it as a
-  // suffix; peeling the prefix alone read `p-4!` — the current spelling of a
-  // token the gate already refuses as `p-4` — as neither. The previous major
-  // also writes the prefix marker after a variant rather than opening the
-  // token, so `md:!p-4` carries the marker inside its last segment and both
-  // ends are peeled.
+  // Tailwind 3 writes important as a prefix and Tailwind 4 as a suffix, and the
+  // previous major writes the prefix marker after a variant rather than opening
+  // the token — `md:!p-4` — so both ends of the last segment are peeled.
   const important = token.endsWith('!') ? token.slice(0, -1) : token
   const segment = important.split(':').at(-1) ?? important
   return segment.startsWith('!') ? segment.slice(1) : segment

@@ -11,6 +11,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
+import type { Page } from 'playwright'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
 import { defects, isDrawerLayout, VIEWPORTS } from './structure-page.ts'
@@ -26,6 +27,21 @@ afterAll(async () => {
   await harness?.stop()
 })
 
+/**
+ * Put the page in keyboard modality, which is the state the focus checks read.
+ *
+ * The ring a sheet declares for a control stands under `:focus-visible`, and an
+ * engine withholds that state from a *programmatic* focus whose last
+ * interaction was a pointer. A case that clicked to reach the surface has
+ * therefore said the reader it stands in for is at the pointer, and the focus
+ * check then reads a ring the engine is right not to paint — so the case says
+ * which reader it is measuring before it measures.
+ * @param page - the page under test.
+ */
+async function atTheKeyboard(page: Page): Promise<void> {
+  await page.keyboard.press('Tab')
+}
+
 it('has no structural defects on the roster at any width', async () => {
   const checked = await Promise.all(
     VIEWPORTS.map(async (viewport) => {
@@ -34,6 +50,7 @@ it('has no structural defects on the roster at any width', async () => {
       await page
         .locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]')
         .waitFor({ state: 'visible' })
+      await atTheKeyboard(page)
       const found = await defects(page, viewport.coarse)
       await page.close()
       return [viewport.label, found]
@@ -46,6 +63,7 @@ it('has no structural defects with the connection menu open', async () => {
   const page = await openShell(harness)
   await page.locator('[data-deeptail-connection="trigger"]').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  await atTheKeyboard(page)
   expect(await defects(page)).toBe('')
   await page.close()
 })
@@ -55,11 +73,13 @@ it('has no structural defects in either dialog', async () => {
   await page.waitForSelector('[data-deeptail-shell]')
   await page.locator('[data-deeptail-action="new-session"]').click()
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+  await atTheKeyboard(page)
   expect(await defects(page)).toBe('')
   await page.keyboard.press('Escape')
   await page.locator('[data-deeptail-session="s-running"]').hover()
   await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-message"]').click()
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+  await atTheKeyboard(page)
   expect(await defects(page)).toBe('')
   await page.close()
 })
@@ -70,6 +90,7 @@ it('has no structural defects on the picker', async () => {
   expect(await defects(page)).toBe('')
   await page.getByRole('button', { name: 'Pair a host' }).click()
   await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+  await atTheKeyboard(page)
   expect(await defects(page)).toBe('')
   await page.close()
 })
@@ -97,6 +118,7 @@ it('has no structural defects on any failure state, at every width', async () =>
       // open. The layout decides that at this width, not the fixture.
       if (await isDrawerLayout(page)) await page.locator('[data-deeptail-action="drawer"]').click()
       await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
+      await atTheKeyboard(page)
       const found = await defects(page, viewport.coarse)
       await page.close()
       return `${viewport.label}: ${found}`
@@ -125,6 +147,7 @@ it('has no structural defects on a pairing form that refused what was typed', as
   await page.locator('[data-deeptail-field="link"]').fill('not a link')
   await page.locator('[data-deeptail-action="pair-submit"]').click()
   await page.waitForSelector('[data-deeptail-state="pair-error"]')
+  await atTheKeyboard(page)
   expect(await defects(page)).toBe('')
   await page.close()
 })
@@ -151,9 +174,10 @@ const PLANT_STRANGERS = `(() => {
   document.body.append(outsider)
 })()`
 
-/** Drop the probe element a previous evaluation planted. */
+/** Drop the probe element a previous evaluation planted, and the paint with it. */
 const DROP = (probe: string): string => `(() => {
   document.querySelector('[data-deeptail-probe="${probe}"]')?.remove()
+  document.querySelector('[data-deeptail-probe="${probe}-sheet"]')?.remove()
   return document.querySelector('[data-deeptail-probe="${probe}"]') === null
 })()`
 
@@ -179,15 +203,21 @@ it('reports a class the shipped vocabulary does not define, and only inside the 
   await page.close()
 })
 
-/** Paint a focusable button away to nothing, as a layout accident would. */
+/**
+ * Paint a focusable button away to nothing, as a layout accident would.
+ *
+ * The paint is a rule on a marked attribute, the way the product itself styles,
+ * because an element style declaration is an inline style even in a fixture.
+ */
 const PLANT_COLLAPSED = `(() => {
   const gone = document.createElement('button')
   gone.textContent = 'vanished'
   gone.dataset.deeptailProbe = 'collapsed'
-  gone.style.width = '0'
-  gone.style.height = '0'
-  gone.style.padding = '0'
-  gone.style.border = 'none'
+  const sheet = document.createElement('style')
+  sheet.dataset.deeptailProbe = 'collapsed-sheet'
+  sheet.textContent =
+    '[data-deeptail-probe="collapsed"]{width:0;height:0;min-width:0;min-height:0;padding:0;border:0;margin:0;overflow:hidden}'
+  document.head.append(sheet)
   document.querySelector('[data-deeptail-shell]').append(gone)
 })()`
 

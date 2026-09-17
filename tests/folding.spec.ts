@@ -99,6 +99,6 @@ describe('the reader for a string half written in the source', () => {
     // A declaration with no initializer is a declaration the reader is handed
     // as nothing. Reading a value out of nothing is the shape every caller of
     // this reader relies on.
-    expect(approximateString(new Map(), undefined)).toBeUndefined()
+    expect(approximateString(new Map())).toBeUndefined()
   })
 })

@@ -43,7 +43,7 @@
     "test": "bun test packages/host-fleet/tests/*.spec.ts tests/*.spec.ts tests/tree/*.spec.ts --timeout 180000",
     "test:browser": "bun run --filter @deeptail/app build && bun test apps/deeptail/tests --timeout 60000",
     "test:rust": "cd apps/deeptail/src-tauri && cargo test",
-    "typecheck": "tsc --build tsconfig.json && tsc -p tsconfig.tools.json && tsc -p packages/host-fleet/tsconfig.tests.json && tsc -p apps/deeptail/tsconfig.tests.json",
+    "typecheck": "tsc --build tsconfig.json && tsc -p tsconfig.tools.json && tsc -p packages/host-fleet/tsconfig.tests.json && tsc -p apps/deeptail/tsconfig.tests.json && echo 'Found 0 errors'",
     "validate": "bun run lint && bun run check:tree && bun run check:outdated && bun run check:cargo && bun run lint:ox && bun run check:styles && bun run check:scale && bun run check:bans && bun run check:entries && bun run check:registry && bun run typecheck && bun run build && bun run test && bun run check:coverage && bun run knip && bun run lint:rust && bun run test:rust && bun run test:browser && bun run a11y"
   },
   "devDependencies": {

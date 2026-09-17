@@ -45,8 +45,22 @@ const URL_ATTRIBUTES = new Set(['href', 'src', 'action', 'formaction', 'xlink:hr
  * The centering element, the type element and the marquee are alignment,
  * type and motion a page ships inline; the sheet is where those decisions
  * live, and a tag that carries one arrives with no class for a gate to read.
+ * The same generation of presentational markup is the whole family beside
+ * them — the type-sizing, struck-through, non-breaking and acronym tags, and
+ * the obsolete list — so every one of them is refused by the same rule.
  */
-const PRESENTATIONAL_ELEMENTS = new Set(['center', 'font', 'marquee'])
+const PRESENTATIONAL_ELEMENTS = new Set([
+  'center',
+  'font',
+  'marquee',
+  'acronym',
+  'big',
+  'blink',
+  'dir',
+  'nobr',
+  'strike',
+  'tt',
+])
 
 /** The one element a document may carry, whose duplication splits the shell a reader lands in. */
 const LANDMARK = 'main'

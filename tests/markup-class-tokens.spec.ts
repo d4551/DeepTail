@@ -24,6 +24,15 @@ const RETIRED = joined('btn-', 'primary')
 /** A second retired class, from another family altogether. */
 const OTHER = joined('divi', 'der')
 
+/** The previous major's importance marker on a numeric utility, assembled. */
+const VARIANT_UTILITY = joined('md:!', 'p-4')
+
+/** The same marker on a named utility, assembled. */
+const VARIANT_NAMED = joined('hover:!', 'flex-col')
+
+/** The same marker on a component class, assembled from three parts. */
+const VARIANT_COMPONENT = joined('md:!', 'btn-', 'primary')
+
 describe('a class attribute carrying more than one token', () => {
   it('names the retired token, and none of the classes beside it', () => {
     // The product's own vocabulary is what the retired names sit among, and a
@@ -61,6 +70,25 @@ describe('a class attribute carrying more than one token', () => {
     expect(retiredClassTokens(`shell md:${RETIRED} sidebar`)).toEqual([`md:${RETIRED}`])
     expect(retiredClassTokens(`shell !${RETIRED}`)).toEqual([`!${RETIRED}`])
     expect(retiredClassTokens(`shell ${RETIRED}!`)).toEqual([`${RETIRED}!`])
+  })
+})
+
+describe('the previous major’s importance marker', () => {
+  it('is judged after a variant as well as before the utility', () => {
+    // Tailwind 3 writes importance as a prefix where Tailwind 4 writes it as a
+    // suffix, and the previous major also writes it after a variant rather than
+    // opening the token: `md:!p-4`. A reader that peeled the marker only at the
+    // very start judged that spelling as carrying no token it knew.
+    expect(retiredClassTokens(VARIANT_UTILITY)).toEqual([VARIANT_UTILITY])
+    expect(retiredClassTokens(VARIANT_NAMED)).toEqual([VARIANT_NAMED])
+    expect(retiredClassTokens(VARIANT_COMPONENT)).toEqual([VARIANT_COMPONENT])
+  })
+
+  it('and a marker is not what makes a token retired', () => {
+    // The control: punctuation around a name the vocabulary never held is still
+    // no token of a retired framework's.
+    expect(retiredClassTokens('shell')).toEqual([])
+    expect(retiredClassTokens(`${joined('md:!p-', '4-gutter')}`)).toEqual([])
   })
 })
 

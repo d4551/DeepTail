@@ -224,6 +224,13 @@ export function checkFocusRing(add: Report, node: Element, resting: FocusRing, f
  * WCAG 2.4.11 asks that the focused component not be *entirely* hidden, so a
  * centre-only test would report a control whose middle is covered while both
  * ends are in plain sight.
+ *
+ * The control's own ancestors are not blockers. `elementFromPoint` answers with
+ * the box under the point, and where a control paints nothing at that point the
+ * answer is whatever contains it — a row, a panel, the sidebar — so reading an
+ * ancestor as a cover reported every control inside a container as buried under
+ * it. A hit test that answers with an ancestor is a sample the control was not
+ * hit-testable at, which is a different question from this one.
  * @param node - the control that is focused.
  * @returns the element covering it, or undefined when it is not covered.
  */
@@ -243,7 +250,7 @@ export function coveringAt(node: HTMLElement): Element | undefined {
   if (shown.length === 0) return undefined
   const hits = shown.map(([x, y]) => document.elementFromPoint(x, y))
   if (hits.every((hit) => hit === node || node.contains(hit))) return undefined
-  return hits.find((hit) => hit !== null && hit !== node && !node.contains(hit)) ?? undefined
+  return hits.find((hit) => hit !== null && hit !== node && !node.contains(hit) && !hit.contains(node)) ?? undefined
 }
 
 /**
@@ -266,6 +273,13 @@ export function checkFocusVisible(add: Report, limits: { readonly interactive: s
     // A disabled control is not focusable, so focusing it would report the ring
     // it never had a chance to paint.
     if (node.hasAttribute('disabled')) continue
+    // Resting is the state a control is in when it does *not* hold focus, so the
+    // read has to happen with focus somewhere else. The control the reader is
+    // already on is the one this matters for: read while it holds focus, its two
+    // states are one state, and the ring its sheet paints correctly is reported
+    // as a ring the reader cannot see — the reader's own tab stop, which is the
+    // first control of every surface.
+    if (node === document.activeElement) node.blur()
     const resting = readFocusRing(getComputedStyle(node))
     node.focus({ preventScroll: true })
     if (document.activeElement !== node) continue

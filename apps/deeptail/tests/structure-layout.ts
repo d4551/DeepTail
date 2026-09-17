@@ -10,7 +10,7 @@
  * @module
  */
 
-import { describe, type Report } from './structure-report.ts'
+import { clippedAway, describe, type Report } from './structure-report.ts'
 
 /**
  * Whether an element is a vertical scroll container.
@@ -55,6 +55,14 @@ function checkHorizontalOverflow(add: Report): void {
  * A single nowrap line carrying an ellipsis is the one deliberate truncation:
  * the reader is told the text continues. The same declaration on a box that
  * wraps tells them nothing, so it is still a loss.
+ *
+ * A box whose own clip leaves it nothing to paint is the other deliberate
+ * hiding, and it is not this rule's subject: it shows no text to anybody on
+ * screen, which is what makes it a screen-reader-only name, and the overflow it
+ * clips on both axes is the mechanism rather than content lost to a reader. The
+ * clip is what says so — a box is hidden by its own clip whatever rectangle it
+ * occupies, and reading a measurement instead reported a hidden box for the
+ * rectangle it happened to have.
  * @param add - collects a finding.
  */
 function checkClipping(add: Report): void {
@@ -65,6 +73,7 @@ function checkClipping(add: Report): void {
   )
   for (const node of carries) {
     const computed = getComputedStyle(node)
+    if (clippedAway(computed)) continue
     if (
       node.scrollWidth > node.clientWidth + 1 &&
       computed.overflow === 'visible' &&
@@ -169,7 +178,10 @@ function checkAlignment(add: Report, limits: { readonly scope: string }): void {
  * A block container stacks its children, and two of its boxes overlapping
  * vertically is a float or a positioned child — layout this rule has no
  * business in. `align-items: baseline` is skipped for the same reason: the
- * engine aligns those baselines itself, whatever heights the boxes have.
+ * engine aligns those baselines itself, whatever heights the boxes have. An
+ * out-of-flow child is skipped with them: a fixed or absolutely positioned box
+ * is not laid out by the container at all, so it shares no line with its
+ * siblings for the container to have misplaced.
  *
  * Edges are compared with one CSS pixel of tolerance, the rounding a fractional
  * layout leaves behind at other densities and other text scales.
@@ -186,6 +198,7 @@ function checkSiblingAlignment(add: Report, limits: { readonly scope: string }):
       const rows: HTMLElement[][] = []
       for (const child of parent.children) {
         if (!(child instanceof HTMLElement) || !child.checkVisibility()) continue
+        if (['absolute', 'fixed'].includes(getComputedStyle(child).position)) continue
         const box = child.getBoundingClientRect()
         if (box.height <= 0) continue
         const seated = rows.find((row) => {

@@ -58,40 +58,6 @@ it('reports a revoked token as needing re-pairing and offers the way out', async
   await page.close()
 })
 
-it('walks every menu item with the arrow keys and is one stop in the tab order', async () => {
-  const page = await harness.open({
-    hosts: HOSTS,
-    remote: { 'session/list': { items: sessions() } },
-    remoteStatuses: { 'lab-2:session/list': 401 },
-  })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
-  const spoken = () => page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)
-  // Focus opens on the first host, and Down reaches the re-pair row and the
-  // pinned footer rather than stopping at the last host.
-  expect(await spoken()).toContain('Workstation')
-  // Each press depends on where the one before it landed, so they are written
-  // out rather than gathered.
-  await page.keyboard.press('ArrowDown')
-  const second = await spoken()
-  await page.keyboard.press('ArrowDown')
-  const third = await spoken()
-  await page.keyboard.press('ArrowDown')
-  const fourth = await spoken()
-  await page.keyboard.press('ArrowDown')
-  const fifth = await spoken()
-  expect([second, third, fourth, fifth]).toEqual([
-    'Lab boxNeeds re-pairing',
-    'Re-pair this host',
-    'Pair a host',
-    'Unpair',
-  ])
-  // Every item shares one tab stop, so Tab leaves the menu rather than walking it.
-  expect(await page.evaluate(() => document.querySelectorAll('[role="menuitem"][tabindex="0"]').length)).toBe(1)
-  await page.close()
-})
-
 it('keeps the operator on their row when a fleet event repaints the open menu', async () => {
   const page = await harness.open(fleet({ muxHosts: HOSTS.map((host) => host.id) }))
   await page.waitForSelector('[data-deeptail-shell]')
@@ -162,9 +128,7 @@ it('opens the picker from the menu’s own pair item', async () => {
   await page.locator('[data-deeptail-action="pair"]').click()
   // Pairing leaves the control plane for the picker, which lists what is paired
   // and offers the form a link is pasted into. The shell going away is what
-  // tells this item's action from a menu that merely closed over it, and the
-  // form arriving is what tells the picker was opened to pair rather than
-  // merely re-read.
+  // tells this item's action from a menu that merely closed over it.
   await page.locator('[data-deeptail-picker]').waitFor({ state: 'visible' })
   expect(await page.locator('[data-deeptail-shell]').count()).toBe(0)
   await page.getByRole('button', { name: 'Pair a host' }).click()
@@ -181,7 +145,7 @@ it('forgets the selected host through the native registry', async () => {
   await page.locator('[data-deeptail-connection="trigger"]').click()
   await page.locator('[data-deeptail-action="unpair"]').click()
   // Forgetting a host spends the native registry and comes back over the hosts
-  // that are left, rather than editing the roster the page is already holding.
+  // that are left, rather than editing the roster the page already holds.
   expect((await harness.commands(page)).filter((command) => command === 'forget_host')).toEqual(['forget_host'])
   await until(async () => (await registryReads()) > before)
   expect(await registryReads()).toBeGreaterThan(before)
@@ -211,8 +175,7 @@ it('dismisses the menu when a pointer lands outside it, without taking focus bac
   await page.locator('[data-deeptail-connection="trigger"]').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
   // An open menu overlaps what is behind it, so it must not stay open once the
-  // operator has moved on. Focus stays where the pointer put it: pulling it
-  // back to the trigger would override whatever they just reached for, so the
+  // operator has moved on. Focus stays where the pointer put it, so the
   // assertion names what does hold focus rather than what does not.
   await page.locator('.main-body').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
@@ -277,46 +240,15 @@ it('holds the pane behind the open drawer out of reach', async () => {
   await page.close()
 })
 
-it('lets Tab out of the open menu rather than cycling inside it', async () => {
-  const page = await harness.open(fleet())
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
-  const where = () =>
-    page.evaluate(() => {
-      const active = document.activeElement
-      if (active === null || active === document.body) return 'nowhere'
-      return active.closest('[data-deeptail-connection="menu"]') === null ? 'outside the menu' : 'inside the menu'
-    })
-  expect(await where()).toBe('inside the menu')
-  // The rest of the sidebar is inert while the menu covers it, so without a
-  // way out the tab sequence runs menu, document, trigger, menu for ever. One
-  // Tab has to end it: the menu closes and focus carries on past the trigger.
-  await page.keyboard.press('Tab')
-  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
-  expect(await where()).toBe('outside the menu')
-  expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
-  // And it stays out: three more presses must never land back in a menu. Each
-  // press depends on where the one before it landed, so they run in sequence.
-  const walked = await [1, 2, 3].reduce(async (sofar: Promise<string[]>) => {
-    const seen = await sofar
-    await page.keyboard.press('Tab')
-    return [...seen, await where()]
-  }, Promise.resolve([]))
-  expect(walked).not.toContain('inside the menu')
-  await page.close()
-})
-
 it('closes the menu when focus leaves it without a pointer', async () => {
   const page = await harness.open(fleet())
   await page.waitForSelector('[data-deeptail-shell]')
   await page.locator('[data-deeptail-connection="trigger"]').click()
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
   // Not every departure is a Tab or a click: assistive technology and the
-  // platform both move focus on their own, and the menu holds everything
-  // around it inert, so no in-page control is left to focus. The event the
-  // browser would deliver is delivered directly — without it the `focusin`
-  // listener could be deleted with the whole suite still green.
+  // platform both move focus on their own. The event the browser would deliver
+  // is delivered directly — without it the `focusin` listener could be deleted
+  // with the whole suite still green.
   await page.evaluate(() => {
     const outside = document.querySelector('.main-body')
     outside?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))

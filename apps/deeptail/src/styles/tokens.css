@@ -115,8 +115,8 @@
 
   /* The weight a face is drawn at. Three rungs, because three are used: the
    * regular text of a row, the medium of a title or a row that has to hold its
-   * own against one, and the semibold a brand or a wordmark stands on. A sheet
-   * that wants a fourth names it here first. */
+   * own against one, and the semibold a brand, a wordmark or the picker's own
+   * screen title stands on. A sheet that wants a fourth names it here first. */
   --dsh-weight-regular: 400;
   --dsh-weight-medium: 500;
   --dsh-weight-semibold: 600;
@@ -297,6 +297,12 @@ body {
 
 body {
   font-family: var(--dsw-font-family);
+  /* The base rung of the ladder, so text that inherits its type inherits one
+   * the sheet declares rather than the engine's own 16px default and its own
+   * `normal` line box. Everything that states its own rung still overrides
+   * this; what it reaches is the text nothing else styles. */
+  font-size: var(--dsh-text-body);
+  line-height: var(--dsh-leading-body);
   /* Grayscale antialiasing over subpixel rendering, as the web client does. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

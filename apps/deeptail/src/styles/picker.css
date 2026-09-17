@@ -48,6 +48,15 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* A leader stands on a heading in three of the four screens and on a paragraph
+ * in the fourth, so the weight is stated where the heading is: a heading
+ * otherwise renders at the user agent's own bold, which is a weight no rung of
+ * the scale holds, while the paragraph keeps the weight of the body it is part
+ * of. */
+h2.lede {
+  font-weight: var(--dsh-weight-semibold);
+}
+
 /* ---- host list ---------------------------------------------------------- */
 
 .list {

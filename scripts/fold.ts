@@ -226,10 +226,11 @@ export const UNREADABLE = '\u{F8FF}'
  * that way — a tag half-written in the source names its styling attribute
  * regardless of what the colour interpolation turns out to be.
  * @param env - the file's constants.
- * @param node - the expression to read, parentheses and assertions included.
+ * @param node - the expression to read, parentheses and assertions included, or
+ *   nothing at all when the source carries no expression to read.
  * @returns the approximation, or undefined when the node produces no string.
  */
-export function approximateString(env: Constants, node: Field | undefined): string | undefined {
+export function approximateString(env: Constants, node?: Field): string | undefined {
   const exact = staticString(env, node)
   if (exact !== undefined) return exact
   const read = unwrap(node)

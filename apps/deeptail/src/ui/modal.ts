@@ -126,7 +126,7 @@ function handBackFocus(opener: Element | null): void {
   if (opener !== null && takesFocus(opener)) return
   let region = opener?.parentElement ?? null
   while (region !== null && region !== document.body) {
-    const control = [...region.querySelectorAll(CONTROLS)].find(takesFocus)
+    const control = [...region.querySelectorAll(CONTROLS)].find((node) => takesFocus(node))
     if (control !== undefined) return
     region = region.parentElement
   }

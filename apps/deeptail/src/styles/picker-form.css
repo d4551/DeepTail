@@ -67,6 +67,9 @@
   flex: none;
   inline-size: var(--dsh-target-fine);
   block-size: var(--dsh-target-fine);
+  /* The user agent's own margin sits the control off its label's centre line,
+   * which the row's `align-items: center` cannot correct for. */
+  margin: 0;
   accent-color: var(--dsw-alias-state-business-primary);
 }
 
@@ -97,6 +100,14 @@
   font-size: var(--dsh-text-lg);
   line-height: var(--dsh-leading-lg);
   color: var(--dsw-alias-label-primary);
+}
+
+/* The items inside the select carry the rung its box declares. The engine gives
+ * an `<option>` its own `normal` line box until something says otherwise, and
+ * the leading a reader meets inside the control is the control's own; where the
+ * platform lays the list out itself, this is the declaration that reaches it. */
+.select option {
+  line-height: var(--dsh-leading-lg);
 }
 
 .input::placeholder,

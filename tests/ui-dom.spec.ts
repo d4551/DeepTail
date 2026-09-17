@@ -1,5 +1,6 @@
 /**
- * The element factory every DeepTail surface builds through.
+ * The element factory every DeepTail surface builds through, and the one module
+ * that is allowed to build a dialog frame out of it.
  *
  * These calls paint before any harness bundle loads, and everything a surface
  * says about itself to assistive technology is written here: the role, the
@@ -9,6 +10,12 @@
  * how `aria-busy=""` and a missing `aria-live` both got shipped, which is why
  * every one of them is written from one place — and why what that place writes
  * is read here attribute by attribute.
+ *
+ * The last two cases read every shipped module for the shapes a dialog frame is
+ * built out of. `src/ui/modal.ts` is the frame that holds the dialog contract —
+ * its role, its naming, its dismissal, its focus and the background it takes
+ * out of play — and a module that builds one anywhere else has a second
+ * contract, missing whichever promise its author did not think of.
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test'
@@ -23,6 +30,7 @@ import {
   screenReaderText,
   setAria,
 } from '../apps/deeptail/src/ui/dom.ts'
+import { repositoryFiles } from '../scripts/source-tree.ts'
 import { resetDocument } from './dom.ts'
 
 /** A marker the registry really declares, which is what a submit carries. */
@@ -193,5 +201,73 @@ describe('the parts a surface is assembled from', () => {
 
   it('pairs a status with text only assistive technology reads', () => {
     expect(screenReaderText('online').outerHTML).toBe('<span class="visually-hidden">online</span>')
+  })
+})
+
+/** The module that owns the dialog frame. */
+const FRAME_MODULE = 'apps/deeptail/src/ui/modal.ts'
+
+/** One module, as the frame scan reads it. */
+interface ModuleSource {
+  readonly label: string
+  readonly text: string
+}
+
+/**
+ * What a dialog frame is built out of, as source: the role, the two boxes it
+ * draws and the platform's own dialog method. A module carrying any of these is
+ * building the contract itself, whatever it names the rest of it.
+ */
+const FRAME_SHAPES: readonly RegExp[] = [
+  /role:\s*['"](?:alert)?dialog['"]/u,
+  /role=["'](?:alert)?dialog["']/u,
+  /['"]modal-dialog['"]/u,
+  /['"]modal-mask['"]/u,
+  /\.showModal\(/u,
+]
+
+/**
+ * Every module that builds a dialog frame, other than the one that owns it.
+ * @param modules - the shipped modules to read.
+ * @param frame - the module exempted, which is the frame's own.
+ * @returns the labels that build a frame of their own.
+ */
+function outsideTheFrame(modules: readonly ModuleSource[], frame: string): readonly string[] {
+  return modules
+    .filter((module) => module.label !== frame)
+    .filter((module) => FRAME_SHAPES.some((shape) => shape.test(module.text)))
+    .map((module) => module.label)
+}
+
+/**
+ * Every shipped module the frame scan reads. The built bundle is generated from
+ * these, so the page's own output is covered by what it was built from.
+ * @returns the modules and the entry document.
+ */
+function shippedModules(): Promise<readonly ModuleSource[]> {
+  const files = [
+    ...repositoryFiles(['.ts']).filter((file) => file.label.startsWith('apps/deeptail/src/')),
+    ...repositoryFiles(['.html']).filter((file) => file.label === 'apps/deeptail/index.html'),
+  ]
+  return Promise.all(files.map(async (file) => ({ label: file.label, text: await Bun.file(file.path).text() })))
+}
+
+describe('the one module that builds a dialog frame', () => {
+  it('builds every dialog in the product through it', async () => {
+    const shipped = await shippedModules()
+    // The scan is proven to see a frame before its silence means anything: with
+    // the exemption pointed at a module nobody wrote, it names the shipped
+    // frame. An empty result from a scan that detects nothing is no evidence.
+    expect(outsideTheFrame(shipped, 'apps/deeptail/src/ui/nowhere.ts')).toEqual([FRAME_MODULE])
+    expect(outsideTheFrame(shipped, FRAME_MODULE)).toEqual([])
+  })
+
+  it('names a module that builds a frame of its own, and not the one that writes aria states', () => {
+    const planted = "const sheet = el('div', { role: 'dialog', aria: { modal: 'true' } })"
+    expect(outsideTheFrame([{ label: 'apps/deeptail/src/ui/rogue-sheet.ts', text: planted }], FRAME_MODULE)).toEqual([
+      'apps/deeptail/src/ui/rogue-sheet.ts',
+    ])
+    const factory = "node.setAttribute('aria-modal', aria.modal)"
+    expect(outsideTheFrame([{ label: 'apps/deeptail/src/ui/dom.ts', text: factory }], FRAME_MODULE)).toEqual([])
   })
 })

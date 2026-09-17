@@ -196,3 +196,37 @@ describe('the pointer floors the product ships', () => {
     TREE_SCAN_BUDGET_MS,
   )
 })
+
+describe('the declarations a drawn rung, a letter case and a type shorthand answer', () => {
+  /** The reasons a sheet is rejected for, read against this suite's own path. */
+  const sheetOffences = (text: string): string[] => scanSheet(OWNER, text).map((offence) => offence.why)
+
+  it('rejects a width no drawn rung holds, and admits the two spellings of one', () => {
+    // A border, a rule and a focus ring are drawn at the lengths the drawn
+    // ladder declares. The width sat between a border's property and its
+    // colour, where no rule read it: seven pixels and one were the same to the
+    // gate. The rung read is the same decision as the number it holds.
+    expect(sheetOffences('.a { border: 7px solid CanvasText; }')).toEqual([
+      'drawn-width: 7px on border is not a drawn rung; a border, a rule and a ring are drawn at 0px, 1px, 2px, 3px in tokens.css',
+    ])
+    expect(sheetOffences('.a { outline-width: 5px; }')).toHaveLength(1)
+    expect(sheetOffences('.a { border: 2px solid CanvasText; }')).toEqual([])
+    expect(sheetOffences('.a { border: var(--dsh-border-ring) solid CanvasText; }')).toEqual([])
+  })
+
+  it('rejects a letter case the product declares none of', () => {
+    expect(sheetOffences('.a { text-transform: full-width; }')).toEqual([
+      'full-width is no letter case the product sets; the declared cases are none, uppercase, lowercase, capitalize',
+    ])
+    expect(sheetOffences('.a { text-transform: uppercase; }')).toEqual([])
+  })
+
+  it('rejects a type shorthand, which states a size, a leading and a family at once', () => {
+    // Spelt in parts, so this file's own source carries no shorthand whole.
+    const shorthand = joined('fon', 't')
+    expect(sheetOffences(`.a { ${shorthand}: 14px/1.4 sans-serif; }`)).toEqual([
+      `14px/1.4 sans-serif restates a size, a leading and a family inside the ${shorthand} shorthand; declare font-size, line-height and font-family as rungs, or take the parent's ${shorthand} whole with inherit`,
+    ])
+    expect(sheetOffences(`.a { ${shorthand}: inherit; }`)).toEqual([])
+  })
+})

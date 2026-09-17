@@ -31,14 +31,11 @@ import {
   checkSiblingAlignment,
 } from './structure-layout.ts'
 import { checkFocusVisible, checkOverlappingTargets, checkTouchTargets } from './structure-pointer.ts'
+import type { TypographyRamp } from './structure-ramp.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
 import { checkDialogContract, checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
-import {
-  checkClassVocabulary,
-  checkReducedMotion,
-  checkTypography,
-  type TypographyRamp,
-} from './structure-vocabulary.ts'
+import { checkTypography } from './structure-typography.ts'
+import { checkClassVocabulary, checkReducedMotion } from './structure-vocabulary.ts'
 
 export type { StructureFinding }
 

@@ -65,6 +65,28 @@ async function plantTarget(page: Page, probe: string, px: number): Promise<void>
   )
 }
 
+/**
+ * Plant a paragraph holding one unbreakable run, which no box can wrap.
+ *
+ * The measure is read off the line boxes the text paints, one rectangle per
+ * line, so a run with nothing to break at paints a line as wide as the text
+ * itself — wider than the measure the sheets declare, whatever box holds it.
+ * @param page - the page under test.
+ * @param probe - probe id, also used to drop it.
+ * @param chars - how many characters the run carries.
+ */
+async function plantLongLine(page: Page, probe: string, chars: number): Promise<void> {
+  await page.evaluate(
+    (args: { probe: string; chars: number }) => {
+      const line = document.createElement('p')
+      line.dataset['deeptailProbe'] = args.probe
+      line.textContent = 'w'.repeat(args.chars)
+      document.querySelector('[data-deeptail-shell] main')?.append(line)
+    },
+    { probe, chars },
+  )
+}
+
 /** One planted defect: what is put on the page, what the check must name, and what it drops. */
 interface PlantedCase {
   /** The rule the case proves, as the case title. */
@@ -214,6 +236,12 @@ const CASES: readonly PlantedCase[] = [
     },
     reports: ['inline-script', 'body-helper.js'],
     drop: ['body-script'],
+  },
+  {
+    label: 'reports a line past the measure the sheets declare',
+    plant: (page) => plantLongLine(page, 'wide-line', 240),
+    reports: ['off-scale-measure'],
+    drop: ['wide-line'],
   },
   {
     label: 'reports a control under the WCAG 2.5.8 24px floor',

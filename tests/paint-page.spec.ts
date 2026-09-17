@@ -8,6 +8,7 @@
  * once against a chrome carrying the defect it exists for, and once against
  * the page this repository actually ships, read off disk. The defects are
  * assembled from parts, so this file's own source carries none of them whole.
+ * The chrome fixture and the planted-defect helpers live in `paint-fixture.ts`.
  *
  * @module
  */
@@ -19,102 +20,21 @@ import { join } from 'node:path'
 import { assertPaintedShell, documentOffences, paintOffences } from '../scripts/paint-contract.ts'
 import { EMPTY_ROOT, firstPaintMarkup, paintIndex } from '../scripts/paint-index.ts'
 import { DIST_PAGE, paintFile } from '../scripts/paint-stamp.ts'
-import { joined } from './fixtures.ts'
-import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
-
-/** A style attribute, assembled so this file does not carry one whole. */
-const STYLED = joined(' class="shell" st', 'yle="color: red"')
-
-/** A presentational element the platform retired, assembled the same way. */
-const PRESENTATIONAL = joined('<mar', 'quee>a</mar', 'quee>')
-
-/** An inline script, assembled so this file does not carry one whole. */
-const INLINE_SCRIPT = joined('<scr', 'ipt></scr', 'ipt>')
-
-/** A second external module entry, which a page may carry only one of. */
-const SECOND_ENTRY = '<script type="module" src="./other.js"></script>'
-
-/** The opening of the one mount a page carries. */
-const MOUNT = '<div id="root">'
-
-/** The one mount, carrying one thing and closed. */
-const mountOf = (content: string): string => `${MOUNT}${content}</div>`
-
-/** The shell's own title element, which the contract reads by name. */
-const TITLE_ELEMENT = '<h1 class="main-title">Sessions</h1>'
-
-/** The reading region the shell opens. */
-const READING_REGION = '<main class="main">'
-
-/**
- * The chrome the painter seats, shaped the way the shell factories paint it.
- *
- * A fixture rather than the paint itself, because the planted defects below
- * are edits to one part of it: reading the real paint would make every case
- * answer for whatever the factories happen to draw today.
- */
-const CHROME = [
-  '<div class="shell" data-deeptail-shell="" data-drawer="closed">',
-  '<div class="drawer-scrim"></div>',
-  '<nav class="sidebar" aria-label="Session navigation" id="deeptail-sidebar">',
-  '<button class="drawer-dismiss" type="button" hidden="">Hide the session list</button>',
-  '<div class="brand-row"><span class="brand-name">DEEPTAIL</span></div>',
-  '</nav>',
+import {
+  CHROME,
+  INLINE_SCRIPT,
+  mountOf,
+  PAGE,
+  PRESENTATIONAL,
+  planted,
   READING_REGION,
-  '<div class="main-header">',
-  '<button class="drawer-toggle" type="button" aria-expanded="false" aria-controls="deeptail-sidebar">Show</button>',
+  SEATED,
+  SECOND_ENTRY,
+  STYLED,
   TITLE_ELEMENT,
-  '</div>',
-  '<div class="main-body"><div class="placeholder">Choose a session.</div></div>',
-  '<div class="visually-hidden" role="status" aria-live="polite"></div>',
-  '</main>',
-  '</div>',
-].join('')
-
-/** The one mount with that chrome seated in it. */
-const SEATED = mountOf(CHROME)
-
-/**
- * The page Vite writes around one body.
- * @param body - the body's content, verbatim.
- * @returns the built page.
- */
-function pageWith(body: string): string {
-  return [
-    '<!doctype html>',
-    '<html lang="en">',
-    '  <head>',
-    '    <meta charset="utf-8" />',
-    '    <meta name="viewport" content="width=device-width, initial-scale=1" />',
-    '    <title>DeepTail</title>',
-    '    <script type="module" crossorigin src="./assets/index.js"></script>',
-    '    <link rel="stylesheet" crossorigin href="./assets/index.css">',
-    '  </head>',
-    '  <body>',
-    `    ${body}`,
-    '  </body>',
-    '</html>',
-  ].join('\n')
-}
-
-/** The page as Vite leaves it: the mount empty, for the painter to seat. */
-const VITE_PAGE = pageWith(EMPTY_ROOT)
-
-/** The page as the painter stamps it: the mount carrying the chrome. */
-const PAGE = pageWith(SEATED)
-
-/**
- * One string with one part of it replaced, refusing a fixture that no longer
- * carries the part a case plants against.
- * @param text - the text to edit.
- * @param from - the part to replace, which must be there.
- * @param to - what to replace it with.
- * @returns the edited text.
- */
-function planted(text: string, from: string, to: string): string {
-  if (!text.includes(from)) throw new Error(`deeptail: the fixture no longer carries ${from}`)
-  return text.replace(from, to)
-}
+  VITE_PAGE,
+} from './paint-fixture.ts'
+import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 describe('the page painter', () => {
   it('seats the chrome in the empty mount and keeps the one module entry', () => {
@@ -149,7 +69,7 @@ describe('the page painter', () => {
   })
 })
 
-describe('the contract the painted chrome is held to', () => {
+describe('the shell the painted chrome carries', () => {
   it('reads the shipped chrome as conforming', () => {
     expect(paintOffences(CHROME)).toEqual([])
   })
@@ -180,7 +100,9 @@ describe('the contract the painted chrome is held to', () => {
     const twice = planted(CHROME, '</main>', `<h1>Also</h1></main>`)
     expect(paintOffences(twice)).toEqual(['the shell carries 2 h1 headings; a page carries one'])
   })
+})
 
+describe('the landmarks and references the painted chrome carries', () => {
   it('refuses a nav landmark named by nothing', () => {
     expect(paintOffences(planted(CHROME, ' aria-label="Session navigation"', ''))).toEqual([
       'the shell carries no nav landmark named for a reader',
@@ -230,7 +152,7 @@ describe('the contract the painted chrome is held to', () => {
   })
 })
 
-describe('the contract the built document is held to', () => {
+describe('the document the painter stamps', () => {
   it('reads the shaped page as conforming', () => {
     expect(documentOffences(PAGE)).toEqual([])
   })
@@ -258,15 +180,21 @@ describe('the contract the built document is held to', () => {
       'the document carries 2 scripts; a page carries one module entry',
     ])
   })
+})
 
+describe('the mount the painter seats', () => {
   it('refuses a document with no chrome in its mount, or with a second mount', () => {
     const emptied = planted(PAGE, SEATED, mountOf(''))
     expect(documentOffences(emptied)).toEqual([
       'the document carries 0 main landmarks; a page carries one',
+      'the document carries 0 product shells; a document carries one',
       'the mount carries no product shell, so the shipped page is a client-invented tree',
     ])
     expect(documentOffences(planted(PAGE, SEATED, `${SEATED}${SEATED}`))).toEqual([
+      'line 11: a second main splits the shell; a document carries one',
       'the document carries 2 mounts; a page carries one',
+      'the document carries 2 main landmarks; a page carries one',
+      'the document carries 2 product shells; a document carries one',
     ])
   })
 

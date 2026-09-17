@@ -85,10 +85,12 @@ function attributeOf(node: Parsed, name: string): string | undefined {
  * @returns the elements, in document order.
  */
 function elementsOf(node: Parsed): Parsed[] {
-  return childrenOf(node).flatMap((child) => {
-    const here = tagOf(child) === undefined ? [] : [child]
-    return [...here, ...elementsOf(child)]
-  })
+  const found: Parsed[] = []
+  for (const child of childrenOf(node)) {
+    if (tagOf(child) !== undefined) found.push(child)
+    for (const below of elementsOf(child)) found.push(below)
+  }
+  return found
 }
 
 /**
@@ -98,7 +100,11 @@ function elementsOf(node: Parsed): Parsed[] {
  */
 function textOf(node: Parsed): string {
   const here = 'value' in node ? node.value : ''
-  return `${here}${childrenOf(node).map(textOf).join('')}`.replaceAll(/\s+/gu, ' ').trim()
+  return `${here}${childrenOf(node)
+    .map((child) => textOf(child))
+    .join('')}`
+    .replaceAll(/\s+/gu, ' ')
+    .trim()
 }
 
 /**
@@ -165,7 +171,7 @@ function chromeOffences(shell: Parsed): string[] {
   if (!chrome.some((element) => tagOf(element) === 'nav' && attributeOf(element, 'aria-label') !== undefined)) {
     refused.push('the shell carries no nav landmark named for a reader')
   }
-  if (!chrome.some(isLiveRegion)) {
+  if (!chrome.some((element) => isLiveRegion(element))) {
     refused.push('the shell carries no live region, so a change it announces reaches no reader')
   }
   if (!chrome.some((element) => attributeOf(element, 'aria-controls') !== undefined)) {

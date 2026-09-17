@@ -56,11 +56,19 @@ export function isDrawerLayout(page: Page): Promise<boolean> {
 
 /**
  * Every structural defect on a page, as a message a reader can act on.
+ *
+ * The focus rules measure the keyboard reader's page, so the page is put into
+ * the keyboard modality first: the engine answers `:focus-visible` by the
+ * modality of the last interaction, and a case that reached this page through a
+ * pointer press would otherwise leave every control's ring unpainted while the
+ * check reads it — reporting the sheet's own ring as one the reader cannot see.
+ * The key pressed moves nothing: it marks the modality and nothing else.
  * @param page - the page to inspect.
  * @param coarsePointer - whether the platform touch minimum applies.
  * @returns one line per finding.
  */
 export async function defects(page: Page, coarsePointer = false): Promise<string> {
+  await page.keyboard.press('Shift')
   const found = await page.evaluate<StructureFinding[]>(
     await structureCheckSource(coarsePointer, await shippedVocabulary()),
   )

@@ -17,8 +17,8 @@
  * @module
  */
 
+import type { TypographyRamp } from '../apps/deeptail/tests/structure-ramp.ts'
 import type { Report, StructureFinding } from '../apps/deeptail/tests/structure-report.ts'
-import type { TypographyRamp } from '../apps/deeptail/tests/structure-vocabulary.ts'
 
 /**
  * The property the type rules read, assembled so this file's own source

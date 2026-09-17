@@ -39,49 +39,77 @@ function rows(count: number): HTMLElement[] {
   return stops
 }
 
+/**
+ * The controls a case drives, refusing a list the fixture built short.
+ *
+ * A case that reached for a stand-in control where a stop was missing would
+ * press a key on something this list never held, so a short list is the case
+ * failing here rather than continuing with something else.
+ * @param count - how many controls the list has to hold.
+ * @returns the controls, in display order.
+ */
+function built(count: number): readonly HTMLElement[] {
+  const stops = rows(count)
+  if (stops.length !== count) throw new Error(`the fixture built ${String(stops.length)} stops, not ${String(count)}`)
+  return stops
+}
+
 describe('a roving tab stop', () => {
   it('gives the set one stop, on the first control', () => {
-    expect(rows(3).map((stop) => stop.tabIndex)).toEqual([0, -1, -1])
+    expect(built(3).map((stop) => stop.tabIndex)).toEqual([0, -1, -1])
   })
 
   it('moves down and up, wrapping at each end', () => {
-    const stops = rows(3)
-    press(stops[0] ?? el('div'), 'ArrowDown')
-    expect([stops.map((stop) => stop.tabIndex), document.activeElement]).toEqual([[-1, 0, -1], stops[1] ?? null])
-    press(stops[1] ?? el('div'), 'ArrowUp')
-    expect(document.activeElement).toBe(stops[0] ?? null)
-    press(stops[0] ?? el('div'), 'ArrowUp')
-    expect(document.activeElement).toBe(stops[2] ?? null)
-    press(stops[2] ?? el('div'), 'ArrowDown')
-    expect(document.activeElement).toBe(stops[0] ?? null)
+    const stops = built(3)
+    const first = stops[0]
+    const second = stops[1]
+    const third = stops[2]
+    if (first === undefined || second === undefined || third === undefined) throw new Error('the list is short')
+    press(first, 'ArrowDown')
+    expect([stops.map((stop) => stop.tabIndex), document.activeElement]).toEqual([[-1, 0, -1], second])
+    press(second, 'ArrowUp')
+    expect(document.activeElement).toBe(first)
+    press(first, 'ArrowUp')
+    expect(document.activeElement).toBe(third)
+    press(third, 'ArrowDown')
+    expect(document.activeElement).toBe(first)
   })
 
   it('jumps to the ends', () => {
-    const stops = rows(4)
-    press(stops[0] ?? el('div'), 'End')
-    expect(document.activeElement).toBe(stops[3] ?? null)
-    press(stops[3] ?? el('div'), 'Home')
-    expect(document.activeElement).toBe(stops[0] ?? null)
+    const stops = built(4)
+    const first = stops[0]
+    const last = stops[3]
+    if (first === undefined || last === undefined) throw new Error('the list is short')
+    press(first, 'End')
+    expect(document.activeElement).toBe(last)
+    press(last, 'Home')
+    expect(document.activeElement).toBe(first)
   })
 })
 
 describe('a press a roving stop does not answer', () => {
   it('lets every other key through, so typing into a row still types', () => {
-    const stops = rows(2)
-    expect(press(stops[0] ?? el('div'), 'a')).toBe(true)
-    expect(press(stops[0] ?? el('div'), 'ArrowDown')).toBe(false)
-    expect(stops.map((stop) => stop.tabIndex)).toEqual([-1, 0])
+    const stops = built(2)
+    const first = stops[0]
+    const second = stops[1]
+    if (first === undefined || second === undefined) throw new Error('the list is short')
+    expect(press(first, 'a')).toBe(true)
+    expect(press(first, 'ArrowDown')).toBe(false)
+    expect([first.tabIndex, second.tabIndex]).toEqual([-1, 0])
   })
 
   it('ignores a press that came from inside a row rather than from the row', () => {
     // A row holds its own controls, and a press in one of those is that
     // control's to answer. Moving the tab stop for it would take focus out of
     // the field being typed into.
-    const stops = rows(2)
+    const stops = built(2)
+    const first = stops[0]
+    const second = stops[1]
+    if (first === undefined || second === undefined) throw new Error('the list is short')
     const inner = el('input')
-    stops[0]?.append(inner)
+    first.append(inner)
     press(inner, 'ArrowDown')
-    expect(stops.map((stop) => stop.tabIndex)).toEqual([0, -1])
+    expect([first.tabIndex, second.tabIndex]).toEqual([0, -1])
   })
 
   it('binds nothing over no controls at all', () => {

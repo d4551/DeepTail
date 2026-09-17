@@ -1,6 +1,10 @@
 /**
  * Reaching every control without a pointer, and with a finger.
  *
+ * The connection menu's own keyboard behaviour lives here too: it walks with the
+ * arrow keys, it is one stop in the page's tab order, and one Tab has to end it
+ * rather than cycling inside a menu that holds everything around it inert.
+ *
  * Every assertion is on rendered text and roles. The only substitution is the
  * Tauri IPC boundary, which no browser provides.
  */
@@ -57,6 +61,65 @@ it('reaches a row action with the keyboard alone and opens the sheet with Enter'
       (node) => document.querySelector(`#${node.getAttribute('aria-labelledby') ?? ''}`)?.textContent,
     ),
   ).toBe('Refactor the loader')
+  await page.close()
+})
+
+it('walks every menu item with the arrow keys and is one stop in the tab order', async () => {
+  const page = await harness.open(fleet({ remoteStatuses: { 'lab-2:session/list': 401 } }))
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  const spoken = () => page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)
+  // Focus opens on the first host, and Down reaches the re-pair row and the
+  // pinned footer rather than stopping at the last host.
+  expect(await spoken()).toContain('Workstation')
+  // Each press depends on where the one before it landed, so they are written
+  // out rather than gathered.
+  await page.keyboard.press('ArrowDown')
+  const second = await spoken()
+  await page.keyboard.press('ArrowDown')
+  const third = await spoken()
+  await page.keyboard.press('ArrowDown')
+  const fourth = await spoken()
+  await page.keyboard.press('ArrowDown')
+  const fifth = await spoken()
+  expect([second, third, fourth, fifth]).toEqual([
+    'Lab boxNeeds re-pairing',
+    'Re-pair this host',
+    'Pair a host',
+    'Unpair',
+  ])
+  // Every item shares one tab stop, so Tab leaves the menu rather than walking it.
+  expect(await page.evaluate(() => document.querySelectorAll('[role="menuitem"][tabindex="0"]').length)).toBe(1)
+  await page.close()
+})
+
+it('lets Tab out of the open menu rather than cycling inside it', async () => {
+  const page = await harness.open(fleet())
+  await page.waitForSelector('[data-deeptail-shell]')
+  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  const where = () =>
+    page.evaluate(() => {
+      const active = document.activeElement
+      if (active === null || active === document.body) return 'nowhere'
+      return active.closest('[data-deeptail-connection="menu"]') === null ? 'outside the menu' : 'inside the menu'
+    })
+  expect(await where()).toBe('inside the menu')
+  // The rest of the sidebar is inert while the menu covers it, so without a way
+  // out the tab sequence runs menu, document, trigger, menu for ever.
+  await page.keyboard.press('Tab')
+  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
+  expect(await where()).toBe('outside the menu')
+  expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
+  // And it stays out: three more presses must never land back in a menu. Each
+  // press depends on where the one before it landed, so they run in sequence.
+  const walked = await [1, 2, 3].reduce(async (sofar: Promise<string[]>) => {
+    const seen = await sofar
+    await page.keyboard.press('Tab')
+    return [...seen, await where()]
+  }, Promise.resolve([]))
+  expect(walked).not.toContain('inside the menu')
   await page.close()
 })
 

@@ -108,12 +108,11 @@ it('keeps keyboard focus on a row when the roster rebuilds beneath it', async ()
   )
   // The roving stop moved with the row, so the next arrow key continues from
   // here. The row it has to land on is read from the roster's own order rather
-  // than restated, and the assertion names that row: a rebuild that dropped
-  // focus on the floor would leave nothing focused, which a "not this row"
-  // assertion would have called a pass.
+  // than restated, and the assertion names it: a rebuild that dropped focus on
+  // the floor would leave nothing focused.
   const order = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-deeptail-session]')].map(
-      (row) => row.getAttribute('data-deeptail-session') ?? '',
+    [...document.querySelectorAll<HTMLElement>('[data-deeptail-session]')].map(
+      (row) => row.dataset['deeptailSession'] ?? '',
     ),
   )
   expect(order).toContain('s-idle')
@@ -123,7 +122,7 @@ it('keeps keyboard focus on a row when the roster rebuilds beneath it', async ()
   await page.keyboard.press('ArrowDown')
   expect(
     await page.evaluate(
-      () => document.activeElement?.closest('[data-deeptail-session]')?.getAttribute('data-deeptail-session') ?? null,
+      () => document.activeElement?.closest<HTMLElement>('[data-deeptail-session]')?.dataset['deeptailSession'] ?? null,
     ),
   ).toBe(follows)
   await page.close()
