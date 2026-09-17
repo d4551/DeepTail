@@ -12,7 +12,7 @@
 import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
 import { declarationsOf } from './sheet-reader.ts'
-import { CASINGS } from './sheet-scale.ts'
+import { CASINGS } from './sheet-scale-vocabulary.ts'
 
 /**
  * Lengths any sheet may write on a drawn property.

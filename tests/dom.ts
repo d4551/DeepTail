@@ -13,6 +13,27 @@
  * cases are the account of what each surface builds, which is the part a
  * mutation run can judge.
  *
+ * ## The DOM is what this claims, and the network stack is not
+ *
+ * Bun runs every test file in one process and keeps one global object across
+ * them, so a registration made here is still in force when a browser suite
+ * runs beside it. happy-dom's registrator claims the process's network globals
+ * as well as its DOM ones — `fetch`, `Request`, `Response`, `Headers`,
+ * `WebSocket` and `FormData` — and the browser harness serves the built bundle
+ * through `Bun.serve`, whose handler answers with `new Response(...)`.
+ *
+ * Answering with another library's `Response` is not a served page: the harness
+ * returned nothing a socket could carry, every browser suite's first case timed
+ * out against a page that never loaded, and the timeout closed that suite's
+ * browser, which took the rest of its cases with it — 175 failures in one run,
+ * from a helper whose callers came for a document.
+ *
+ * So the six are held before the registrator runs and put back the moment it
+ * has: this module supplies the DOM its callers came for and leaves the
+ * platform's network stack in place. A suite that registers for itself applies
+ * the same reclaim, because the rule belongs to the registration rather than to
+ * this file's import of it.
+ *
  * @module
  */
 
@@ -26,14 +47,55 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator'
  * for the next suite that imports this module — and the registrator refuses
  * a second registration. The record lives on the global object the
  * registrator itself writes to, because that is the only state that survives
- * the re-evaluation; it books this module's own work, it detects nothing
- * about the platform.
+ * the re-evaluation; it books this module's work, it detects nothing about
+ * the platform.
  */
 const INSTALLED_KEY = 'deeptailDocumentInstalled'
+
+/**
+ * The globals outside the DOM that the registrator claims too.
+ *
+ * Every one is a constructor or a function the platform exposes, which is why
+ * they are held as `object`: reading them as anything wider would be reading
+ * the shape this file does not use.
+ */
+const NETWORK_GLOBALS = ['fetch', 'Request', 'Response', 'Headers', 'WebSocket', 'FormData'] as const
+
+/** One of those names. */
+type NetworkGlobal = (typeof NETWORK_GLOBALS)[number]
+
+/**
+ * What the platform holds under each of those names, read as this module loads.
+ *
+ * A file's imports are evaluated before its body runs, and every suite that
+ * registers happy-dom imports this module, so this reading is taken ahead of
+ * the first registration the process makes.
+ */
+const PLATFORM_HELD: ReadonlyMap<NetworkGlobal, object> = new Map([
+  ['fetch', globalThis.fetch],
+  ['Request', globalThis.Request],
+  ['Response', globalThis.Response],
+  ['Headers', globalThis.Headers],
+  ['WebSocket', globalThis.WebSocket],
+  ['FormData', globalThis.FormData],
+])
+
+/**
+ * Put the platform's network globals back after a registration has taken them.
+ *
+ * Called by this module for its registration and by any suite that registers
+ * for itself, so the two cannot drift into claiming different sets.
+ */
+export function reclaimNetworkGlobals(): void {
+  for (const [name, held] of PLATFORM_HELD) {
+    Object.defineProperty(globalThis, name, { value: held, writable: true, configurable: true, enumerable: false })
+  }
+}
 
 if (!Object.hasOwn(globalThis, INSTALLED_KEY)) {
   GlobalRegistrator.register()
   Object.defineProperty(globalThis, INSTALLED_KEY, { value: true })
+  reclaimNetworkGlobals()
 }
 
 /**

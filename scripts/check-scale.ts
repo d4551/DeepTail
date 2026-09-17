@@ -29,14 +29,15 @@ import { referenceOffences } from './sheet-reading-scale.ts'
 import {
   absentRungs,
   BORDER,
-  declaredTokens,
   LADDERS,
   type Ladder,
   ladderRungs,
   type MeasuredLadder,
   outsideScale,
+  OWNED,
   type Rung,
 } from './sheet-scale.ts'
+import { declaredTokens } from './sheet-token-reader.ts'
 
 /** A rung holding a whole number of pixels. */
 const PIXELS = /^(\d+)px$/u
@@ -242,7 +243,7 @@ function readLadder(
  * @returns one offence per rejected declaration.
  */
 export function scaleOffences(label: string, text: string): Offence[] {
-  const written = declaredTokens(text)
+  const written = declaredTokens(text, OWNED)
   const offences: Offence[] = [...outsideScale(label, written)]
   const ratios: { readonly ladder: MeasuredLadder; readonly rungs: readonly Rung[] }[] = []
   const pixels = new Map<string, number>()

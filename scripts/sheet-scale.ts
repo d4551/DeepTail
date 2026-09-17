@@ -17,12 +17,22 @@
  * rung written twice, and a `--dsh-` name that is neither a rung nor one of the
  * singles. The values those rungs hold are read in `check-scale.ts`.
  *
+ * This module stays the one import surface for the scale: the values that are
+ * decisions rather than rungs are declared in `sheet-scale-vocabulary.ts`, and
+ * the reader that collects a sheet's declarations is in
+ * `sheet-token-reader.ts`, so neither of those files has to be reached for
+ * directly by a consumer that already reads the scale.
+ *
  * @module
  */
 
 import type { Offence } from './offence.ts'
-import { blocksOf } from './sheet-reader.ts'
 import { CASINGS, MEASURE_MAX, SINGLES } from './sheet-scale-vocabulary.ts'
+import { declaredTokens } from './sheet-token-reader.ts'
+import type { Held } from './sheet-token-reader.ts'
+
+export type { Held }
+export { CASINGS, declaredTokens, MEASURE_MAX, SINGLES }
 
 /** The custom-property namespace this scale owns, and the palette's is not. */
 export const OWNED = '--dsh-'
@@ -118,109 +128,6 @@ export const LADDERS: readonly Ladder[] = [
   { stem: TRACKING, rungs: { kind: 'named', names: ['brand', 'wordmark'] }, unit: 'set', values: /^-?\d+\.\d+em$/u },
 ]
 
-/**
- * The names the token sheet writes that are decisions rather than points on a
- * ladder: the width of a region, the size of a status dot, and a plane of the
- * stacking order.
- *
- * Each is a value the product reads once apiece, and each is named here once. A
- * `--dsh-` name that is neither a rung nor one of these is a value written
- * outside the scale, which is the hole the odd rungs stood in: the sheet said
- * what the number was for, and no rule asked whether the scale had a rung
- * there. Naming one is a decision taken here, in the open, rather than a
- * declaration the sheet makes on its own.
- */
-export const SINGLES: readonly string[] = [
-  '--dsh-action-min',
-  '--dsh-card-width',
-  '--dsh-compose-min',
-  '--dsh-dot-size',
-  '--dsh-drawer',
-  '--dsh-drawer-width',
-  '--dsh-grid-frame',
-  '--dsh-grid-frame-narrow',
-  '--dsh-grid-frame-rows',
-  '--dsh-inline-direction',
-  '--dsh-list-max',
-  '--dsh-menu-height',
-  '--dsh-menu-max',
-  '--dsh-scrollbar-thumb',
-  '--dsh-scrollbar-thumb-hover',
-  '--dsh-sidebar-width',
-  '--dsh-spin-period',
-  '--dsh-target-coarse',
-  '--dsh-target-fine',
-  '--dsh-z-dialog',
-  '--dsh-z-drawer',
-  '--dsh-z-menu',
-  '--dsh-z-modal',
-  '--dsh-z-return',
-  '--dsh-z-scrim',
-]
-
-/**
- * The letter cases a sheet may set, which is the whole vocabulary of
- * `text-transform`.
- *
- * A case is a decision about the reader rather than a length, so it has no rung
- * to read and no staircase to rise: the set itself is the declaration, and both
- * the sheet gate and the page check measure against it. `none` is in the set
- * because a sheet that resets a case has set one.
- */
-export const CASINGS: readonly string[] = ['none', 'uppercase', 'lowercase', 'capitalize']
-
-/**
- * The longest line of text the product draws, in CSS pixels.
- *
- * A measure is the one typographic decision with no declaration site: a line
- * runs as wide as the box around it happens to be, and the box is sized by the
- * layout rather than by the reading. Stating the maximum here is what lets the
- * page check ask whether any rendered line box exceeds it, whatever width the
- * viewport it was laid out under.
- */
-export const MEASURE_MAX = 640
-
-/** Where one declaration of a custom property sits in the sheet. */
-export interface Placement {
-  /** What the declaration sets the property to. */
-  readonly value: string
-  /** The one-based line it is written on. */
-  readonly line: number
-  /** The selector of the block it sits in. */
-  readonly selector: string
-}
-
-/** Every declaration of one custom property, and the one the cascade reads first. */
-export interface Held {
-  /** The declaration written first, which the rules read. */
-  readonly first: Placement
-  /** Every declaration of the property, in source order. */
-  readonly all: readonly Placement[]
-}
-
-/**
- * Every `--dsh-` custom property the sheet writes, by name.
- * @param text - the sheet's contents.
- * @returns one entry per property, with its declarations in source order.
- */
-export function declaredTokens(text: string): Map<string, Held> {
-  const written = new Map<string, Held>()
-  for (const block of blocksOf(text)) {
-    for (const { property, value, line } of block.declarations) {
-      if (!property.startsWith(OWNED)) continue
-      const placement: Placement = { value, line, selector: block.prelude }
-      const seen = written.get(property)
-      written.set(
-        property,
-        seen === undefined
-          ? { first: placement, all: [placement] }
-          : { first: seen.first, all: [...seen.all, placement] },
-      )
-    }
-  }
-  return written
-}
-
 /** What a ladder's rungs are called, for a report. */
 function rungNames(ladder: Ladder): string {
   return ladder.rungs.kind === 'named' ? ladder.rungs.names.join(', ') : 'numbered from 0, without a gap'
@@ -291,7 +198,7 @@ export function outsideScale(label: string, written: ReadonlyMap<string, Held>):
               {
                 label,
                 line: held.first.line,
-                why: `${property} is neither a rung of a ladder nor one of the scale's singles; declare it in scripts/sheet-scale.ts, or write it as a rung`,
+                why: `${property} is neither a rung of a ladder nor one of the scale's singles; declare it in scripts/sheet-scale-vocabulary.ts, or write it as a rung`,
               },
             ]),
       )

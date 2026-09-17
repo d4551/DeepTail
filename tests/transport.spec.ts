@@ -12,10 +12,16 @@
  * script: happy-dom cannot fetch a `blob:` URL, so this suite needs the disabled
  * load reported as the success a browser would report — the load the carrier's
  * contract waits on. The shared registration leaves it reporting a failure.
+ *
+ * Registering here takes the process's network globals as well as its DOM ones,
+ * so the platform's are put back the moment the registration has run — the rule
+ * `./dom.ts` states for the same reason: the browser suites share this process
+ * and serve the built bundle with the platform's own `Response`.
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
+import { reclaimNetworkGlobals } from './dom.ts'
 import {
   answerFetchWith,
   bundleFromSettled,
@@ -31,6 +37,7 @@ if (GlobalRegistrator.isRegistered) {
   await GlobalRegistrator.unregister()
 }
 GlobalRegistrator.register({ settings: { handleDisabledFileLoadingAsSuccess: true } })
+reclaimNetworkGlobals()
 
 beforeEach(() => {
   document.body.replaceChildren()

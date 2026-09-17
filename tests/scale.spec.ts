@@ -21,7 +21,8 @@ import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { GATE, referenceOffences, scaleOffences, scanScale } from '../scripts/check-scale.ts'
 import { TOKEN_SHEET } from '../scripts/sheet-gate.ts'
-import { declaredTokens, outsideScale } from '../scripts/sheet-scale.ts'
+import { OWNED, outsideScale } from '../scripts/sheet-scale.ts'
+import { declaredTokens } from '../scripts/sheet-token-reader.ts'
 import {
   misreported,
   NAMED,
@@ -74,8 +75,8 @@ describe('the scale gate rejects', () => {
   })
 
   it('admits every name the token sheet declares, which is what its singles are for', async () => {
-    const sheet = await readFile(TOKEN_SHEET, 'utf8')
-    expect(outsideScale(TOKEN_SHEET, declaredTokens(sheet))).toEqual([])
+    const text = await readFile(TOKEN_SHEET, 'utf8')
+    expect(outsideScale(TOKEN_SHEET, declaredTokens(text, OWNED))).toEqual([])
   })
 })
 

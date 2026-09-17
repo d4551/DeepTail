@@ -7,17 +7,23 @@
  * registration: the default one reports the disabled load as the failure it
  * is, which is the `error` event the carrier turns into its own refusal — the
  * message an operator reads when a bundle the host shipped cannot run.
+ *
+ * Registering here takes the process's network globals as well as its DOM ones,
+ * so the platform's are put back the moment the registration has run — the rule
+ * `./dom.ts` states for the same reason: the browser suites share this process
+ * and serve the built bundle with the platform's own `Response`.
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
-import { resetDocument } from './dom.ts'
+import { reclaimNetworkGlobals, resetDocument } from './dom.ts'
 import { failBundleExecute, refusalOf, resetTransportDouble, transport } from './transport-double.ts'
 
 if (GlobalRegistrator.isRegistered) {
   await GlobalRegistrator.unregister()
 }
 GlobalRegistrator.register()
+reclaimNetworkGlobals()
 
 beforeEach(() => {
   resetDocument()
