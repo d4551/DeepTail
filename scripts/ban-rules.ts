@@ -246,7 +246,8 @@ function expandoPrototype(node: Node, names: Names): boolean {
 }
 
 /**
- * Whether a node names the legacy prototype accessor, as a property or a key.
+ * Whether a node names the prototype accessor the language retired, as a
+ * property or a key.
  * @param node - the node to test.
  * @param names - what this file renamed and holds in constants.
  * @returns true when it does.

@@ -10,6 +10,12 @@
   "rules": {
     "typescript/no-explicit-any": "error",
     "no-console": "error",
-    "eqeqeq": "error"
+    "eqeqeq": "error",
+    "no-underscore-dangle": [
+      "error",
+      {
+        "allow": ["__TAURI_INTERNALS__"]
+      }
+    ]
   }
 }

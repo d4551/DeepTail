@@ -84,7 +84,7 @@ async function readPipelineManifest(root: string): Promise<ManifestRead> {
   // Read only when there is something to read: a manifest that pins no manager
   // has no version, and coercing its absence into an empty string to run the
   // pattern over is a step that decides nothing.
-  const pinned = manifest['packageManager']
+  const pinned = manifest.packageManager
   const unreadable = pinned !== undefined && typeof pinned !== 'string'
   // Read off the string rather than through the pattern: `exec` takes anything
   // and coerces it, so a reader that lost its type test would go on answering

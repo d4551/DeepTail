@@ -134,7 +134,7 @@ it('hands focus back to the control that opened each sheet', async () => {
       else await page.locator('.modal-mask').click({ position: { x: 4, y: 4 } })
       await dialog.waitFor({ state: 'detached' })
       const landed = await page.evaluate(() =>
-        document.activeElement instanceof HTMLElement ? (document.activeElement.dataset['deeptailAction'] ?? '') : '',
+        document.activeElement instanceof HTMLElement ? (document.activeElement.dataset.deeptailAction ?? '') : '',
       )
       await page.close()
       return `${label} ${how}: ${landed}`
@@ -158,7 +158,7 @@ it('lands focus on a reachable control when the frame closed the drawer its trig
       const active = document.activeElement
       return {
         reached: active instanceof HTMLElement && active !== document.body && active.closest('[inert]') === null,
-        marker: active instanceof HTMLElement ? (active.dataset['deeptailAction'] ?? '') : '',
+        marker: active instanceof HTMLElement ? (active.dataset.deeptailAction ?? '') : '',
       }
     }),
   ).toEqual({ reached: true, marker: ACTIONS['drawer.toggle'].marker })
@@ -231,7 +231,7 @@ async function plantInsideDialog(page: Page, rule: string): Promise<void> {
     await page.addStyleTag({ content: '[data-deeptail-probe="pane"] { overflow-y: auto; block-size: 20px; }' })
     await page.evaluate(() => {
       const pane = document.createElement('div')
-      pane.dataset['deeptailProbe'] = 'pane'
+      pane.dataset.deeptailProbe = 'pane'
       document.querySelector('.modal-body')?.append(pane)
     })
     return
@@ -273,13 +273,13 @@ it('reports a dialog and an overlay built outside the frame, and drops them', as
   // reported while the promise its author did remember keeps axe quiet.
   await page.evaluate(() => {
     const rogue = document.createElement('div')
-    rogue.dataset['deeptailProbe'] = 'rogue'
+    rogue.dataset.deeptailProbe = 'rogue'
     rogue.setAttribute('role', 'dialog')
     rogue.setAttribute('aria-modal', 'true')
     rogue.textContent = 'Rogue'
     document.body.append(rogue)
     const overlay = document.createElement('div')
-    overlay.dataset['deeptailProbe'] = 'overlay'
+    overlay.dataset.deeptailProbe = 'overlay'
     overlay.setAttribute('role', 'presentation')
     document.body.append(overlay)
   })

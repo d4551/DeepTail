@@ -9,7 +9,7 @@
  * @module
  */
 
-import { Channel, invoke } from '@tauri-apps/api/core'
+import { invoke, NativeChannel } from './ipc.ts'
 import { messageOf } from './reason.ts'
 import {
   SOCKET_CLOSE_ABNORMAL,
@@ -27,10 +27,18 @@ type MuxFrame =
   | { readonly type: 'error'; readonly message: string }
   | { readonly type: 'close'; readonly code: number; readonly reason: string }
 
+/**
+ * One header pair, as it crosses the IPC boundary.
+ *
+ * Named because the request the carrier builds and the reply it rebuilds both
+ * carry the same pair, and the wire type at each of them is the same shape.
+ */
+type HeaderPair = readonly [string, string]
+
 /** The response shape the Rust unary-call command returns across the IPC boundary. */
 interface CarrierResponse {
   readonly status: number
-  readonly headers: readonly (readonly [string, string])[]
+  readonly headers: readonly HeaderPair[]
   readonly body: string
 }
 
@@ -79,7 +87,7 @@ class CarrierMuxSocket extends EventTarget implements MuxSocketLike {
   constructor(hostId: string) {
     super()
     this.#host = hostId
-    const channel = new Channel<MuxFrame>((frame) => {
+    const channel = new NativeChannel<MuxFrame>((frame) => {
       this.#receive(frame)
     })
     invoke('carrier_open_mux', { host: hostId, channel }).then(undefined, (reason) => {

@@ -14,9 +14,9 @@
  */
 
 import type { AppWebEntry } from '@deepseek-ai/dsh-client-web'
-import { invoke } from '@tauri-apps/api/core'
 import type { HostRecord } from './host.ts'
 import { applyIndexInjections } from './injections.ts'
+import { invoke } from './ipc.ts'
 import { type Carrier, createCarrier } from './transport.ts'
 import type { WireValue } from './wire.ts'
 

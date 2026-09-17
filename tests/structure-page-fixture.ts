@@ -23,7 +23,7 @@ export const SCOPE = '[data-deeptail-shell], [data-deeptail-picker]'
  */
 export function shellWithMain(): HTMLElement {
   const shell = document.createElement('div')
-  shell.dataset['deeptailShell'] = ''
+  shell.dataset.deeptailShell = ''
   shell.id = 'shell'
   shell.append(document.createElement('main'))
   document.body.append(shell)
@@ -43,7 +43,7 @@ export function framedDialog(holder: HTMLElement): HTMLElement {
   dialog.id = 'dialog'
   dialog.setAttribute('role', 'dialog')
   dialog.setAttribute('aria-modal', 'true')
-  dialog.dataset['deeptailDialog'] = ''
+  dialog.dataset.deeptailDialog = ''
   dialog.setAttribute('aria-labelledby', 'dialog-title')
   const title = document.createElement('h2')
   title.id = 'dialog-title'

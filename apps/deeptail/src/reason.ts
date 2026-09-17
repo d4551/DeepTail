@@ -10,7 +10,7 @@
 
 import { FORBIDDEN, PROTOCOL, RemoteError, TRANSPORT, UNAUTHORIZED } from './api.ts'
 import type { PickerKey, Translate } from './locales.ts'
-import { numberFieldOf, stringFieldOf } from './wire.ts'
+import { arrayFieldOf, numberFieldOf, stringFieldOf } from './wire.ts'
 
 /**
  * The message a failure should be reported with.
@@ -52,8 +52,8 @@ const TRANSPORT_KEYS: Readonly<Record<string, PickerKey>> = {
 export function describeFailure<T>(reason: T, t: Translate): string {
   if (!(reason instanceof RemoteError)) return messageOf(reason)
   if (reason.code === 'agent-preset-not-found') {
-    const available = reason.details['available']
-    if (Array.isArray(available) && available.length > 0) {
+    const available = arrayFieldOf(reason.details, 'available')
+    if (available !== undefined && available.length > 0) {
       return t('spawn.presetUnknown', { presets: available.map(String).join(', ') })
     }
   }

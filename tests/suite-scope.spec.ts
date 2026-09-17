@@ -32,16 +32,33 @@ import { repositoryFiles } from '../scripts/source-tree.ts'
 import { expand, filtersOf, selected, selectsSomething, testCommands } from '../scripts/test-commands.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
-/** Where the browser suites live, and the suffix that keeps them out of the unit run. */
+/** Where the browser suites live, and the suffix that marks one. */
 const BROWSER_DIRECTORY = 'apps/deeptail/tests/'
 const BROWSER_SUFFIX = '.browser.spec.ts'
+
+/**
+ * The suffixes that mark a spec this process drives rather than a browser.
+ *
+ * The browser directory is where the app's suites live, and most of them need a
+ * page: the build, the harness, a real engine. One does not — it drives the
+ * installed `Channel` class against the runtime double, with no bundle and no
+ * page — and it sits there because the app tree is the only one that resolves
+ * the app's own dependencies. Naming the kind in the file name is what keeps
+ * that exception from being a directory of them.
+ */
+const UNIT_SUFFIXES = ['.unit.spec.ts']
+
+/** Whether a spec is driven by a browser rather than by this process. */
+function isBrowser(label: string): boolean {
+  return label.startsWith(BROWSER_DIRECTORY) && !UNIT_SUFFIXES.some((suffix) => label.endsWith(suffix))
+}
 
 /** Every spec the repository ships, by directory. */
 function specs(): { readonly browser: string[]; readonly unit: string[] } {
   const all = repositoryFiles(['.spec.ts']).map((file) => file.label)
   return {
-    browser: all.filter((label) => label.startsWith(BROWSER_DIRECTORY)),
-    unit: all.filter((label) => !label.startsWith(BROWSER_DIRECTORY)),
+    browser: all.filter((label) => isBrowser(label)),
+    unit: all.filter((label) => !isBrowser(label)),
   }
 }
 
@@ -83,6 +100,23 @@ describe('the suites the gate chain runs', () => {
       const browserNames = new Set(browser.map((label) => label.slice(label.lastIndexOf('/') + 1)))
       const collisions = unit.filter((label) => browserNames.has(label.slice(label.lastIndexOf('/') + 1)))
       expect(collisions).toEqual([])
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
+})
+
+describe('the split between a browser spec and a unit one', () => {
+  it(
+    'reads only the marked suffixes as unit specs, and every other app spec as a browser one',
+    () => {
+      // The split above is the whole of what keeps a page-driving suite out of
+      // the unit run, so it is driven against the shapes it must tell apart
+      // rather than only ever being read as green: an unmarked name in the
+      // browser directory is a browser suite, and a marked one is not.
+      expect(isBrowser('apps/deeptail/tests/a11y.browser.spec.ts')).toBe(true)
+      expect(isBrowser('apps/deeptail/tests/ipc-runtime.spec.ts')).toBe(true)
+      expect(isBrowser('apps/deeptail/tests/ipc-runtime.unit.spec.ts')).toBe(false)
+      expect(isBrowser('tests/ipc-runtime.spec.ts')).toBe(false)
     },
     TREE_SCAN_BUDGET_MS,
   )

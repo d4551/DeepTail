@@ -14,7 +14,7 @@
  * @module
  */
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc.ts'
 import { answered, type Invoke, isBoolean, isNothing, listOf } from './native-call.ts'
 import { arrayFieldOf, booleanFieldOf, isWireObject, stringFieldOf, type WireValue } from './wire.ts'
 

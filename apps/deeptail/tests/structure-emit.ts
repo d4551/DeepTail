@@ -106,7 +106,7 @@ export async function typographyRamp(): Promise<TypographyRamp> {
  * stops doing so fails here rather than measuring nothing.
  * @returns the mount, as a selector.
  */
-export async function shippedMount(): Promise<string> {
+async function shippedMount(): Promise<string> {
   const html = await Bun.file(SHIPPED_PAGE).text()
   const id = /<body>[\s\S]*?<[a-z-]+[^>]*\sid="([^"]+)"/u.exec(html)?.[1]
   if (id === undefined) throw new Error('deeptail: index.html gives no element an id to mount the page into')

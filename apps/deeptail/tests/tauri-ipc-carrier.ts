@@ -65,6 +65,19 @@ function isChannel(value: Invoked): value is ScriptChannel {
 }
 
 /**
+ * The host an invoke was addressed to.
+ *
+ * Every carrier command is addressed to a host and each read it the same way,
+ * so the read is written once: three copies of one line are three places for
+ * the answer to drift apart.
+ * @param args - the invoke arguments.
+ * @returns the host, or the empty string when the call addressed none.
+ */
+function hostOf(args: Record<string, object>): string {
+  return typeof args['host'] === 'string' ? args['host'] : ''
+}
+
+/**
  * Answer a Typert Remote call with a server-response envelope.
  * @param script - the answers this page should give.
  * @param args - the invoke arguments.
@@ -78,7 +91,7 @@ function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>,
   const envelope = readJson(textAt(request, 'body'))
   const payload = envelope['payload']
   const sent = isRecord(payload) ? payload['args'] : undefined
-  const host = typeof args['host'] === 'string' ? args['host'] : ''
+  const host = hostOf(args)
   state.recorded.push({ host, endpoint, args: isRecord(sent) ? sent : {} })
   const scoped = `${host}:${endpoint}`
   if ((script.remotePending ?? []).some((key) => key === scoped || key === endpoint)) {
@@ -117,18 +130,18 @@ function deeptailCarrierFetch(script: AnswerTable, args: Record<string, object>,
  * @returns null once opened, or a promise that never settles.
  */
 function deeptailOpenMux(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<null> {
-  const host = typeof args['host'] === 'string' ? args['host'] : ''
+  const host = hostOf(args)
   const channel = args['channel']
   if (!isChannel(channel) || !(script.muxHosts ?? []).includes(host)) {
     // No socket for this host: the deferred is deliberately never settled,
     // which is what an unreachable stream looks like.
     return Promise.withResolvers<null>().promise
   }
-  state.channels.set(host, channel)
+  state.sockets.set(host, channel)
   // The open frame is what makes the socket report OPEN, which is what lets the
   // subscription send its `open` request.
   queueMicrotask(() => {
-    channel.onmessage?.({ type: 'open' })
+    channel['onmessage']?.({ type: 'open' })
   })
   return Promise.resolve(null)
 }
@@ -141,21 +154,23 @@ function deeptailOpenMux(script: AnswerTable, args: Record<string, object>, stat
  * @returns null.
  */
 function deeptailSendMux(script: AnswerTable, args: Record<string, object>, state: IpcState): Promise<null> {
-  const host = typeof args['host'] === 'string' ? args['host'] : ''
-  const channel = state.channels.get(host)
+  const host = hostOf(args)
+  const channel = state.sockets.get(host)
   const frame = readJson(typeof args['data'] === 'string' ? args['data'] : '{}')
   const streamId = frame['streamId']
   if (channel === undefined || frame['type'] !== 'open' || typeof streamId !== 'string') {
     return Promise.resolve(null)
   }
-  const send = (value: MuxEventValue): void => {
-    channel.onmessage?.({ type: 'message', data: JSON.stringify({ type: 'item', streamId, value }) })
+  const send = (value: MuxEventValue): undefined => {
+    channel['onmessage']?.({ type: 'message', data: JSON.stringify({ type: 'item', streamId, value }) })
+    return undefined
   }
   // A test that needs the roster to change at a chosen moment — after focusing a
   // row, say — drives this rather than the opening burst.
   Object.assign(window, {
-    deeptailForwardEvent: (event: string, tuple: ForwardedEvent['args']): void => {
+    deeptailForwardEvent: (event: string, tuple: ForwardedEvent['args']): undefined => {
       send({ type: 'emit', event, args: tuple })
+      return undefined
     },
   })
   // The Gateway answers an opened stream with its ready frame before anything
@@ -164,7 +179,7 @@ function deeptailSendMux(script: AnswerTable, args: Record<string, object>, stat
     send({ type: 'ready', clientId: 'test-client', host })
     for (const forwarded of script.muxEvents ?? []) send({ type: 'emit', event: forwarded.event, args: forwarded.args })
     if ((script.muxClose ?? []).includes(host)) {
-      channel.onmessage?.({ type: 'close', code: 1006, reason: 'host went away' })
+      channel['onmessage']?.({ type: 'close', code: 1006, reason: 'host went away' })
     }
   })
   return Promise.resolve(null)
@@ -176,6 +191,7 @@ export const CARRIER_SOURCES = [
   textAt,
   readJson,
   isChannel,
+  hostOf,
   deeptailCarrierFetch,
   deeptailOpenMux,
   deeptailSendMux,

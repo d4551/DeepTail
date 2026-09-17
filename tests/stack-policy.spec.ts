@@ -261,7 +261,7 @@ describe('the stack policy bans the rest of the ship list', () => {
 
   it('runs on a bun at the floor, and pins the manager to exactly what runs', async () => {
     const manifest = readJsonc(await readFile('package.json', 'utf8'))
-    const declared = managerPin(manifest['packageManager'])
+    const declared = managerPin(manifest.packageManager)
     if (declared === null) throw new Error('package.json must pin the package manager as bun@x.y.z')
     const [name, version] = declared
     // The floor is read from the table rather than written here: the pin and the

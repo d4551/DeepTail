@@ -31,7 +31,7 @@ function folded(source: string): string | undefined {
  */
 function read(source: string): string | undefined {
   const declarator = nodeOfType(source, 'VariableDeclarator')
-  return staticString(namesOf(source).constants, declarator['init'])
+  return staticString(namesOf(source).constants, declarator.init)
 }
 
 /**

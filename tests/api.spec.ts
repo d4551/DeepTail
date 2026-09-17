@@ -138,8 +138,8 @@ describe('listing sessions', () => {
     const { hooks } = carrierDouble(200, ok({}))
     const failure = await refusalOf(createHostApi(hooks).listSessions())
     expect(failure?.code).toBe(PROTOCOL)
-    expect(failure?.details['endpoint']).toBe('session/list')
-    expect(failure?.details['detail']).toBe('no items')
+    expect(failure?.details.endpoint).toBe('session/list')
+    expect(failure?.details.detail).toBe('no items')
   })
 
   it('refuses a reply that is no envelope at all', async () => {
@@ -155,10 +155,10 @@ describe('directing a session', () => {
     await createHostApi(hooks).prompt('s-1', 'please rerun the tests', 'queue')
     expect(sent.length).toBe(1)
     expect(sent[0]?.path).toBe('/api/session/prompt')
-    expect(sent[0]?.body.payload.args['sessionId']).toBe('s-1')
-    expect(sent[0]?.body.payload.args['mode']).toBe('queue')
-    expect(sent[0]?.body.payload.args['content']).toEqual([{ type: 'text', text: 'please rerun the tests' }])
-    expect(typeof sent[0]?.body.payload.args['requestId']).toBe('string')
+    expect(sent[0]?.body.payload.args.sessionId).toBe('s-1')
+    expect(sent[0]?.body.payload.args.mode).toBe('queue')
+    expect(sent[0]?.body.payload.args.content).toEqual([{ type: 'text', text: 'please rerun the tests' }])
+    expect(typeof sent[0]?.body.payload.args.requestId).toBe('string')
   })
 
   it('correlates each call with a fresh id, so two prompts never share one', async () => {
@@ -166,7 +166,7 @@ describe('directing a session', () => {
     const api = createHostApi(hooks)
     await api.prompt('s-1', 'first', 'queue')
     await api.prompt('s-1', 'second', 'steer')
-    expect(sent[0]?.body.payload.args['requestId']).not.toBe(sent[1]?.body.payload.args['requestId'])
+    expect(sent[0]?.body.payload.args.requestId).not.toBe(sent[1]?.body.payload.args.requestId)
   })
 
   it('sends a cancellation naming the session alone', async () => {
@@ -185,7 +185,7 @@ describe('directing a session', () => {
     const { hooks } = carrierDouble(200, ok({}))
     const failure = await refusalOf(createHostApi(hooks).createSession({}))
     expect(failure?.code).toBe(PROTOCOL)
-    expect(failure?.details['endpoint']).toBe('session/create')
+    expect(failure?.details.endpoint).toBe('session/create')
   })
 })
 
@@ -207,7 +207,7 @@ describe('what an HTTP rejection is reported as', () => {
     const { hooks } = carrierDouble(503, ok())
     const failure = await refusalOf(createHostApi(hooks).listSessions())
     expect(failure?.code).toBe(TRANSPORT)
-    expect(failure?.details['status']).toBe(503)
+    expect(failure?.details.status).toBe(503)
   })
 })
 
@@ -220,7 +220,7 @@ describe('what a host-reported failure carries', () => {
     const failure = await refusalOf(createHostApi(hooks).createSession({ agentPreset: 'nope' }))
     expect(failure?.code).toBe('agent-preset-not-found')
     expect(failure?.message).toBe('no such preset')
-    expect(failure?.details['available']).toEqual(['standard'])
+    expect(failure?.details.available).toEqual(['standard'])
   })
 
   it('fills the protocol defaults in for a failure that names neither code nor message', async () => {
@@ -229,6 +229,6 @@ describe('what a host-reported failure carries', () => {
     expect(failure?.code).toBe('internal')
     expect(failure?.message).toBe('session/list failed')
     // The endpoint is the one detail the transport can supply itself.
-    expect(failure?.details['endpoint']).toBe('session/list')
+    expect(failure?.details.endpoint).toBe('session/list')
   })
 })

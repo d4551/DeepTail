@@ -8,9 +8,9 @@
  * @module
  */
 
-import { invoke } from '@tauri-apps/api/core'
 import { createHostApi, FORBIDDEN, type HostApi, RemoteError, UNAUTHORIZED } from './api.ts'
 import { type HostRecord, isHostRecord } from './host.ts'
+import { invoke } from './ipc.ts'
 import { answered, type Invoke, listOf } from './native-call.ts'
 import { messageOf } from './reason.ts'
 import { createCarrier } from './transport.ts'

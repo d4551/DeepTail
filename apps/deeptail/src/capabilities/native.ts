@@ -15,7 +15,7 @@
  * @module
  */
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../ipc.ts'
 import type { WireValue } from '../wire.ts'
 
 /** The command the native authority answers issuance on. */

@@ -136,17 +136,30 @@ export async function openPairingForm(harness: Harness, view: AuditView): Promis
 }
 
 /**
+ * How a case asks for the page it wants: the viewport, the palette, the writing
+ * direction, the locale.
+ *
+ * Read off the harness rather than restated, so the three openers here accept
+ * exactly what `open` accepts and none of them can drift from it.
+ */
+type OpenOptions = Parameters<Harness['open']>[1]
+
+/**
+ * The registry overrides a case states before the page boots.
+ *
+ * Read off the fleet fixture, which is the shape every opener here hands the
+ * harness, so no opener can accept a fixture the others do not.
+ */
+type FleetFixture = Parameters<typeof fleet>[0]
+
+/**
  * Open the shell over a fleet fixture and wait until it is showing.
  * @param harness - the suite's browser harness.
  * @param fixture - the registry the page boots against.
  * @param view - the viewport and palette the case is measured under.
  * @returns the page, showing the shell.
  */
-export async function openShell(
-  harness: Harness,
-  fixture: Parameters<typeof fleet>[0] = {},
-  view?: Parameters<Harness['open']>[1],
-): Promise<Page> {
+export async function openShell(harness: Harness, fixture: FleetFixture = {}, view?: OpenOptions): Promise<Page> {
   const page = await harness.open(fleet(fixture), view)
   await waitForLiveShell(page)
   return page
@@ -165,11 +178,30 @@ export async function openShell(
  */
 export async function openShellWithDrawer(
   harness: Harness,
-  fixture: Parameters<typeof fleet>[0] = {},
-  view?: Parameters<Harness['open']>[1],
+  fixture: FleetFixture = {},
+  view?: OpenOptions,
 ): Promise<Page> {
   const page = await openShell(harness, fixture, view)
   await openDrawerIfPresent(page)
+  return page
+}
+
+/** The row a roster seats for the one running session `oneHost` serves. */
+const RUNNING_ROW = '[data-deeptail-session="s-running"]'
+
+/**
+ * Open the shell over the single-host fixture and wait until its row is seated.
+ *
+ * Three suites want the same page: the built product, one host, and a roster
+ * that has finished reading. Waiting for the shell alone is not enough — the
+ * registry, the grant table and the roster read all land after it — so a case
+ * that went on to assert about a row would race the read it is asserting about.
+ * @param harness - the suite's browser harness.
+ * @returns the page, showing the shell with its roster row visible.
+ */
+export async function openShellWithRoster(harness: Harness): Promise<Page> {
+  const page = await openShell(harness, oneHost())
+  await page.locator(RUNNING_ROW).waitFor({ state: 'visible' })
   return page
 }
 
@@ -183,8 +215,8 @@ export async function openShellWithDrawer(
 export async function openShellAt(
   harness: Harness,
   viewport: Viewport,
-  fixture: Parameters<typeof fleet>[0] = {},
-  extra?: Parameters<Harness['open']>[1],
+  fixture: FleetFixture = {},
+  extra?: OpenOptions,
 ): Promise<Page> {
   const page = await harness.open(fleet(fixture), {
     ...extra,

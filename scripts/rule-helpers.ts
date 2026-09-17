@@ -43,8 +43,8 @@ export interface Rule {
  */
 export function identifier(holder: Field | undefined, names: Names): string | undefined {
   const value = unwrap(holder)
-  if (!isNode(value) || value.type !== 'Identifier' || typeof value['name'] !== 'string') return undefined
-  const written = value['name']
+  if (!isNode(value) || value.type !== 'Identifier' || typeof value.name !== 'string') return undefined
+  const written = value.name
   return names.aliases.get(written) ?? written
 }
 
@@ -56,7 +56,7 @@ export function identifier(holder: Field | undefined, names: Names): string | un
  */
 export function property(node: Node, names: Names): string | undefined {
   if (node.type !== 'MemberExpression') return undefined
-  return memberName(node) ?? staticString(names.constants, node['property'])
+  return memberName(node) ?? staticString(names.constants, node.property)
 }
 
 /**
@@ -69,10 +69,10 @@ export function property(node: Node, names: Names): string | undefined {
  */
 export function callsGlobal(node: Node, name: string, names: Names): boolean {
   if (node.type !== 'CallExpression') return false
-  const callee = unwrap(node['callee'])
+  const callee = unwrap(node.callee)
   if (identifier(callee, names) === name) return true
   if (!isNode(callee) || callee.type !== 'MemberExpression') return false
-  const host = identifier(callee['object'], names)
+  const host = identifier(callee.object, names)
   return (host === 'globalThis' || host === 'window' || host === 'self') && property(callee, names) === name
 }
 
@@ -86,10 +86,10 @@ export function callsGlobal(node: Node, name: string, names: Names): boolean {
  */
 export function callsMethod(node: Node, host: string, methods: readonly string[], names: Names): boolean {
   if (node.type !== 'CallExpression') return false
-  const callee = unwrap(node['callee'])
+  const callee = unwrap(node.callee)
   if (!isNode(callee)) return false
   const method = property(callee, names)
-  return method !== undefined && methods.includes(method) && identifier(callee['object'], names) === host
+  return method !== undefined && methods.includes(method) && identifier(callee.object, names) === host
 }
 
 /**
@@ -98,5 +98,5 @@ export function callsMethod(node: Node, host: string, methods: readonly string[]
  * @returns the string, or undefined.
  */
 export function literalKey(value: Field | undefined): string | undefined {
-  return isNode(value) && value.type === 'Literal' && typeof value['value'] === 'string' ? value['value'] : undefined
+  return isNode(value) && value.type === 'Literal' && typeof value.value === 'string' ? value.value : undefined
 }

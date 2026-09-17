@@ -7,7 +7,7 @@
  * @module
  */
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc.ts'
 
 /**
  * Read a settled bundle fetch, naming the URL a refusal belongs to.

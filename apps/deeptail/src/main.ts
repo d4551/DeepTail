@@ -11,7 +11,6 @@
  * @module
  */
 
-import { invoke } from '@tauri-apps/api/core'
 import type { Preconditions } from './actions/dispatch.ts'
 import { ACTIONS } from './actions/registry.ts'
 import { type BootedHost, bootHost, teardownHost } from './boot.ts'
@@ -19,6 +18,7 @@ import { createGrantLedger } from './capabilities/grants.ts'
 import { readNativeGrants } from './capabilities/native.ts'
 import { renderHostPicker } from './fleet.ts'
 import type { HostRecord } from './host.ts'
+import { invoke } from './ipc.ts'
 import { followAppLifecycle } from './lifecycle.ts'
 import { createTranslate } from './locales.ts'
 import { DATA } from './markers.ts'

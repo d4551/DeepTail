@@ -254,7 +254,7 @@ describe('the values those five options may state', () => {
       const stated = await Promise.all(
         labels.map(async (label) => {
           const parsed = readJsonc(await readFile(label, 'utf8'))
-          const options = parsed['compilerOptions']
+          const options = parsed.compilerOptions
           const section = isJsonObject(options) ? options : {}
           return DROPPED_OPTIONS.filter((option) => section[option] !== undefined).map(
             (option) => `${label}: ${option}`,

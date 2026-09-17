@@ -68,7 +68,8 @@ function previewOf(data: JsonValue): string {
   const content = messageContent(data)
   const text = content
     .filter(
-      (block): block is TextBlock => isObject(block) && block['type'] === 'text' && typeof block['text'] === 'string',
+      (block): block is TextBlock =>
+        isObject(block) && fieldOf(block, 'type') === 'text' && typeof fieldOf(block, 'text') === 'string',
     )
     .map((block) => block.text)
     .join(' ')
@@ -92,10 +93,27 @@ function previewOf(data: JsonValue): string {
  * @returns the content blocks, or an empty list when the payload carries none.
  */
 export function messageContent(data: JsonValue): readonly JsonValue[] {
-  const direct = isObject(data) ? data['content'] : undefined
+  if (!isObject(data)) return []
+  const direct = fieldOf(data, 'content')
   if (Array.isArray(direct)) return direct
-  const nested = isObject(data) && isObject(data['message']) ? data['message']['content'] : undefined
+  const message = fieldOf(data, 'message')
+  if (!isObject(message)) return []
+  const nested = fieldOf(message, 'content')
   return Array.isArray(nested) ? nested : []
+}
+
+/**
+ * Read one field of a JSON object, by name.
+ *
+ * Every field read off a payload goes through a reader here rather than through
+ * property access at the call site: the field is named where it is read, and
+ * the read is one lookup this module owns.
+ * @param value - the object to read.
+ * @param field - the field's name.
+ * @returns the field's value, or undefined when it was absent.
+ */
+export function fieldOf(value: JsonObject, field: string): JsonValue | undefined {
+  return value[field]
 }
 
 /**

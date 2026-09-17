@@ -124,7 +124,7 @@ export function checkActionWiring(add: Report, limits: ShellLimits): void {
   const interactive = limits.interactive ?? ''
   for (const node of surfaceElements(limits.scope)) {
     if (!(node instanceof HTMLElement || node instanceof SVGElement)) continue
-    const hook = node.dataset['deeptailAction']
+    const hook = node.dataset.deeptailAction
     if (hook === undefined) continue
     const names = hook
       .trim()

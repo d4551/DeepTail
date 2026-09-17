@@ -86,8 +86,8 @@ it('sends on Enter and keeps Shift+Enter a newline', async () => {
   await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
   const sent = (await harness.calls(page)).filter((call) => call.endpoint === 'session/prompt')
   expect(sent.length).toBe(1)
-  expect(sent[0]?.args['mode']).toBe('queue')
-  expect(sent[0]?.args['content']).toEqual([{ type: 'text', text: 'line one\n' }])
+  expect(sent[0]?.args.mode).toBe('queue')
+  expect(sent[0]?.args.content).toEqual([{ type: 'text', text: 'line one\n' }])
   await page.close()
 })
 

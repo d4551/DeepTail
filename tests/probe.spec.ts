@@ -24,8 +24,8 @@ const GENERIC = 'declare function go<T>(value: T): T\n'
  * @returns the field the initializer sits under.
  */
 function init(source: string): Parameters<typeof unwrap>[0] {
-  const declaration = parsedBody(source).find((node) => Array.isArray(node['declarations']))
-  const declarator = Array.isArray(declaration?.['declarations']) ? declaration['declarations'][0] : undefined
+  const declaration = parsedBody(source).find((node) => Array.isArray(node.declarations))
+  const declarator = Array.isArray(declaration?.declarations) ? declaration.declarations[0] : undefined
   return fieldOf(declarator, 'init')
 }
 

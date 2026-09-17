@@ -19,7 +19,7 @@ const FOREIGN: readonly unknown[] = [undefined, () => 1, Symbol('foreign'), 10n]
 describe('the jsonc reader', () => {
   it('reads comments and trailing commas, which tsconfig files carry', () => {
     const document = readJsonc('{ /* note */ "strict": true, }')
-    expect(document['strict']).toBe(true)
+    expect(document.strict).toBe(true)
   })
 
   it('refuses a document the parser reports errors on', () => {
@@ -33,7 +33,7 @@ describe('the jsonc reader', () => {
 
   it('narrows an object and rejects a missing member as not one', () => {
     expect(isJsonObject({ strict: true })).toBe(true)
-    expect(isJsonObject(readJsonc('{}')['missing'])).toBe(false)
+    expect(isJsonObject(readJsonc('{}').missing)).toBe(false)
     expect(isJsonObject([])).toBe(false)
   })
 })

@@ -27,6 +27,7 @@ import {
   neededJobs,
 } from '../scripts/pipeline-guard-jobs.ts'
 import { MERGE_GATE_WORKFLOW } from '../scripts/pipeline-guard-rules.ts'
+import { AGGREGATE_REACH, condition } from './pipeline-fixtures.ts'
 
 /** A definition shaped the way one really is: triggers first, jobs after. */
 const DEFINITION = [
@@ -49,9 +50,6 @@ const DEFINITION = [
   '    runs-on: ubuntu-latest',
 ].join('\n')
 
-/** The condition that reaches the aggregate when a job it waits on did not. */
-const REACH = '    if: ${{ !cancelled() }}'
-
 /** A definition whose one aggregate is reached, and carries its own refusal. */
 const REACHED = [
   'jobs:',
@@ -59,8 +57,9 @@ const REACHED = [
   '    runs-on: ubuntu-latest',
   '  gate:',
   '    needs: [static]',
-  REACH,
-  "    if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}",
+  AGGREGATE_REACH,
+  condition("contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')", 4),
+  condition("contains(needs.*.result, 'skipped')", 6),
   '    run: exit 1',
 ].join('\n')
 
@@ -285,13 +284,14 @@ describe('the reach condition the aggregate carries', () => {
     // the refusal written inside it is text nothing executes. The condition is
     // the whole of what makes the refusal run.
     expect(aggregationViolations(MERGE_GATE_WORKFLOW, REACHED)).toEqual([])
-    expect(aggregationViolations(MERGE_GATE_WORKFLOW, REACHED.replace(`${REACH}\n`, ''))).toEqual([SKIPPED])
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, REACHED.replace(`${AGGREGATE_REACH}\n`, ''))).toEqual([SKIPPED])
     // Three shapes a reader could take for the reach, and none of them is one: a
     // condition that reads something else, a condition written on a step rather
     // than on the job, and a job switched off outright.
-    const instead = (line: string): string[] => aggregationViolations(MERGE_GATE_WORKFLOW, REACHED.replace(REACH, line))
-    expect(instead('    if: ${{ success() }}')).toEqual([SKIPPED])
-    expect(instead('      if: ${{ !cancelled() }}')).toEqual([SKIPPED])
+    const instead = (line: string): string[] =>
+      aggregationViolations(MERGE_GATE_WORKFLOW, REACHED.replace(AGGREGATE_REACH, line))
+    expect(instead(condition('success()', 4))).toEqual([SKIPPED])
+    expect(instead(condition('!cancelled()', 6))).toEqual([SKIPPED])
     expect(instead('    if: false')).toEqual([SKIPPED])
   })
 })

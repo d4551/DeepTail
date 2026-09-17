@@ -156,7 +156,7 @@ it('reads the outline the reader hears, so a heading the engine hides is not a s
   const third = document.createElement('h3')
   third.textContent = 'Machines'
   const shown = document.createElement('div')
-  shown.dataset['deeptailDialog'] = ''
+  shown.dataset.deeptailDialog = ''
   const fixed = document.createElement('h2')
   fixed.textContent = 'Roster'
   shown.append(fixed)

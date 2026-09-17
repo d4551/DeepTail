@@ -115,7 +115,7 @@ export function dialectPackageOffences(
       if (suffix !== undefined) offences.push(`${name} points ${field} at ${value}, a ${suffix} stylesheet`)
     }
   }
-  const bins = manifest['bin']
+  const bins = manifest.bin
   const binNames = typeof bins === 'string' ? [name] : Object.keys(isJsonObject(bins) ? bins : {})
   for (const bin of binNames) {
     if (PIPELINE_BINS.has(bin)) offences.push(`${name} installs a ${bin} command, which is a CSS pipeline`)

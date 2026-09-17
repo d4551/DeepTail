@@ -33,16 +33,10 @@ import {
   WORKFLOW_FILES,
   workflowSetViolations,
 } from '../scripts/pipeline-guard-rules.ts'
+import { AGGREGATE_REACH, AGGREGATE_REFUSAL, gateChain } from './pipeline-fixtures.ts'
 
 /** A definition that runs every pinned gate, the way the real one must. */
-const FULL_CHAIN = MERGE_GATES.map((gate) => `      - run: bun run ${gate}`).join('\n')
-
-/** The step the aggregate carries to refuse a gate that did not report green. */
-const AGGREGATE_REFUSAL = [
-  "    if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')",
-  "      || contains(needs.*.result, 'skipped') }}",
-  '    run: exit 1',
-].join('\n')
+const FULL_CHAIN = gateChain()
 
 describe('the bounds rules', () => {
   it('refuses an install that is not locked', () => {
@@ -126,7 +120,7 @@ describe('how a gate is recognised as run', () => {
   it('reads a gate run more than once, and one run at the very end of the text', () => {
     // The first place a name appears may be a longer gate; the reader has to
     // go on looking. And a chain that ends on the gate ends the text, which is
-    // a boundary as much as any character is.
+    // a boundary just as a character is.
     const twice = `      - run: bun run lint:ox\n      - run: bun run lint`
     expect(gateCoverageViolations(MERGE_GATE_WORKFLOW, `${FULL_CHAIN}\n${twice}`)).toEqual([])
     expect(gateCoverageViolations(MERGE_GATE_WORKFLOW, FULL_CHAIN.replace('\n', ''))).toEqual([])
@@ -185,7 +179,7 @@ describe('the job-graph rule', () => {
       '    runs-on: ubuntu-latest',
       '  gate:',
       '    needs: [static]',
-      '    if: ${{ !cancelled() }}',
+      AGGREGATE_REACH,
       AGGREGATE_REFUSAL,
     ].join('\n')
     expect(aggregationViolations(MERGE_GATE_WORKFLOW, sound)).toEqual([])

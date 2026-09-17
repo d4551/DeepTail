@@ -120,7 +120,7 @@ describe('the fields of a capability row', () => {
       withFields(CAPABILITY, { id: `host.${subject}`, subject, ttlSeconds: 900 + index }),
     )
     const actions = rows.map((row, index) =>
-      withFields(ACTION, { id: `boot.${String(index)}`, marker: `boot-${String(index)}`, capability: row['id'] ?? '' }),
+      withFields(ACTION, { id: `boot.${String(index)}`, marker: `boot-${String(index)}`, capability: row.id ?? '' }),
     )
     const read = readRegistry(document({ capabilities: rows, actions }))
     expect(read.capabilities.map((row): string => row.subject)).toEqual(SUBJECTS)

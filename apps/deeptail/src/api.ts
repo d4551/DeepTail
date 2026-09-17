@@ -11,6 +11,8 @@
 import type { CarrierHooks } from './transport.ts'
 import {
   arrayFieldOf,
+  booleanFieldOf,
+  fieldOf,
   isSessionSummary,
   isWireObject,
   objectFieldOf,
@@ -240,11 +242,11 @@ function transportFailure(endpoint: string, status: number): RemoteError {
  * @returns whatever the method returned.
  */
 function unwrap(result: WireObject, endpoint: string): WireValue | undefined {
-  if (result['ok'] !== true) {
+  if (booleanFieldOf(result, 'ok') !== true) {
     const error = objectFieldOf(result, 'error') ?? {}
     const code = stringFieldOf(error, 'code') ?? 'internal'
     const message = stringFieldOf(error, 'message') ?? `${endpoint} failed`
     throw new RemoteError(code, message, objectFieldOf(error, 'details') ?? { endpoint })
   }
-  return result['value']
+  return fieldOf(result, 'value')
 }

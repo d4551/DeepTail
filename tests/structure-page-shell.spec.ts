@@ -46,14 +46,14 @@ it('reads one shell with one main as conforming', () => {
 
 it('reports a split shell, a nested shell, and a shell without exactly one main', () => {
   const first = document.createElement('div')
-  first.dataset['deeptailShell'] = ''
+  first.dataset.deeptailShell = ''
   const nested = document.createElement('div')
-  nested.dataset['deeptailShell'] = ''
+  nested.dataset.deeptailShell = ''
   first.append(nested)
   const second = document.createElement('div')
-  second.dataset['deeptailShell'] = ''
+  second.dataset.deeptailShell = ''
   const crowded = document.createElement('div')
-  crowded.dataset['deeptailShell'] = ''
+  crowded.dataset.deeptailShell = ''
   crowded.append(document.createElement('main'), document.createElement('main'))
   document.body.append(first, second, crowded)
   const { findings, add } = collector()
@@ -72,7 +72,7 @@ it('reports a second surface seated in the first, and a main outside every surfa
   const shell = shellWithMain()
   const picker = document.createElement('div')
   picker.id = 'picker'
-  picker.dataset['deeptailPicker'] = ''
+  picker.dataset.deeptailPicker = ''
   shell.append(picker)
   const stray = document.createElement('main')
   document.body.append(stray)
@@ -103,22 +103,22 @@ it('reports every way an action hook is unwired, and the press that would run tw
   const shell = shellWithMain()
   const blank = document.createElement('div')
   blank.id = 'blank'
-  blank.dataset['deeptailAction'] = '  '
+  blank.dataset.deeptailAction = '  '
   const many = document.createElement('div')
   many.id = 'many'
-  many.dataset['deeptailAction'] = 'session.spawn session.kill'
+  many.dataset.deeptailAction = 'session.spawn session.kill'
   const stranger = document.createElement('button')
   stranger.id = 'stranger'
-  stranger.dataset['deeptailAction'] = 'session.unknown'
+  stranger.dataset.deeptailAction = 'session.unknown'
   const unreachable = document.createElement('div')
   unreachable.id = 'unreachable'
-  unreachable.dataset['deeptailAction'] = 'session.spawn'
+  unreachable.dataset.deeptailAction = 'session.spawn'
   const outer = document.createElement('button')
   outer.id = 'outer'
-  outer.dataset['deeptailAction'] = 'session.spawn'
+  outer.dataset.deeptailAction = 'session.spawn'
   const nested = document.createElement('button')
   nested.id = 'nested'
-  nested.dataset['deeptailAction'] = 'session.kill'
+  nested.dataset.deeptailAction = 'session.kill'
   outer.append(nested)
   shell.append(blank, many, stranger, unreachable, outer)
   const { findings, add } = collector()
@@ -150,7 +150,7 @@ it('reports every way an action hook is unwired, and the press that would run tw
 
 it('reports every script hanging off a product surface, inline or sourced', () => {
   const root = document.createElement('div')
-  root.dataset['deeptailPicker'] = ''
+  root.dataset.deeptailPicker = ''
   const inline = document.createElement('script')
   const sourced = document.createElement('script')
   sourced.setAttribute('src', '/src/injected.ts')
@@ -173,7 +173,7 @@ it('reads a product surface with no script in it as the one module entry', () =>
 
 it('reports a sourced one-off outside the product surfaces, and stays silent for harness scripts', () => {
   const root = document.createElement('div')
-  root.dataset['deeptailShell'] = ''
+  root.dataset.deeptailShell = ''
   const inside = document.createElement('script')
   inside.setAttribute('src', '/src/other.ts')
   root.append(inside)

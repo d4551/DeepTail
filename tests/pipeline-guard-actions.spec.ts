@@ -35,18 +35,19 @@ import {
   MERGE_GATE_WORKFLOW,
   scriptViolations,
 } from '../scripts/pipeline-guard-rules.ts'
+import { gateChain, gateStep, LIVE_STEP_CONDITION } from './pipeline-fixtures.ts'
 
 /** A commit sha, which is the only shape an action reference may be pinned to. */
 const SHA = 'fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09'
 
 /** One step, as a definition writes it. */
-const STEP = '      - run: bun run knip\n'
+const STEP = `${gateStep('knip')}\n`
 
 /** A step condition that is merely present, and true: the step still runs. */
-const LIVE_CONDITION = "        if: ${{ runner.os == 'Linux' }}\n"
+const LIVE_CONDITION = `${LIVE_STEP_CONDITION}\n`
 
 /** A definition that runs every pinned gate, the way the real one must. */
-const CHAIN = MERGE_GATES.map((gate) => `      - run: bun run ${gate}`).join('\n')
+const CHAIN = gateChain()
 
 /** What a definition that stopped running knip is told, and nothing else. */
 const KNIP_MISSING = ['workflow ci.yml: the merge gate does not run knip']
