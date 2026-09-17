@@ -110,7 +110,9 @@ function refusals(run: AuditRun): string[] {
   return [
     ...run.pageRefused,
     ...(run.expected.length === 0 ? ['the audit set out to arrange no surface at all'] : []),
-    ...run.expected.filter((key) => !made.has(keyOf(key))).map((key) => `the audit never arranged ${arrangementOf(key)}`),
+    ...run.expected
+      .filter((key) => !made.has(keyOf(key)))
+      .map((key) => `the audit never arranged ${arrangementOf(key)}`),
     ...run.results.flatMap((result) => unreadArrangement(result)),
     ...unrealized,
     ...findingLines(run.results),

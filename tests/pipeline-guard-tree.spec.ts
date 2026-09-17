@@ -144,6 +144,34 @@ describe('the definitions the reader opens', () => {
       'workflow release.yml: carries "continue-on-error", which lets a run decide nothing',
     )
   })
+
+  it('refuses a merge gate whose step was commented out in the definition', async () => {
+    // The whole point of reading a definition rather than counting the names in
+    // it: the gate is still written on the line, and nothing runs it.
+    const root = await pipelineTree(SHIPPED_PIN)
+    const path = join(root, WORKFLOWS, 'ci.yml')
+    const commented = (await Bun.file(path).text()).replace('        run: bun run knip\n', '        # run: knip\n')
+    await writeFile(path, commented)
+    expect(await pipelineViolations(root)).toEqual(['workflow ci.yml: the merge gate does not run knip'])
+  })
+})
+
+describe('the program each definition is held to run', () => {
+  it('refuses an audit clock that stopped mutating, and stopped checking the tree', async () => {
+    // `mutation.yml` exists for two commands: the audit, and the check that the
+    // audit left the tree alone. A clock that ran neither would report a score
+    // for a denominator nothing measured, and would report it green.
+    const root = await pipelineTree(SHIPPED_PIN)
+    const path = join(root, WORKFLOWS, 'mutation.yml')
+    const softened = (await Bun.file(path).text())
+      .replace('        run: bun run mutate\n', '        run: bun run mutate:gates\n')
+      .replace('        run: bun run check:tree\n', '')
+    await writeFile(path, softened)
+    expect(await pipelineViolations(root)).toEqual([
+      'workflow mutation.yml: nothing runs bun run mutate, which is what this definition is for',
+      'workflow mutation.yml: nothing runs bun run check:tree, which is what this definition is for',
+    ])
+  })
 })
 
 describe('the pin the reader holds every workflow to', () => {
@@ -163,6 +191,17 @@ describe('the pin the reader holds every workflow to', () => {
     // same fact about which bun a workflow can be held to.
     expect(await pipelineViolations(await pipelineTree(5))).toEqual([
       'package.json: the packageManager pin is not a string, so no workflow can be held to it',
+    ])
+  })
+
+  it('names a manifest that is gone, and goes on reading the definitions', async () => {
+    // The manifest declares the gates and the pins, so a tree without one has
+    // nothing holding any workflow to anything. One fact about the tree, named
+    // once, with every other rule still answered from what the tree does carry.
+    const root = await pipelineTree(SHIPPED_PIN)
+    await rm(join(root, 'package.json'))
+    expect(await pipelineViolations(root)).toEqual([
+      'package.json is gone; nothing declares the gates a merge waits on',
     ])
   })
 })

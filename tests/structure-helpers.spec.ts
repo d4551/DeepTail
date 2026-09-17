@@ -137,12 +137,7 @@ it('reads every element of every surface, each surface included and read once', 
   document.body.append(outer, single)
   // The nested surface is reached by one walk and named once: a defect inside
   // it is one finding, not one per root that can reach it.
-  expect(surfaceElements('[data-structure-scope]').map((one) => one.id)).toEqual([
-    'outer',
-    'inner',
-    '',
-    'single',
-  ])
+  expect(surfaceElements('[data-structure-scope]').map((one) => one.id)).toEqual(['outer', 'inner', '', 'single'])
 })
 
 it('reads the shadow content of a surface, which the document tree does not carry', () => {

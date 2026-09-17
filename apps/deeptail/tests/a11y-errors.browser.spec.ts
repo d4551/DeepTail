@@ -5,11 +5,12 @@
  *
  * Like the surfaces suite, every refusal is arranged in `a11y-surfaces.ts`, so
  * the same refusals are what the `a11y` script audits under every rule axe
- * enables.
+ * enables. The case each of them is registered under is the one the shown
+ * surfaces are registered under, from `a11y-cases.ts`.
  */
 
-import { afterAll, beforeAll, it } from 'bun:test'
-import { expectNoViolationsAtEachWidth } from './a11y-audit.ts'
+import { afterAll, beforeAll } from 'bun:test'
+import { casesOverEachSurface } from './a11y-cases.ts'
 import { REFUSAL_SURFACES } from './a11y-surfaces.ts'
 import { type Harness, startHarness } from './harness.ts'
 
@@ -23,8 +24,4 @@ afterAll(async () => {
   await harness?.stop()
 })
 
-for (const surface of REFUSAL_SURFACES) {
-  it(`has no WCAG violations on ${surface.name} at every designed width, in both palettes`, async () => {
-    await expectNoViolationsAtEachWidth(harness, surface)
-  }, 180_000)
-}
+casesOverEachSurface(REFUSAL_SURFACES, () => harness)

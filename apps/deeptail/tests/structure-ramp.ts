@@ -17,8 +17,8 @@ import {
   CASINGS,
   declaredTokens,
   LADDERS,
-  LEADING,
   type Ladder,
+  LEADING,
   ladderRungs,
   MEASURE_MAX,
   TRACKING,
@@ -132,8 +132,7 @@ export function typographyRampFrom(text: string): TypographyRamp {
   const written = declaredTokens(text)
   const type = ladderFor(TYPE)
   const leading = ladderFor(LEADING)
-  const rungValues = (stem: string): string[] =>
-    ladderRungs(ladderFor(stem), written).rungs.map((rung) => rung.value)
+  const rungValues = (stem: string): string[] => ladderRungs(ladderFor(stem), written).rungs.map((rung) => rung.value)
   const sizes = ladderRungs(type, written).rungs.map((rung) => pixelLength(rung.value))
   const ratios = ladderRungs(leading, written).rungs
   if (sizes.length !== ratios.length) {

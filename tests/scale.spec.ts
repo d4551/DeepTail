@@ -14,26 +14,18 @@
  * outside the brackets is refused rather than read up to its first match, and a
  * value the rules do not own is passed over rather than read. What the shipped
  * sheets say is asserted in `tests/tree/scale.spec.ts`, through the gate the
- * chain runs. The fixture tables live in `scale-fixtures.ts`.
+ * chain runs. The refusal tables live in `scale-fixtures.ts` and the ladder they
+ * are written against in `scale-ladders.ts`.
  */
 
 import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
-import { GATE, referenceOffences, scaleOffences, scanScale } from '../scripts/check-scale.ts'
+import { GATE, scaleOffences, scanScale } from '../scripts/check-scale.ts'
 import { TOKEN_SHEET } from '../scripts/sheet-gate.ts'
-import { OWNED, outsideScale } from '../scripts/sheet-scale.ts'
-import { declaredTokens } from '../scripts/sheet-token-reader.ts'
-import {
-  misreported,
-  NAMED,
-  REFUSED_READER,
-  REFUSED_SCALE,
-  reason,
-  SHEET,
-  tokens,
-  WHOLE,
-  withValue,
-} from './scale-fixtures.ts'
+import { referenceOffences } from '../scripts/sheet-reading-scale.ts'
+import { declaredTokens, outsideScale } from '../scripts/sheet-scale.ts'
+import { misreported, REFUSED_READER, REFUSED_SCALE, reason, SHEET } from './scale-fixtures.ts'
+import { NAMED, tokens, WHOLE, withValue } from './scale-ladders.ts'
 
 describe('the scale gate rejects', () => {
   it('every declaration the scale does not hold, and every decision stated beside it', () => {
@@ -52,7 +44,7 @@ describe('the scale gate rejects', () => {
     const inherited = '.a {\n  line-height: var(--dsh-leading-lg);\n}\n'
     const sized = '.a { font-size: var(--dsh-text-sm); }\n'
     const other = '.a {\n  display: flex;\n  font-size: var(--dsh-text-sm);\n  line-height: var(--dsh-leading-sm);\n}\n'
-    const ratio = [...WHOLE, ...withValue(NAMED, '--dsh-leading-sm', 'calc(3/2)')]
+    const ratio = [...WHOLE, ...withValue(NAMED, ['--dsh-leading-sm', 'calc(3/2)'])]
     for (const held of [tokens(...WHOLE, ...NAMED), tokens(...NAMED), tokens(...ratio)]) {
       expect(scaleOffences(TOKEN_SHEET, held)).toEqual([])
     }
@@ -76,7 +68,7 @@ describe('the scale gate rejects', () => {
 
   it('admits every name the token sheet declares, which is what its singles are for', async () => {
     const text = await readFile(TOKEN_SHEET, 'utf8')
-    expect(outsideScale(TOKEN_SHEET, declaredTokens(text, OWNED))).toEqual([])
+    expect(outsideScale(TOKEN_SHEET, declaredTokens(text))).toEqual([])
   })
 })
 

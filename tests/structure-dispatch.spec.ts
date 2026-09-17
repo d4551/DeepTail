@@ -14,13 +14,13 @@
  */
 
 import { beforeEach, expect, it } from 'bun:test'
-import type { StructureFinding } from '../apps/deeptail/tests/structure-report.ts'
 import { findStructureDefects } from '../apps/deeptail/tests/structure.ts'
+import type { StructureFinding } from '../apps/deeptail/tests/structure-report.ts'
 import { resetDocument } from './dom.ts'
-import { conformingShell, LIMITS, plantMarkupDefects, plantedPage } from './structure-dispatch-page.ts'
+import { conformingShell, LIMITS, plantedPage, plantMarkupDefects } from './structure-dispatch-page.ts'
 
 /** What the conforming page reports once the markup defects are planted in it. */
-const MARKUP_FINDINGS: readonly StructureFinding[] = [
+const MARKUP_FINDINGS: StructureFinding[] = [
   { rule: 'duplicate-id', detail: 'div#dup repeats id "dup"' },
   { rule: 'dangling-aria-reference', detail: 'div aria-controls points at missing "missing-pane"' },
   { rule: 'item-outside-list', detail: 'div#orphan sits outside a list' },
@@ -31,7 +31,7 @@ const MARKUP_FINDINGS: readonly StructureFinding[] = [
  * Every defect the planted page carries, as the entry point reports them: one
  * for each check, in the order the entry point calls the checks.
  */
-const PLANTED_FINDINGS: readonly StructureFinding[] = [
+const PLANTED_FINDINGS: StructureFinding[] = [
   { rule: 'duplicate-id', detail: 'div#dup repeats id "dup"' },
   { rule: 'nested-interactive', detail: 'button#join sits inside a#invite' },
   { rule: 'heading-skip', detail: 'h1 is followed by h3' },
@@ -78,17 +78,22 @@ const PLANTED_FINDINGS: readonly StructureFinding[] = [
   { rule: 'focus-invisible', detail: 'button#unringed takes focus and paints no outline or shadow for it' },
 ]
 
+/** Putting the engine's own reader preference back after a case took it. */
+type RestoreReader = () => undefined
+
 /**
  * Reads the page as one who asked for less motion.
  * @returns the restore, which puts the engine's own reader preference back.
  */
-function askForLessMotion(): () => MediaQueryList {
+function askForLessMotion(): RestoreReader {
   const original = window.matchMedia
   Object.defineProperty(window, 'matchMedia', {
     value: (query: string) => ({ matches: query.includes('reduce'), media: query }),
     configurable: true,
   })
-  return () => Object.defineProperty(window, 'matchMedia', { value: original, configurable: true })
+  return () => {
+    Object.defineProperty(window, 'matchMedia', { value: original, configurable: true })
+  }
 }
 
 beforeEach(() => {

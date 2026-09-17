@@ -12,6 +12,16 @@
 
 import { ROOT } from '../../../scripts/source-tree.ts'
 import { ACTION_LIST } from '../src/actions/registry.ts'
+import {
+  checkAriaReferences,
+  checkDuplicateIds,
+  checkGroupNames,
+  checkHeadingOrder,
+  checkListOwnership,
+  checkNestedInteractive,
+  findStructureDefects,
+} from './structure.ts'
+import { checkDialogContract, checkDialogPromises, checkOverlayMasks, onScreen } from './structure-dialog.ts'
 import { carriesText, laidOutChildren, reachableTargets, surfaceElements } from './structure-elements.ts'
 import { checkClipping, checkGrid, gridAncestor } from './structure-layout.ts'
 import {
@@ -28,16 +38,13 @@ import { familyListOf, type TypographyRamp, typographyRampFrom } from './structu
 import { clippedAway, describe, pixelLength } from './structure-report.ts'
 import { checkAlignment, checkListGutters, checkSiblingAlignment } from './structure-rows.ts'
 import { checkHorizontalOverflow, checkNestedScroll, isLayoutPane, scrolls } from './structure-scroll.ts'
-import { checkDialogContract, checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import {
-  checkAriaReferences,
-  checkDuplicateIds,
-  checkGroupNames,
-  checkHeadingOrder,
-  checkListOwnership,
-  checkNestedInteractive,
-  findStructureDefects,
-} from './structure.ts'
+  checkActionWiring,
+  checkInlineScripts,
+  checkOneOffScripts,
+  checkShell,
+  checkSurfaceSeating,
+} from './structure-shell.ts'
 import {
   asReported,
   checkTypography,
@@ -202,7 +209,12 @@ const SHIPPED_FUNCTIONS: readonly ((...args: never[]) => unknown)[] = [
   checkListGutters,
   gridAncestor,
   checkGrid,
+  checkSurfaceSeating,
+  checkActionWiring,
   checkShell,
+  checkDialogPromises,
+  checkOverlayMasks,
+  onScreen,
   checkDialogContract,
   checkInlineScripts,
   checkOneOffScripts,

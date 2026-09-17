@@ -13,7 +13,7 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { plannedArrangements } from '../../../scripts/a11y-audit.ts'
 import { RULES_FLOOR } from '../../../scripts/a11y-report.ts'
-import { AUDIT_RULES, EVERY_RULE, WCAG_RULES } from './audit.ts'
+import { AUDIT_RULES, EVERY_RULE, WCAG_RULES } from './audit-rules.ts'
 import { type Harness, startHarness } from './harness.ts'
 import { openShell } from './surfaces.ts'
 
@@ -54,19 +54,23 @@ async function runAuditProgram(): Promise<Said> {
   return { code, out, err }
 }
 
-it('prints the verdict on the output stream and exits nought when every surface it audits is clean', async () => {
-  const said = await runAuditProgram()
-  expect([said.code, said.err]).toEqual([0, ''])
-  // Two lines that say what ran, and then the verdict — nothing after it, and
-  // no other line that could be read as one.
-  const lines = said.out.trimEnd().split('\n')
-  expect(lines).toHaveLength(3)
-  expect(lines[0]).toMatch(/^axe: [0-9]+ arrangements, [0-9]+ surfaces over [0-9]+ views, axe-core [0-9.]+$/u)
-  expect(lines[0]).toContain(`${String(plannedArrangements().length)} arrangements`)
-  expect(lines[1]).toContain('rules over every rule axe enables by default')
-  expect(lines[1]).toContain('rules over the published WCAG 2.2 AA tags and axe best practice')
-  expect(lines[2]).toBe('axe: no accessibility violations')
-}, BUDGET_MS)
+it(
+  'prints the verdict on the output stream and exits nought when every surface it audits is clean',
+  async () => {
+    const said = await runAuditProgram()
+    expect([said.code, said.err]).toEqual([0, ''])
+    // Two lines that say what ran, and then the verdict — nothing after it, and
+    // no other line that could be read as one.
+    const lines = said.out.trimEnd().split('\n')
+    expect(lines).toHaveLength(3)
+    expect(lines[0]).toMatch(/^axe: [0-9]+ arrangements, [0-9]+ surfaces over [0-9]+ views, axe-core [0-9.]+$/u)
+    expect(lines[0]).toContain(`${String(plannedArrangements().length)} arrangements`)
+    expect(lines[1]).toContain('rules over every rule axe enables by default')
+    expect(lines[1]).toContain('rules over the published WCAG 2.2 AA tags and axe best practice')
+    expect(lines[2]).toBe('axe: no accessibility violations')
+  },
+  BUDGET_MS,
+)
 
 it('holds the audit to axe’s own default rule set and to the published tags, which do not nest', async () => {
   // Both selections, because selecting by tag reaches a rule axe ships off by

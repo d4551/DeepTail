@@ -1,90 +1,24 @@
 /**
- * The fixtures the scale-gate suites drive: the ladders a case declares, and
- * the tables of refused sheets with the exact reasons each must produce.
+ * The fixtures the scale-gate suites drive: the tables of refused sheets, each
+ * with the exact reasons it must produce.
  *
  * Held beside the specs rather than inside them so the specs stay under the
  * file-size limit and the tables stay readable as tables; the reasons here are
  * the contract — a case names every reason it produces, not merely one of
  * them, so a rule that reported a sheet for something else as well fails.
  *
+ * The ladder these sheets are written against, and the builders that write one,
+ * are in `scale-ladders.ts`: a suite that needs only a rung reads that module,
+ * and a suite that needs a refusal reads this one.
+ *
  * @module
  */
 
 import type { Offence } from '../scripts/offence.ts'
+import { NAMED, WHOLE, withValue } from './scale-ladders.ts'
 
 /** A label for a sheet that reads the scale rather than declaring it. */
 export const SHEET = 'apps/deeptail/src/styles/shell.css'
-
-/** The rungs of one ladder, each written as a name and the value it holds. */
-function rungs(stem: string, pairs: readonly (readonly [name: string, value: string])[]): string[] {
-  return pairs.map(([name, value]) => `--${stem}-${name}: ${value}`)
-}
-
-/** A ladder whose rungs are numbered, holding the values a case declares. */
-function numbered(values: readonly number[]): string[] {
-  return values.map((px, index) => `--dsh-space-${String(index)}: ${String(px)}px`)
-}
-
-/** Every rung of the ladders that name their rungs, and two of the sheet's singles. */
-export const NAMED: readonly string[] = [
-  ...rungs('dsh-radius', [
-    ['xs', '4px'],
-    ['sm', '8px'],
-    ['md', '12px'],
-    ['lg', '16px'],
-    ['xl', '20px'],
-    ['2xl', '24px'],
-  ]),
-  ...rungs('dsh-text', [
-    ['sm', '12px'],
-    ['md', '13px'],
-    ['lg', '14px'],
-    ['body', '16px'],
-    ['title', '18px'],
-  ]),
-  ...rungs('dsh-leading', [
-    ['sm', 'calc(3 / 2)'],
-    ['md', 'calc(20 / 13)'],
-    ['lg', 'calc(11 / 7)'],
-    ['body', 'calc(3 / 2)'],
-    ['title', 'calc(13 / 9)'],
-  ]),
-  ...rungs('dsh-tracking', [
-    ['brand', '0.04em'],
-    ['wordmark', '0.08em'],
-  ]),
-  ...rungs('dsh-weight', [
-    ['regular', '400'],
-    ['medium', '500'],
-    ['semibold', '600'],
-  ]),
-  ...rungs('dsh-border', [
-    ['hairline', '1px'],
-    ['ring', '2px'],
-    ['accent', '3px'],
-  ]),
-  ...rungs('dsh-control', [
-    ['xs', '34px'],
-    ['sm', '36px'],
-    ['md', '38px'],
-    ['lg', '40px'],
-    ['xl', '60px'],
-  ]),
-  '--dsh-dot-size: 12px',
-]
-
-/** The whole spacing ladder, as the product ships it. */
-export const WHOLE = numbered([2, 4, 6, 8, 12, 16, 20, 24, 32, 48])
-
-/** A token sheet holding the declarations a case writes, one per line. */
-export function tokens(...declarations: readonly string[]): string {
-  return `:root {\n${declarations.map((one) => `  ${one};`).join('\n')}\n}\n`
-}
-
-/** The rungs a case declares, with one of them holding another value. */
-export function withValue(declarations: readonly string[], property: string, value: string): string[] {
-  return declarations.map((one) => (one.startsWith(property) ? `${property}: ${value}` : one))
-}
 
 /** Every reason one case produces, sorted so two lists compare as the same set. */
 export type Reasons = readonly string[]
@@ -98,8 +32,8 @@ export interface ScaleCase {
 }
 
 /** What a leading rung that is not a ratio is refused for, at whatever it holds. */
-const NOT_A_RATIO = (value: string): Reasons => [
-  `--dsh-leading-sm is ${value}; a rung of --dsh-leading- is a ratio written calc(<whole> / <whole>)`,
+const NOT_A_RATIO = (property: string, value: string): Reasons => [
+  `${property} is ${value}; a rung of --dsh-leading- is a ratio written calc(<whole> / <whole>)`,
 ]
 
 /**
@@ -108,6 +42,10 @@ const NOT_A_RATIO = (value: string): Reasons => [
  * The first three are the shapes the sheet itself carried: a second set of
  * spacing rungs named by words, a named radius off the four-pixel ladder, and a
  * name nothing in the scale claimed.
+ *
+ * Where a case restates a rung of the spacing ladder it restates the last one,
+ * so the rise below it still steps as the ladder does and the only reason the
+ * sheet produces is the one the case is about.
  */
 export const REFUSED_SCALE: readonly ScaleCase[] = [
   {
@@ -121,17 +59,17 @@ export const REFUSED_SCALE: readonly ScaleCase[] = [
   {
     writes: [...WHOLE, ...NAMED, '--dsh-gutter-1: 4px'],
     why: [
-      "--dsh-gutter-1 is neither a rung of a ladder nor one of the scale's singles; declare it in scripts/sheet-scale.ts, or write it as a rung",
+      "--dsh-gutter-1 is neither a rung of a ladder nor one of the scale's singles; declare it in scripts/sheet-scale-vocabulary.ts, or write it as a rung",
     ],
   },
   {
-    // A rung number with anything trailing it, and one with anything leading.
-    writes: [...WHOLE, ...NAMED, '--dsh-space-1x: 4px'],
-    why: ['--dsh-space-1x is not a rung of --dsh-space-; its rungs are numbered from 0, without a gap'],
-  },
-  {
-    writes: [...WHOLE, ...NAMED, '--dsh-space-x1: 4px'],
-    why: ['--dsh-space-x1 is not a rung of --dsh-space-; its rungs are numbered from 0, without a gap'],
+    // A rung number with anything trailing it, and one with anything leading:
+    // neither is a number the ladder runs on.
+    writes: [...WHOLE, ...NAMED, '--dsh-space-1x: 4px', '--dsh-space-x1: 4px'],
+    why: [
+      '--dsh-space-1x is not a rung of --dsh-space-; its rungs are numbered from 0, without a gap',
+      '--dsh-space-x1 is not a rung of --dsh-space-; its rungs are numbered from 0, without a gap',
+    ],
   },
   {
     writes: [...WHOLE, ...NAMED, '--dsh-space-3: 10px'],
@@ -148,27 +86,23 @@ export const REFUSED_SCALE: readonly ScaleCase[] = [
     why: ['--dsh-radius-2xl is not declared; the ladder declares that rung'],
   },
   {
-    writes: [...numbered([2, 4, 6, 8, 12, 16, 20, 24, 32, 8.5]), ...NAMED],
+    writes: [...withValue(WHOLE, ['--dsh-space-9', '8.5px']), ...NAMED],
     why: ['--dsh-space-9 is 8.5px; every rung of --dsh-space- is a whole pixel'],
   },
   {
-    // Two lengths on one declaration is not the one length a rung holds. The
-    // last rung, so what is left above it still steps as the ladder does.
-    writes: [...withValue(WHOLE, '--dsh-space-9', '8px 4px'), ...NAMED],
+    writes: [...withValue(WHOLE, ['--dsh-space-9', '8px 4px']), ...NAMED],
     why: ['--dsh-space-9 is 8px 4px; every rung of --dsh-space- is a whole pixel'],
   },
   {
-    writes: [...numbered([2, 4, 6, 8, 7, 12]), ...NAMED],
-    why: ['--dsh-space-4 is 7px, not above --dsh-space-3 at 8px; a ladder rises from rung to rung'],
+    // A ladder whose step narrows: 34px is above the 32px below it, and by less
+    // than the 8px the ladder stepped before that — space-8 is 32px and space-7
+    // is 24px, as the shipped sheet declares them.
+    writes: [...withValue(WHOLE, ['--dsh-space-9', '34px']), ...NAMED],
+    why: ['--dsh-space-9 rises 2px above --dsh-space-8, narrower than the 8px before it'],
   },
   {
-    // Two rungs the same height: the step is nought, which is not a rise.
-    writes: [...numbered([2, 4, 6, 8, 8, 12]), ...NAMED],
-    why: ['--dsh-space-4 is 8px, not above --dsh-space-3 at 8px; a ladder rises from rung to rung'],
-  },
-  {
-    writes: [...numbered([2, 4, 6, 12, 14]), ...NAMED],
-    why: ['--dsh-space-4 rises 2px above --dsh-space-3, narrower than the 6px before it'],
+    writes: [...withValue(WHOLE, ['--dsh-space-9', '32px']), ...NAMED],
+    why: ['--dsh-space-9 is 32px, not above --dsh-space-8 at 32px; a ladder rises from rung to rung'],
   },
   {
     writes: ['--dsh-space-0: 2px', '--dsh-space-2: 6px', ...NAMED],
@@ -179,22 +113,22 @@ export const REFUSED_SCALE: readonly ScaleCase[] = [
     why: ['--dsh-space- declares one rung (--dsh-space-0); a ladder is read from two rungs up'],
   },
   {
-    writes: [...WHOLE, ...withValue(NAMED, '--dsh-leading-sm', '18px')],
-    why: NOT_A_RATIO('18px'),
-  },
-  {
-    // A ratio with anything after it, anything before it, and anything that is
-    // not a whole number where the denominator belongs.
-    writes: [...WHOLE, ...withValue(NAMED, '--dsh-leading-sm', 'calc(3 / 2) 1px')],
-    why: NOT_A_RATIO('calc(3 / 2) 1px'),
-  },
-  {
-    writes: [...WHOLE, ...withValue(NAMED, '--dsh-leading-sm', '0 calc(3 / 2)')],
-    why: NOT_A_RATIO('0 calc(3 / 2)'),
-  },
-  {
-    writes: [...WHOLE, ...withValue(NAMED, '--dsh-leading-sm', 'calc(3 / 2x)')],
-    why: NOT_A_RATIO('calc(3 / 2x)'),
+    // Three ways a ratio is not written whole: the value is read as one value,
+    // so none of these is read up to its first match.
+    writes: [
+      ...WHOLE,
+      ...withValue(
+        NAMED,
+        ['--dsh-leading-sm', '18px'],
+        ['--dsh-leading-md', 'calc(20 / 13) 1px'],
+        ['--dsh-leading-lg', 'calc(11 / 7x)'],
+      ),
+    ],
+    why: [
+      ...NOT_A_RATIO('--dsh-leading-sm', '18px'),
+      ...NOT_A_RATIO('--dsh-leading-md', 'calc(20 / 13) 1px'),
+      ...NOT_A_RATIO('--dsh-leading-lg', 'calc(11 / 7x)'),
+    ],
   },
   {
     // The type rung is gone, so the leading rung paired with it has nothing to
@@ -207,8 +141,23 @@ export const REFUSED_SCALE: readonly ScaleCase[] = [
     ],
   },
   {
-    writes: [...WHOLE, ...withValue(NAMED, '--dsh-leading-sm', 'calc(3 / 5)')],
+    writes: [...WHOLE, ...withValue(NAMED, ['--dsh-leading-sm', 'calc(3 / 5)'])],
     why: ['--dsh-leading-sm resolves to 7.20px against --dsh-text-sm at 12px; a rung lands on a whole pixel'],
+  },
+  {
+    // A set ladder declares its vocabulary, and 700 is a weight no face in this
+    // product is drawn at: membership is what is asked, not the shape of the
+    // number, because a pattern admitting any three digits admits this too.
+    writes: [...WHOLE, ...withValue(NAMED, ['--dsh-weight-semibold', '700'])],
+    why: ['--dsh-weight-semibold is 700, which is no value of --dsh-weight-; the family declares 400, 500, 600'],
+  },
+  {
+    // The last drawn rung restated off the ladder, so the rise below it still
+    // steps and the only reason this sheet produces is the width itself.
+    writes: [...WHOLE, ...withValue(NAMED, ['--dsh-border-accent', '8px'])],
+    why: [
+      '--dsh-border-accent is 8px, which is no drawn length; a border, a rule and a ring are drawn at 0px, 1px, 2px, 3px',
+    ],
   },
 ]
 

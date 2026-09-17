@@ -1,17 +1,19 @@
 /**
- * The two rule selections the audit runs, on a page carrying a defect they do
- * not agree about.
+ * The selection the shipped audit runs, read against the selections the suites
+ * behind it run.
  *
- * axe's default rule set and the published WCAG tags are not nested: selecting
- * rules by tag reaches `target-size`, which is WCAG 2.2 SC 2.5.8 and which axe
- * ships switched off by default, and a run over the default set reaches rules
- * no tag here names. The audit therefore runs both and reports their findings
- * together, and this case holds it to that: the page below carries a target
- * below the 2.5.8 floor, and the audit's answer has to reach it.
+ * A surface audited under one tag set and a surface audited under the whole
+ * default set answer different questions, and an audit that silently ran one of
+ * them would print the same clean sentence either way. This probe plants a
+ * defect that one selection can see and checks that the audit's own answer is
+ * both selections' answer rather than one of them.
+ *
+ * @module
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { AUDIT_RULES, type AuditEvidence, EVERY_RULE, WCAG_RULES } from './audit.ts'
+import type { AuditEvidence } from './audit-evidence.ts'
+import { AUDIT_RULES, EVERY_RULE, WCAG_RULES } from './audit-rules.ts'
 import { type Harness, startHarness } from './harness.ts'
 import { openShell } from './surfaces.ts'
 
@@ -26,25 +28,16 @@ afterAll(async () => {
 })
 
 /**
- * Every finding one audit made, as one line per node.
- * @param evidence - what the audit found.
- * @returns the findings, one line each, in a stable order.
+ * One evidence record's findings, as the lines an audit prints.
+ * @param evidence - what the audit returned.
+ * @returns one line per finding, in the order axe reported them.
  */
 function findingsOf(evidence: AuditEvidence): string[] {
-  return evidence.findings
-    .flatMap((finding) => finding.nodes.map((node) => `${finding.id}: ${node}`))
-    .toSorted()
+  return evidence.findings.map((violation) => `${violation.id}: ${violation.nodes.join(', ')}`)
 }
 
-it('reaches a rule the default set alone leaves out, and reports both selections together', async () => {
+it('answers with both selections the suites behind it run, not one of them', async () => {
   const page = await openShell(harness)
-  // A pointer target below the floor SC 2.5.8 sets, at the smallest rung the
-  // size scale carries: the shape the two selections disagree about, because
-  // the tags reach `target-size` and the default set does not.
-  await page.addStyleTag({
-    content:
-      '[data-deeptail-probe="tiny"] { inline-size: var(--dsh-space-1); block-size: var(--dsh-space-1); padding: 0; border: 0; }',
-  })
   await page.evaluate(() => {
     const tiny = document.createElement('button')
     tiny.dataset['deeptailProbe'] = 'tiny'
@@ -60,6 +53,6 @@ it('reaches a rule the default set alone leaves out, and reports both selections
   // The audit's answer is both selections' answer, not one of them: an audit
   // holding a single selection would report less than the suites it stands
   // behind, and would print the same sentence.
-  expect(findingsOf(together)).toContain(...byTags)
+  for (const finding of byTags) expect(findingsOf(together)).toContain(finding)
   expect(findingsOf(together)).toEqual([...new Set([...findingsOf(alone), ...findingsOf(tagged)])].toSorted())
 }, 120_000)

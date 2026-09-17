@@ -1,5 +1,5 @@
 /**
- * The five gates as the chain runs them: programs, not modules.
+ * Every gate the chain runs, as the chain runs it: programs, not modules.
  *
  * `gate-declarations.spec.ts` drives what each gate reads and refuses, and
  * `gate-runner.spec.ts` drives the reading and the report. The last line of
@@ -13,6 +13,10 @@
  * that matches. A mutation run instruments the tree on purpose and these gates
  * refuse an instrumented tree, so a case that demanded a clean run would report
  * on the run rather than on the program.
+ *
+ * The list of programs is written by hand, so it is read against the manifest:
+ * every script the chain runs that declares a gate is a program this suite
+ * spawns, and nothing else is.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -20,9 +24,11 @@ import { join } from 'node:path'
 import { GATE as BANS } from '../scripts/check-bans.ts'
 import { GATE as ENTRIES } from '../scripts/check-entries.ts'
 import { GATE as INLINE_STYLES } from '../scripts/check-no-inline-styles.ts'
+import { GATE as SCALE } from '../scripts/check-scale.ts'
 import { GATE as STYLESHEETS } from '../scripts/check-stylesheets.ts'
 import { GATE as TREE } from '../scripts/check-tree.ts'
 import { type Gate, readGate } from '../scripts/gate-runner.ts'
+import { manifestScripts } from '../scripts/manifest.ts'
 import { ROOT } from '../scripts/source-tree.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
@@ -31,9 +37,16 @@ const PROGRAMS: readonly (readonly [string, Gate])[] = [
   ['check-bans.ts', BANS],
   ['check-entries.ts', ENTRIES],
   ['check-no-inline-styles.ts', INLINE_STYLES],
+  ['check-scale.ts', SCALE],
   ['check-stylesheets.ts', STYLESHEETS],
   ['check-tree.ts', TREE],
 ]
+
+/** A program under `scripts/`, as a manifest command spells one. */
+const PROGRAM = /scripts\/[\w.-]+\.ts/gu
+
+/** The declaration that makes a script a gate rather than a reader of one. */
+const DECLARES_A_GATE = 'export const GATE'
 
 /** What a finished program said. */
 interface Said {
@@ -96,6 +109,34 @@ describe('each gate run from the command line', () => {
       for (const [name, said] of imported) {
         expect([name, said]).toEqual([name, { code: 0, out: '', err: '' }])
       }
+    },
+    TREE_SCAN_BUDGET_MS,
+  )
+})
+
+describe('the programs this suite spawns', () => {
+  it(
+    'is every gate the chain runs, and no script the chain runs that declares none',
+    async () => {
+      // The list above is written by hand and the manifest is not: a gate whose
+      // script the chain runs is a program whose main nothing else reaches —
+      // `check-scale.ts` sat outside this list while `check:scale` ran in the
+      // chain, which is the hole this reads for. A script the chain runs that
+      // declares no gate is not one of these: its rules live in a module another
+      // gate reads, and its own suite drives what it reads.
+      const commands = [
+        ...new Set([...manifestScripts().values()].flatMap((command) => command.match(PROGRAM) ?? [])),
+      ].toSorted()
+      const declaring = (
+        await Promise.all(
+          commands.map(async (path) =>
+            (await Bun.file(join(ROOT, path)).text()).includes(DECLARES_A_GATE) ? [path] : [],
+          ),
+        )
+      ).flat()
+      expect(declaring.toSorted()).toEqual(PROGRAMS.map(([name]) => `scripts/${name}`).toSorted())
+      expect(commands).toContain('scripts/cargo-freshness.ts')
+      expect(declaring).not.toContain('scripts/cargo-freshness.ts')
     },
     TREE_SCAN_BUDGET_MS,
   )

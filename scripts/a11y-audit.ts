@@ -19,11 +19,11 @@
 
 import { type ArrangementKey, auditSurfacesAtEachView } from '../apps/deeptail/tests/a11y-audit.ts'
 import { AUDITED_SURFACES, viewsOf } from '../apps/deeptail/tests/a11y-surfaces.ts'
-import { AUDIT_RULES } from '../apps/deeptail/tests/audit.ts'
+import { AUDIT_RULES } from '../apps/deeptail/tests/audit-rules.ts'
 import { BUILT_PAGE, startHarness } from '../apps/deeptail/tests/harness.ts'
 import { auditReport } from './a11y-report.ts'
 import { CONSOLE, type GateOutcome, reportGate } from './gate-runner.ts'
-import { documentOffences } from './paint-contract.ts'
+import { documentOffences } from './paint-document-rules.ts'
 import { ROOT } from './source-tree.ts'
 
 /** Every source the bundle is built from, as one glob over the app. */

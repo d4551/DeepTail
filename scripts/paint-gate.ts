@@ -1,11 +1,12 @@
 /**
  * The gate that holds the built page to the paint contract.
  *
- * The contract in `paint-contract.ts` states what the shipped document must
- * be, and the painter in `paint-index.ts` holds the string it assembles to it.
- * Neither reads the file: what ships is `apps/deeptail/dist/index.html` on
- * disk, and a build that never ran, a page a later step rewrote, and a stamp
- * that did not land are all states the assembled string cannot describe.
+ * The contract's document reading, in `paint-document-rules.ts`, states what
+ * the shipped document must be, and the painter in `paint-index.ts` holds the
+ * string it assembles to it. Neither reads the file: what ships is
+ * `apps/deeptail/dist/index.html` on disk, and a build that never ran, a page a
+ * later step rewrote, and a stamp that did not land are all states the assembled
+ * string cannot describe.
  *
  * This gate reads that file and nothing else. It reads it by path rather than
  * through the repository listing, because the build's output is not a file git
@@ -18,7 +19,7 @@
  */
 
 import { CONSOLE, type Gate, type GateOutcome, readGate, renderOffence, reportGate } from './gate-runner.ts'
-import { BUILT_PAGE, documentOffences } from './paint-contract.ts'
+import { BUILT_PAGE, documentOffences } from './paint-document-rules.ts'
 import { onlyPresent, ROOT, type SourceFile } from './source-tree.ts'
 
 /**
@@ -60,7 +61,7 @@ export async function gateOutcome(pages: readonly SourceFile[] = builtPages()): 
       })}\n`,
     }
   }
-  return await readGate(GATE, pages)
+  return await readGate(GATE, [...pages])
 }
 
 // Guarded, as every runnable script here is: importing a module must run

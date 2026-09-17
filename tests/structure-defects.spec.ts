@@ -15,7 +15,6 @@
  */
 
 import { beforeEach, expect, it } from 'bun:test'
-import { typographyRamp } from '../apps/deeptail/tests/structure-emit.ts'
 import {
   checkAriaReferences,
   checkDuplicateIds,
@@ -24,6 +23,7 @@ import {
   checkListOwnership,
   checkNestedInteractive,
 } from '../apps/deeptail/tests/structure.ts'
+import { typographyRamp } from '../apps/deeptail/tests/structure-emit.ts'
 import { resetDocument } from './dom.ts'
 import { collector } from './structure-double.ts'
 

@@ -52,6 +52,16 @@ const TOOLCHAIN: Toolchain = {
 const AGREEING =
   'TypeScript 7.0.2 · Bun 1.4.2 · Node 24 LTS · Tauri 2.11 · Rust edition 2024 · Vite 8 · Playwright 1.63.0.'
 
+/** The Biome version those pins state, read from the table rather than restated. */
+const PINNED_BIOME = TOOLCHAIN.declared.get('@biomejs/biome') ?? ''
+
+/**
+ * Every name a version may be written under, as this repository declares them:
+ * the four the toolchain line must use, the runtime and the engine floor, and
+ * every package whose own basename documents it.
+ */
+const DOCUMENTED: readonly string[] = ['Biome', 'Stryker', 'Bun', 'Rust edition', 'TypeScript', 'React']
+
 /**
  * A badge, as shields.io writes one: the label, the message and the color in
  * the URL path.
@@ -232,13 +242,30 @@ describe('the documented toolchain contradicts itself', () => {
     // documented as `Biome`, and a stale Biome badge written above a correct
     // Biome sentence is exactly the claim last-wins keeps out of sight.
     const names = documentedNames(TOOLCHAIN.declared)
-    expect(
-      [...['Biome', 'Stryker', 'Bun', 'Rust edition', 'TypeScript', 'React']].filter((name) => names.has(name)),
-    ).toEqual(['Biome', 'Stryker', 'Bun', 'Rust edition', 'TypeScript', 'React'])
+    expect(DOCUMENTED.filter((name) => names.has(name))).toEqual([...DOCUMENTED])
     expect(names.has('Kubernetes')).toBe(false)
-    const readme = `${badge('Biome', '2.4.1')}\n\n${AGREEING} Biome 2.5.14.`
-    expect(documentationDrift(statedVersions(readme), TOOLCHAIN)).toEqual([])
-    expect(documentationConflicts(readme)).toEqual([])
-    expect(documentationConflicts(readme, names)).toEqual(['Biome is documented as both 2.4.1 and 2.5.14'])
+    // The pinned version is read from the table rather than written out again:
+    // a case that restated it would go red the day Biome moves, which is a
+    // defect in the case rather than a finding about the reader.
+    const agreeing = `${badge('Biome', PINNED_BIOME)}\n\n${AGREEING} Biome ${PINNED_BIOME}.`
+    expect(documentationDrift(statedVersions(agreeing), TOOLCHAIN)).toEqual([])
+    expect(documentationConflicts(agreeing, names)).toEqual([])
+    // A stale badge above a correct sentence: last-wins keeps only the
+    // sentence, so the badge would go on telling a reader a version this
+    // repository does not install.
+    const stale = `${badge('Biome', '2.4.1')}\n\n${AGREEING} Biome ${PINNED_BIOME}.`
+    expect(documentationDrift(statedVersions(stale), TOOLCHAIN)).toEqual([
+      'Biome is documented as 2.4.1 and pinned at 2.5.14',
+    ])
+    expect(documentationConflicts(stale, names)).toEqual(['Biome is documented as both 2.4.1 and 2.5.14'])
+    // And the contradiction is the badge's, not the sentence's: a badge and a
+    // sentence that state the same stale version agree with each other, so this
+    // reader stays silent while the drift reader above names the version. That
+    // pair is what the two readers are for.
+    const bothStale = `${badge('Biome', '2.4.1')}\n\n${AGREEING} Biome 2.4.1.`
+    expect(documentationConflicts(bothStale, names)).toEqual([])
+    expect(documentationDrift(statedVersions(bothStale), TOOLCHAIN)).toEqual([
+      'Biome is documented as 2.4.1 and pinned at 2.5.14',
+    ])
   })
 })

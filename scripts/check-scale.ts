@@ -2,20 +2,19 @@
  * The gate that reads the scale: the values its rungs hold, and the rungs a
  * shipped sheet reads.
  *
- * `sheet-scale.ts` declares the scale — its ladders, their rungs, and the names
- * the token sheet may write. This half reads what those rungs hold: every rung
- * a whole pixel, a ratio rung resolved against the type rung it pairs with, the
- * rungs read in the order they land, each step at least as wide as the step
- * before it, and a numbered family with no hole in it. A ladder of one rung is
- * not a ladder, and is refused as one.
+ * `sheet-scale.ts` declares the scale. This half reads what those rungs hold:
+ * every rung a whole pixel, a ratio rung resolved against the type rung it
+ * pairs with, the rungs read in the order they land, each step at least as wide
+ * as the step before it, and a numbered family with no hole in it. A ladder of
+ * one rung is not a ladder, and is refused as one.
  *
  * It also reads every other sheet as a reader of the scale: a type, leading or
  * tracking decision that states a value of its own is a decision taken outside
  * the sheet the scale lives in, and a block that states both a type rung and a
- * leading rung pairs them by name.
+ * leading rung pairs them by name. That reader is `sheet-reading-scale.ts`.
  *
- * Both readers are pure functions over one sheet's text, so a suite can drive
- * each against the shape it exists to refuse rather than only against the tree.
+ * Both are pure functions over one sheet's text, so a suite can drive each
+ * against the shape it exists to refuse rather than only against the tree.
  *
  * @module
  */
@@ -29,15 +28,14 @@ import { referenceOffences } from './sheet-reading-scale.ts'
 import {
   absentRungs,
   BORDER,
+  declaredTokens,
   LADDERS,
   type Ladder,
   ladderRungs,
   type MeasuredLadder,
   outsideScale,
-  OWNED,
   type Rung,
 } from './sheet-scale.ts'
-import { declaredTokens } from './sheet-token-reader.ts'
 
 /** A rung holding a whole number of pixels. */
 const PIXELS = /^(\d+)px$/u
@@ -94,16 +92,14 @@ function resolvedRung(ladder: MeasuredLadder, rung: Rung, paired: ReadonlyMap<st
     return { ok: true, px: Number(digits) }
   }
   const found = RATIO.exec(rung.value)
-  if (found === null) {
+  const numerator = found?.at(1)
+  const denominator = found?.at(2)
+  if (numerator === undefined || denominator === undefined) {
     return {
       ok: false,
       why: `${rung.property} is ${rung.value}; a rung of ${ladder.stem} is a ratio written calc(<whole> / <whole>)`,
     }
   }
-  // Both wholes are captured, so a match carries both: they are read as the two
-  // numbers they are rather than defended against an absence the pattern cannot
-  // leave.
-  const [, numerator, denominator] = found
   const against = paired.get(`${ladder.resolves}${rung.name}`)
   if (against === undefined) {
     return {
@@ -122,17 +118,21 @@ function resolvedRung(ladder: MeasuredLadder, rung: Rung, paired: ReadonlyMap<st
 }
 
 /**
- * Every rung of a family that holds a written value rather than a length.
+ * Every rung of a family that holds one of the family's own values.
  *
  * A weight and a tracking are sets of decisions rather than staircases: 400, 500
  * and 600 are three weights with no distance between them to read, and `0.04em`
  * is a fraction of whatever type it sits beside. So the one question asked of
- * each rung is whether it holds a value from the family's own vocabulary, and
- * there is no pixel for the ladder to land on.
+ * each rung is whether it holds a value the family declares, and there is no
+ * pixel for the ladder to land on.
+ *
+ * Membership, not shape: a pattern would have to describe the family's whole
+ * vocabulary, and `/^\d{3}$/` admits 700 as readily as 400 — a weight no face in
+ * this product is drawn at would then read as a rung of the weight ladder.
  * @param label - the path to report offences under.
  * @param ladder - the ladder to read.
  * @param rungs - its rungs, in ladder order.
- * @returns one offence per rung whose value is outside the vocabulary.
+ * @returns one offence per rung whose value the family does not declare.
  */
 function readSetLadder(label: string, ladder: Ladder, rungs: readonly Rung[]): Offence[] {
   if (ladder.unit !== 'set') return []
@@ -147,11 +147,11 @@ function readSetLadder(label: string, ladder: Ladder, rungs: readonly Rung[]): O
     }
   }
   for (const rung of rungs) {
-    if (ladder.values.test(rung.value)) continue
+    if (ladder.vocabulary.includes(rung.value)) continue
     offences.push({
       label,
       line: rung.line,
-      why: `${rung.property} is ${rung.value}, which is no value of ${ladder.stem}${ladder.values.source} describes`,
+      why: `${rung.property} is ${rung.value}, which is no value of ${ladder.stem}; the family declares ${ladder.vocabulary.join(', ')}`,
     })
   }
   return offences
@@ -166,9 +166,7 @@ function readSetLadder(label: string, ladder: Ladder, rungs: readonly Rung[]): O
 function outOfOrder(label: string, landed: readonly Landed[]): Offence[] {
   const offences: Offence[] = []
   let previous: Landed | undefined
-  // The first rung of a ladder has no step above it, and every rise that
-  // reaches the comparison below is already above nought.
-  let step = 0
+  let step: number | undefined
   for (const one of landed) {
     if (previous !== undefined) {
       const rise = one.px - previous.px
@@ -178,7 +176,7 @@ function outOfOrder(label: string, landed: readonly Landed[]): Offence[] {
           line: one.rung.line,
           why: `${one.rung.property} is ${String(one.px)}px, not above ${previous.rung.property} at ${String(previous.px)}px; a ladder rises from rung to rung`,
         })
-      } else if (rise < step) {
+      } else if (step !== undefined && rise < step) {
         offences.push({
           label,
           line: one.rung.line,
@@ -243,7 +241,7 @@ function readLadder(
  * @returns one offence per rejected declaration.
  */
 export function scaleOffences(label: string, text: string): Offence[] {
-  const written = declaredTokens(text, OWNED)
+  const written = declaredTokens(text)
   const offences: Offence[] = [...outsideScale(label, written)]
   const ratios: { readonly ladder: MeasuredLadder; readonly rungs: readonly Rung[] }[] = []
   const pixels = new Map<string, number>()
@@ -291,9 +289,6 @@ export function scaleOffences(label: string, text: string): Offence[] {
 export function scanScale(label: string, text: string): Offence[] {
   return label === TOKEN_SHEET ? scaleOffences(label, text) : referenceOffences(label, text)
 }
-
-/** The rule read from a sheet that consumes the scale, owned by its own module. */
-export { referenceOffences }
 
 /** What this gate reads and refuses. */
 export const GATE: Gate = {

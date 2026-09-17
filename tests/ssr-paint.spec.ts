@@ -4,9 +4,9 @@
  * An empty `#root` is a client-invented tree. These cases drive the same
  * factories the webview mounts, so a paint that returned nothing, skipped the
  * mount, or drifted from the live tree would fail here rather than in a
- * screenshot. What that markup must be once it is painted is stated and driven
- * in `paint-contract.ts` and `paint-page.spec.ts`, which read and stamp the
- * page this build ships; these cases read the factories themselves.
+ * screenshot. What that markup must be once it is painted is stated in
+ * `paint-shell-rules.ts` and driven in `paint-shell-rules.spec.ts`, against the
+ * chrome this build really paints; these cases read the factories themselves.
  *
  * The landmarks the contract names are driven over the paint the factories
  * really produce, by dropping each one out of it: a landmark is proved present
@@ -15,9 +15,9 @@
  * @module
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test'
-import { assertPaintedShell, paintOffences } from '../scripts/paint-contract.ts'
+import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import { firstPaintMarkup } from '../scripts/paint-index.ts'
+import { assertPaintedShell, paintOffences } from '../scripts/paint-shell-rules.ts'
 import { resetDocument } from './dom.ts'
 import { planted } from './paint-fixture.ts'
 import { mountedRoot, mountLiveChrome, seatedDismiss, seatedToggle } from './shell-chrome-double.ts'
@@ -40,6 +40,14 @@ const LANDMARKS: readonly (readonly [string, string, string])[] = [
 ]
 
 beforeEach(() => {
+  resetDocument()
+})
+
+// The document is one object for the whole run, so a case that mounts a `#root`
+// or writes a sheet into the head leaves both behind for every suite that runs
+// after this file — and the paint factories resolve the drawer state off
+// `#root`. This file hands the document back the way it found it.
+afterAll(() => {
   resetDocument()
 })
 

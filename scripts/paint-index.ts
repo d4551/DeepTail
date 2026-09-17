@@ -3,10 +3,12 @@
  *
  * Vite leaves `#root` empty. The factories that paint the live shell fill it
  * here, so the shipped document is the first paint, not a blank mount. What
- * that paint must be — the landmarks, the references, the one module entry —
- * is stated in `paint-contract.ts` and read out of the bytes with the parser a
- * browser uses. The filesystem half, reading a built page and writing it back
- * stamped, lives in `paint-stamp.ts`, which this module stays free of.
+ * that paint must be — the landmarks, the references, the one module entry — is
+ * stated by the contract, whose two readings are `paint-shell-rules.ts` for the
+ * chrome and `paint-document-rules.ts` for the built page, and is read out of
+ * the bytes with the parser a browser uses. The filesystem half, reading a
+ * built page and writing it back stamped, lives in `paint-stamp.ts`, which this
+ * module stays free of.
  *
  * @module
  */
@@ -16,7 +18,8 @@ import { createGrantLedger } from '../apps/deeptail/src/capabilities/grants.ts'
 import { createTranslate } from '../apps/deeptail/src/locales.ts'
 import { createAppRuntime } from '../apps/deeptail/src/runtime.ts'
 import { mountShellFrame } from '../apps/deeptail/src/ui/shell-frame.ts'
-import { assertPaintedDocument, assertPaintedShell } from './paint-contract.ts'
+import { assertPaintedDocument } from './paint-document-rules.ts'
+import { assertPaintedShell } from './paint-shell-rules.ts'
 
 /** The empty mount Vite writes, which this paint replaces. */
 export const EMPTY_ROOT = '<div id="root"></div>'

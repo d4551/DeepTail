@@ -6,13 +6,16 @@
  * single declaration — its property, or its value — while what is left there
  * reads the sheet as a whole, its blocks, its nests and its at-rules.
  *
+ * The rules a value is read against live in `sheet-value-rules.ts`, so this
+ * file holds the question of *which* property a declaration writes.
+ *
  * @module
  */
 
-import { scanColour } from './colour-gate.ts'
 import type { Offence } from './offence.ts'
 import { declarationsOf } from './sheet-reader.ts'
 import { CASINGS } from './sheet-scale-vocabulary.ts'
+import { valueOffences } from './sheet-value-rules.ts'
 
 /**
  * Lengths any sheet may write on a drawn property.
@@ -33,11 +36,6 @@ export const DRAWN_LENGTHS: ReadonlySet<string> = new Set(['0px', '1px', '2px', 
 
 /** A stacking order written as a bare number. */
 const STACKING = /^-?\d+$/u
-
-/** A `url()` that loads from outside the shipped bundle. */
-// No `g` flag: this is tested with RegExp.test across declarations, and a
-// global regex keeps lastIndex between calls, so one match would hide the next.
-const REMOTE_URL_VALUE = /url\(\s*["']?(?:https?:)?\/\//iu
 
 /**
  * The properties that paint a drawn width: a border, a rule or a focus ring.
@@ -69,20 +67,6 @@ const DRAWN_WIDTHS: ReadonlySet<string> = new Set([
  * and one match would then hide the next.
  */
 const DRAWN_WIDTH_BARE = /\d+px/u
-
-/**
- * The viewport units that report a box the reader cannot see.
- *
- * `vh` is the *large* viewport: on a mobile browser it is measured as though
- * the retractable chrome were retracted, so a box sized by it is taller than
- * what is on screen whenever the chrome is showing, and its tail is unreachable
- * — the menu's pinned footer sat exactly there. `vw` has the same shape of
- * problem with a classic scrollbar. The dynamic units (`dvh`, `dvw`) track what
- * is actually visible, and `svh`/`lvh` name a specific end of that range on
- * purpose, so all of those are allowed and only the two that quietly lie are
- * refused.
- */
-const STATIC_VIEWPORT_UNIT = /\b\d+(?:\.\d+)?(vh|vw)\b/u
 
 /** A length written as a number of pixels. */
 const PIXELS = /\b\d+px\b/gu
@@ -125,72 +109,55 @@ export const PHYSICAL_SIDES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * The rules that are about which property a declaration writes.
+ * The rules that read a whole value on one named property.
  *
- * These read the property name, so a custom property — which names a value
- * rather than a box — is not one of them, and asks its own question below.
- * @param label - the path to report offences under.
- * @param property - the property being written.
- * @param value - what it is set to.
- * @param line - the line it is written on.
- * @returns the offences, or an empty list.
+ * Each answers with a reason or with nothing, so a property no rule owns falls
+ * through to the length rules below rather than being refused for a spelling no
+ * decision was taken about. A property whose whole vocabulary the product sets
+ * — the letter case, the font shorthand — answers from that vocabulary, and
+ * `text-align` reads the word wherever it sits in the value, which is what
+ * makes `justify-all` an alignment defect as much as `justify` is.
  */
-function propertyOffences(label: string, property: string, value: string, line: number): Offence[] {
-  if (property === 'z-index') {
-    return STACKING.test(value)
-      ? [{ label, line, why: 'a stacking order belongs to the z-index scale in tokens.css' }]
-      : []
-  }
-  if (property === 'float') return [{ label, line, why: 'float is legacy layout; use flex or grid' }]
-  if (PHYSICAL_SIDES.has(property)) {
-    return [
-      {
-        label,
-        line,
-        why: `${property} is a physical side; use the logical start or end spelling so the direction follows the writing mode`,
-      },
-    ]
-  }
-  if (property === 'text-align' && (value.includes('justify') || value === 'left' || value === 'right')) {
-    return [
-      {
-        label,
-        line,
-        why: 'justified or physical text alignment is an alignment defect; use text-align start or end',
-      },
-    ]
-  }
-  if (property === 'text-transform') {
-    return CASINGS.includes(value)
-      ? []
-      : [
-          {
-            label,
-            line,
-            why: `${value} is no letter case the product sets; the declared cases are ${CASINGS.join(', ')}`,
-          },
-        ]
-  }
-  if (property === 'font') {
-    // The shorthand carries a size, a family and a leading in one value, and
-    // every one of those is a rung: a `font: 14px/1.4 sans-serif` states three
-    // scale decisions where no reader of the scale would look for them, which
-    // is a way past the type, leading and family rules at once. `inherit` takes
-    // the parent's font whole, deciding nothing, and is the one spelling that
-    // says so.
-    return value === 'inherit'
-      ? []
-      : [
-          {
-            label,
-            line,
-            why: `${value} restates a size, a leading and a family inside the font shorthand; declare font-size, line-height and font-family as rungs, or take the parent's font whole with inherit`,
-          },
-        ]
-  }
-  if (DRAWN_WIDTHS.has(property)) return drawnWidthOffences(label, property, value, line)
-  return scaledLengthOffences(label, property, value, line)
-}
+const VALUE_RULES: ReadonlyMap<string, (value: string) => string | undefined> = new Map<
+  string,
+  (value: string) => string | undefined
+>([
+  // Anchored at both ends: a value that merely opens or closes with digits is
+  // not a stacking order, and reporting it as one would be a false alarm on a
+  // value the scale does not own. The keyword that names no order is not one.
+  [
+    'z-index',
+    (value) => (STACKING.test(value) ? 'a stacking order belongs to the z-index scale in tokens.css' : undefined),
+  ],
+  ['float', (value) => (value === 'none' ? undefined : 'float is legacy layout; use flex or grid')],
+  [
+    'text-align',
+    (value) =>
+      value.includes('justify') || value === 'left' || value === 'right'
+        ? 'justified or physical text alignment is an alignment defect; use text-align start or end'
+        : undefined,
+  ],
+  [
+    'text-transform',
+    (value) =>
+      CASINGS.includes(value)
+        ? undefined
+        : `${value} is no letter case the product sets; the declared cases are ${CASINGS.join(', ')}`,
+  ],
+  [
+    'font',
+    (value) =>
+      // The shorthand carries a size, a family and a leading in one value, and
+      // every one of those is a rung: a `font: 14px/1.4 sans-serif` states three
+      // scale decisions where no reader of the scale would look for them, which
+      // is a way past the type, leading and family rules at once. `inherit`
+      // takes the parent's font whole, deciding nothing, and is the one spelling
+      // that says so.
+      value === 'inherit'
+        ? undefined
+        : `${value} restates a size, a leading and a family inside the font shorthand; declare font-size, line-height and font-family as rungs, or take the parent's font whole with inherit`,
+  ],
+])
 
 /**
  * Every drawn width a sheet states outside the drawn ladder.
@@ -219,43 +186,63 @@ function drawnWidthOffences(label: string, property: string, value: string, line
 }
 
 /**
- * The rules that are about what a declaration's value says.
+ * The widths a scaled property states outside the scale.
  *
- * Every declaration answers these, custom properties included. While they did
- * not, a custom property was a way past every rule in this file at once: the
- * engine substitutes the value wherever it is read, so `--x: 100vh` is a static
- * viewport height, `--x: #ff0000` is a raw colour and `--x: 37px` is a length
- * off the scale, each of them exactly as much so as writing it in place.
+ * A length on a spacing, radius or type property is a decision the scale owns:
+ * `grid-template-columns` is named apart, because a track is a layout rather
+ * than a space between things.
  * @param label - the path to report offences under.
- * @param value - what the property is set to.
+ * @param property - the property being written.
+ * @param value - what it is set to.
  * @param line - the line it is written on.
- * @param paletteDefinition - whether this declaration is one of the palette's
- * own definitions, which is the one place a colour function states the palette
- * rather than second-guessing it.
  * @returns the offences, or an empty list.
  */
-function valueOffences(label: string, value: string, line: number, paletteDefinition: boolean): Offence[] {
-  const offences: Offence[] = []
-  const viewportUnit = STATIC_VIEWPORT_UNIT.exec(value)
-  if (viewportUnit !== null) {
-    offences.push({
-      label,
-      line,
-      // The dynamic spelling is the static one with a `d` in front, read off
-      // what was found rather than off a capture that has to be defended
-      // against being absent when the pattern cannot leave it so.
-      why: `${viewportUnit[0]} is measured against a viewport the reader may not have; use the dynamic unit d${viewportUnit[0].slice(-2)}`,
-    })
+function scaledLengthOffences(label: string, property: string, value: string, line: number): Offence[] {
+  if (!SCALED.test(property)) return []
+  const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
+  if (lengths.length === 0) return []
+  if (property === 'grid-template-columns' || property === 'grid-template-rows') {
+    return [
+      {
+        label,
+        line,
+        why: `hardcoded-grid: ${lengths.join(', ')} in ${property} belongs to the scale in tokens.css`,
+      },
+    ]
   }
-  if (REMOTE_URL_VALUE.test(value)) {
-    offences.push({
-      label,
-      line,
-      why: 'a remote URL loads an asset no local install ships; ship the asset in the bundle',
-    })
+  return [{ label, line, why: `${lengths.join(', ')} is written out rather than read from the scale in tokens.css` }]
+}
+
+/**
+ * The rules that are about which property a declaration writes.
+ *
+ * These read the property name, so a custom property — which names a value
+ * rather than a box — is not one of them, and asks its own question where a
+ * value is read instead. A physical side is refused first, because the spelling
+ * is the defect whatever the value is; the word rules follow, and a length rule
+ * has the last word on a property that takes a drawn or a scaled width.
+ * @param label - the path to report offences under.
+ * @param property - the property being written.
+ * @param value - what it is set to.
+ * @param line - the line it is written on.
+ * @returns the offences, or an empty list.
+ */
+function propertyOffences(label: string, property: string, value: string, line: number): Offence[] {
+  if (PHYSICAL_SIDES.has(property)) {
+    return [
+      {
+        label,
+        line,
+        why: `${property} is a physical side; use the logical start or end spelling so the direction follows the writing mode`,
+      },
+    ]
   }
-  offences.push(...scanColour(label, value, line, paletteDefinition))
-  return offences
+  const refusal = VALUE_RULES.get(property)?.(value)
+  const fromWord: Offence[] = refusal === undefined ? [] : [{ label, line, why: refusal }]
+  const fromLength = DRAWN_WIDTHS.has(property)
+    ? drawnWidthOffences(label, property, value, line)
+    : scaledLengthOffences(label, property, value, line)
+  return [...fromWord, ...fromLength]
 }
 
 /**
@@ -291,20 +278,4 @@ export function declarationOffences(label: string, text: string, defines: boolea
     offences.push(...propertyOffences(label, property, value, line))
   }
   return offences
-}
-
-function scaledLengthOffences(label: string, property: string, value: string, line: number): Offence[] {
-  if (!SCALED.test(property)) return []
-  const lengths = [...value.matchAll(PIXELS)].map((found) => found[0]).filter((px) => !DRAWN_LENGTHS.has(px))
-  if (lengths.length === 0) return []
-  if (property === 'grid-template-columns' || property === 'grid-template-rows') {
-    return [
-      {
-        label,
-        line,
-        why: `hardcoded-grid: ${lengths.join(', ')} in ${property} belongs to the scale in tokens.css`,
-      },
-    ]
-  }
-  return [{ label, line, why: `${lengths.join(', ')} is written out rather than read from the scale in tokens.css` }]
 }

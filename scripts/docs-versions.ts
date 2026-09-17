@@ -9,45 +9,22 @@
  * the badges too — a shields.io badge carries its version in its URL, where a
  * change is invisible to anyone reading the rendered page.
  *
+ * Which documented name answers to which pin is declared in
+ * `documented-tools.ts`, so that table has one home and this module is the
+ * reading rather than the record.
+ *
  * @module
  */
 
 import { coerce, satisfies } from 'semver'
-
-/**
- * The tools the toolchain line must name, and the dependency each is pinned by.
- *
- * `Bun` is absent here and read from the `packageManager` pin instead, because
- * that is where the runtime this repository runs on is pinned; `Node` and the
- * Rust edition are read from the manifest's engine range and the crate's
- * manifest for the same reason.
- */
-const DOCUMENTED_TOOLS: Readonly<Record<string, string>> = {
-  TypeScript: 'typescript',
-  Tauri: '@tauri-apps/api',
-  Vite: 'vite',
-  Playwright: 'playwright',
-}
-
-/** The tool whose pin is the package manager the manifest declares. */
-const BUN_TOOL = 'Bun'
-
-/** The tool whose pin is the engine range the manifest declares. */
-const NODE_TOOL = 'Node'
-
-/** The tool whose pin is the edition the crate's manifest declares. */
-const EDITION_TOOL = 'Rust edition'
-
-/**
- * The tools whose documentation name is not the package's own last segment.
- *
- * A name like `Biome` or `Oxlint` is the package's basename and needs no entry.
- * `Stryker` is published as `@stryker-mutator/core`, so the two names are not
- * the same word and no reader can derive one from the other.
- */
-const DOCUMENTED_ALIASES: Readonly<Record<string, string>> = {
-  Stryker: '@stryker-mutator/core',
-}
+import {
+  BUN_TOOL,
+  DOCUMENTED_ALIASES,
+  DOCUMENTED_TOOLS,
+  EDITION_TOOL,
+  NODE_TOOL,
+  PINNED_NAMES,
+} from './documented-tools.ts'
 
 /** One `Name 1.2.3` pair, as a line of prose writes it. */
 const STATED_VERSION = /\b[A-Z][A-Za-z]+(?: [a-z][a-z]+)? \d+(?:\.\d+)*\b/gu
@@ -137,18 +114,6 @@ export function statesPin(stated: string, pinned: string): boolean {
   const actual = pinned.split('.')
   return stated.split('.').every((part, index) => part === actual[index])
 }
-
-/**
- * Tools this reader holds to a pin, so a badge and a toolchain line that
- * disagree about one of them cannot hide behind last-wins.
- */
-const PINNED_NAMES = new Set([
-  BUN_TOOL,
-  NODE_TOOL,
-  EDITION_TOOL,
-  ...Object.keys(DOCUMENTED_TOOLS),
-  ...Object.keys(DOCUMENTED_ALIASES),
-])
 
 /**
  * Every tool the prose names twice at versions that cannot both be true.

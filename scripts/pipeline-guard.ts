@@ -8,11 +8,12 @@
  * the code-owner list, applies every rule in `pipeline-guard-rules.ts`,
  * `pipeline-guard-gates.ts` and `pipeline-guard-jobs.ts`, and
  * fails closed: a definition the rules cannot read is a violation, never an
- * absence of one. The rules are driven against synthetic definitions that carry
- * the cheat in `tests/pipeline-guard.spec.ts`, `pipeline-guard-actions.spec.ts`
- * and `pipeline-guard-jobs.spec.ts`; what this module does with a tree, and
- * every rule at once against the repository's own pipeline, is
- * `tests/pipeline-guard-tree.spec.ts`.
+ * absence of one — the manifest included, whose absence is named rather than
+ * left to abort the walk. The rules are driven against synthetic definitions
+ * that carry the cheat in `tests/pipeline-guard.spec.ts`,
+ * `pipeline-guard-actions.spec.ts` and `pipeline-guard-jobs.spec.ts`; what this
+ * module does with a tree, and every rule at once against the repository's own
+ * pipeline, is `tests/pipeline-guard-tree.spec.ts`.
  *
  * @module
  */
@@ -21,7 +22,12 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readJsonc } from './jsonc.ts'
 import { sectionOf } from './manifest.ts'
-import { gateCoverageViolations, validateChainViolations } from './pipeline-guard-gates.ts'
+import {
+  gateCoverageViolations,
+  gateScriptViolations,
+  validateChainViolations,
+  workflowProgramViolations,
+} from './pipeline-guard-gates.ts'
 import { aggregationViolations } from './pipeline-guard-jobs.ts'
 import {
   actionRefViolations,
@@ -40,6 +46,9 @@ import {
 /** Where every workflow definition lives. */
 const WORKFLOW_DIRECTORY = '.github/workflows'
 
+/** The manifest every rule here reads the gates and the pins off. */
+const MANIFEST = 'package.json'
+
 /** The manifest's own bun pin, which is the version every workflow must run. */
 const PACKAGE_MANAGER_BUN = /bun@(\d+\.\d+\.\d+)/u
 
@@ -49,14 +58,29 @@ interface WorkflowFile {
   readonly text: string
 }
 
+/** What the manifest answered, and what reading it found. */
+interface ManifestRead {
+  /** One entry per rule the manifest breaks. */
+  readonly violations: readonly string[]
+  /** The bun version it pins, when it pins one for the workflows to match. */
+  readonly version: string | undefined
+}
+
 /**
- * Every violation the pipeline definitions carry, by name.
- * @param root - the tree the definitions live under; the program reads the
- *   working directory, and a suite reads a tree of its own.
- * @returns one entry per rule a definition breaks; empty when the pipeline is sound.
+ * The manifest, and every rule read off it.
+ *
+ * A manifest that is not there is a violation rather than an abort: one fact
+ * about the tree, named once, with every other rule still answered from the
+ * definitions the tree does carry.
+ * @param root - the tree the manifest lives in.
+ * @returns what reading it found, and the version it pins.
  */
-export async function pipelineViolations(root: string): Promise<readonly string[]> {
-  const manifest = readJsonc(await Bun.file(join(root, 'package.json')).text())
+async function readPipelineManifest(root: string): Promise<ManifestRead> {
+  const path = join(root, MANIFEST)
+  if (!(await Bun.file(path).exists())) {
+    return { violations: [`${MANIFEST} is gone; nothing declares the gates a merge waits on`], version: undefined }
+  }
+  const manifest = readJsonc(await Bun.file(path).text())
   // Read only when there is something to read: a manifest that pins no manager
   // has no version, and coercing its absence into an empty string to run the
   // pattern over is a step that decides nothing.
@@ -68,14 +92,29 @@ export async function pipelineViolations(root: string): Promise<readonly string[
   // `match` is the same read spelt on the string, and a string is what it needs.
   const version = typeof pinned === 'string' ? pinned.match(PACKAGE_MANAGER_BUN)?.[1] : undefined
   const scripts = sectionOf(manifest, 'scripts')
-  const violations = [
-    ...validateChainViolations(scripts),
-    ...scriptViolations(scripts),
-    ...(unreadable ? ['package.json: the packageManager pin is not a string, so no workflow can be held to it'] : []),
-    ...(version === undefined && !unreadable
-      ? ['package.json: no bun@x.y.z packageManager pin for the workflows to match']
-      : []),
-  ]
+  return {
+    version,
+    violations: [
+      ...validateChainViolations(scripts),
+      ...gateScriptViolations(scripts),
+      ...scriptViolations(scripts),
+      ...(unreadable ? [`${MANIFEST}: the packageManager pin is not a string, so no workflow can be held to it`] : []),
+      ...(version === undefined && !unreadable
+        ? [`${MANIFEST}: no bun@x.y.z packageManager pin for the workflows to match`]
+        : []),
+    ],
+  }
+}
+
+/**
+ * Every violation the pipeline definitions carry, by name.
+ * @param root - the tree the definitions live under; the program reads the
+ *   working directory, and a suite reads a tree of its own.
+ * @returns one entry per rule a definition breaks; empty when the pipeline is sound.
+ */
+export async function pipelineViolations(root: string): Promise<readonly string[]> {
+  const manifest = await readPipelineManifest(root)
+  const violations = [...manifest.violations]
   const names = (await readdir(join(root, WORKFLOW_DIRECTORY)))
     .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
     .toSorted()
@@ -84,7 +123,7 @@ export async function pipelineViolations(root: string): Promise<readonly string[
     names.map(async (name) => ({ name, text: await Bun.file(join(root, WORKFLOW_DIRECTORY, name)).text() })),
   )
   for (const file of files) {
-    violations.push(...workflowViolations(file, version))
+    violations.push(...workflowViolations(file, manifest.version))
   }
   violations.push(...(await ownershipViolations(root)))
   return violations
@@ -105,6 +144,7 @@ function workflowViolations(file: WorkflowFile, version: string | undefined): st
     ...installViolations(file.name, file.text),
     ...scheduleViolations(file.name, file.text),
     ...gateCoverageViolations(file.name, file.text),
+    ...workflowProgramViolations(file.name, file.text),
     ...aggregationViolations(file.name, file.text),
     ...(version === undefined ? [] : bunVersionViolations(file.name, file.text, version)),
   ]

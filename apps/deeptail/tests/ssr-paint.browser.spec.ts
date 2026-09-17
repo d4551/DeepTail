@@ -12,8 +12,8 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { documentOffences } from '../../../scripts/paint-contract.ts'
-import { AUDIT_RULES } from './audit.ts'
+import { documentOffences } from '../../../scripts/paint-document-rules.ts'
+import { AUDIT_RULES } from './audit-rules.ts'
 import { oneHost } from './fixtures.ts'
 import { BUILT_PAGE, type Harness, startHarness } from './harness.ts'
 import { waitForLiveShell } from './surfaces.ts'

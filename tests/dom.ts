@@ -53,43 +53,46 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator'
 const INSTALLED_KEY = 'deeptailDocumentInstalled'
 
 /**
- * The globals outside the DOM that the registrator claims too.
+ * The globals outside the DOM that the registrator claims too, holding what the
+ * platform has under each name.
  *
  * Every one is a constructor or a function the platform exposes, which is why
- * they are held as `object`: reading them as anything wider would be reading
- * the shape this file does not use.
+ * they are read as `object`: reading them as anything wider would be reading
+ * the shape this file does not use. A file's imports are evaluated before its
+ * body runs, and every suite that registers happy-dom imports this module, so
+ * this reading is taken ahead of the first registration the process makes.
  */
-const NETWORK_GLOBALS = ['fetch', 'Request', 'Response', 'Headers', 'WebSocket', 'FormData'] as const
-
-/** One of those names. */
-type NetworkGlobal = (typeof NETWORK_GLOBALS)[number]
+const NATIVE: Readonly<Record<string, object>> = {
+  fetch: globalThis.fetch,
+  Request: globalThis.Request,
+  Response: globalThis.Response,
+  Headers: globalThis.Headers,
+  WebSocket: globalThis.WebSocket,
+  FormData: globalThis.FormData,
+}
 
 /**
- * What the platform holds under each of those names, read as this module loads.
- *
- * A file's imports are evaluated before its body runs, and every suite that
- * registers happy-dom imports this module, so this reading is taken ahead of
- * the first registration the process makes.
+ * How a reclaimed global is defined: the platform's own value, writable and
+ * configurable as the platform had it, and not enumerated onto the global
+ * object's key list by a test helper.
  */
-const PLATFORM_HELD: ReadonlyMap<NetworkGlobal, object> = new Map([
-  ['fetch', globalThis.fetch],
-  ['Request', globalThis.Request],
-  ['Response', globalThis.Response],
-  ['Headers', globalThis.Headers],
-  ['WebSocket', globalThis.WebSocket],
-  ['FormData', globalThis.FormData],
-])
+const RECLAIMED = { writable: true, configurable: true, enumerable: false } as const
 
 /**
  * Put the platform's network globals back after a registration has taken them.
  *
  * Called by this module for its registration and by any suite that registers
- * for itself, so the two cannot drift into claiming different sets.
+ * for itself, so the two cannot drift into claiming different sets. Each name
+ * is written out rather than driven from a list, because the gate that refuses
+ * a computed attribute name cannot read a name it is not given.
  */
 export function reclaimNetworkGlobals(): void {
-  for (const [name, held] of PLATFORM_HELD) {
-    Object.defineProperty(globalThis, name, { value: held, writable: true, configurable: true, enumerable: false })
-  }
+  Object.defineProperty(globalThis, 'fetch', { ...RECLAIMED, value: NATIVE['fetch'] })
+  Object.defineProperty(globalThis, 'Request', { ...RECLAIMED, value: NATIVE['Request'] })
+  Object.defineProperty(globalThis, 'Response', { ...RECLAIMED, value: NATIVE['Response'] })
+  Object.defineProperty(globalThis, 'Headers', { ...RECLAIMED, value: NATIVE['Headers'] })
+  Object.defineProperty(globalThis, 'WebSocket', { ...RECLAIMED, value: NATIVE['WebSocket'] })
+  Object.defineProperty(globalThis, 'FormData', { ...RECLAIMED, value: NATIVE['FormData'] })
 }
 
 if (!Object.hasOwn(globalThis, INSTALLED_KEY)) {

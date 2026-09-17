@@ -16,7 +16,8 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
-import { BUILT_PAGE, documentOffences, refusalText } from './paint-contract.ts'
+import { refusalText } from './paint-contract.ts'
+import { BUILT_PAGE, documentOffences } from './paint-document-rules.ts'
 import { paintIndex } from './paint-index.ts'
 import { ROOT } from './source-tree.ts'
 

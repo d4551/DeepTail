@@ -1,10 +1,12 @@
 /**
- * The readers the job-graph rule is built out of.
+ * The job-graph rule, and the readers it is built out of.
  *
  * The rule itself is driven in `pipeline-guard.spec.ts` against definitions
- * carrying the cheat. What it reads them with — where the `jobs:` block starts
- * and stops, which lines are job ids, and the three shapes YAML writes a
- * dependency list in — was reached only through the rule, in two shapes, and
+ * carrying the cheat, and the reach condition its aggregate has to carry is
+ * driven here, beside the readers that find the aggregate and its lines. What
+ * those readers answer — where the `jobs:` block starts and stops, which lines
+ * are job ids, the lines one job is written on, and the three shapes YAML writes
+ * a dependency list in — was reached only through the rule, in two shapes, and
  * the module scored 65.19.
  *
  * A workflow says the same thing several ways. Every one of them is a shape a
@@ -15,7 +17,16 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { jobIds, jobsSection, neededJobs } from '../scripts/pipeline-guard-jobs.ts'
+import {
+  aggregationViolations,
+  indentOf,
+  JOB_SETTING_INDENT,
+  jobIds,
+  jobSection,
+  jobsSection,
+  neededJobs,
+} from '../scripts/pipeline-guard-jobs.ts'
+import { MERGE_GATE_WORKFLOW } from '../scripts/pipeline-guard-rules.ts'
 
 /** A definition shaped the way one really is: triggers first, jobs after. */
 const DEFINITION = [
@@ -37,6 +48,24 @@ const DEFINITION = [
   '    needs: [static]',
   '    runs-on: ubuntu-latest',
 ].join('\n')
+
+/** The condition that reaches the aggregate when a job it waits on did not. */
+const REACH = '    if: ${{ !cancelled() }}'
+
+/** A definition whose one aggregate is reached, and carries its own refusal. */
+const REACHED = [
+  'jobs:',
+  '  static:',
+  '    runs-on: ubuntu-latest',
+  '  gate:',
+  '    needs: [static]',
+  REACH,
+  "    if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}",
+  '    run: exit 1',
+].join('\n')
+
+/** What the aggregate is told when the failure it reports is the one that skips it. */
+const SKIPPED = `workflow ${MERGE_GATE_WORKFLOW}: the aggregate gate is skipped when a job it waits on did not report green, so the refusal it carries never runs`
 
 describe('where the jobs block starts and stops', () => {
   it('starts after the jobs key and not before it', () => {
@@ -96,6 +125,39 @@ describe('the lines that name a job', () => {
     // file's. A key with anything after its colon is a value, not a job.
     const text = ['jobs:', '  static:', '    runs-on: ubuntu-latest', '    needs: other', '  9lives:'].join('\n')
     expect(jobIds(text)).toEqual(['static'])
+  })
+
+  it('reads an id with whitespace after its colon, which is still the same job', () => {
+    // Trailing whitespace is invisible in a diff and is not a different job: a
+    // reader that stopped at the colon would walk past the job and hold the
+    // steps after it to the condition of the job before it.
+    expect(jobIds('jobs:\n  static:   \n    runs-on: ubuntu-latest\n')).toEqual(['static'])
+  })
+})
+
+describe('the lines one job is written on', () => {
+  it('reads the job it names, and stops at the job beside it', () => {
+    expect(jobSection(DEFINITION, 'static')).toEqual(['    runs-on: ubuntu-latest'])
+    expect(jobSection(DEFINITION, 'gate')).toEqual(['    needs: [static]', '    runs-on: ubuntu-latest'])
+  })
+
+  it('runs to the end of the block when nothing follows the job', () => {
+    expect(jobSection('jobs:\n  only:\n    runs-on: ubuntu-latest', 'only')).toEqual(['    runs-on: ubuntu-latest'])
+  })
+
+  it('reads nothing for an id no job carries', () => {
+    // A caller that asked for a job the definition does not declare is a caller
+    // about to hold nothing to a rule, which reads as a rule that passed.
+    expect(jobSection(DEFINITION, 'browser')).toEqual([])
+    expect(jobSection('name: nothing\n', 'gate')).toEqual([])
+  })
+
+  it('measures the indent a job states its own settings at', () => {
+    // The one shape readers of a definition share: a job writes `needs:`,
+    // `runs-on:` and its own `if:` at this depth, and a step writes deeper.
+    expect(indentOf('    needs: [static]')).toBe(JOB_SETTING_INDENT)
+    expect(indentOf('      - run: bun run lint')).toBeGreaterThan(JOB_SETTING_INDENT)
+    expect(indentOf('job:')).toBe(0)
   })
 })
 
@@ -213,5 +275,23 @@ describe('the lines each shape refuses, written the other way', () => {
     // an ordinary key. What tells them apart is that a job id ends there.
     const text = ['jobs:', '  name: gate', '  static:'].join('\n')
     expect(jobIds(text)).toEqual(['static'])
+  })
+})
+
+describe('the reach condition the aggregate carries', () => {
+  it('refuses an aggregate a failed job would skip', () => {
+    // `needs:` alone does not run the aggregate when a job it waits on failed or
+    // was cancelled: it is skipped, and a skipped job runs no step at all — so
+    // the refusal written inside it is text nothing executes. The condition is
+    // the whole of what makes the refusal run.
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, REACHED)).toEqual([])
+    expect(aggregationViolations(MERGE_GATE_WORKFLOW, REACHED.replace(`${REACH}\n`, ''))).toEqual([SKIPPED])
+    // Three shapes a reader could take for the reach, and none of them is one: a
+    // condition that reads something else, a condition written on a step rather
+    // than on the job, and a job switched off outright.
+    const instead = (line: string): string[] => aggregationViolations(MERGE_GATE_WORKFLOW, REACHED.replace(REACH, line))
+    expect(instead('    if: ${{ success() }}')).toEqual([SKIPPED])
+    expect(instead('      if: ${{ !cancelled() }}')).toEqual([SKIPPED])
+    expect(instead('    if: false')).toEqual([SKIPPED])
   })
 })

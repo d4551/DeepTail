@@ -8,11 +8,14 @@
  *
  * The surfaces are named and arranged in `a11y-surfaces.ts`, which is the same
  * list the `a11y` script audits under every rule axe enables, so a surface
- * cannot be asserted here and absent from that audit.
+ * cannot be asserted here and absent from that audit. The case each of them is
+ * registered under lives in `a11y-cases.ts`, because the refusals suite
+ * registers the same one.
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { expectNoViolations, expectNoViolationsAtEachWidth } from './a11y-audit.ts'
+import { expectNoViolations } from './a11y-audit.ts'
+import { casesOverEachSurface } from './a11y-cases.ts'
 import { SHOWN_SURFACES } from './a11y-surfaces.ts'
 import { type Harness, startHarness, WCAG_TAGS } from './harness.ts'
 import { describeViolations, openShell } from './surfaces.ts'
@@ -27,11 +30,7 @@ afterAll(async () => {
   await harness?.stop()
 })
 
-for (const surface of SHOWN_SURFACES) {
-  it(`has no WCAG violations on ${surface.name} at every designed width, in both palettes`, async () => {
-    await expectNoViolationsAtEachWidth(harness, surface)
-  }, 180_000)
-}
+casesOverEachSurface(SHOWN_SURFACES, () => harness)
 
 it('keeps a level-one heading on the shell before the drawer is opened', async () => {
   // The phone layout hides the sidebar, so the page's one heading must live in

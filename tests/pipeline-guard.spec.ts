@@ -37,6 +37,13 @@ import {
 /** A definition that runs every pinned gate, the way the real one must. */
 const FULL_CHAIN = MERGE_GATES.map((gate) => `      - run: bun run ${gate}`).join('\n')
 
+/** The step the aggregate carries to refuse a gate that did not report green. */
+const AGGREGATE_REFUSAL = [
+  "    if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')",
+  "      || contains(needs.*.result, 'skipped') }}",
+  '    run: exit 1',
+].join('\n')
+
 describe('the bounds rules', () => {
   it('refuses an install that is not locked', () => {
     expect(installViolations('ci.yml', 'run: bun install\n')).toEqual([
@@ -170,14 +177,17 @@ describe('the names a gate is told apart from', () => {
 
 describe('the job-graph rule', () => {
   it('refuses a merge gate whose jobs are not all aggregated into the one check', () => {
-    const refusal = [
-      "    if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')",
-      "      || contains(needs.*.result, 'skipped') }}",
-      '    run: exit 1',
+    // The aggregate is reached when a job it waits on failed — the condition the
+    // shipped `ci.yml` writes, driven in `pipeline-guard-jobs.spec.ts`.
+    const sound = [
+      'jobs:',
+      '  static:',
+      '    runs-on: ubuntu-latest',
+      '  gate:',
+      '    needs: [static]',
+      '    if: ${{ !cancelled() }}',
+      AGGREGATE_REFUSAL,
     ].join('\n')
-    const sound = ['jobs:', '  static:', '    runs-on: ubuntu-latest', '  gate:', '    needs: [static]', refusal].join(
-      '\n',
-    )
     expect(aggregationViolations(MERGE_GATE_WORKFLOW, sound)).toEqual([])
     // The same shape written as a block list: a rule that knew only the inline
     // one would be a rule a rewrite steps around by changing punctuation.
@@ -218,12 +228,7 @@ describe('the job graph the rule reads', () => {
     expect(aggregationViolations(MERGE_GATE_WORKFLOW, 'jobs:\n')).toEqual([
       'workflow ci.yml: no job is defined, so nothing decides the merge',
     ])
-    const refusal = [
-      "    if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')",
-      "      || contains(needs.*.result, 'skipped') }}",
-      '    run: exit 1',
-    ].join('\n')
-    const cycle = ['jobs:', '  a:', '    needs: [b]', '  b:', '    needs: [a]', refusal].join('\n')
+    const cycle = ['jobs:', '  a:', '    needs: [b]', '  b:', '    needs: [a]', AGGREGATE_REFUSAL].join('\n')
     expect(aggregationViolations(MERGE_GATE_WORKFLOW, cycle)).toEqual([
       'workflow ci.yml: every job is waited on, so none of them is the aggregate',
     ])

@@ -1,9 +1,11 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "commandRunner": {
-    "command": "bun test tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/stack-patterns.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/declaration-reader.spec.ts tests/rust-face.spec.ts tests/tauri-face.spec.ts tests/vite-face.spec.ts tests/stack-dialects.spec.ts tests/playwright-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/entry-gate.spec.ts tests/gate-runner.spec.ts tests/gate-declarations.spec.ts tests/registry-readers.spec.ts tests/pins.spec.ts tests/pipeline-guard.spec.ts tests/docs-versions.spec.ts tests/mutation-survivors.spec.ts tests/gen-action-registry.spec.ts tests/pipeline-guard-tree.spec.ts tests/cargo-gate-program.spec.ts tests/outdated-gate-program.spec.ts tests/outdated-guard-process.spec.ts tests/guard-probe.spec.ts tests/captures.spec.ts tests/pipeline-guard-jobs.spec.ts tests/pipeline-guard-actions.spec.ts tests/action-registry.spec.ts tests/action-registry-emit.spec.ts tests/gate-programs.spec.ts tests/mutation-report.spec.ts tests/gate-mains.spec.ts tests/paint-page.spec.ts tests/ssr-paint.spec.ts"
+    "command": "bun test tests/a11y-plan.spec.ts tests/a11y-report.spec.ts tests/actions.spec.ts tests/jsonc.spec.ts tests/stack.spec.ts tests/stack-policy.spec.ts tests/stack-patterns.spec.ts tests/outdated-gate.spec.ts tests/compiler-face.spec.ts tests/declaration-reader.spec.ts tests/rust-face.spec.ts tests/tauri-face.spec.ts tests/vite-face.spec.ts tests/stack-dialects.spec.ts tests/playwright-face.spec.ts tests/cargo-gate.spec.ts tests/mutate-restore.spec.ts tests/entry-gate.spec.ts tests/gate-runner.spec.ts tests/gate-declarations.spec.ts tests/registry-readers.spec.ts tests/pins.spec.ts tests/pipeline-guard.spec.ts tests/docs-versions.spec.ts tests/mutation-survivors.spec.ts tests/gen-action-registry.spec.ts tests/pipeline-guard-tree.spec.ts tests/cargo-gate-program.spec.ts tests/outdated-gate-program.spec.ts tests/outdated-guard-process.spec.ts tests/guard-probe.spec.ts tests/captures.spec.ts tests/pipeline-guard-jobs.spec.ts tests/pipeline-guard-actions.spec.ts tests/action-registry.spec.ts tests/action-registry-emit.spec.ts tests/gate-programs.spec.ts tests/mutation-report.spec.ts tests/gate-mains.spec.ts tests/paint-page.spec.ts tests/paint-shell-rules.spec.ts tests/paint-document-rules.spec.ts tests/ssr-paint.spec.ts"
   },
   "mutate": [
+    "scripts/a11y-audit.ts",
+    "scripts/a11y-report.ts",
     "scripts/action-registry-emit.ts",
     "scripts/action-registry-rust.ts",
     "scripts/action-registry.ts",
@@ -18,6 +20,7 @@
     "scripts/compiler-face.ts",
     "scripts/declaration-reader.ts",
     "scripts/docs-versions.ts",
+    "scripts/documented-tools.ts",
     "scripts/entry-gate.ts",
     "scripts/gate-runner.ts",
     "scripts/gen-action-registry.ts",
@@ -25,8 +28,12 @@
     "scripts/mutate-restore.ts",
     "scripts/mutation-survivors.ts",
     "scripts/paint-contract.ts",
+    "scripts/paint-document-rules.ts",
+    "scripts/paint-gate.ts",
     "scripts/paint-index.ts",
+    "scripts/paint-shell-rules.ts",
     "scripts/paint-stamp.ts",
+    "scripts/paint-tree.ts",
     "scripts/pins.ts",
     "scripts/pipeline-guard-gates.ts",
     "scripts/pipeline-guard-jobs.ts",

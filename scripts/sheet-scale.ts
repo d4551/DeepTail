@@ -6,33 +6,23 @@
  * there first — but nothing read the file it had to be named in. A family could
  * carry a second ladder beside its own, which is how six odd spacing rungs and
  * three named radii off the four-pixel one stood in that sheet: legal by virtue
- * of being written in the one file no rule read, each with a comment explaining
- * why it was there. A reason given in place of a value is the shape this module
- * exists to refuse.
+ * of being written in the one file no rule read. A reason given in place of a
+ * value is the shape this module exists to refuse.
  *
  * Each ladder is declared here once, as data: the rung names it has, in order,
  * and what a rung of it holds. The values stay in the sheet, one place apiece.
- * What this half reads is the names — a member of a family outside that
- * family's rungs, a rung the ladder declares and the sheet leaves unwritten, a
- * rung written twice, and a `--dsh-` name that is neither a rung nor one of the
- * singles. The values those rungs hold are read in `check-scale.ts`.
- *
- * This module stays the one import surface for the scale: the values that are
- * decisions rather than rungs are declared in `sheet-scale-vocabulary.ts`, and
- * the reader that collects a sheet's declarations is in
- * `sheet-token-reader.ts`, so neither of those files has to be reached for
- * directly by a consumer that already reads the scale.
+ * What this half reads is the names; the values those rungs hold are read in
+ * `check-scale.ts`, and the values that are decisions rather than rungs are
+ * declared in `sheet-scale-vocabulary.ts` and read through here.
  *
  * @module
  */
 
 import type { Offence } from './offence.ts'
+import { blocksOf } from './sheet-reader.ts'
 import { CASINGS, MEASURE_MAX, SINGLES } from './sheet-scale-vocabulary.ts'
-import { declaredTokens } from './sheet-token-reader.ts'
-import type { Held } from './sheet-token-reader.ts'
 
-export type { Held }
-export { CASINGS, declaredTokens, MEASURE_MAX, SINGLES }
+export { CASINGS, MEASURE_MAX, SINGLES }
 
 /** The custom-property namespace this scale owns, and the palette's is not. */
 export const OWNED = '--dsh-'
@@ -72,10 +62,10 @@ type RungNames = { readonly kind: 'numbered' } | { readonly kind: 'named'; reado
  *
  * Three kinds of rung are read. A `px` rung holds a whole number of pixels and
  * the ladder is read as a rising staircase. A `ratio` rung holds a fraction of
- * the rung it pairs with, resolved against it. A `set` rung holds a written
- * value that is one of the family's own vocabulary — the number a face is drawn
- * at, the tracking a display name carries — where the family is a set of
- * decisions rather than a staircase, so there is no order to read.
+ * the rung it pairs with, resolved against it. A `set` rung holds one of the
+ * family's own decisions — the number a face is drawn at, the tracking a
+ * display name carries — where the family is a set rather than a staircase, so
+ * there is no order to read and membership is what is asked.
  */
 export type Ladder =
   | { readonly stem: string; readonly rungs: RungNames; readonly unit: 'px' }
@@ -90,8 +80,16 @@ export type Ladder =
       readonly stem: string
       readonly rungs: RungNames
       readonly unit: 'set'
-      /** What a rung of this family holds, as a whole-value pattern. */
-      readonly values: RegExp
+      /**
+       * Every value a rung of this family may hold.
+       *
+       * A set is a closed vocabulary, so the membership is declared rather than
+       * the shape: `/^\d{3}$/` admits 700 as readily as 400, and a weight no
+       * face in this product is drawn at would then read as a rung of the
+       * weight ladder. The values are written here and the declarations stay in
+       * the sheet, which is what keeps one decision in one place.
+       */
+      readonly vocabulary: readonly string[]
     }
 
 /** A ladder whose rungs hold a length, and so land on a pixel the reader can compare. */
@@ -100,6 +98,12 @@ export type MeasuredLadder = Extract<Ladder, { readonly unit: 'px' | 'ratio' }>
 /** The type rungs, which the leading ladder pairs with one for one. */
 export const TYPE_RUNGS: readonly string[] = ['sm', 'md', 'lg', 'body', 'title']
 
+/** The weights the product draws a face at, rung for rung. */
+export const WEIGHT_VALUES: readonly string[] = ['400', '500', '600']
+
+/** The tracking a display name carries, rung for rung. */
+export const TRACKING_VALUES: readonly string[] = ['0.04em', '0.08em']
+
 /**
  * The ladders the token sheet declares.
  *
@@ -107,12 +111,12 @@ export const TYPE_RUNGS: readonly string[] = ['sm', 'md', 'lg', 'body', 'title']
  * has one home and the membership of a ladder has one home. A family that
  * states its rungs as numbers takes whatever the sheet writes, in numeric
  * order; a family that names them declares the whole set, and a name the sheet
- * leaves unwritten is refused.
+ * leaves unwritten is refused. A set family declares its vocabulary as well,
+ * which is the whole of what a rung of it may hold.
  *
  * The leading ladder is written above the type ladder it resolves against, so a
  * reader that read each ladder as it met it would resolve against a type ladder
- * it had not read yet. The gate reads them in two passes for that reason, and
- * this order is what says so.
+ * it had not read yet. The gate reads them in two passes for that reason.
  */
 export const LADDERS: readonly Ladder[] = [
   { stem: LEADING, rungs: { kind: 'named', names: TYPE_RUNGS }, unit: 'ratio', resolves: TYPE },
@@ -123,10 +127,61 @@ export const LADDERS: readonly Ladder[] = [
   { stem: BORDER, rungs: { kind: 'named', names: ['hairline', 'ring', 'accent'] }, unit: 'px' },
   // A weight is a numbered face, and a tracking is a fraction of the type it
   // sits beside: both are sets of decisions rather than staircases, so each is
-  // read as one written value out of the family's vocabulary and not as a rise.
-  { stem: WEIGHT, rungs: { kind: 'named', names: ['regular', 'medium', 'semibold'] }, unit: 'set', values: /^\d{3}$/u },
-  { stem: TRACKING, rungs: { kind: 'named', names: ['brand', 'wordmark'] }, unit: 'set', values: /^-?\d+\.\d+em$/u },
+  // read as one of the family's own values and not as a rise.
+  {
+    stem: WEIGHT,
+    rungs: { kind: 'named', names: ['regular', 'medium', 'semibold'] },
+    unit: 'set',
+    vocabulary: WEIGHT_VALUES,
+  },
+  {
+    stem: TRACKING,
+    rungs: { kind: 'named', names: ['brand', 'wordmark'] },
+    unit: 'set',
+    vocabulary: TRACKING_VALUES,
+  },
 ]
+
+/** Where one declaration of a custom property sits in the sheet. */
+export interface Placement {
+  /** What the declaration sets the property to. */
+  readonly value: string
+  /** The one-based line it is written on. */
+  readonly line: number
+  /** The selector of the block it sits in. */
+  readonly selector: string
+}
+
+/** Every declaration of one custom property, and the one the cascade reads first. */
+export interface Held {
+  /** The declaration written first, which the rules read. */
+  readonly first: Placement
+  /** Every declaration of the property, in source order. */
+  readonly all: readonly Placement[]
+}
+
+/**
+ * Every `--dsh-` custom property the sheet writes, by name.
+ * @param text - the sheet's contents.
+ * @returns one entry per property, with its declarations in source order.
+ */
+export function declaredTokens(text: string): Map<string, Held> {
+  const written = new Map<string, Held>()
+  for (const block of blocksOf(text)) {
+    for (const { property, value, line } of block.declarations) {
+      if (!property.startsWith(OWNED)) continue
+      const placement: Placement = { value, line, selector: block.prelude }
+      const seen = written.get(property)
+      written.set(
+        property,
+        seen === undefined
+          ? { first: placement, all: [placement] }
+          : { first: seen.first, all: [...seen.all, placement] },
+      )
+    }
+  }
+  return written
+}
 
 /** What a ladder's rungs are called, for a report. */
 function rungNames(ladder: Ladder): string {
@@ -152,9 +207,9 @@ function numberedNames(ladder: Ladder, written: ReadonlyMap<string, Held>): stri
  * Every name the sheet writes under one selector twice.
  *
  * A value written twice under one selector is a decision the cascade hides: the
- * second wins, and the reader of the sheet cannot tell which of the two was
- * meant. The same name under two selectors is the cascade working — a direction
- * or a theme rebinds a value — so only a repeat within one selector is refused.
+ * second wins, and the reader cannot tell which of the two was meant. The same
+ * name under two selectors is the cascade working — a direction or a theme
+ * rebinds a value — so only a repeat within one selector is refused.
  * @param label - the path to report offences under.
  * @param property - the custom property's whole name.
  * @param held - its declarations, in source order.

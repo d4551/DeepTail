@@ -18,12 +18,12 @@ import { typographyRamp } from '../apps/deeptail/tests/structure-emit.ts'
 import {
   FOCUS_RING_NONE,
   FOCUS_RING_SHOWN,
+  PHYSICAL_LEFT,
   paintBox,
   paintDeclarations,
   paintFocusRing,
   paintHeights,
   paintType,
-  PHYSICAL_LEFT,
   typeDeclarations,
 } from './structure-double.ts'
 

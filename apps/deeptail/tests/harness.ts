@@ -8,13 +8,15 @@
  */
 
 import { type Browser, chromium, type Page } from 'playwright'
-import { type AuditEvidence, auditEvidence, auditPage, type RuleSelection, type Violation } from './audit.ts'
+import { auditEvidence, auditPage } from './audit.ts'
+import type { AuditEvidence, Violation } from './audit-evidence.ts'
+import type { RuleSelection } from './audit-rules.ts'
 import { type EntryReading, paintedSnapshotSource, readEntryFirst } from './painted-entry.ts'
 import { type AnswerTable, type ForwardedEvent, initScriptSource, type RecordedCall } from './tauri-ipc.ts'
 import { PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
 
-export type { Violation } from './audit.ts'
-export { WCAG_TAGS } from './audit.ts'
+export type { Violation } from './audit-evidence.ts'
+export { WCAG_TAGS } from './audit-rules.ts'
 export type { AnswerTable } from './tauri-ipc.ts'
 
 /** How a page should be opened. */

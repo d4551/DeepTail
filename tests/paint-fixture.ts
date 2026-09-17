@@ -1,16 +1,22 @@
 /**
- * The chrome fixture the paint suites drive, and the helpers that plant defects
- * into it.
+ * The chrome fixture the paint suites drive, the helpers that plant defects
+ * into it, and the reading a case pins a refusal by.
  *
  * A fixture rather than the paint itself, because a planted defect is an edit
  * to one part of the chrome: reading the real paint would make every case
  * answer for whatever the factories happen to draw today. The defects are
  * assembled from parts, so this file's own source carries none of them whole.
  *
+ * Nothing here is painted at import time. The factories reach for a document
+ * when they are called, and a module that built one on being imported would
+ * register that document before the suite that owns the registration had run —
+ * which is one registration too many for the engine that refuses a second.
+ *
  * @module
  */
 
-import { EMPTY_ROOT, firstPaintMarkup } from '../scripts/paint-index.ts'
+import type { PaintOffence } from '../scripts/paint-contract.ts'
+import { EMPTY_ROOT } from '../scripts/paint-index.ts'
 import { joined } from './fixtures.ts'
 
 /** A style attribute, assembled so this file does not carry one whole. */
@@ -91,6 +97,16 @@ export const VITE_PAGE = pageWith(EMPTY_ROOT)
 export const PAGE = pageWith(SEATED)
 
 /**
+ * Every refusal as `line: what it says`, so a case pins the message and the
+ * line it sits on rather than only that something was refused.
+ * @param offences - the refusals to render.
+ * @returns one line per refusal.
+ */
+export function named(offences: readonly PaintOffence[]): string[] {
+  return offences.map((offence) => `${String(offence.line)}: ${offence.why}`)
+}
+
+/**
  * One string with one part of it replaced, refusing a fixture that no longer
  * carries the part a case plants against.
  * @param text - the text to edit.
@@ -102,6 +118,3 @@ export function planted(text: string, from: string, to: string): string {
   if (!text.includes(from)) throw new Error(`deeptail: the fixture no longer carries ${from}`)
   return text.replace(from, to)
 }
-
-/** The chrome the factories paint now, for the byte-for-byte shipped-page case. */
-export const FACTORY_CHROME = firstPaintMarkup()

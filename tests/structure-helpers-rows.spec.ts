@@ -3,11 +3,9 @@
  * spelling a row is seated with, the line siblings share, and the rhythm a
  * repeated list keeps.
  *
- * happy-dom paints no box, so every rectangle is painted onto the element
- * instance the check reads; the browser suites remain the account of what a
- * real engine lays out. What the check decides from those rectangles — which
- * boxes share a line, when one of them is adrift, and when a list has changed
- * its rhythm — is driven here, where the mutation runs can judge it.
+ * The fixtures — the declarations, the painted boxes, the rows and the lists —
+ * live in `structure-rows-fixture.ts`; what is here is the table of cases and
+ * the findings each must produce.
  */
 
 import { beforeEach, expect, it } from 'bun:test'
@@ -15,100 +13,21 @@ import type { StructureFinding } from '../apps/deeptail/tests/structure-report.t
 import { checkAlignment, checkListGutters, checkSiblingAlignment } from '../apps/deeptail/tests/structure-rows.ts'
 import { resetDocument } from './dom.ts'
 import {
+  boxed,
   collector,
-  paintBox,
+  DECLARATIONS,
+  JUSTIFY_ITEMS,
+  listOf,
+  listRow,
   PHYSICAL_JUSTIFY,
   PHYSICAL_LEFT,
   PHYSICAL_RIGHT,
+  PLACE_ITEMS,
+  paintBox,
+  rowOf,
+  SCOPE,
   surface,
-} from './structure-double.ts'
-
-/** The surface every case reads. */
-const SCOPE = '[data-structure-scope]'
-
-/**
- * The row-seating properties that carry a physical value, assembled so this
- * file's own source writes none of them whole.
- */
-const JUSTIFY_ITEMS = ['justify', 'items'].join('-')
-const PLACE_ITEMS = ['place', 'items'].join('-')
-
-/**
- * The declarations the row checks read, as one stylesheet the document carries.
- */
-const DECLARATIONS = [
-  `.align-${PHYSICAL_LEFT} { text-align: ${PHYSICAL_LEFT}; }`,
-  `.align-${PHYSICAL_RIGHT} { text-align: ${PHYSICAL_RIGHT}; }`,
-  `.align-${PHYSICAL_JUSTIFY} { text-align: ${PHYSICAL_JUSTIFY}; }`,
-  `.items-${PHYSICAL_LEFT} { ${JUSTIFY_ITEMS}: ${PHYSICAL_LEFT}; }`,
-  `.items-${PHYSICAL_RIGHT} { ${PLACE_ITEMS}: ${PHYSICAL_RIGHT}; }`,
-  '.items-logical { justify-items: start; }',
-  '.flex-row { display: flex; }',
-  '.grid-row { display: grid; }',
-  '.baseline-row { display: flex; align-items: baseline; }',
-  '.stacked { display: block; }',
-  '.pinned { position: absolute; }',
-  '.off-page { display: none; }',
-].join('\n')
-
-/**
- * One box with an id, painted at the given edges.
- * @param id - the id the finding names it by.
- * @param box - the edges of the box, in CSS pixels.
- * @returns the element.
- */
-function boxed(
-  id: string,
-  box: { readonly top: number; readonly left: number; readonly right: number; readonly bottom: number },
-): HTMLElement {
-  const node = document.createElement('button')
-  node.id = id
-  paintBox(node, box)
-  return node
-}
-
-/**
- * One list row, painted at the given block edges.
- * @param top - the row's top edge, in CSS pixels.
- * @param bottom - the row's bottom edge, in CSS pixels.
- * @returns the row.
- */
-function listRow(top: number, bottom: number): HTMLElement {
-  const row = document.createElement('div')
-  paintBox(row, { top, left: 0, right: 100, bottom })
-  return row
-}
-
-/**
- * One surface holding one list with the given rows in it.
- * @param rows - the rows, already painted.
- * @returns the list.
- */
-function listOf(...rows: readonly HTMLElement[]): HTMLElement {
-  const root = surface('div')
-  const list = document.createElement('div')
-  list.setAttribute('role', 'list')
-  list.append(...rows)
-  root.append(list)
-  document.body.append(root)
-  return list
-}
-
-/**
- * One surface holding one container of the named class, with the children in it.
- * @param className - the container's class, which carries the display rule.
- * @param children - the children, already painted.
- * @returns the container.
- */
-function rowOf(className: string, ...children: readonly HTMLElement[]): HTMLElement {
-  const root = surface('div')
-  const row = document.createElement('div')
-  row.className = className
-  row.append(...children)
-  root.append(row)
-  document.body.append(root)
-  return row
-}
+} from './structure-rows-fixture.ts'
 
 /**
  * The findings one alignment pass reports over the surfaces.

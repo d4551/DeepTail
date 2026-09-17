@@ -25,19 +25,21 @@
  * `structure-scroll.ts` for what scrolls, `structure-rows.ts` for where a row's
  * boxes sit, `structure-pointer.ts` for what a pointer reaches and what a
  * keyboard is shown, `structure-shell.ts` for what the document seats and what
- * its controls are wired to, and `structure-elements.ts` for the reads more than
- * one of them makes.
+ * its controls are wired to, `structure-dialog.ts` for what the frames in it
+ * promise, and `structure-elements.ts` for the reads more than one of them
+ * makes.
  *
  * @module
  */
 
+import { checkDialogContract } from './structure-dialog.ts'
 import { checkClipping, checkGrid } from './structure-layout.ts'
 import { checkFocusVisible, checkOverlappingTargets, checkTouchTargets } from './structure-pointer.ts'
 import type { TypographyRamp } from './structure-ramp.ts'
 import { describe, type Report, type StructureFinding } from './structure-report.ts'
 import { checkAlignment, checkListGutters, checkSiblingAlignment } from './structure-rows.ts'
 import { checkHorizontalOverflow, checkNestedScroll } from './structure-scroll.ts'
-import { checkDialogContract, checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
+import { checkInlineScripts, checkOneOffScripts, checkShell } from './structure-shell.ts'
 import { checkTypography } from './structure-typography.ts'
 import { checkClassVocabulary, checkReducedMotion } from './structure-vocabulary.ts'
 

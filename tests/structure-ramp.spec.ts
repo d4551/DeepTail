@@ -14,7 +14,7 @@ import { expect, it } from 'bun:test'
 import { typographyRamp } from '../apps/deeptail/tests/structure-emit.ts'
 import { familyListOf, ladderFor, typographyRampFrom } from '../apps/deeptail/tests/structure-ramp.ts'
 import { CASINGS, LEADING, MEASURE_MAX, TYPE } from '../scripts/sheet-scale.ts'
-import { NAMED, tokens, withValue } from './scale-fixtures.ts'
+import { NAMED, tokens, withValue } from './scale-ladders.ts'
 import { FAMILY_PROPERTY } from './structure-double.ts'
 
 /** The sheet every case resolves a ramp out of, unless it writes its own. */
@@ -83,10 +83,10 @@ it('resolves the ladder the product ships, from the sheet that ships it', async 
 })
 
 it('refuses a leading rung written as anything but a ratio of two whole numbers', () => {
-  expect(() => typographyRampFrom(tokens(...withValue(NAMED, FIRST_LEADING, '18px')))).toThrow(
+  expect(() => typographyRampFrom(tokens(...withValue(NAMED, [FIRST_LEADING, '18px'])))).toThrow(
     'deeptail: 18px is not a leading ratio written calc(<whole> / <whole>)',
   )
-  expect(() => typographyRampFrom(tokens(...withValue(NAMED, FIRST_LEADING, 'calc(3 / 0)')))).toThrow(
+  expect(() => typographyRampFrom(tokens(...withValue(NAMED, [FIRST_LEADING, 'calc(3 / 0)'])))).toThrow(
     'deeptail: calc(3 / 0) is not a leading ratio written calc(<whole> / <whole>)',
   )
 })
@@ -99,7 +99,7 @@ it('refuses a leading ladder that does not pair with the type ladder rung for ru
 })
 
 it('refuses a tracking rung that is not a fraction of the type it sits beside', () => {
-  expect(() => typographyRampFrom(tokens(...withValue(NAMED, '--dsh-tracking-brand', '0.04')))).toThrow(
+  expect(() => typographyRampFrom(tokens(...withValue(NAMED, ['--dsh-tracking-brand', '0.04'])))).toThrow(
     'deeptail: 0.04 is not a tracking written as a fraction of em',
   )
 })

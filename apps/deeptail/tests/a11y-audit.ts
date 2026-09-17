@@ -4,7 +4,8 @@
  * Every surface in `a11y-surfaces.ts` is arranged the same way here — open it,
  * settle it at one designed width, audit it, close it — so the cases and the
  * `a11y` audit cannot drift on what was measured, and the audit's report can
- * name exactly which arrangements it made.
+ * name exactly which arrangements it made. The case each suite registers over
+ * these arrangements is stated once in `a11y-cases.ts`.
  *
  * @module
  */
@@ -12,7 +13,8 @@
 import { expect } from 'bun:test'
 import type { Page } from 'playwright'
 import { type AuditedSurface, viewsOf } from './a11y-surfaces.ts'
-import { type RuleRun, type RuleSelection, type Violation, WCAG_RULES } from './audit.ts'
+import type { RuleRun, Violation } from './audit-evidence.ts'
+import { type RuleSelection, WCAG_RULES } from './audit-rules.ts'
 import type { Harness } from './harness.ts'
 import { type AuditView, describeViolations, realizeView } from './surfaces.ts'
 
@@ -46,7 +48,7 @@ export interface AuditedArrangement extends ArrangementKey {
  * @param selections - which of axe's rules to run.
  * @returns what was opened, and what axe found there.
  */
-export async function auditArrangement(
+async function auditArrangement(
   harness: Harness,
   surface: AuditedSurface,
   view: AuditView,
@@ -73,13 +75,15 @@ export async function auditArrangement(
  * Audit one surface at every designed width it exists on.
  *
  * The arrangements run together, each on its own page: a shared page would
- * measure one palette and claim both.
+ * measure one palette and claim both. Nothing here awaits one arrangement at a
+ * time — the fan-out is the whole of the work, so what this hands back is that
+ * fan-out's own promise.
  * @param harness - the suite's browser harness.
  * @param surface - the surface to arrange.
  * @param selections - which of axe's rules to run.
  * @returns one entry per arrangement, in the order the views are declared.
  */
-export async function auditSurfaceAtEachView(
+function auditSurfaceAtEachView(
   harness: Harness,
   surface: AuditedSurface,
   selections: readonly RuleSelection[] = [WCAG_RULES],

@@ -14,8 +14,8 @@
 
 import { describe, expect, it } from 'bun:test'
 import type { ArrangementKey, AuditedArrangement } from '../apps/deeptail/tests/a11y-audit.ts'
-import type { RuleRun } from '../apps/deeptail/tests/audit.ts'
-import { CLEAN_VERDICT, type AuditRun, auditReport } from '../scripts/a11y-report.ts'
+import type { RuleRun } from '../apps/deeptail/tests/audit-evidence.ts'
+import { type AuditRun, auditReport, CLEAN_VERDICT } from '../scripts/a11y-report.ts'
 
 /** One surface at one designed width. */
 const ROSTER: ArrangementKey = { surface: 'the fleet roster', view: 'phone light', width: 390, height: 844 }
@@ -135,7 +135,9 @@ describe('a run the audit refuses', () => {
     expect(outcome.text).not.toContain(CLEAN_VERDICT)
     expect(outcome.text).toContain('no rule selection was run over it')
   })
+})
 
+describe('a run whose evidence cannot be read', () => {
   it('refuses an arrangement no axe release decided', () => {
     const unnamed = arrangement(PICKER, { engine: '   ' })
     const outcome = auditReport(run({ results: [arrangement(ROSTER), unnamed] }))
@@ -161,7 +163,9 @@ describe('a run the audit refuses', () => {
   })
 
   it('refuses the built page the contract refused, before any surface is read', () => {
-    const outcome = auditReport(run({ results: [], pageRefused: ['the built page is not on disk: /bundles/index.html'] }))
+    const outcome = auditReport(
+      run({ results: [], pageRefused: ['the built page is not on disk: /bundles/index.html'] }),
+    )
     expect(outcome.ok).toBe(false)
     expect(outcome.text).not.toContain(CLEAN_VERDICT)
     expect(outcome.text).toContain('the built page is not on disk: /bundles/index.html')

@@ -1,20 +1,27 @@
 /**
- * Shell integrity, the control wiring the page claims, the dialog contract, and
- * the one-page one-module SSOT, as the live tree shows them.
+ * Shell integrity, the control wiring the page claims, and the one-page
+ * one-module SSOT, as the live tree shows them.
  *
  * A second shell, a shell nested in a shell, a shell the page's own mount no
  * longer holds, a product surface seated inside another, a main landmark
  * outside every surface, a control naming an action no shipped registry
- * declares, a dialog or a mask built outside the shared frame, or an
- * inline/one-off script hanging off a product surface is a second page the
- * design system never reads. The source gate catches the shipped HTML; these
- * catch what a runtime helper can still inject.
+ * declares, or an inline/one-off script hanging off a product surface is a
+ * second page the design system never reads. The source gate catches the
+ * shipped HTML; these catch what a runtime helper can still inject.
+ *
+ * What the document *seats* is one subject and what its controls are *wired to*
+ * is another, so each is a check of its own here; the frames a document holds
+ * are the third, and they live in `structure-dialog.ts`. This module is the
+ * document and the controls in it.
+ *
+ * These run inside the page like the rest, so they may only use DOM APIs and
+ * what they are handed: each function here is shipped to the page as its own
+ * source text, so a value it closed over would arrive as a `ReferenceError`.
  *
  * @module
  */
 
 import { surfaceElements } from './structure-elements.ts'
-import { drawnBox } from './structure-pointer.ts'
 import { describe, type Report } from './structure-report.ts'
 
 /** What the shell checks read, as the caller hands it to the page. */
@@ -38,14 +45,6 @@ interface ShellLimits {
   readonly mount?: string
 }
 
-/** The edges of a painted box, as the rules that read one measure it. */
-interface PaintedBox {
-  readonly top: number
-  readonly left: number
-  readonly right: number
-  readonly bottom: number
-}
-
 /**
  * The document carries one shell, not nested, with one main landmark.
  *
@@ -56,18 +55,10 @@ interface PaintedBox {
  * document that seats one inside the other has two pages at once. A `main`
  * landmark outside every surface is the same defect from the accessibility
  * tree's side: two mains, one of them nowhere the product's landmarks are.
- *
- * Every control the page draws is wired through the one action registry, and
- * the live tree is what shows the three ways that goes wrong: a hook that names
- * no action or more than one, a hook on something no keyboard reaches, and a
- * hook naming an action the shipped registry does not declare. A fourth is the
- * tree's own: a control inside a control that names an action, where one press
- * bubbles into both handlers and runs two actions at once.
  * @param add - collects a finding.
- * @param limits - the product surfaces to read, the mount they belong in, and
- * what the page takes focus on.
+ * @param limits - the product surfaces to read and the mount they belong in.
  */
-function checkShell(add: Report, limits: ShellLimits): void {
+export function checkSurfaceSeating(add: Report, limits: ShellLimits): void {
   const surfaces = [...document.querySelectorAll(limits.scope)]
   if (surfaces.length === 0) {
     add('empty-root', 'the document has no product surface; first paint must seat the shell or the picker')
@@ -109,11 +100,32 @@ function checkShell(add: Report, limits: ShellLimits): void {
       add('stray-main', `${describe(main)} is a main landmark outside every product surface`)
     }
   }
+}
+
+/**
+ * Every control the page draws is wired through the one action registry.
+ *
+ * The live tree is what shows the three ways that goes wrong: a hook that names
+ * no action or more than one, a hook on something no keyboard reaches, and a
+ * hook naming an action the shipped registry does not declare. A fourth is the
+ * tree's own: a control inside a control that names an action, where one press
+ * bubbles into both handlers and runs two actions at once.
+ *
+ * The hook is read through `dataset`, which is the DOM's own read of a data
+ * attribute and belongs to the HTML and SVG elements; the product writes the
+ * hook onto the controls it builds, so an element of another kind carries none
+ * for this rule to read and no control of this product is built that way.
+ * @param add - collects a finding.
+ * @param limits - the product surfaces to read, what the page takes focus on,
+ * and every action the shipped registry declares.
+ */
+export function checkActionWiring(add: Report, limits: ShellLimits): void {
   const declared = new Set(limits.actions ?? [])
   const interactive = limits.interactive ?? ''
   for (const node of surfaceElements(limits.scope)) {
-    const hook = node.getAttribute('data-deeptail-action')
-    if (hook === null) continue
+    if (!(node instanceof HTMLElement || node instanceof SVGElement)) continue
+    const hook = node.dataset['deeptailAction']
+    if (hook === undefined) continue
     const names = hook
       .trim()
       .split(/\s+/u)
@@ -147,6 +159,22 @@ function checkShell(add: Report, limits: ShellLimits): void {
 }
 
 /**
+ * What the document seats, and what the controls in it are wired to.
+ *
+ * The seating is read first, so a finding about the page's own shape names the
+ * document before any finding about a control inside it: a page seated twice is
+ * the defect a reader acts on first, and the controls of the second page are
+ * read the same way either way.
+ * @param add - collects a finding.
+ * @param limits - the product surfaces to read, the mount they belong in, what
+ * takes focus inside them, and every action the shipped registry declares.
+ */
+export function checkShell(add: Report, limits: ShellLimits): void {
+  checkSurfaceSeating(add, limits)
+  checkActionWiring(add, limits)
+}
+
+/**
  * A script inside a product surface is a per-page helper outside the one module.
  *
  * The shipped page loads exactly `/src/main.ts`. Anything else hanging off the
@@ -156,7 +184,7 @@ function checkShell(add: Report, limits: ShellLimits): void {
  * @param add - collects a finding.
  * @param limits - the product surfaces to read.
  */
-function checkInlineScripts(add: Report, limits: ShellLimits): void {
+export function checkInlineScripts(add: Report, limits: ShellLimits): void {
   for (const root of document.querySelectorAll(limits.scope)) {
     for (const script of root.querySelectorAll('script')) {
       const src = (script.getAttribute('src') ?? '').trim()
@@ -182,7 +210,7 @@ function checkInlineScripts(add: Report, limits: ShellLimits): void {
  * @param add - collects a finding.
  * @param limits - the product surfaces already covered by `checkInlineScripts`.
  */
-function checkOneOffScripts(add: Report, limits: ShellLimits): void {
+export function checkOneOffScripts(add: Report, limits: ShellLimits): void {
   const shipped = /\/(?:src\/main\.ts|assets\/[^/]+-[A-Za-z0-9_-]+\.js)$/u
   for (const script of document.querySelectorAll('script')) {
     if (script.closest(limits.scope) !== null) continue
@@ -191,118 +219,3 @@ function checkOneOffScripts(add: Report, limits: ShellLimits): void {
     add('inline-script', `${describe(script)} loads ${src}; the page has one module entry`)
   }
 }
-
-/**
- * Every dialog, and every mask, comes from the one component that draws them.
- *
- * A dialog is a contract, not a box: it declares itself modal, it is named by a
- * heading inside itself, everything behind it leaves the tree, it holds focus,
- * it is seated where the reader can see and reach it, and it is dismissed on
- * Escape with focus handed back to whatever opened it. The shared frame is what
- * holds that contract in one place, and it marks what it builds, so a dialog or
- * a mask assembled anywhere else is a second contract — one that will be
- * missing whichever of those promises its author did not think of, and that no
- * rule engine reports while the one it *did* remember keeps axe quiet.
- *
- * Each promise is read here rather than left to the suite that drives the
- * frame: a name that resolves to nothing inside the dialog, focus left outside
- * an open modal, a sibling still able to take that focus, a frame seated past
- * the viewport, and an action the reader cannot see are all defects no rule
- * engine reports, and every one of them exists only while the dialog is open —
- * which is exactly when the page is measured.
- *
- * The mask is found by where it is drawn rather than by a colour: an element
- * laid out over the whole viewport, outside every product surface, that no
- * frame holding a marked dialog contains. A page may paint a mask — the shell
- * paints one behind its drawer — so the rule is not that masks are forbidden,
- * only that each one belongs to a root that owns it.
- * @param add - collects a finding.
- * @param limits - the product surfaces to read and what takes focus inside them.
- */
-function checkDialogContract(add: Report, limits: ShellLimits): void {
-  const marker = '[data-deeptail-dialog]'
-  const roles = '[role="dialog"], [role="alertdialog"]'
-  const dialogs = [...document.querySelectorAll(roles)]
-  if (dialogs.length > 1) {
-    add('dialog-contract', `the document holds ${String(dialogs.length)} dialogs at once; one frame is open at a time`)
-  }
-  const interactive = limits.interactive ?? ''
-  const takesFocus = (node: Element): boolean =>
-    interactive === '' || node.matches(interactive) || node.querySelector(interactive) !== null
-  const onScreen = (box: PaintedBox): boolean =>
-    box.right - box.left > 0 &&
-    box.bottom - box.top > 0 &&
-    box.top >= 0 &&
-    box.left >= 0 &&
-    box.bottom <= window.innerHeight &&
-    box.right <= window.innerWidth
-  for (const dialog of dialogs) {
-    if (!dialog.matches(marker)) {
-      add(
-        'dialog-contract',
-        `${describe(dialog)} is a dialog the shared frame did not build, so nothing holds its mask, its naming and its dismissal together`,
-      )
-      continue
-    }
-    if (dialog.getAttribute('aria-modal') !== 'true') {
-      add('dialog-contract', `${describe(dialog)} is the shared frame without declaring itself modal`)
-    }
-    const labelled = dialog.getAttribute('aria-labelledby')
-    const named = (labelled ?? '').split(/\s+/u).some((id) => {
-      const node = document.getElementById(id)
-      return node !== null && dialog.contains(node) && (node.textContent ?? '').trim() !== ''
-    })
-    if (!named && (dialog.getAttribute('aria-label') ?? '').trim() === '') {
-      add('dialog-contract', `${describe(dialog)} is a dialog no name inside it reaches`)
-    }
-    const held = document.activeElement
-    if (held === null || !dialog.contains(held)) {
-      add('dialog-contract', `${describe(dialog)} is open with focus left outside it`)
-    }
-    const frame = dialog.parentElement ?? dialog
-    const behind = frame.parentElement
-    if (behind !== null) {
-      for (const sibling of behind.children) {
-        if (sibling === frame) continue
-        if (sibling instanceof HTMLElement && sibling.inert) continue
-        if (!takesFocus(sibling)) continue
-        add('dialog-contract', `${describe(dialog)} leaves ${describe(sibling)} able to take focus behind it`)
-      }
-    }
-    if (!onScreen(drawnBox(dialog))) {
-      add('dialog-contract', `${describe(dialog)} is not wholly on screen where the reader can reach it`)
-    }
-    for (const control of dialog.querySelectorAll('[data-deeptail-action]')) {
-      if (!onScreen(drawnBox(control))) {
-        add('dialog-contract', `${describe(control)} is an action off screen inside the open dialog`)
-      }
-    }
-  }
-  for (const marked of document.querySelectorAll(marker)) {
-    if (!marked.matches(roles)) {
-      add('dialog-contract', `${describe(marked)} carries the dialog marker without the dialog role to go with it`)
-    }
-  }
-  const owned = (node: Element): boolean => {
-    if (node.closest(limits.scope) !== null) return true
-    let held: Element | null = node
-    while (held !== null && held !== document.body) {
-      if (held.querySelector(marker) !== null) return true
-      held = held.parentElement
-    }
-    return false
-  }
-  for (const node of document.querySelectorAll('body *')) {
-    const style = getComputedStyle(node)
-    if (style.position !== 'fixed' && style.position !== 'absolute') continue
-    const box = node.getBoundingClientRect()
-    if (box.width < window.innerWidth * 0.9 || box.height < window.innerHeight * 0.9) continue
-    if (owned(node)) continue
-    add(
-      'overlay-contract',
-      `${describe(node)} is drawn over the whole viewport outside every product root, and no dialog frame owns it`,
-    )
-  }
-}
-
-export { checkDialogContract, checkInlineScripts, checkOneOffScripts, checkShell }
