@@ -8,12 +8,10 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { readManifest, sectionOf } from '../scripts/manifest.ts'
 import { declaredPins } from '../scripts/pins.ts'
 import { repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
+import { fixtureTree } from './fixtures.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**
@@ -22,11 +20,11 @@ import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
  * @returns the pins, name to range.
  */
 async function pinsOf(manifest: string): Promise<Map<string, string>> {
-  const root = await mkdtemp(join(tmpdir(), 'pins-'))
-  const file: SourceFile = { label: 'package.json', path: join(root, 'package.json') }
-  await writeFile(file.path, manifest)
+  const tree = fixtureTree('pins')
+  const file: SourceFile = { label: 'package.json', path: tree.pathOf('package.json') }
+  await Bun.write(file.path, manifest)
   const pins = declaredPins([file])
-  await rm(root, { recursive: true, force: true })
+  await tree.clear()
   return pins
 }
 

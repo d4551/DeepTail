@@ -13,7 +13,7 @@ import type { AuditEvidence, Violation } from './audit-evidence.ts'
 import type { RuleSelection } from './audit-rules.ts'
 import { type EntryReading, paintedSnapshotSource, readEntryFirst } from './painted-entry.ts'
 import { type AnswerTable, type ForwardedEvent, initScriptSource, type RecordedCall } from './tauri-ipc.ts'
-import { PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
+import { isCoarse, PHONE_VIEWPORT, TABLET_VIEWPORT } from './viewports.ts'
 
 export type { Violation } from './audit-evidence.ts'
 export { WCAG_TAGS } from './audit-rules.ts'
@@ -153,7 +153,7 @@ function startServer(): { server: ReturnType<typeof Bun.serve>; origin: string }
  * @returns the page, loaded.
  */
 async function openPage(browser: Browser, origin: string, table: AnswerTable, options: OpenOptions): Promise<Page> {
-  const coarse = options.mobile === true || options.tablet === true
+  const coarse = isCoarse(options)
   const preset = options.tablet === true ? TABLET_VIEWPORT : options.mobile === true ? PHONE_VIEWPORT : undefined
   const width = options.width ?? preset?.width
   const height = options.height ?? preset?.height

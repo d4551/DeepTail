@@ -9,9 +9,12 @@
  * Tauri IPC boundary, which no browser provides.
  */
 
-import { afterAll, beforeAll, expect, it } from 'bun:test'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
+import type { Page } from 'playwright'
 import { fleet, oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
+import { openShell, openShellWithDrawer, openShellWithRoster, waitForLiveShell } from './surfaces.ts'
+import { CONNECTION_TRIGGER, showSwitcher } from './switcher.ts'
 
 let harness: Harness
 
@@ -23,52 +26,73 @@ afterAll(async () => {
   await harness?.stop()
 })
 
-it('moves the roving tab stop across session rows', async () => {
-  const page = await harness.open(oneHost())
-  await page.waitForSelector('[data-deeptail-shell]')
-  // Assert on the name the row actually speaks, not on a private attribute.
-  const focusedName = () => page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)
+/**
+ * Focus the running row's own control: the stop a keyboard reader reaches
+ * first, and the one the row's hidden actions hang off.
+ * @param page - the page showing the roster.
+ */
+async function focusRow(page: Page): Promise<void> {
   await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
-  expect(await focusedName()).toContain('Refactor the loader')
-  await page.keyboard.press('ArrowDown')
-  expect(await focusedName()).toContain('Write the release notes')
-  await page.keyboard.press('Home')
-  expect(await focusedName()).toContain('Refactor the loader')
-  await page.close()
-})
+}
 
-it('reaches a row action with the keyboard alone and opens the sheet with Enter', async () => {
-  const page = await harness.open(oneHost())
-  await page.waitForSelector('[data-deeptail-shell]')
-  // No pointer is used anywhere in this case: focusing the row must be
-  // enough to reveal its actions, and Tab must be able to reach them.
-  await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
-  const send = page.getByRole('button', { name: 'Message Refactor the loader' }).first()
-  await send.waitFor({ state: 'visible' })
-  // The actions share the row's tab stop, so they are reached along the row
-  // rather than by leaving it: a hundred sessions stay a hundred stops.
-  await page.keyboard.press('ArrowRight')
-  expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe(
-    'Message Refactor the loader',
-  )
-  await page.keyboard.press('Enter')
-  const dialog = page.locator('[data-deeptail-dialog]')
-  await dialog.waitFor({ state: 'visible' })
-  // The dialog is named by the heading it shows, so the name and the visible
-  // title can never drift apart.
-  expect(
-    await dialog.evaluate(
-      (node) => document.querySelector(`#${node.getAttribute('aria-labelledby') ?? ''}`)?.textContent,
-    ),
-  ).toBe('Refactor the loader')
-  await page.close()
+/**
+ * The keyboard order over the one paired host's roster.
+ *
+ * The scene is opened once, here, rather than restated per case: reaching it
+ * means mounting the shell and waiting for the row the keys walk, which every
+ * copy had to remember in full.
+ */
+describe('the roster of one paired host', () => {
+  let page: Page
+
+  beforeEach(async () => {
+    page = await openShellWithRoster(harness)
+  })
+
+  afterEach(async () => {
+    await page.close()
+  })
+
+  it('moves the roving tab stop across session rows', async () => {
+    // Assert on the name the row actually speaks, not on a private attribute.
+    const focusedName = () => page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)
+    await focusRow(page)
+    expect(await focusedName()).toContain('Refactor the loader')
+    await page.keyboard.press('ArrowDown')
+    expect(await focusedName()).toContain('Write the release notes')
+    await page.keyboard.press('Home')
+    expect(await focusedName()).toContain('Refactor the loader')
+  })
+
+  it('reaches a row action with the keyboard alone and opens the sheet with Enter', async () => {
+    // No pointer is used anywhere in this case: focusing the row must be
+    // enough to reveal its actions, and Tab must be able to reach them.
+    await focusRow(page)
+    const send = page.getByRole('button', { name: 'Message Refactor the loader' }).first()
+    await send.waitFor({ state: 'visible' })
+    // The actions share the row's tab stop, so they are reached along the row
+    // rather than by leaving it: a hundred sessions stay a hundred stops.
+    await page.keyboard.press('ArrowRight')
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe(
+      'Message Refactor the loader',
+    )
+    await page.keyboard.press('Enter')
+    const dialog = page.locator('[data-deeptail-dialog]')
+    await dialog.waitFor({ state: 'visible' })
+    // The dialog is named by the heading it shows, so the name and the visible
+    // title can never drift apart.
+    expect(
+      await dialog.evaluate(
+        (node) => document.querySelector(`#${node.getAttribute('aria-labelledby') ?? ''}`)?.textContent,
+      ),
+    ).toBe('Refactor the loader')
+  })
 })
 
 it('walks every menu item with the arrow keys and is one stop in the tab order', async () => {
   const page = await harness.open(fleet({ remoteStatuses: { 'lab-2:session/list': 401 } }))
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  await waitForLiveShell(page)
+  await showSwitcher(page)
   const spoken = () => page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)
   // Focus opens on the first host, and Down reaches the re-pair row and the
   // pinned footer rather than stopping at the last host.
@@ -96,9 +120,8 @@ it('walks every menu item with the arrow keys and is one stop in the tab order',
 
 it('lets Tab out of the open menu rather than cycling inside it', async () => {
   const page = await harness.open(fleet())
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  await waitForLiveShell(page)
+  await showSwitcher(page)
   const where = () =>
     page.evaluate(() => {
       const active = document.activeElement
@@ -111,7 +134,7 @@ it('lets Tab out of the open menu rather than cycling inside it', async () => {
   await page.keyboard.press('Tab')
   await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'detached' })
   expect(await where()).toBe('outside the menu')
-  expect(await page.locator('[data-deeptail-connection="trigger"]').getAttribute('aria-expanded')).toBe('false')
+  expect(await page.locator(CONNECTION_TRIGGER).getAttribute('aria-expanded')).toBe('false')
   // And it stays out: three more presses must never land back in a menu. Each
   // press depends on where the one before it landed, so they run in sequence.
   const walked = await [1, 2, 3].reduce(async (sofar: Promise<string[]>) => {
@@ -124,17 +147,14 @@ it('lets Tab out of the open menu rather than cycling inside it', async () => {
 })
 
 it('gives a row action a real touch target when the pointer is coarse', async () => {
-  const page = await harness.open(oneHost(), { mobile: true })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-action="drawer"]').click()
+  const page = await openShellWithDrawer(harness, oneHost(), { mobile: true })
   const box = await page.locator('[data-deeptail-action="row-message"]').first().boundingBox()
   expect(box === null ? 0 : Math.round(box.height)).toBeGreaterThanOrEqual(44)
   await page.close()
 })
 
 it('keeps the closed drawer out of the tab order', async () => {
-  const page = await harness.open(oneHost(), { mobile: true })
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openShell(harness, oneHost(), { mobile: true })
   // A translated drawer still holds its controls unless it is made inert.
   expect(
     await page.evaluate(() => {
@@ -151,8 +171,7 @@ it('keeps the closed drawer out of the tab order', async () => {
 })
 
 it('leaves the permanent sidebar in the tab order on the wide layout', async () => {
-  const page = await harness.open(oneHost())
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openShellWithRoster(harness)
   // Above the drawer width the sidebar is a column, not an overlay, so nothing
   // may take it out of the tree. A layout flag stuck on would make the whole
   // roster unreachable here while every narrow case still passed.
@@ -171,9 +190,7 @@ it('leaves the permanent sidebar in the tab order on the wide layout', async () 
 })
 
 it('moves focus into the drawer it opens and back to the toggle on Escape', async () => {
-  const page = await harness.open(oneHost(), { mobile: true })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-action="drawer"]').click()
+  const page = await openShellWithDrawer(harness, oneHost(), { mobile: true })
   // The sidebar precedes the toggle in the document, so revealing it without
   // moving focus would leave a keyboard user travelling backwards to reach it.
   await page.waitForFunction(() => document.activeElement?.closest('#deeptail-sidebar') !== null)
@@ -181,18 +198,14 @@ it('moves focus into the drawer it opens and back to the toggle on Escape', asyn
   await page.keyboard.press('Escape')
   expect(
     await page.evaluate(() =>
-      document.activeElement instanceof HTMLElement
-        ? (document.activeElement.getAttribute('data-deeptail-action') ?? undefined)
-        : undefined,
+      document.activeElement instanceof HTMLElement ? document.activeElement.dataset['deeptailAction'] : undefined,
     ),
   ).toBe('drawer')
   await page.close()
 })
 
 it('keeps the whole roster to one stop in the page tab order, on touch too', async () => {
-  const page = await harness.open(fleet(), { mobile: true })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-action="drawer"]').click()
+  const page = await openShellWithDrawer(harness, fleet(), { mobile: true })
   await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
   // The actions are permanently visible here, so without sharing the row's stop
   // every row would contribute two or three of its own.
@@ -207,8 +220,8 @@ it('keeps the whole roster to one stop in the page tab order, on touch too', asy
 
 it('walks the row the way it is drawn when the script runs right to left', async () => {
   const page = await harness.open(oneHost(), { direction: 'rtl' })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-session="s-running"] .session-open').focus()
+  await waitForLiveShell(page)
+  await focusRow(page)
   const send = page.getByRole('button', { name: 'Message Refactor the loader' }).first()
   await send.waitFor({ state: 'visible' })
   // Mirrored, the actions sit to the *left* of the row's own control, so the

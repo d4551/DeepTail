@@ -10,9 +10,11 @@ import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { ACTION_LIST } from '../src/actions/registry.ts'
 
-import { type AnswerTable, type Harness, startHarness } from './harness.ts'
-import { pairUntilBootNotice } from './pair-until.ts'
-import { openShell } from './surfaces.ts'
+import { type Harness, startHarness } from './harness.ts'
+import { clickAction, openConnectForm, openPairForm, openPicker, pressNewSession } from './page-steps.ts'
+import { openBootNotice, openRunningSession, waitForReturnBar } from './session-steps.ts'
+import { openComposeSheet, openShell, openShellWithRoster, waitForRoster } from './surfaces.ts'
+import { showSwitcher } from './switcher.ts'
 
 let harness: Harness
 
@@ -28,33 +30,9 @@ afterAll(async () => {
 function drawn(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>('[data-deeptail-action]')].map(
-      (node) => node.getAttribute('data-deeptail-action') ?? '',
+      (node) => node.dataset['deeptailAction'] ?? '',
     ),
   )
-}
-
-/** Open the picker with nothing paired, which is where the tailnet is offered. */
-async function openPicker(extra: Partial<AnswerTable> = {}): Promise<Page> {
-  const page = await harness.open({ hosts: [], ...extra })
-  await page.waitForSelector('[data-deeptail-picker]')
-  return page
-}
-
-/**
- * The boot notice, which is where the application falls back when it cannot
- * read the registry at all.
- * @returns the page, showing the notice.
- */
-async function bootNotice(): Promise<Page> {
-  const page = await harness.open({
-    hosts: [],
-    paired: { id: 'dev-1', label: 'Workstation', origin: 'https://harness.local:3080' },
-    listError: 'the registry is unreadable',
-    listErrorOn: [3, 5, 7],
-  })
-  await pairUntilBootNotice(page, 4)
-  await page.locator('[data-deeptail-state="boot-error"]').waitFor({ state: 'visible' })
-  return page
 }
 
 /**
@@ -69,7 +47,7 @@ async function everyMarkerDrawn(): Promise<Set<string>> {
   }
   await gatherFromShell(gather)
   await gatherFromPicker(gather)
-  await gather(await bootNotice())
+  await gather(await openBootNotice(harness))
   return found
 }
 
@@ -81,26 +59,19 @@ async function everyMarkerDrawn(): Promise<Set<string>> {
 async function gatherFromShell(gather: (page: Page) => Promise<void>): Promise<void> {
   // sidebar, drawer, roster-row, connection-menu.
   let page = await openShell(harness, { remoteStatuses: { 'lab-2:session/list': 401 } })
-  await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  await waitForRoster(page)
+  await showSwitcher(page)
   await gather(page)
   await page.close()
 
   // compose-sheet.
-  page = await openShell(harness)
-  const row = page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]')
-  await row.waitFor({ state: 'visible' })
-  await row.hover()
-  await row.locator('[data-deeptail-action="row-message"]').click()
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+  page = await openComposeSheet(harness)
   await gather(page)
   await page.close()
 
   // new-session.
   page = await openShell(harness)
-  await page.locator('[data-deeptail-action="new-session"]').click()
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+  await pressNewSession(page)
   await gather(page)
   await page.close()
 }
@@ -112,32 +83,29 @@ async function gatherFromShell(gather: (page: Page) => Promise<void>): Promise<v
  */
 async function gatherFromPicker(gather: (page: Page) => Promise<void>): Promise<void> {
   // picker, picker-form.
-  let page = await openPicker()
+  let page = await openPicker(harness)
   await gather(page)
-  await page.getByRole('button', { name: 'Pair a host' }).click()
-  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+  await openPairForm(page)
   await gather(page)
   await page.close()
 
   // tailnet, in both of its states: the connect form and the machine list.
-  page = await openPicker({ tailnetConnected: false, tailnetDevices: [] })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-view="tailnet-connect"]').waitFor({ state: 'visible' })
+  page = await openPicker(harness, { tailnetConnected: false, tailnetDevices: [] })
+  await openConnectForm(page)
   await gather(page)
   await page.close()
 
-  page = await openPicker({ tailnetConnected: true, tailnetDevices: [] })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
+  page = await openPicker(harness, { tailnetConnected: true, tailnetDevices: [] })
+  await clickAction(page, 'tailnet')
   await gather(page)
   await page.close()
 
-  await gather(await bootNotice())
+  await gather(await openBootNotice(harness))
 
   // return: the bar the shell appends beside a booted client.
-  page = await openShell(harness)
-  await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
-  await page.locator('[data-deeptail-action="row-open"]').first().click()
-  await page.locator('[data-deeptail-return]').waitFor({ state: 'attached' })
+  page = await openShellWithRoster(harness)
+  await openRunningSession(page)
+  await waitForReturnBar(page)
   await gather(page)
   await page.close()
 }
@@ -147,10 +115,10 @@ it('draws every marker the registry declares, on the surface it places it', asyn
   const declared = ACTION_LIST.map((action) => action.marker).toSorted()
   const missing = declared.filter((marker) => !found.has(marker))
   expect(missing).toEqual([])
-}, 180_000)
+}, 60_000)
 
 it('draws no marker the registry does not declare', async () => {
   const found = await everyMarkerDrawn()
   const declared = new Set<string>(ACTION_LIST.map((action) => action.marker))
   expect([...found].filter((marker) => !declared.has(marker)).toSorted()).toEqual([])
-}, 180_000)
+}, 60_000)

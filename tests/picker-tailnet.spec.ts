@@ -94,6 +94,23 @@ function connectForm(current: TailnetConnectState): {
   return { form: formOf(tailnetConnectView(ctx)), ctx, actions }
 }
 
+/**
+ * Submit the form through its own event and read the draft it carried.
+ *
+ * A submit that handed the caller nothing is a form that did not submit, so the
+ * absence is named here rather than surfacing as a failure to read a field of
+ * nothing: every case below is about what the draft carries.
+ * @param form - the form to submit.
+ * @param actions - what the context recorded.
+ * @returns the draft the submit carried.
+ */
+function submittedDraft(form: HTMLFormElement, actions: Actions): TailnetDraft {
+  form.dispatchEvent(new Event('submit'))
+  const [draft] = actions.submitted
+  if (draft === undefined) throw new Error('deeptail: the form submitted nothing')
+  return draft
+}
+
 beforeEach(() => {
   resetDocument()
 })
@@ -190,34 +207,38 @@ describe('what the connect form does', () => {
     const key = fieldOf(form, 'api-key')
     key.value = 'tskey-2'
     key.dispatchEvent(new Event('input'))
-    form.dispatchEvent(new Event('submit'))
-    expect(actions.submitted.length).toBe(1)
-    expect(actions.submitted[0]?.key).toBe('tskey-2')
-  })
-
-  it('writes both OAuth halves into the draft the submit receives', () => {
-    const { form: oauthForm, actions: oauthActions } = connectForm({
-      ...OPEN,
-      draft: { ...EMPTY_TAILNET_DRAFT, kind: 'oauthClient' },
-    })
-    const id = fieldOf(oauthForm, 'client-id')
-    id.value = 'client-9'
-    id.dispatchEvent(new Event('input'))
-    const secret = fieldOf(oauthForm, 'client-secret')
-    secret.value = 'secret-9'
-    secret.dispatchEvent(new Event('input'))
-    oauthForm.dispatchEvent(new Event('submit'))
-    expect(oauthActions.submitted.length).toBe(1)
-    expect(oauthActions.submitted[0]?.clientId).toBe('client-9')
-    expect(oauthActions.submitted[0]?.clientSecret).toBe('secret-9')
+    expect(submittedDraft(form, actions).key).toBe('tskey-2')
   })
 
   it('writes the tailnet name back the same way', () => {
     const tailnet = fieldOf(form, 'tailnet')
     tailnet.value = 'other.ts.net'
     tailnet.dispatchEvent(new Event('input'))
-    form.dispatchEvent(new Event('submit'))
-    expect(actions.submitted[0]?.tailnet).toBe('other.ts.net')
+    expect(submittedDraft(form, actions).tailnet).toBe('other.ts.net')
+  })
+})
+
+describe('the OAuth halves the connect form writes', () => {
+  /** The form under test, built on the OAuth draft, with its actions recorded. */
+  let form: HTMLFormElement
+  let actions: Actions
+
+  beforeEach(() => {
+    const built = connectForm({ ...OPEN, draft: { ...EMPTY_TAILNET_DRAFT, kind: 'oauthClient' } })
+    form = built.form
+    actions = built.actions
+  })
+
+  it('writes both halves into the draft the submit receives', () => {
+    const id = fieldOf(form, 'client-id')
+    id.value = 'client-9'
+    id.dispatchEvent(new Event('input'))
+    const secret = fieldOf(form, 'client-secret')
+    secret.value = 'secret-9'
+    secret.dispatchEvent(new Event('input'))
+    const draft = submittedDraft(form, actions)
+    expect(draft.clientId).toBe('client-9')
+    expect(draft.clientSecret).toBe('secret-9')
   })
 })
 
@@ -233,8 +254,7 @@ describe('the form’s edges', () => {
   })
 
   it('submits through the form’s own event, which Enter in a field also fires', () => {
-    form.dispatchEvent(new Event('submit'))
-    expect(actions.submitted.length).toBe(1)
+    expect(submittedDraft(form, actions).kind).toBe('apiKey')
   })
 
   it('returns to the roster when the viewer cancels', () => {

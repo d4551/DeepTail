@@ -17,15 +17,13 @@
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { assertPaintedDocument, BUILT_PAGE, documentOffences } from '../scripts/paint-document-rules.ts'
 import { builtPages, GATE, gateOutcome } from '../scripts/paint-gate.ts'
 import { EMPTY_ROOT, firstPaintMarkup, paintIndex } from '../scripts/paint-index.ts'
 import { DIST_PAGE, paintFile, readPage } from '../scripts/paint-stamp.ts'
 import { ROOT } from '../scripts/source-tree.ts'
 import { resetDocument } from './dom.ts'
+import { fixtureTree } from './fixtures.ts'
 import { CHROME, mountOf, named, planted, SEATED, SECOND_ENTRY, VITE_PAGE } from './paint-fixture.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
@@ -35,11 +33,11 @@ import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
  * @returns what the gate found.
  */
 async function outcomeFor(html: string): Promise<Awaited<ReturnType<typeof gateOutcome>>> {
-  const root = await mkdtemp(join(tmpdir(), 'deeptail-gate-'))
-  const page = join(root, 'index.html')
-  await writeFile(page, html)
+  const tree = fixtureTree('deeptail-gate')
+  const page = tree.pathOf('index.html')
+  await Bun.write(page, html)
   const outcome = await gateOutcome([{ label: 'page.html', path: page }])
-  await rm(root, { recursive: true, force: true })
+  await tree.clear()
   return outcome
 }
 
@@ -78,27 +76,27 @@ describe('the page painter', () => {
 
 describe('the stamp the painter writes', () => {
   it('stamps a built page on disk, and reads back the bytes that landed', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'deeptail-paint-'))
-    const page = join(root, 'index.html')
-    await writeFile(page, VITE_PAGE)
+    const tree = fixtureTree('deeptail-paint')
+    const page = tree.pathOf('index.html')
+    await Bun.write(page, VITE_PAGE)
     paintFile(page)
-    const html = await readFile(page, 'utf8')
+    const html = await Bun.file(page).text()
     expect(html.includes('<main')).toBe(true)
     expect(html.includes(EMPTY_ROOT)).toBe(false)
     expect(named(documentOffences(readPage(page)))).toEqual([])
-    await rm(root, { recursive: true, force: true })
+    await tree.clear()
   })
 
   it('refuses a built page that is not there, and one that holds nothing', async () => {
     // The two states a painter would read as an empty string and stamp over: a
     // page the build never wrote, and a page that landed empty.
-    const root = await mkdtemp(join(tmpdir(), 'deeptail-paint-'))
-    const page = join(root, 'index.html')
+    const tree = fixtureTree('deeptail-paint')
+    const page = tree.pathOf('index.html')
     expect(() => readPage(page)).toThrow(`there is no built page at ${page}`)
     expect(() => paintFile(page)).toThrow('there is no built page at')
-    await writeFile(page, '   \n')
+    await Bun.write(page, '   \n')
     expect(() => readPage(page)).toThrow('is empty')
-    await rm(root, { recursive: true, force: true })
+    await tree.clear()
   })
 })
 
@@ -108,7 +106,7 @@ describe('the built page the gate reads', () => {
     async () => {
       const pages = builtPages()
       expect(pages.map((page) => page.label)).toEqual([BUILT_PAGE])
-      const html = await readFile(DIST_PAGE, 'utf8')
+      const html = await Bun.file(DIST_PAGE).text()
       expect(documentOffences(html)).toEqual([])
       // Byte for byte, not by landmark: a document stamped before the shell
       // factories last changed still carries a shell, a main and a live
@@ -143,17 +141,17 @@ describe('the gate program', () => {
   it(
     'runs as its own program, over the page the build left on disk',
     async () => {
-      const run = Bun.spawn([process.execPath, join(ROOT, 'scripts/paint-gate.ts')], {
+      const run = Bun.spawn([process.execPath, `${ROOT}scripts/paint-gate.ts`], {
         cwd: ROOT,
         stdout: 'pipe',
         stderr: 'pipe',
       })
-      const [out, err, code] = await Promise.all([
+      const [printed, complaint, status] = await Promise.all([
         new Response(run.stdout).text(),
         new Response(run.stderr).text(),
         run.exited,
       ])
-      expect([code, err, out]).toEqual([0, '', `${GATE.clean(1)}\n`])
+      expect([status, complaint, printed]).toEqual([0, '', `${GATE.clean(1)}\n`])
     },
     TREE_SCAN_BUDGET_MS,
   )

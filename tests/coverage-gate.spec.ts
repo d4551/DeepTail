@@ -10,22 +10,11 @@
  * wrote, held to the floors the gate actually pins.
  */
 
-import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { describe, expect, it } from 'bun:test'
 import { coverageReport, coverageRows, OVERALL, suiteFiles } from '../scripts/check-coverage.ts'
 import { FLOORS, OVERALL_FLOOR } from '../scripts/coverage-floors.ts'
-
-/** Where the program is run against a table of its own. */
-const PROGRAM = new URL('../scripts/check-coverage.ts', import.meta.url).pathname
-
-/** Directories this suite made, removed when it ends. */
-const made: string[] = []
-
-afterEach(async () => {
-  await Promise.all(made.splice(0).map(async (root) => await rm(root, { recursive: true, force: true })))
-})
+import { cleanRun, type GateRun, importRunsNothingCase, runProgram, suiteTree } from './gate-program.ts'
+import { PROGRAMS } from './programs.ts'
 
 /**
  * A table with one row.
@@ -68,6 +57,18 @@ function pinnedTable(lower?: string): string {
     row(file, lower === file ? floor - 1 : floor, lower === file ? floor - 1 : floor),
   )
   return table(files, OVERALL_FLOOR)
+}
+
+/**
+ * Run the gate as a process over a table this suite wrote.
+ * @param text - the table to hand it.
+ * @returns what the gate printed and exited with.
+ */
+async function runGate(text: string): Promise<GateRun> {
+  const tree = await suiteTree('check-coverage-')
+  const path = tree.pathOf('table.txt')
+  await Bun.write(path, text)
+  return await runProgram(PROGRAMS.coverageGate, [path], tree.root)
 }
 
 describe('the rows of one coverage table', () => {
@@ -142,35 +143,18 @@ describe('the suites the gate measures', () => {
 })
 
 describe('the program, run the way a reader runs it', () => {
-  // Imported, the module is a pair of readers and nothing runs. Run, it is a
-  // program — and the whole of what makes it one lives under a guard no
-  // importing suite can reach, so it is driven here as a process, against a
-  // table this suite wrote, in a directory of its own.
   it('holds the pinned table, which is the whole chain at the floors it states', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'check-coverage-'))
-    made.push(root)
-    await writeFile(join(root, 'table.txt'), pinnedTable())
-    const run = Bun.spawn([process.execPath, PROGRAM, 'table.txt'], {
-      cwd: root,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const printed = await new Response(run.stdout).text()
-    const complaint = await new Response(run.stderr).text()
-    expect([await run.exited, complaint]).toEqual([0, ''])
-    expect(printed).toContain('held at the detection measured')
+    const run = await runGate(pinnedTable())
+    cleanRun(run)
+    expect(run.out).toContain('held at the detection measured')
   })
 
   it('fails, and says why, when one file falls below the floor pinned for it', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'check-coverage-'))
-    made.push(root)
-    await writeFile(join(root, 'table.txt'), pinnedTable('apps/deeptail/src/api.ts'))
-    const run = Bun.spawn([process.execPath, PROGRAM, 'table.txt'], {
-      cwd: root,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const complaint = await new Response(run.stderr).text()
-    expect([await run.exited, complaint.includes('below its floor of')]).toEqual([1, true])
+    const below = await runGate(pinnedTable('apps/deeptail/src/api.ts'))
+    expect(below.code).toBe(1)
+    expect(below.err).toContain('below its floor of')
+    expect(below.out).toBe('')
   })
+
+  importRunsNothingCase(PROGRAMS.coverageGate, 'check-coverage-')
 })

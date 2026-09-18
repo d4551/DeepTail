@@ -21,47 +21,14 @@
  */
 
 import { describe, expect, it, spyOn } from 'bun:test'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { OVERALL } from '../scripts/check-coverage.ts'
 import { FLOORS, OVERALL_FLOOR } from '../scripts/coverage-floors.ts'
 import { DEFAULT_STATUS } from '../scripts/mutation-survivors.ts'
 import { pipelineViolations } from '../scripts/pipeline-guard.ts'
 import { ROOT } from '../scripts/source-tree.ts'
-import { importRunsNothing, suiteRoot } from './gate-program.ts'
+import { cleanRun, importRunsNothing, runProgram, suiteTree } from './gate-program.ts'
+import { PROGRAMS } from './programs.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
-
-/** The three programs the merge chain runs, by absolute path. */
-const GUARD = new URL('../scripts/pipeline-guard.ts', import.meta.url).pathname
-const SURVIVORS = new URL('../scripts/mutation-survivors.ts', import.meta.url).pathname
-const COVERAGE_GATE = new URL('../scripts/check-coverage.ts', import.meta.url).pathname
-
-/** What one run of a program told the two streams and the shell. */
-interface ProgramRun {
-  readonly out: string
-  readonly err: string
-  readonly code: number
-}
-
-/**
- * Run one of the programs as a process, in the directory given, with the
- * arguments a reader would type after its name.
- *
- * `gate-program.ts` runs a gate with no arguments and a scrubbed environment,
- * because the gates it runs substitute an executable first on the path; the
- * three here substitute nothing and take arguments, so the spawn is spelled
- * here once, with both streams read whatever the exit turns out to be.
- * @param program - the program, by absolute path.
- * @param root - the directory the program runs in.
- * @param args - the arguments after the program's name.
- * @returns what the program printed and exited with.
- */
-async function runProgram(program: string, root: string, args: readonly string[]): Promise<ProgramRun> {
-  const run = Bun.spawn([process.execPath, program, ...args], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
-  const out = await new Response(run.stdout).text()
-  const err = await new Response(run.stderr).text()
-  return { out, err, code: await run.exited }
-}
 
 /** What one in-process run of the guard wrote, and whether the module answered. */
 interface GuardRun {
@@ -84,11 +51,12 @@ interface GuardRun {
  * @returns what the guard wrote, and whether the module it evaluated answered.
  */
 async function runGuardInProcess(query: string): Promise<GuardRun> {
+  const guard = PROGRAMS.pipelineGuard
   const entryMain = Bun.main
   const out = spyOn(process.stdout, 'write').mockImplementation(() => true)
   const err = spyOn(process.stderr, 'write').mockImplementation(() => true)
-  Reflect.set(Bun, 'main', GUARD)
-  const mod = await import(`${GUARD}?${query}`)
+  Reflect.set(Bun, 'main', guard)
+  const mod = await import(`${guard}?${query}`)
   const run: GuardRun = {
     out: out.mock.calls.map((call) => String(call[0])),
     err: err.mock.calls.map((call) => String(call[0])),
@@ -159,8 +127,8 @@ describe('the pipeline guard as the merge chain runs it', () => {
   it(
     'reads the repository it stands in and says every definition is sound',
     async () => {
-      const run = await runProgram(GUARD, ROOT, [])
-      expect([run.code, run.err]).toEqual([0, ''])
+      const run = await runProgram(PROGRAMS.pipelineGuard, [], ROOT)
+      cleanRun(run)
       expect(run.out).toBe('pipeline guard: every workflow definition is pinned, bounded and unsoftened\n')
     },
     TREE_SCAN_BUDGET_MS,
@@ -169,11 +137,10 @@ describe('the pipeline guard as the merge chain runs it', () => {
   it(
     'names the cheat a tree carries, on the error stream, and fails',
     async () => {
-      const root = await suiteRoot('gate-mains-guard-')
-      await writeFile(join(root, 'package.json'), JSON.stringify({ packageManager: 'bun@1.4.2' }))
-      await mkdir(join(root, '.github', 'workflows'), { recursive: true })
-      await writeFile(join(root, '.github', 'workflows', 'ci.yml'), 'continue-on-error: true\n')
-      const run = await runProgram(GUARD, root, [])
+      const tree = await suiteTree('gate-mains-guard-')
+      await Bun.write(tree.pathOf('package.json'), JSON.stringify({ packageManager: 'bun@1.4.2' }))
+      await Bun.write(tree.pathOf('.github/workflows/ci.yml'), 'continue-on-error: true\n')
+      const run = await runProgram(PROGRAMS.pipelineGuard, [], tree.root)
       expect(run.code).toBe(1)
       expect(run.out).toBe('')
       expect(run.err).toMatch(/^the pipeline definitions carry \d+ violation\(s\):\n/u)
@@ -201,10 +168,10 @@ describe('the survivor reader as a reader runs it', () => {
   it(
     'prints one section a file and the total, and leaves the killed work out',
     async () => {
-      const root = await suiteRoot('gate-mains-survivors-')
-      await writeFile(join(root, 'report.json'), REPORT)
-      const run = await runProgram(SURVIVORS, root, ['report.json', DEFAULT_STATUS])
-      expect([run.code, run.err]).toEqual([0, ''])
+      const tree = await suiteTree('gate-mains-survivors-')
+      await Bun.write(tree.pathOf('report.json'), REPORT)
+      const run = await runProgram(PROGRAMS.mutationSurvivors, ['report.json', DEFAULT_STATUS], tree.root)
+      cleanRun(run)
       expect(run.out).toContain('src/roster.ts (2)')
       expect(run.out).toContain('src/wire.ts (1)')
       expect(run.out).not.toContain('if (false)')
@@ -218,11 +185,11 @@ describe('the coverage gate against a table a run wrote', () => {
   it(
     'holds a table at its floors, and says so with the count it read and the whole',
     async () => {
-      const root = await suiteRoot('gate-mains-coverage-')
-      const table = join(root, 'table.txt')
-      await writeFile(table, coverageTable())
-      const run = await runProgram(COVERAGE_GATE, root, [table])
-      expect([run.code, run.err]).toEqual([0, ''])
+      const tree = await suiteTree('gate-mains-coverage-')
+      const table = tree.pathOf('table.txt')
+      await Bun.write(table, coverageTable())
+      const run = await runProgram(PROGRAMS.coverageGate, [table], tree.root)
+      cleanRun(run)
       expect(run.out).toBe(
         `check-coverage: every file the unit chain reaches is held at the detection measured: ${String(
           Object.keys(FLOORS).length,
@@ -235,10 +202,10 @@ describe('the coverage gate against a table a run wrote', () => {
   it(
     'fails, and names the file that fell below the floor pinned for it',
     async () => {
-      const root = await suiteRoot('gate-mains-coverage-')
-      const table = join(root, 'table.txt')
-      await writeFile(table, coverageTable('scripts/jsonc.ts'))
-      const run = await runProgram(COVERAGE_GATE, root, [table])
+      const tree = await suiteTree('gate-mains-coverage-')
+      const table = tree.pathOf('table.txt')
+      await Bun.write(table, coverageTable('scripts/jsonc.ts'))
+      const run = await runProgram(PROGRAMS.coverageGate, [table], tree.root)
       expect(run.code).toBe(1)
       expect(run.out).toBe('')
       expect(run.err).toBe(
@@ -249,7 +216,7 @@ describe('the coverage gate against a table a run wrote', () => {
     TREE_SCAN_BUDGET_MS,
   )
 
-  it('runs nothing when it is imported rather than run', async () => {
-    await importRunsNothing(COVERAGE_GATE, 'gate-mains-coverage-')
+  it('runs nothing when the coverage gate is imported rather than run', async () => {
+    await importRunsNothing(PROGRAMS.coverageGate, 'gate-mains-coverage-')
   })
 })

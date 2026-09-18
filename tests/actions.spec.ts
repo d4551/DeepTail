@@ -43,12 +43,14 @@ interface LaneCase {
  * Every case one lane declares, in source order.
  *
  * A case runs from its own `it(` to the next one, so a marker and an assertion
- * found inside the same slice belong to one case rather than to the file.
+ * found inside the same slice belong to one case rather than to the file. A
+ * case may sit inside a describe, so the match takes the indentation the suite
+ * wraps its cases in.
  * @param source - the lane's source.
  * @returns the cases, titled as written.
  */
 function casesOf(source: string): readonly LaneCase[] {
-  const starts = [...source.matchAll(/^it\(/gmu)].map((match) => match.index)
+  const starts = [...source.matchAll(/^[\t ]*it\(/gmu)].map((match) => match.index)
   return starts.map((start, index) => {
     const body = source.slice(start, starts[index + 1] ?? source.length)
     const title = /^it\(\s*(?:['"`])([\s\S]*?)(?:['"`])/u.exec(body)?.[1] ?? body.slice(0, 60)
@@ -76,23 +78,137 @@ function laneCases(lane: string): Promise<readonly LaneCase[] | undefined> {
   return read
 }
 
+/** One exported unit of a module a lane drives its controls through. */
+interface SharedUnit {
+  /** The name the case calls it by. */
+  readonly name: string
+  /** The unit's own source, marker and press included. */
+  readonly body: string
+}
+
+/** The shared modules a lane reads, by the lane that reads them. */
+const sharedModules = new Map<string, Promise<readonly SharedUnit[]>>()
+
+/**
+ * Every exported function and constant of the modules one lane imports.
+ *
+ * The choreography the browser suites share states a control's activation once,
+ * beside the marker, and a case drives the control by calling into it — so the
+ * lane's own source no longer carries the marker its case fires. Reading the
+ * closure beside the lane is what keeps that extraction from reading as a gap.
+ * @param lane - the repository-relative path the action names.
+ * @param source - the lane's own source, read for its imports.
+ * @returns one unit per export, in declaration order.
+ */
+function sharedUnits(lane: string, source: string): Promise<readonly SharedUnit[]> {
+  const cached = sharedModules.get(lane)
+  if (cached !== undefined) return cached
+  const read = (async (): Promise<readonly SharedUnit[]> => {
+    const directory = lane.slice(0, lane.lastIndexOf('/'))
+    const names = [...source.matchAll(/from '\.\/([^']+)\.ts'/gu)].map((match) => match[1])
+    const texts = await Promise.all(
+      names.map(async (name) => {
+        const file = Bun.file(`${ROOT}${directory}/${name}.ts`)
+        return (await file.exists()) ? await file.text() : ''
+      }),
+    )
+    return texts.flatMap((text) => {
+      const starts: { readonly name: string; readonly index: number | undefined }[] = []
+      for (const match of text.matchAll(/^export (?:async )?(?:function|const) (\w+)/gmu)) {
+        const name = match[1]
+        if (name !== undefined) starts.push({ name, index: match.index })
+      }
+      return starts.map(({ name, index }, at) => ({
+        name,
+        body: text.slice(index, starts[at + 1]?.index ?? text.length),
+      }))
+    })
+  })()
+  sharedModules.set(lane, read)
+  return read
+}
+
+/**
+ * The spellings one control's marker is named in.
+ *
+ * The attribute the registry declares, and the marker as an argument to the
+ * vocabulary every suite drives a control through — `action('row-message')`, or
+ * `clickAction(page, 'row-message')`, which builds the attribute from it.
+ * @param marker - the `data-deeptail-action` the action declares.
+ * @returns the text each spelling is written as.
+ */
+function markerSpellings(marker: string): readonly string[] {
+  return [`data-deeptail-action="${marker}"`, `'${marker}'`, `"${marker}"`]
+}
+
+/**
+ * Whether a unit builds a control's selector out of an argument it was handed.
+ *
+ * The patterns are the two the suites write: the attribute built from a value,
+ * and the shared builder called with one.
+ * @param body - the unit's own source.
+ * @returns true when the unit's selector comes from its caller.
+ */
+function buildsFromArgument(body: string): boolean {
+  return body.includes('data-deeptail-action="${') || /\baction\(\s*\w+\s*\)/u.test(body)
+}
+
+/**
+ * Whether one shared unit activates a marker, for a case that calls into it.
+ *
+ * Three shapes carry the activation: the unit states the marker and the press
+ * itself, the unit takes the marker as its own argument and the case passes it,
+ * or the unit hands the marker to a unit that presses what it was handed.
+ * @param unit - the shared unit's own source.
+ * @param marker - the `data-deeptail-action` the action declares.
+ * @param called - the case's own source, which carries the call.
+ * @param all - every unit of the modules the lane drives its controls through.
+ * @returns true when the case drives the control through this unit.
+ */
+function unitFires(unit: SharedUnit, marker: string, called: string, all: readonly SharedUnit[]): boolean {
+  const declared = unit.body.includes(`data-deeptail-action="${marker}"`)
+  const named = markerSpellings(marker).some((spelling) => unit.body.includes(spelling))
+  const presses = /\.(?:click|check|press)\(/u.test(unit.body)
+  const stated = (declared || (named && buildsFromArgument(unit.body))) && presses
+  // A helper that takes the marker as its own argument activates whatever the
+  // case passes it, so the case's own argument is the activation's subject.
+  const parameterised = buildsFromArgument(unit.body) && called.includes(marker)
+  // A constant that names the control is the activation when the case presses
+  // what the constant holds.
+  const constant =
+    declared &&
+    new RegExp(`\\b${unit.name}\\b[\\s\\S]{0,${String(ACTIVATION_WINDOW)}}\\.(?:click|check|press)\\(`, 'u').test(
+      called,
+    )
+  // A unit that hands the marker on to a parameterised unit inherits that
+  // unit's activation: the unit named the marker, the chain ends at a press.
+  const delegates =
+    named &&
+    all.some(
+      (other) => other.name !== unit.name && unit.body.includes(`${other.name}(`) && buildsFromArgument(other.body),
+    )
+  return (stated && new RegExp(`\\b${unit.name}\\(`, 'u').test(called)) || parameterised || constant || delegates
+}
+
 /**
  * Whether one case activates a marker and then asserts.
  *
  * Activation is a real pointer or keyboard press on the control carrying the
- * marker: a `click`, a `check` or a `press`. An assertion in the same case is
+ * marker: a `click`, a `check` or a `press`, in the case's own source or in the
+ * shared choreography the case calls into. An assertion in the same case is
  * what stops a case that drives the control and reports nothing from standing
  * for verification.
  * @param body - the case's own source.
  * @param marker - the `data-deeptail-action` the action declares.
+ * @param shared - the units of the modules the lane drives its controls through.
  * @returns true when the case activates the marker and asserts.
  */
-function fires(body: string, marker: string): boolean {
+function fires(body: string, marker: string, shared: readonly SharedUnit[]): boolean {
   const reference = new RegExp(`data-deeptail-action="${marker}"`, 'gu')
   const activates = [...body.matchAll(reference)].some(({ index }) =>
     /\.(?:click|check|press)\(/u.test(body.slice(index, index + ACTIVATION_WINDOW)),
   )
-  return activates && body.includes('expect(')
+  return (activates || shared.some((unit) => unitFires(unit, marker, body, shared))) && body.includes('expect(')
 }
 
 describe('the shipped action registry', () => {
@@ -101,7 +217,8 @@ describe('the shipped action registry', () => {
     // never activates its control is an action nothing verifies — the gap a
     // lane existing as a file cannot tell from a lane that drives it. Each
     // action is a control the operator presses, so the case that verifies it
-    // drives that control in a browser.
+    // drives that control in a browser, directly or through the choreography
+    // the suites share.
     const unfired = await Promise.all(
       registry.actions.map(async (action) => {
         if (!action.lane.endsWith(BROWSER_LANE)) {
@@ -109,7 +226,9 @@ describe('the shipped action registry', () => {
         }
         const cases = await laneCases(action.lane)
         if (cases === undefined) return `${action.id}: ${action.lane} is not a file`
-        return cases.some((one) => fires(one.body, action.marker))
+        const laneSource = await Bun.file(`${ROOT}${action.lane}`).text()
+        const shared = await sharedUnits(action.lane, laneSource)
+        return cases.some((one) => fires(one.body, action.marker, shared))
           ? ''
           : `${action.id}: no case in ${action.lane} activates ${action.marker}`
       }),

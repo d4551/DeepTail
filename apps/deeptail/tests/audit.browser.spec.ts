@@ -15,9 +15,9 @@
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
-import { fleet } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
-import { openDrawerIfPresent } from './surfaces.ts'
+import { pressNewSession } from './page-steps.ts'
+import { openDrawerIfPresent, openShell } from './surfaces.ts'
 import { REFLOW_VIEWPORT } from './viewports.ts'
 
 let harness: Harness
@@ -36,15 +36,13 @@ afterAll(async () => {
  * @returns the page, with the new-session dialog showing.
  */
 async function scrollingDialog(): Promise<Page> {
-  const page = await harness.open(fleet(), {
+  const page = await openShell(harness, undefined, {
     mobile: true,
     width: REFLOW_VIEWPORT.width,
     height: REFLOW_VIEWPORT.height,
   })
-  await page.waitForSelector('[data-deeptail-shell]')
   await openDrawerIfPresent(page)
-  await page.locator('[data-deeptail-action="new-session"]').click()
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
+  await pressNewSession(page)
   return page
 }
 

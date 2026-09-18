@@ -64,6 +64,20 @@ export const SMALL_PHONE_VIEWPORT = namedViewport('small phone')
 export const REFLOW_VIEWPORT = namedViewport('reflow floor')
 
 /**
+ * Whether the flags a case opened with make it a touch context.
+ *
+ * It is one question, not two: the harness turns it into `hasTouch`, the
+ * emulated `(pointer: coarse)` and `(hover: none)` queries, and the platform
+ * touch floor all at once, and a case that reveals a control by hovering has to
+ * ask the same question the harness answered.
+ * @param view - the flags a case opened with.
+ * @returns whether the page is a coarse-pointer context.
+ */
+export function isCoarse(view: { readonly mobile?: boolean; readonly tablet?: boolean }): boolean {
+  return view.mobile === true || view.tablet === true
+}
+
+/**
  * Harness pointer flags for one designed width.
  *
  * Coarse widths must emulate a touch device. Resizing a desktop page keeps a

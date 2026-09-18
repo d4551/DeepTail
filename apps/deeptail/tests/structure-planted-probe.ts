@@ -48,10 +48,10 @@ export interface Probe {
 export async function plantProbe(page: Page, spec: Probe): Promise<void> {
   await page.evaluate((args: Probe) => {
     const node = document.createElement(args.tag ?? 'button')
-    node.setAttribute('data-deeptail-probe', args.probe)
-    if (args.shell === true) node.setAttribute('data-deeptail-shell', '')
-    if (args.picker === true) node.setAttribute('data-deeptail-picker', '')
-    if (args.action !== undefined) node.setAttribute('data-deeptail-action', args.action)
+    node.dataset['deeptailProbe'] = args.probe
+    if (args.shell === true) node.dataset['deeptailShell'] = ''
+    if (args.picker === true) node.dataset['deeptailPicker'] = ''
+    if (args.action !== undefined) node.dataset['deeptailAction'] = args.action
     if (args.hidden === true) node.hidden = true
     const root = '[data-deeptail-shell]'
     const where = args.into === 'shell' ? root : `${root} main`

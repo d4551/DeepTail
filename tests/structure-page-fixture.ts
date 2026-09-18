@@ -11,10 +11,11 @@
  *
  * Every marker is written by a function here that names its own attribute as a
  * literal. That is not tidiness: the style gate reads the attribute name at the
- * `setAttribute` call, so a helper that took the name as a parameter would be a
- * name the gate cannot read, and it refuses exactly that. The same reason is why
- * the writes are attributes rather than `dataset` members — a parsed attribute
- * map is an index signature, and the compiler requires a bracket read of one.
+ * write, so a helper that took the name as a parameter would be a name the gate
+ * cannot read, and it refuses exactly that. The writes go through `dataset`
+ * with the member in brackets — `DOMStringMap` is an index signature, and
+ * `tsconfig.base.json` sets `noPropertyAccessFromIndexSignature`, so the
+ * compiler requires the bracket form of it.
  *
  * @module
  */
@@ -27,24 +28,23 @@ export const SCOPE = '[data-deeptail-shell], [data-deeptail-picker]'
 /**
  * Mark one element as the shell, so the reader finds it by the attribute.
  *
- * Written through `setAttribute` with the name spelt out, rather than as a
- * `dataset` member: `DOMStringMap` is an index signature, and
- * `tsconfig.base.json` sets `noPropertyAccessFromIndexSignature`, so a `dataset`
- * write of this name is a compiler error. The style gate reads the attribute
- * name at the call, which is why the name is written here rather than passed in.
+ * Written through `dataset` with the member in brackets, rather than as a
+ * property: `DOMStringMap` is an index signature, and `tsconfig.base.json` sets
+ * `noPropertyAccessFromIndexSignature`, so a property write of this name is a
+ * compiler error.
  */
 function markShell(shell: HTMLElement): void {
-  shell.setAttribute('data-deeptail-shell', '')
+  shell.dataset['deeptailShell'] = ''
 }
 
 /** Mark one element as the picker, so the reader finds it by the attribute. */
 function markPicker(picker: HTMLElement): void {
-  picker.setAttribute('data-deeptail-picker', '')
+  picker.dataset['deeptailPicker'] = ''
 }
 
 /** Mark one element as a dialog the shared frame built. */
 function markDialog(dialog: HTMLElement): void {
-  dialog.setAttribute('data-deeptail-dialog', '')
+  dialog.dataset['deeptailDialog'] = ''
 }
 
 /**
@@ -53,7 +53,7 @@ function markDialog(dialog: HTMLElement): void {
  * @param hook - the action names the hook carries.
  */
 function markAction(element: HTMLElement, hook: string): void {
-  element.setAttribute('data-deeptail-action', hook)
+  element.dataset['deeptailAction'] = hook
 }
 
 /**

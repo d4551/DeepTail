@@ -6,55 +6,98 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { type AnswerTable, type Harness, startHarness, textOf } from './harness.ts'
+import {
+  clickAction,
+  connectTailnet,
+  field,
+  type OpenOptions,
+  openConnectForm,
+  openMachineList,
+  openPicker,
+  state,
+  submitPairing,
+  tailnetDevice,
+  waitForAction,
+  waitForState,
+} from './page-steps.ts'
 import { defects, VIEWPORTS } from './structure-page.ts'
 import { AUDIT_VIEWS, describeViolations, realizeView } from './surfaces.ts'
 import { pointerFlags } from './viewports.ts'
 
 let harness: Harness
 
-async function openPicker(
-  extra: Partial<AnswerTable>,
-  view: boolean | { mobile?: boolean; tablet?: boolean; dark?: boolean; width?: number; height?: number } = false,
-): Promise<Page> {
-  const options = view === true ? { mobile: true } : view === false ? {} : view
-  const page = await harness.open({ hosts: [], ...extra }, options)
-  if (typeof view === 'object' && view.width !== undefined && view.height !== undefined) {
-    await realizeView(page, { width: view.width, height: view.height })
-  }
-  await page.waitForSelector('[data-deeptail-picker]')
+/** One tailnet screen, opened at the view a case is measuring. */
+type Screen = (view?: OpenOptions) => Promise<Page>
+
+/**
+ * Open the connect form: the tailnet with no credential stored.
+ * @param view - the viewport and palette the case is measured under.
+ * @param extra - answer-table overrides for the case.
+ * @returns the page, showing the connect form.
+ */
+async function connectForm(view?: OpenOptions, extra: Partial<AnswerTable> = {}): Promise<Page> {
+  const page = await openPicker(harness, { tailnetConnected: false, tailnetDevices: DEVICES, ...extra }, view)
+  await openConnectForm(page)
   return page
 }
 
-/** Open the connect form: the tailnet with no credential stored. */
-async function connectForm(
-  view: boolean | { mobile?: boolean; tablet?: boolean; dark?: boolean } = false,
-): Promise<Page> {
-  const page = await openPicker({ tailnetConnected: false, tailnetDevices: DEVICES }, view)
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.waitForSelector('[data-deeptail-view="tailnet-connect"]')
+/**
+ * Open the machine list: the tailnet with a credential already stored.
+ * @param view - the viewport and palette the case is measured under.
+ * @param extra - answer-table overrides for the case.
+ * @returns the page, showing the machine list.
+ */
+async function machineList(view?: OpenOptions, extra: Partial<AnswerTable> = {}): Promise<Page> {
+  const page = await openPicker(harness, { tailnetConnected: true, tailnetDevices: DEVICES, ...extra }, view)
+  await openMachineList(page)
   return page
 }
 
-/** Open the machine list: the tailnet with a credential already stored. */
-async function machineList(
-  view: boolean | { mobile?: boolean; tablet?: boolean; dark?: boolean } = false,
-): Promise<Page> {
-  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES }, view)
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-tailnet-device="ts-1"]').waitFor({ state: 'visible' })
-  return page
-}
-
-/** Open the pair form: a machine chosen from the stored tailnet. */
-async function pairForm(view: boolean | { mobile?: boolean; tablet?: boolean; dark?: boolean } = false): Promise<Page> {
+/**
+ * Open the pair form: a machine chosen from the stored tailnet.
+ * @param view - the viewport and palette the case is measured under.
+ * @returns the page, showing the pair form.
+ */
+async function pairForm(view?: OpenOptions): Promise<Page> {
   const page = await machineList(view)
-  await page.locator('[data-deeptail-tailnet-device="ts-1"]').click()
-  await page.locator('[data-deeptail-action="pair-submit"]').waitFor({ state: 'visible' })
+  await page.locator(tailnetDevice('ts-1')).click()
+  await waitForAction(page, 'pair-submit')
   return page
 }
 
-function invokedCommands(page: Page): Promise<readonly string[]> {
-  return page.evaluate(() => window.deeptailInvokedCommands ?? [])
+/** Every screen the aggregate cases below measure. */
+const TAILNET_SCREENS: readonly Screen[] = [connectForm, machineList, pairForm]
+
+/**
+ * Open each screen at each view, and collect what a measurement found.
+ *
+ * Three cases below drive the same screens: one audits them, one compares their
+ * structural rules against the picker they are painted into, and one holds
+ * their controls to the touch floor. The screen × view walk is stated once, so
+ * a screen added to `TAILNET_SCREENS` is measured by all three rather than by
+ * whichever of them remembered it.
+ * @param views - the views to open every screen at.
+ * @param flags - the harness pointer flags one view opens with.
+ * @param measure - what to measure on the opened page, as a report line, empty
+ * when it found nothing.
+ * @returns every non-empty report line.
+ */
+async function screensReport<View extends { readonly label: string }>(
+  views: readonly View[],
+  flags: (view: View) => OpenOptions,
+  measure: (page: Page, view: View) => Promise<string>,
+): Promise<readonly string[]> {
+  const lines = await Promise.all(
+    TAILNET_SCREENS.flatMap((open) =>
+      views.map(async (view) => {
+        const page = await open(flags(view))
+        const found = await measure(page, view)
+        await page.close()
+        return found
+      }),
+    ),
+  )
+  return lines.filter((line) => line !== '')
 }
 
 /**
@@ -103,194 +146,146 @@ afterAll(async () => {
 })
 
 it('asks for a credential when none is stored, and never lists before it has one', async () => {
-  const page = await openPicker({ tailnetConnected: false, tailnetDevices: DEVICES })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-view="tailnet-connect"]').waitFor({ state: 'visible' })
-  expect(await page.locator('[data-deeptail-field="kind-apiKey"]').isChecked()).toBe(true)
-  expect(await page.locator('[data-deeptail-field="api-key"]').count()).toBe(1)
+  const page = await connectForm()
+  expect(await page.locator(field('kind-apiKey')).isChecked()).toBe(true)
+  expect(await page.locator(field('api-key')).count()).toBe(1)
   await harness.shoot(page, 'tailnet-connect')
-  const invoked = await invokedCommands(page)
-  expect(invoked).toContain('tailscale_connected')
-  expect(invoked).not.toContain('tailscale_devices')
+  expect(await harness.commands(page)).toContain('tailscale_connected')
+  expect(await harness.commands(page)).not.toContain('tailscale_devices')
   await page.close()
 })
 
 it('collects an OAuth client when that kind is chosen', async () => {
-  const page = await openPicker({ tailnetConnected: false })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-field="kind-oauthClient"]').check()
-  expect(await page.locator('[data-deeptail-field="client-id"]').count()).toBe(1)
-  expect(await page.locator('[data-deeptail-field="client-secret"]').count()).toBe(1)
-  expect(await page.locator('[data-deeptail-field="api-key"]').count()).toBe(0)
+  const page = await connectForm()
+  await page.locator(field('kind-oauthClient')).check()
+  expect(await page.locator(field('client-id')).count()).toBe(1)
+  expect(await page.locator(field('client-secret')).count()).toBe(1)
+  expect(await page.locator(field('api-key')).count()).toBe(0)
   await page.close()
 })
 
 it('refuses an empty credential without asking Tailscale', async () => {
-  const page = await openPicker({ tailnetConnected: false })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-action="tailnet-connect"]').click()
-  expect(await textOf(page, '[data-deeptail-state="tailnet-error"]')).toContain('Fill in every field')
-  const invoked = await invokedCommands(page)
-  expect(invoked).not.toContain('tailscale_connect')
+  const page = await connectForm()
+  await connectTailnet(page)
+  expect(await textOf(page, state('tailnet-error'))).toContain('Fill in every field')
+  expect(await harness.commands(page)).not.toContain('tailscale_connect')
   await page.close()
 })
 
 it('lists the tailnet once a credential is accepted', async () => {
-  const page = await openPicker({ tailnetConnected: false, tailnetDevices: DEVICES })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-field="api-key"]').fill('tskey-api-example')
-  await page.locator('[data-deeptail-action="tailnet-connect"]').click()
-  await page.locator('[data-deeptail-tailnet-device="ts-1"]').waitFor({ state: 'visible' })
-  expect(await textOf(page, '[data-deeptail-tailnet-device="ts-1"]')).toContain('workstation')
-  expect(await page.locator('[data-deeptail-tailnet-device="ts-2"]').isDisabled()).toBe(true)
-  expect(await textOf(page, '[data-deeptail-tailnet-device="ts-2"]')).toContain('approve')
+  const page = await connectForm()
+  await connectTailnet(page, 'tskey-api-example')
+  expect(await textOf(page, tailnetDevice('ts-1'))).toContain('workstation')
+  expect(await page.locator(tailnetDevice('ts-2')).isDisabled()).toBe(true)
+  expect(await textOf(page, tailnetDevice('ts-2'))).toContain('approve')
   await harness.shoot(page, 'tailnet-machines')
   await page.close()
 })
 
 it('carries the refusal from Tailscale rather than an empty tailnet', async () => {
-  const page = await openPicker({
-    tailnetConnected: false,
+  const page = await connectForm(undefined, {
     tailnetError: 'Tailscale rejected the credential (HTTP 401)',
   })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-field="api-key"]').fill('tskey-api-stale')
-  await page.locator('[data-deeptail-action="tailnet-connect"]').click()
-  const strip = page.locator('[data-deeptail-state="tailnet-error"]')
+  await connectTailnet(page, 'tskey-api-stale')
+  const strip = page.locator(state('tailnet-error'))
   await strip.waitFor({ state: 'visible' })
   expect(await strip.textContent()).toContain('HTTP 401')
   await page.close()
 })
 
 it('goes straight to the machines when a credential is already stored', async () => {
-  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-tailnet-device="ts-1"]').waitFor({ state: 'visible' })
-  const invoked = await invokedCommands(page)
-  expect(invoked).toContain('tailscale_devices')
-  expect(invoked).not.toContain('tailscale_connect')
+  const page = await machineList()
+  expect(await harness.commands(page)).toContain('tailscale_devices')
+  expect(await harness.commands(page)).not.toContain('tailscale_connect')
   await page.close()
 })
 
 it('asks for the token, not a URL, for a machine chosen from the tailnet', async () => {
-  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-tailnet-device="ts-1"]').click()
-  await page.locator('[data-deeptail-action="pair-submit"]').waitFor({ state: 'visible' })
-  const token = page.locator('[data-deeptail-field="link"]')
+  const page = await pairForm()
+  const token = page.locator(field('link'))
   expect(await token.getAttribute('type')).toBe('text')
   expect(await token.inputValue()).toBe('')
-  expect(await page.locator('[data-deeptail-field="name"]').inputValue()).toBe('workstation')
+  expect(await page.locator(field('name')).inputValue()).toBe('workstation')
   await page.close()
 })
 
 it('refuses an empty token without pairing', async () => {
-  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-tailnet-device="ts-1"]').click()
-  await page.locator('[data-deeptail-action="pair-submit"]').click()
-  expect(await textOf(page, '[data-deeptail-state="pair-error"]')).toContain('token')
-  const invoked = await invokedCommands(page)
-  expect(invoked).not.toContain('pair_host')
+  const page = await pairForm()
+  await submitPairing(page)
+  expect(await textOf(page, state('pair-error'))).toContain('token')
+  expect(await harness.commands(page)).not.toContain('pair_host')
   await page.close()
 })
 
 it('pairs a tailnet machine with the token composed onto its own origin', async () => {
-  const page = await openPicker({
-    tailnetConnected: true,
-    tailnetDevices: DEVICES,
+  const page = await machineList(undefined, {
     paired: { id: 'ts-paired', label: 'workstation', origin: 'http://workstation.tail1234.ts.net:3080' },
   })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-tailnet-device="ts-1"]').click()
-  await page.locator('[data-deeptail-field="link"]').fill('launch-token-value')
-  await page.locator('[data-deeptail-action="pair-submit"]').click()
-  const invoked = await invokedCommands(page)
-  expect(invoked).toContain('pair_host')
+  await page.locator(tailnetDevice('ts-1')).click()
+  await submitPairing(page, 'launch-token-value')
+  expect(await harness.commands(page)).toContain('pair_host')
   await page.close()
 })
 
 it('drops the credential when the tailnet is disconnected', async () => {
-  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-action="tailnet-forget"]').click()
-  await page.locator('[data-deeptail-state="empty"]').waitFor({ state: 'visible' })
-  const invoked = await invokedCommands(page)
-  expect(invoked).toContain('tailscale_forget')
+  const page = await machineList()
+  await clickAction(page, 'tailnet-forget')
+  await waitForState(page, 'empty')
+  expect(await harness.commands(page)).toContain('tailscale_forget')
   await page.close()
 })
 
 it('says so plainly when the tailnet has no pairable machine', async () => {
-  const page = await openPicker({ tailnetConnected: true, tailnetDevices: [] })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
+  const page = await machineList(undefined, { tailnetDevices: [] })
   const status = page.locator('.status[role="status"]')
-  await status.waitFor({ state: 'visible' })
   expect(await status.textContent()).toContain('No pairable machines')
   await page.close()
 })
 
 it('has no WCAG violations on every tailnet screen at mobile, tablet and desktop, in both palettes', async () => {
-  const audits = await Promise.all(
-    [connectForm, machineList, pairForm].flatMap((open) =>
-      AUDIT_VIEWS.map(async (view) => {
-        const page = await open(view)
-        const violations = await harness.audit(page)
-        await page.close()
-        return violations
-      }),
-    ),
+  const found = await screensReport(
+    AUDIT_VIEWS,
+    (view) => view,
+    async (page) => describeViolations(await harness.audit(page)),
   )
-  const found = audits.flat()
-  expect(found, describeViolations(found)).toEqual([])
-}, 180_000)
+  expect(found).toEqual([])
+}, 60_000)
 
 it('adds no structural rule to the picker screen it is opened from, at every width', async () => {
   // The tailnet screens are painted into the picker's own card, so the empty
   // picker it replaces is the account of what that card already reports. The
   // comparison is by rule, and the failure names the elements the added rule
   // reported, so the case says which rule these screens introduced and to what.
-  const checked = await Promise.all(
-    [connectForm, machineList, pairForm].flatMap((open) =>
-      VIEWPORTS.map(async (viewport) => {
-        const baseline = await openPicker({})
-        await realizeView(baseline, viewport)
-        const settled = new Set((await findingsOn(baseline, viewport.coarse)).map((line) => ruleOf(line)))
-        await baseline.close()
-        const page = await open(pointerFlags(viewport))
-        await realizeView(page, viewport)
-        const added = (await findingsOn(page, viewport.coarse)).filter((line) => !settled.has(ruleOf(line)))
-        await page.close()
-        return added.length === 0 ? '' : `${viewport.label}: ${added.join('; ')}`
-      }),
-    ),
-  )
-  expect(checked.filter((line) => line !== '')).toEqual([])
+  const found = await screensReport(VIEWPORTS, pointerFlags, async (page, viewport) => {
+    const baseline = await openPicker(harness)
+    await realizeView(baseline, viewport)
+    const settled = new Set((await findingsOn(baseline, viewport.coarse)).map((line) => ruleOf(line)))
+    await baseline.close()
+    await realizeView(page, viewport)
+    const added = (await findingsOn(page, viewport.coarse)).filter((line) => !settled.has(ruleOf(line)))
+    return added.length === 0 ? '' : `${viewport.label}: ${added.join('; ')}`
+  })
+  expect(found).toEqual([])
 })
 
 it('clears the platform touch minimum on every tailnet screen, on a phone and a tablet', async () => {
-  const checked = await Promise.all(
-    [connectForm, machineList, pairForm].flatMap((open) =>
-      VIEWPORTS.filter((viewport) => viewport.coarse).map(async (viewport) => {
-        const page = await open(pointerFlags(viewport))
-        await realizeView(page, viewport)
-        const report = await defects(page, true)
-        await page.close()
-        const under = report.split('\n').filter((line) => line.startsWith('target-size:'))
-        return under.length === 0 ? '' : `${viewport.label}: ${under.join('; ')}`
-      }),
-    ),
+  const found = await screensReport(
+    VIEWPORTS.filter((viewport) => viewport.coarse),
+    pointerFlags,
+    async (page, viewport) => {
+      await realizeView(page, viewport)
+      const under = (await defects(page, true)).split('\n').filter((line) => line.startsWith('target-size:'))
+      return under.length === 0 ? '' : `${viewport.label}: ${under.join('; ')}`
+    },
   )
-  expect(checked.filter((line) => line !== '')).toEqual([])
+  expect(found).toEqual([])
 })
 
 it("sends the token the viewer typed, composed onto the machine's own origin", async () => {
   // Asserting that pair_host was called says nothing about what it was called
   // with, so the whole link is written out here.
-  const page = await openPicker({ tailnetConnected: true, tailnetDevices: DEVICES })
-  await page.locator('[data-deeptail-action="tailnet"]').click()
-  await page.locator('[data-deeptail-tailnet-device="ts-1"]').click()
-  await page.locator('[data-deeptail-field="link"]').fill('launch-token-value')
-  await page.locator('[data-deeptail-action="pair-submit"]').click()
+  const page = await pairForm()
+  await submitPairing(page, 'launch-token-value')
   const paired = await page.evaluate(() => window.deeptailPairedLinks ?? [])
   // Building the expectation by calling the function under test cancels itself:
   // composing against any other origin moves both sides together, so the case

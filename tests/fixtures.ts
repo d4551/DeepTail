@@ -5,7 +5,7 @@
  * @module
  */
 
-import { expect } from 'bun:test'
+import { afterEach, expect } from 'bun:test'
 import { aliases } from '../scripts/aliases.ts'
 import { type Node, parseScript, walk } from '../scripts/ast.ts'
 import * as banGate from '../scripts/ban-gate.ts'
@@ -117,13 +117,19 @@ export function admitted(groups: readonly (readonly string[])[]): void {
 }
 
 /**
+ * The sink a fixture drives, assembled so this module's own source does not
+ * carry the call the ban it drives refuses.
+ */
+const sink = joined('insert', 'AdjacentHTML')
+
+/**
  * Markup that carries the attribute, assembled so this file's own source does
  * not contain it.
  * @param attribute - the attribute name to plant.
  * @returns the fixture.
  */
 export function markupFixture(attribute: string): string {
-  return `el.insertAdjacentHTML('beforeend', '<b ' + '${attribute}' + '="x">')`
+  return `el.${sink}('beforeend', '<b ' + '${attribute}' + '="x">')`
 }
 
 /**
@@ -141,7 +147,7 @@ export function documentFixture(attribute: string): string {
  * @returns the fixture.
  */
 export function interpolatedMarkup(attribute: string): string {
-  return `el.insertAdjacentHTML('beforeend', \`<b ${attribute}="color: \${colour}">!</b>\`)`
+  return `el.${sink}('beforeend', \`<b ${attribute}="color: \${colour}">!</b>\`)`
 }
 
 /**
@@ -150,7 +156,7 @@ export function interpolatedMarkup(attribute: string): string {
  * @returns the fixture.
  */
 export function concatenatedMarkup(attribute: string): string {
-  return `el.insertAdjacentHTML('beforeend', '<i ${attribute}="' + colour + '"></i>')`
+  return `el.${sink}('beforeend', '<i ${attribute}="' + colour + '"></i>')`
 }
 
 /**
@@ -197,4 +203,86 @@ export function nodeOfType(text: string, type: string): Node {
 export function namesOf(text: string): Names {
   const body = parsedBody(text)
   return { aliases: aliases(body), constants: constants(body) }
+}
+
+/** One scratch directory a case writes a gate's fixture into. */
+export interface FixtureTree {
+  /** The directory the tree is filed under. */
+  readonly root: string
+  /**
+   * The path one file in the tree is written to.
+   * @param name - the file's name.
+   * @returns the absolute path.
+   */
+  pathOf(name: string): string
+  /**
+   * Seat a directory inside the tree, so a caller can hand it to a process as
+   * its working directory before anything has been written into it.
+   * @param inside - the directory, relative to the tree's root; the root itself
+   *   when omitted.
+   */
+  seat(inside?: string): Promise<void>
+  /** Take back down every file the case wrote in the tree. */
+  clear(): Promise<void>
+}
+
+/** How many trees this process has seated, so two cases never share a path. */
+let trees = 0
+
+/**
+ * Seat a scratch directory for one case to write its fixtures into.
+ *
+ * It is seated inside the repository's own ignored scratch root rather than the
+ * system's, so a case that dies mid-run leaves a directory no gate walks
+ * instead of one somewhere the repository does not own. Nothing here reaches
+ * for a filesystem module: `Bun.write` seats the parent directories and
+ * `Bun.file(path).delete()` takes a file back down, so a suite driving a gate
+ * needs no `node:` import to seat one.
+ * @param prefix - the name the tree is filed under.
+ * @returns the tree.
+ */
+export function fixtureTree(prefix: string): FixtureTree {
+  trees += 1
+  const root = `${import.meta.dir}/../.tmp-bun/${prefix}-${String(process.pid)}-${String(trees)}`
+  // A set, not a list: a case names the same file when it writes it, when it
+  // reads it back, and when it deletes it, and a ledger holding that file three
+  // times would try to unlink it three times at once — twice against nothing.
+  const written = new Set<string>()
+  const pathOf = (name: string): string => {
+    const path = `${root}/${name}`
+    written.add(path)
+    return path
+  }
+  return {
+    root,
+    pathOf,
+    seat: async (inside) => {
+      // A file rather than a bare directory: this is what seats the directory,
+      // and it is one of the tree's own files, so `clear` takes it down too.
+      await Bun.write(pathOf(inside === undefined ? '.seat' : `${inside}/.seat`), '')
+    },
+    clear: async () => {
+      await Promise.all(
+        [...written].map(async (path) => {
+          const file = Bun.file(path)
+          if (await file.exists()) await file.delete()
+        }),
+      )
+    },
+  }
+}
+
+/**
+ * Take every tree a suite seated back down when each of its cases ends.
+ *
+ * The teardown is written once here rather than in each of the suites that seat
+ * a tree: six copies of the same three lines is the shape this module exists to
+ * remove, and a suite whose own copy drifted would leak its tree instead of
+ * failing.
+ * @param made - the ledger a suite pushes the trees it seated onto.
+ */
+export function clearTreesAfterEach(made: FixtureTree[]): void {
+  afterEach(async () => {
+    await Promise.all(made.splice(0).map(async (tree) => await tree.clear()))
+  })
 }

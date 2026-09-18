@@ -1,107 +1,87 @@
 /**
- * A real `Channel`, driven through the runtime this process installed.
+ * The page's own socket and the commands behind it, driven in a real engine.
  *
- * The transport suites open a socket and drive its frames, and the double they
- * drive it against is only a stand-in if a channel crossing it behaves the way
- * Tauri's own does. That has been the weak point more than once: the value the
- * runtime is handed is the channel object rather than a string, and the payload
- * a registered callback receives is an envelope numbered in delivery order
- * rather than the frame itself. A double that got either wrong delivered
- * nothing, and every socket case failed for a reason that read like a product
- * bug.
+ * The unit suites answer a runtime object in this process; in Chromium the page
+ * gets its runtime from the scripted IPC, installed as an init script before any
+ * module of the bundle runs, and the carrier the shell boots registers its socket
+ * through it. What only a real page can prove is the delivery half: a frame the
+ * mux pushes reaches the socket the page opened, the roster the page holds moves
+ * because of it, and a command the scripted backend does not carry is refused
+ * where the promise lives — inside the page.
  *
- * So the integration is asserted where the library resolves. This file imports
- * the installed `@tauri-apps/api/core` directly rather than the product's own
- * re-export, which is what makes it the library under test: the double is
- * answered by the runtime object this process installs, and the class driving it
- * is the one the shipped bundle carries.
- *
- * It sits in the app tree because that tree is where the package resolves — the
- * repository's root project does not carry it, and a spec there would not
- * typecheck. The directory is the browser suites' directory, so this file's name
- * would be swept into a run that has no page to drive it; `UNIT_SUFFIXES` in
- * `tests/suite-scope.spec.ts` is the list of what keeps that from happening, and
- * the name is on it.
- *
- * The double's own reset behaviour is held separately, in
- * `tests/zz-ipc-probe.spec.ts`; the carrier socket the product builds in
- * `tests/ipc-runtime.spec.ts`; and the same registration on a live page in
- * `ipc-runtime.browser.spec.ts`.
+ * The runtime's own members and the identifier it mints are held in
+ * `ipc-runtime.browser.spec.ts`; the channel the library builds in
+ * `ipc-runtime.unit.spec.ts`; and the carrier socket's handover in
+ * `ipc-runtime-carrier.unit.spec.ts`.
  *
  * @module
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test'
-import { Channel } from '@tauri-apps/api/core'
-import { resetDocument } from '../../../tests/dom.ts'
-import { installedRuntime } from '../../../tests/tauri-runtime.ts'
-import type { WireFrame } from '../../../tests/tauri-script.ts'
-import {
-  channels,
-  invocations,
-  callbackRegistrations as registered,
-  resetTransportDouble,
-} from '../../../tests/transport-double.ts'
+import { afterAll, beforeAll, expect, it } from 'bun:test'
+import { fleet, oneHost } from './fixtures.ts'
+import { type Harness, startHarness, textOf } from './harness.ts'
+import { openShell, openShellWithRoster } from './surfaces.ts'
+import { until } from './wait.ts'
 
-/** The host every case opens its socket against. */
-const HOST = 'dev-1'
+let harness: Harness
 
-beforeEach(() => {
-  resetDocument()
-  resetTransportDouble()
+beforeAll(async () => {
+  harness = await startHarness()
 })
 
-describe('a channel over the installed runtime', () => {
-  it('is registered by identity, and the identifier is what the call is recorded under', async () => {
-    // The callback is a no-op: this case is about the handover, and the frame it
-    // never receives is what the next case delivers.
-    const socket = new Channel<WireFrame>(() => null)
-    // The library types the identifier as a number and the runtime's own
-    // `transformCallback` mints a string; the wire carries whichever the backend
-    // was handed, so the comparison is made in the form it crosses in. A double
-    // that answered the callback itself would put a function under this name,
-    // which no wire carries.
-    expect(registered()).toBe(1)
-    expect(typeof socket.id).toBe('string')
-    const handed = String(socket.id)
-    expect(handed).not.toBe('')
-    await installedRuntime().invoke('carrier_open_mux', { host: HOST, channel: socket })
-    expect(channels.map((one) => one.id)).toEqual([handed])
-    expect(invocations[0]?.channel).toBe(handed)
-    expect(invocations[0]?.host).toBe(HOST)
-  })
-
-  it('reaches the subscriber that built it when a frame is delivered', async () => {
-    const arrived: WireFrame[] = []
-    const socket = new Channel<WireFrame>((frame) => arrived.push(frame))
-    await installedRuntime().invoke('carrier_open_mux', { host: HOST, channel: socket })
-    const opened = channels[0]
-    if (opened === undefined) throw new Error('deeptail: the socket registered no channel')
-    // A frame reaches the subscriber inside the numbered envelope the library
-    // unwraps, which is what says the double delivered it rather than recording
-    // it: an envelope the library could not read would leave this list empty.
-    opened.receive({ type: 'message', data: 'roster', message: null, code: null, reason: null })
-    expect(arrived.map((frame) => frame.type)).toEqual(['message'])
-    expect(arrived[0]?.data).toBe('roster')
-    // One delivery is one envelope, and the index is what says so: the second
-    // delivery is numbered after the first, so the library hands it on rather
-    // than holding it back as a frame it has already taken.
-    opened.receive({ type: 'message', data: 'second', message: null, code: null, reason: null })
-    expect(arrived.map((frame) => frame.data)).toEqual(['roster', 'second'])
-  })
+afterAll(async () => {
+  await harness?.stop()
 })
 
-describe('the commands the runtime answers', () => {
-  it('refuses a command the script does not carry, rather than answering nothing', async () => {
-    await expect(installedRuntime().invoke('carrier_teleport', {})).rejects.toThrow('no carrier is scripted for')
-  })
+it('holds one socket registration per paired host, so two hosts are two identifiers', async () => {
+  const page = await openShell(harness, fleet({ muxHosts: ['dev-1', 'lab-2'] }))
+  await page.waitForSelector('[data-deeptail-session]')
+  const registrations = await page.evaluate(() => window.deeptailCallbackRegistrations?.() ?? 0)
+  await page.close()
+  // One host, one socket: the registrations the page holds for itself are the
+  // sockets' — the probe's own are taken only by the case that mints them.
+  expect(registrations).toBe(2)
+}, 60_000)
 
-  it('holds one registration per socket, so two hosts are two identifiers', async () => {
-    const first = new Channel<WireFrame>(() => null)
-    const second = new Channel<WireFrame>(() => null)
-    await installedRuntime().invoke('carrier_open_mux', { host: HOST, channel: first })
-    await installedRuntime().invoke('carrier_open_mux', { host: 'lab-2', channel: second })
-    expect(channels.length).toBe(2)
-    expect(new Set(channels.map((one) => one.id)).size).toBe(2)
-  })
-})
+it('moves the roster when the mux pushes a session over the page’s own socket', async () => {
+  const page = await openShell(harness, oneHost({ muxHosts: ['dev-1'] }))
+  await page.waitForSelector('[data-deeptail-session]')
+  const before = await page.locator('[data-deeptail-session]').count()
+  await harness.forward(page, 'api-session/added', [
+    { sessionId: 's-pushed', updatedAt: Date.now(), running: true, blank: false },
+  ])
+  await page.waitForSelector('[data-deeptail-session="s-pushed"]')
+  // The row is the frame's own, seated beside the row the boot read wrote: the
+  // socket delivered into the roster the page already held. A frame carries no
+  // title, so the row says so rather than inventing one.
+  const after = await page.locator('[data-deeptail-session]').count()
+  expect(after).toBe(before + 1)
+  expect(await textOf(page, '[data-deeptail-session="s-pushed"] .session-title')).toBe('Untitled session')
+  // And the roster stays live on the next frame the mux pushes, which is what
+  // says the delivery was the socket's and not a one-shot repaint.
+  await harness.forward(page, 'api-session/removed', ['s-pushed'])
+  await until(async () => (await page.locator('[data-deeptail-session="s-pushed"]').count()) === 0)
+  await page.close()
+}, 60_000)
+
+it('refuses a command the script does not carry, where the promise lives', async () => {
+  const page = await openShellWithRoster(harness)
+  const outcome = await page.evaluate(() => window.deeptailCommandOutcome?.('carrier_teleport'))
+  await page.close()
+  // The refusal is the backend's own: an answered nothing would read as a
+  // command the wire carries, and the page would run on a socket that lies.
+  expect(outcome?.settled).toBe('rejected')
+  expect(outcome?.message).toContain('no carrier is scripted for')
+}, 60_000)
+
+it('delivers a frame for an identifier the page never registered to nothing', async () => {
+  const page = await openShellWithRoster(harness)
+  const delivered = await page.evaluate(() => window.deeptailDeliver?.('no-such-identifier', 'probe'))
+  const registrations = await page.evaluate(() => window.deeptailCallbackRegistrations?.() ?? 0)
+  await page.close()
+  // A frame for an identifier nothing registered is a wire the page never
+  // opened: the delivery lands nowhere, and the count of what the runtime holds
+  // says the refusal was the delivery's and not a registration lost.
+  expect(delivered).toBe(false)
+  expect(registrations).toBe(1)
+}, 60_000)

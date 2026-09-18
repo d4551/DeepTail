@@ -14,8 +14,10 @@ import { afterAll, beforeAll, expect, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
+import { action, openPairForm, openPicker, pressNewSession, submitPairing, waitForState } from './page-steps.ts'
 import { defects, isDrawerLayout, VIEWPORTS } from './structure-page.ts'
-import { openShell, openShellAt } from './surfaces.ts'
+import { FLEET_ROW, openComposeSheet, openShell, openShellAt, waitForRoster } from './surfaces.ts'
+import { showSwitcher } from './switcher.ts'
 
 let harness: Harness
 
@@ -46,10 +48,8 @@ it('has no structural defects on the roster at any width', async () => {
   const checked = await Promise.all(
     VIEWPORTS.map(async (viewport) => {
       const page = await openShellAt(harness, viewport)
-      if (await isDrawerLayout(page)) await page.locator('[data-deeptail-action="drawer"]').click()
-      await page
-        .locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]')
-        .waitFor({ state: 'visible' })
+      if (await isDrawerLayout(page)) await page.locator(action('drawer')).click()
+      await waitForRoster(page)
       await atTheKeyboard(page)
       const found = await defects(page, viewport.coarse)
       await page.close()
@@ -61,35 +61,31 @@ it('has no structural defects on the roster at any width', async () => {
 
 it('has no structural defects with the connection menu open', async () => {
   const page = await openShell(harness)
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  await showSwitcher(page)
   await atTheKeyboard(page)
   expect(await defects(page)).toBe('')
   await page.close()
 })
 
 it('has no structural defects in either dialog', async () => {
-  const page = await harness.open(oneHost())
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-action="new-session"]').click()
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
-  await atTheKeyboard(page)
-  expect(await defects(page)).toBe('')
-  await page.keyboard.press('Escape')
-  await page.locator('[data-deeptail-session="s-running"]').hover()
-  await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-message"]').click()
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
-  await atTheKeyboard(page)
-  expect(await defects(page)).toBe('')
-  await page.close()
+  const newSession = await openShell(harness, oneHost())
+  await pressNewSession(newSession)
+  await atTheKeyboard(newSession)
+  expect(await defects(newSession)).toBe('')
+  await newSession.close()
+  // The sheet is measured on its own page: it is opened from a roster row, so a
+  // page that had already shown the other dialog would be measuring the second
+  // sheet's layout over the first one's leftovers.
+  const sheet = await openComposeSheet(harness)
+  await atTheKeyboard(sheet)
+  expect(await defects(sheet)).toBe('')
+  await sheet.close()
 })
 
 it('has no structural defects on the picker', async () => {
-  const page = await harness.open({ hosts: [] })
-  await page.waitForSelector('[data-deeptail-picker]')
+  const page = await openPicker(harness)
   expect(await defects(page)).toBe('')
-  await page.getByRole('button', { name: 'Pair a host' }).click()
-  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+  await openPairForm(page)
   await atTheKeyboard(page)
   expect(await defects(page)).toBe('')
   await page.close()
@@ -97,7 +93,7 @@ it('has no structural defects on the picker', async () => {
 
 it('has no structural defects with the document direction reversed', async () => {
   const page = await openShell(harness, {}, { direction: 'rtl' })
-  await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'attached' })
+  await page.locator(FLEET_ROW).waitFor({ state: 'attached' })
   // Layout is flow-relative, so reversing the direction must not overflow the
   // viewport or clip a label. This is what a right-to-left locale meets.
   expect(await defects(page)).toBe('')
@@ -116,8 +112,8 @@ it('has no structural defects on any failure state, at every width', async () =>
       // Below the drawer breakpoint the roster — and the strip in it — is
       // inside the closed drawer, so it is on screen only once the drawer is
       // open. The layout decides that at this width, not the fixture.
-      if (await isDrawerLayout(page)) await page.locator('[data-deeptail-action="drawer"]').click()
-      await page.locator('[data-deeptail-state="partial"]').waitFor({ state: 'visible' })
+      if (await isDrawerLayout(page)) await page.locator(action('drawer')).click()
+      await waitForState(page, 'partial')
       await atTheKeyboard(page)
       const found = await defects(page, viewport.coarse)
       await page.close()
@@ -132,8 +128,8 @@ it('has no structural defects on any failure state, at every width', async () =>
 // stayed quiet through every case above whether or not it worked. This one
 // gives it something to find.
 it('has no structural defects on the picker while it is reporting a refusal', async () => {
-  const page = await harness.open({ hosts: [], listError: 'the registry is unreadable' })
-  await page.waitForSelector('[data-deeptail-state="error"]')
+  const page = await openPicker(harness, { listError: 'the registry is unreadable' })
+  await waitForState(page, 'error')
   expect(await defects(page)).toBe('')
   await page.close()
 })
@@ -141,12 +137,10 @@ it('has no structural defects on the picker while it is reporting a refusal', as
 it('has no structural defects on a pairing form that refused what was typed', async () => {
   // The picker only draws while nothing is paired; a host in the registry goes
   // straight to the shell.
-  const page = await harness.open({ hosts: [] })
-  await page.waitForSelector('[data-deeptail-picker]')
-  await page.getByRole('button', { name: 'Pair a host' }).click()
-  await page.locator('[data-deeptail-field="link"]').fill('not a link')
-  await page.locator('[data-deeptail-action="pair-submit"]').click()
-  await page.waitForSelector('[data-deeptail-state="pair-error"]')
+  const page = await openPicker(harness)
+  await openPairForm(page)
+  await submitPairing(page, 'not a link')
+  await waitForState(page, 'pair-error')
   await atTheKeyboard(page)
   expect(await defects(page)).toBe('')
   await page.close()
@@ -157,7 +151,7 @@ it('has no structural defects with a row action revealed', async () => {
   // The actions are `display: none` until the row is focused, so on a fine
   // pointer they were never measured at all — a 0x0 box is not a target.
   await page.locator('[data-deeptail-session="s-running"] .session-open').first().focus()
-  await page.locator('[data-deeptail-action="row-message"]').first().waitFor({ state: 'visible' })
+  await page.locator(action('row-message')).first().waitFor({ state: 'visible' })
   expect(await defects(page)).toBe('')
   await page.close()
 })
@@ -213,11 +207,11 @@ const PLANT_COLLAPSED = `(() => {
   const gone = document.createElement('button')
   gone.textContent = 'vanished'
   gone.setAttribute('data-deeptail-probe', 'collapsed')
-  const sheet = document.createElement('style')
-  sheet.setAttribute('data-deeptail-probe', 'collapsed-sheet')
-  sheet.textContent =
+  const painted = document.createElement('style')
+  painted.setAttribute('data-deeptail-probe', 'collapsed-sheet')
+  painted.textContent =
     '[data-deeptail-probe="collapsed"]{width:0;height:0;min-width:0;min-height:0;padding:0;border:0;margin:0;overflow:hidden}'
-  document.head.append(sheet)
+  document.head.append(painted)
   document.querySelector('[data-deeptail-shell]').append(gone)
 })()`
 

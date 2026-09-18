@@ -125,7 +125,7 @@ async function refusalOf<T>(call: Promise<T>): Promise<RemoteError | undefined> 
  * @param reply - the reply body.
  * @returns the failure, or undefined when the call answered instead.
  */
-async function refusedList(status: number, reply: ReplyEnvelope): Promise<RemoteError | undefined> {
+function refusedList(status: number, reply: ReplyEnvelope): Promise<RemoteError | undefined> {
   const { hooks } = carrierDouble(status, reply)
   return refusalOf(createHostApi(hooks).listSessions())
 }

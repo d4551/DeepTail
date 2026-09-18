@@ -112,7 +112,7 @@ export function messageContent(data: JsonValue): readonly JsonValue[] {
  * @param field - the field's name.
  * @returns the field's value, or undefined when it was absent.
  */
-export function fieldOf(value: JsonObject, field: string): JsonValue | undefined {
+function fieldOf(value: JsonObject, field: string): JsonValue | undefined {
   return value[field]
 }
 

@@ -15,6 +15,7 @@ import { BOOT_SOURCES, deeptailBootTable, deeptailLoadBundle } from './tauri-ipc
 import { CARRIER_SOURCES, deeptailCarrierFetch, deeptailOpenMux, deeptailSendMux } from './tauri-ipc-carrier.ts'
 import {
   deeptailCallbackRegistrations,
+  deeptailCommandOutcome,
   deeptailDeliver,
   deeptailIdentifierReport,
   deeptailPageRuntime,
@@ -88,7 +89,10 @@ function deeptailInvoke(
     case 'carrier_send_mux':
       return deeptailSendMux(script, args, state)
     default:
-      return Promise.resolve(null)
+      // The backend refuses a command it does not carry, and the page's double
+      // says the same: an answered nothing would read as a command the wire
+      // carries, and the page would run on a socket that lies.
+      return Promise.reject(new Error(`deeptail: no carrier is scripted for ${cmd}`))
   }
 }
 
@@ -126,6 +130,8 @@ function installTauriInternals(script: AnswerTable): void {
     deeptailBundlePaths: state.bundlePaths,
     deeptailCallbackRegistrations: (): number => deeptailCallbackRegistrations(state),
     deeptailDeliver: (id: string, frame: JsonValue): boolean => deeptailDeliver(state, id, frame),
+    deeptailCommandOutcome: (command: string): Promise<{ settled: string; message: string }> =>
+      deeptailCommandOutcome(command),
     deeptailRuntimeMembers: (): string[] => deeptailRuntimeMembers(),
     deeptailIdentifierReport: () => deeptailIdentifierReport(state),
     __TAURI_INTERNALS__: {
@@ -163,6 +169,7 @@ export function initScriptSource(table: AnswerTable): string {
     deeptailPageRuntime,
     deeptailRuntimeMembers,
     deeptailCallbackRegistrations,
+    deeptailCommandOutcome,
     deeptailDeliver,
     deeptailIdentifierReport,
     installTauriInternals,

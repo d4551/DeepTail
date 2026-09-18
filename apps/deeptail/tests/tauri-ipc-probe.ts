@@ -44,6 +44,7 @@ interface IdentifierReport {
 interface PageRuntime {
   readonly transformCallback: (callback: (frame: JsonValue) => unknown) => string
   readonly unregisterCallback: (identifier: string) => boolean
+  readonly invoke: (command: string, args?: Record<string, never>) => Promise<JsonValue>
 }
 
 /**
@@ -95,6 +96,28 @@ function deeptailDeliver(state: IpcState, id: string, frame: JsonValue): boolean
 }
 
 /**
+ * How the page's runtime answered one command, as data.
+ *
+ * A command the scripted backend does not carry is refused, and the refusal is
+ * what a case reads: the outcome is settled inside the page, where the promise
+ * lives, and only its shape crosses back out.
+ * @param command - the command to invoke.
+ * @returns how the call settled, and the message a refusal carried.
+ */
+async function deeptailCommandOutcome(
+  command: string,
+): Promise<{ readonly settled: 'fulfilled' | 'rejected'; readonly message: string }> {
+  const runtime = deeptailPageRuntime()
+  const [outcome] = await Promise.allSettled([runtime.invoke(command, {})])
+  return outcome.status === 'rejected'
+    ? {
+        settled: 'rejected',
+        message: outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+      }
+    : { settled: 'fulfilled', message: '' }
+}
+
+/**
  * What one identifier the page's runtime minted turned out to be, and what it
  * answered for.
  *
@@ -138,6 +161,7 @@ function deeptailIdentifierReport(state: IpcState): IdentifierReport {
 
 export {
   deeptailCallbackRegistrations,
+  deeptailCommandOutcome,
   deeptailDeliver,
   deeptailIdentifierReport,
   deeptailPageRuntime,

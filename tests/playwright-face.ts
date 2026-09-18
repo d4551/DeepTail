@@ -10,7 +10,7 @@
  * @module
  */
 
-import { fieldOf, memberName, nodeAt, parseScript, walk } from '../scripts/ast.ts'
+import { fieldOf, memberName, type Node, nodeAt, parseScript, walk } from '../scripts/ast.ts'
 import { interfaceMembers } from '../scripts/declaration-reader.ts'
 import type { Offence } from '../scripts/offence.ts'
 import { objectKey } from './stack-policy.ts'
@@ -19,15 +19,24 @@ import { objectKey } from './stack-policy.ts'
  * The members the installed release supersedes by name alone.
  *
  * Every other superseded member is derived from the declarations. This one is
- * stated by hand because `ConsoleMessage` declares `type()` without the marker
- * the page interfaces carry, and a name-level reader reads both receivers as
- * one name; it is refused where it is called, which is where a browser suite
- * drives a page. `noWaitAfter` stays out of this table: the installed release
- * still declares it for `addLocatorHandler`, where it is the supported option.
+ * stated by hand because `Locator` declares `type(text)` with the marker the
+ * derivation reads, while `ConsoleMessage` and `Dialog` declare a `type()` of
+ * their own without it — a name-level reader reads all three as one name, and
+ * the arity is what tells them apart: the superseded one is the call that
+ * passes text, the platform ones are the calls that pass nothing. It is refused
+ * where it is called, which is where a browser suite drives a page.
+ * `noWaitAfter` stays out of this table: the installed release still declares
+ * it for `addLocatorHandler`, where it is the supported option.
  */
 const SUPERSEDED_BY_NAME = new Map([
   ['type', 'it is @deprecated on every interface a browser suite drives (use fill or pressSequentially)'],
 ])
+
+/** Whether one call passes no argument at all, which is the platform `type()`. */
+function passesNothing(node: Node): boolean {
+  const args = fieldOf(node, 'arguments')
+  return Array.isArray(args) && args.length === 0
+}
 
 /**
  * Every member the installed release marks `@deprecated` wherever it declares
@@ -81,6 +90,9 @@ export function playwrightFaceOffences(declarations: string, label: string, text
       if (name === undefined) return
       const said = superseded.get(name) ?? SUPERSEDED_BY_NAME.get(name)
       if (said === undefined) return
+      // The hand-stated `type` is the text-taking call; the platform `type()`
+      // of a console message or a dialog passes nothing and is current.
+      if (superseded.get(name) === undefined && passesNothing(node)) return
       offences.push({
         label,
         line: parsed.lineAt(fieldOf(node, 'start')),

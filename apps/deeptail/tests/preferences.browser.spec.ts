@@ -11,6 +11,9 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { fleet } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
+import { waitForState } from './page-steps.ts'
+import { waitForLiveShell } from './surfaces.ts'
+import { showSwitcher } from './switcher.ts'
 
 let harness: Harness
 
@@ -26,7 +29,7 @@ it('keeps every state visible when the platform replaces the palette', async () 
   const page = await harness.open(fleet({ remoteErrors: { 'lab-2:session/list': 'roster unavailable' } }), {
     forcedColors: true,
   })
-  await page.waitForSelector('[data-deeptail-state="partial"]')
+  await waitForState(page, 'partial')
   const [sidebar, online, offline, warning] = await page.evaluate(() =>
     (
       [
@@ -57,9 +60,8 @@ const bothUnreachable = () =>
 
 it('tells the two unreachable states apart when there is no palette to spend', async () => {
   const page = await harness.open(bothUnreachable(), { forcedColors: true })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  await waitForLiveShell(page)
+  await showSwitcher(page)
   const looks = await page.evaluate(() =>
     ['offline', 'unauthorized'].map((state) => {
       const node = document.querySelector(`[data-deeptail-connection="menu"] .dot[data-state="${state}"]`)
@@ -78,9 +80,8 @@ it('tells the two unreachable states apart when there is no palette to spend', a
 
 it('distinguishes the two unreachable states without relying on colour', async () => {
   const page = await harness.open(bothUnreachable(), { forcedColors: true })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
+  await waitForLiveShell(page)
+  await showSwitcher(page)
   // The dot is decorative in every mode, so the difference has to survive with
   // no colour at all: each row says which state it is in, in words, and the two
   // sentences differ. Reading one of them and finding it non-empty would pass
@@ -99,7 +100,7 @@ it('distinguishes the two unreachable states without relying on colour', async (
 
 it('stops every transition and animation for a viewer who asked for less motion', async () => {
   const page = await harness.open(fleet(), { mobile: true, reducedMotion: true })
-  await page.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(page)
   const moving = await page.evaluate(() =>
     [...document.querySelectorAll('*')]
       .filter((node) => {

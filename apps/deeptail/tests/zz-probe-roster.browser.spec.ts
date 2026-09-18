@@ -18,6 +18,7 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { type Harness, startHarness } from './harness.ts'
 import { openShellWithRoster, RUNNING_ROW } from './surfaces.ts'
+import { collectFaults } from './zz-probe-roster.ts'
 
 let harness: Harness
 
@@ -41,8 +42,13 @@ it('seats the rows the seeded IPC answers, which a recorded call cannot show', a
 
 it('has answered every session read it recorded, so no call was left in flight', async () => {
   const page = await openShellWithRoster(harness)
+  // The console and the page's own errors are read from before the shell is
+  // awaited, which is the half a recorded call cannot show: a source that threw
+  // names nothing in the call list, and every row below would simply be absent.
+  const faults = collectFaults(page)
   const recorded = await harness.calls(page)
   await page.close()
+  expect(faults).toEqual([])
   // A read the carrier recorded is a read the page sent; the roster showing the
   // rows it returned is what says the answer arrived, and a call recorded with
   // no rows is the shape the missing seeded function produced.

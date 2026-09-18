@@ -10,11 +10,9 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import type { Json } from '../scripts/jsonc.ts'
 import { manifestScripts, readManifest, sectionOf } from '../scripts/manifest.ts'
+import { fixtureTree } from './fixtures.ts'
 
 /**
  * Write one manifest and read it back the way the gates do.
@@ -22,11 +20,11 @@ import { manifestScripts, readManifest, sectionOf } from '../scripts/manifest.ts
  * @returns the scripts it declares.
  */
 async function scriptsOf(text: string): Promise<[string, string][]> {
-  const root = await mkdtemp(join(tmpdir(), 'manifest-'))
-  const path = join(root, 'package.json')
-  await writeFile(path, text)
+  const tree = fixtureTree('manifest')
+  const path = tree.pathOf('package.json')
+  await Bun.write(path, text)
   const scripts = [...sectionOf(readManifest(path), 'scripts')]
-  await rm(root, { recursive: true, force: true })
+  await tree.clear()
   return scripts
 }
 

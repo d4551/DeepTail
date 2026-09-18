@@ -63,13 +63,33 @@ export function collector(): { readonly findings: StructureFinding[]; readonly a
 }
 
 /**
+ * Clear the document, seat a case's own markup in it, and read what a check reports.
+ *
+ * The document is emptied first, so a case states the whole of what the check
+ * reads: a case that seated twice would otherwise be judged against the markup
+ * of the half before it. The head is left alone, because a fixture's painted
+ * rules live there and a case about type needs them.
+ * @param check - the check to run, given the report callback.
+ * @param seat - the markup to place in the document; a case about the empty
+ * document clears the body again, which is what it is asserting about.
+ * @returns the findings, in the order they were reported.
+ */
+export function findingsOn(check: (add: Report) => void, seat: () => void): StructureFinding[] {
+  document.body.replaceChildren()
+  seat()
+  const { findings, add } = collector()
+  check(add)
+  return findings
+}
+
+/**
  * One element marked as a product surface, so a scope selector matches it.
  * @param tag - the tag to create.
  * @returns the marked element.
  */
 export function surface(tag: string): HTMLElement {
   const node = document.createElement(tag)
-  node.setAttribute('data-structure-scope', '')
+  node.dataset['structureScope'] = ''
   return node
 }
 
@@ -132,11 +152,11 @@ export function paintDeclarations(node: HTMLElement, declarations: string): void
   const marker = paintMarker(declarations)
   if (document.querySelector(`style[${PAINT}="${marker}"]`) === null) {
     const sheet = document.createElement('style')
-    sheet.setAttribute('data-deeptail-paint', marker)
+    sheet.dataset['deeptailPaint'] = marker
     sheet.textContent = `[${PAINT}="${marker}"] { ${declarations} }`
     document.head.append(sheet)
   }
-  node.setAttribute('data-deeptail-paint', marker)
+  node.dataset['deeptailPaint'] = marker
 }
 
 /**

@@ -12,19 +12,43 @@
  * cases that drive the tailnet's own refusals. They are audited there, under
  * the published tags, and are not spelled out a second time here.
  *
+ * Each arrangement is written out of the steps in `page-steps.ts` and the
+ * fixtures in `fixtures.ts`, so a surface states what makes it that surface
+ * rather than restating a selector or an answer table.
+ *
  * @module
  */
 
 import type { Page } from 'playwright'
-import { oneHost } from './fixtures.ts'
+import { oneHost, refusesUnknownPreset } from './fixtures.ts'
 import type { Harness } from './harness.ts'
-import { AUDIT_VIEWS, type AuditView, openPairingForm, openShell, openShellWithDrawer } from './surfaces.ts'
-
-/**
- * The session row every roster arrangement waits for: a running session on the
- * first host, which is what the fixture answers with.
- */
-const ROSTER_ROW = '[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]'
+import {
+  choosePairHost,
+  clickAction,
+  connectTailnet,
+  fillField,
+  openConnectForm,
+  openPicker,
+  pressNewSession,
+  spawnUnknownPreset,
+  state,
+  submitPairing,
+  waitForAction,
+  waitForSheet,
+  waitForState,
+} from './page-steps.ts'
+import {
+  AUDIT_VIEWS,
+  type AuditView,
+  FLEET_ROW,
+  type FleetFixture,
+  openPairingForm,
+  openShell,
+  openShellWithDrawer,
+  pressRowAction,
+} from './surfaces.ts'
+import { showSwitcher } from './switcher.ts'
+import { isCoarse } from './viewports.ts'
 
 /** One surface the audit arranges, and how a case reaches it. */
 export interface AuditedSurface {
@@ -48,17 +72,48 @@ export function viewsOf(surface: AuditedSurface): readonly AuditView[] {
   return at === undefined ? AUDIT_VIEWS : AUDIT_VIEWS.filter((view) => at(view))
 }
 
-/** Every surface the audit arranges, in the order a report lists them. */
-export const AUDITED_SURFACES: readonly AuditedSurface[] = [
-  {
-    name: 'the fleet roster',
-    kind: 'shown',
-    arrange: async (harness, view) => {
-      const page = await openShellWithDrawer(harness, {}, view)
-      await page.locator(ROSTER_ROW).waitFor({ state: 'visible' })
+/**
+ * A surface the audit arranges by opening the shell over the fleet with its
+ * sidebar showing, and then driving one step.
+ *
+ * The opening is stated once here rather than inside each arrangement: four
+ * surfaces in the table below were opening it by hand, and a fifth would have
+ * had to remember both calls.
+ * @param name - the name the report lists the surface under.
+ * @param drive - what the surface does once the sidebar is showing.
+ * @param options - the fixture it boots against, and where it exists.
+ * @returns the surface the audit arranges.
+ */
+function drawerSurface(
+  name: string,
+  drive: (page: Page) => Promise<void>,
+  options: { readonly fixture?: FleetFixture; readonly only?: (view: AuditView) => boolean } = {},
+): AuditedSurface {
+  const surface = {
+    name,
+    kind: 'shown' as const,
+    arrange: async (harness: Harness, view: AuditView): Promise<Page> => {
+      const page = await openShellWithDrawer(harness, options.fixture ?? {}, view)
+      await drive(page)
       return page
     },
-  },
+  }
+  return options.only === undefined ? surface : { ...surface, only: options.only }
+}
+
+/**
+ * Reach the picker's list view the way the product does: from the sidebar's
+ * switcher, by asking to pair another host.
+ * @param page - the page showing the shell.
+ */
+async function openPairedPicker(page: Page): Promise<void> {
+  await showSwitcher(page)
+  await choosePairHost(page)
+}
+
+/** Every surface the audit arranges, in the order a report lists them. */
+export const AUDITED_SURFACES: readonly AuditedSurface[] = [
+  drawerSurface('the fleet roster', (page) => page.locator(FLEET_ROW).waitFor({ state: 'visible' })),
   {
     // The state a reader on a narrow window lands on, which is the one
     // arrangement the roster above never audits: it opens the drawer.
@@ -67,23 +122,14 @@ export const AUDITED_SURFACES: readonly AuditedSurface[] = [
     only: (view) => view.mobile === true,
     arrange: (harness, view) => openShell(harness, {}, view),
   },
-  {
-    name: 'the connection menu',
-    kind: 'shown',
-    arrange: async (harness, view) => {
-      const page = await openShellWithDrawer(harness, {}, view)
-      await page.locator('[data-deeptail-connection="trigger"]').click()
-      await page.locator('[data-deeptail-connection="menu"]').waitFor({ state: 'visible' })
-      return page
-    },
-  },
+  drawerSurface('the connection menu', showSwitcher),
   {
     name: 'a host that needs re-pairing',
     kind: 'shown',
     arrange: async (harness, view) => {
       const page = await openShellWithDrawer(harness, { remoteStatuses: { 'lab-2:session/list': 401 } }, view)
-      await page.locator('[data-deeptail-connection="trigger"]').click()
-      await page.locator('[data-deeptail-action="repair"]').waitFor({ state: 'visible' })
+      await showSwitcher(page)
+      await waitForAction(page, 'repair')
       return page
     },
   },
@@ -92,7 +138,7 @@ export const AUDITED_SURFACES: readonly AuditedSurface[] = [
     kind: 'shown',
     arrange: async (harness, view) => {
       const page = await openShellWithDrawer(harness, { remotePending: ['session/list'] }, view)
-      await page.locator('[data-deeptail-state="loading"]').first().waitFor({ state: 'visible' })
+      await page.locator(state('loading')).first().waitFor({ state: 'visible' })
       return page
     },
   },
@@ -105,7 +151,7 @@ export const AUDITED_SURFACES: readonly AuditedSurface[] = [
         { remoteErrors: { 'lab-2:session/list': 'roster unavailable' } },
         view,
       )
-      await page.waitForSelector('[data-deeptail-state="partial"]')
+      await waitForState(page, 'partial')
       return page
     },
   },
@@ -114,60 +160,32 @@ export const AUDITED_SURFACES: readonly AuditedSurface[] = [
     kind: 'shown',
     arrange: async (harness, view) => {
       const page = await openShellWithDrawer(harness, { remoteErrors: { 'session/prompt': 'agent busy' } }, view)
-      const row = page.locator(ROSTER_ROW)
-      await row.waitFor({ state: 'visible' })
-      // The row's actions are revealed by hover where the pointer is fine and
-      // are painted throughout where it is coarse.
-      if (view.mobile !== true && view.tablet !== true) await row.hover()
-      await row.locator('[data-deeptail-action="row-message"]').click()
-      await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
-      await page.locator('[data-deeptail-field="message"]').fill('please rerun the tests')
-      await page.locator('[data-deeptail-action="compose-send"]').click()
-      await page.locator('[data-deeptail-state="compose-error"]').waitFor({ state: 'visible' })
+      await pressRowAction(page, 'row-message', isCoarse(view))
+      await waitForSheet(page)
+      await fillField(page, 'message', 'please rerun the tests')
+      await clickAction(page, 'compose-send')
+      await waitForState(page, 'compose-error')
       return page
     },
   },
-  {
-    name: 'the new-session dialog',
-    kind: 'shown',
-    arrange: async (harness, view) => {
-      const page = await openShellWithDrawer(harness, {}, view)
-      await page.locator('[data-deeptail-action="new-session"]').click()
-      await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
-      return page
-    },
-  },
+  drawerSurface('the new-session dialog', pressNewSession),
   {
     name: 'the empty picker',
     kind: 'shown',
-    arrange: async (harness, view) => {
-      const page = await harness.open({ hosts: [] }, view)
-      await page.waitForSelector('[data-deeptail-picker]')
-      return page
-    },
+    arrange: (harness, view) => openPicker(harness, {}, view),
   },
   {
     name: 'the pairing form',
     kind: 'shown',
     arrange: (harness, view) => openPairingForm(harness, view),
   },
-  {
-    name: 'the picker listing the hosts already paired',
-    kind: 'shown',
-    arrange: async (harness, view) => {
-      const page = await openShellWithDrawer(harness, {}, view)
-      await page.locator('[data-deeptail-connection="trigger"]').click()
-      await page.getByRole('menuitem', { name: 'Pair a host' }).click()
-      await page.locator('[data-deeptail-state="ready"]').waitFor({ state: 'visible' })
-      return page
-    },
-  },
+  drawerSurface('the picker listing the hosts already paired', openPairedPicker),
   {
     name: "the picker's read failure",
     kind: 'refusal',
     arrange: async (harness, view) => {
-      const page = await harness.open({ hosts: [], listError: 'the registry is unreadable' }, view)
-      await page.waitForSelector('[data-deeptail-state="error"]')
+      const page = await openPicker(harness, { listError: 'the registry is unreadable' }, view)
+      await waitForState(page, 'error')
       return page
     },
   },
@@ -175,20 +193,9 @@ export const AUDITED_SURFACES: readonly AuditedSurface[] = [
     name: 'a spawn refusal',
     kind: 'refusal',
     arrange: async (harness, view) => {
-      const page = await openShellWithDrawer(
-        harness,
-        oneHost({
-          remoteErrors: { 'session/create': 'no such preset' },
-          remoteErrorCodes: { 'session/create': 'agent-preset-not-found' },
-          remoteErrorDetails: { 'session/create': { available: ['standard', 'ptc'] } },
-        }),
-        view,
-      )
-      await page.locator('[data-deeptail-action="new-session"]').click()
-      await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
-      await page.locator('[data-deeptail-field="preset"]').fill('nope')
-      await page.locator('[data-deeptail-action="spawn-create"]').click()
-      await page.locator('[data-deeptail-state="spawn-error"]').waitFor({ state: 'visible' })
+      const page = await openShellWithDrawer(harness, oneHost(refusesUnknownPreset()), view)
+      await spawnUnknownPreset(page)
+      await waitForState(page, 'spawn-error')
       return page
     },
   },
@@ -197,8 +204,8 @@ export const AUDITED_SURFACES: readonly AuditedSurface[] = [
     kind: 'refusal',
     arrange: async (harness, view) => {
       const page = await openShellWithDrawer(harness, oneHost({ bootError: 'host refused the boot table' }), view)
-      await page.locator(`${ROSTER_ROW} .session-open`).click()
-      await page.locator('[data-deeptail-state="shell-error"]').waitFor({ state: 'visible' })
+      await page.locator(`${FLEET_ROW} .session-open`).click()
+      await waitForState(page, 'shell-error')
       return page
     },
   },
@@ -207,9 +214,8 @@ export const AUDITED_SURFACES: readonly AuditedSurface[] = [
     kind: 'refusal',
     arrange: async (harness, view) => {
       const page = await openPairingForm(harness, view)
-      await page.locator('[data-deeptail-field="link"]').fill('not a link')
-      await page.locator('[data-deeptail-action="pair-submit"]').click()
-      await page.locator('[data-deeptail-state="pair-error"]').waitFor({ state: 'visible' })
+      await submitPairing(page, 'not a link')
+      await waitForState(page, 'pair-error')
       return page
     },
   },
@@ -217,11 +223,10 @@ export const AUDITED_SURFACES: readonly AuditedSurface[] = [
     name: 'a tailnet connect refusal',
     kind: 'refusal',
     arrange: async (harness, view) => {
-      const page = await harness.open({ hosts: [], tailnetConnected: false }, view)
-      await page.waitForSelector('[data-deeptail-picker]')
-      await page.locator('[data-deeptail-action="tailnet"]').click()
-      await page.locator('[data-deeptail-action="tailnet-connect"]').click()
-      await page.locator('[data-deeptail-state="tailnet-error"]').waitFor({ state: 'visible' })
+      const page = await openPicker(harness, { tailnetConnected: false }, view)
+      await openConnectForm(page)
+      await connectTailnet(page)
+      await waitForState(page, 'tailnet-error')
       return page
     },
   },

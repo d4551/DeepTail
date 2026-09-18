@@ -15,7 +15,7 @@
 import { beforeEach, expect, it } from 'bun:test'
 import type { StructureFinding } from '../apps/deeptail/tests/structure-report.ts'
 import { asReported, checkTypography } from '../apps/deeptail/tests/structure-typography.ts'
-import { collector, paintType, surface, typeDeclarations } from './structure-double.ts'
+import { findingsOn, paintType, surface, typeDeclarations } from './structure-double.ts'
 import {
   AT_RUNG_CLASS,
   BETWEEN_RUNGS_CLASS,
@@ -51,6 +51,14 @@ const OFF_SCALE_FINDINGS = [
 ]
 
 /**
+ * What the type check reads: the shipped ladder, over the marked surfaces.
+ *
+ * Held once because every case reads the same ladder over the same scope, and a
+ * case that restated it would be a second copy of the contract.
+ */
+const TYPE_LIMITS = { scope: '[data-structure-scope]', typography: TYPOGRAPHY }
+
+/**
  * Every finding the type check reports for one surface carrying the named
  * fixture paragraphs, with a conforming paragraph of each direction beside
  * them, so every case reads both what the rule refuses and what it leaves.
@@ -58,13 +66,41 @@ const OFF_SCALE_FINDINGS = [
  * @returns the findings the check reported.
  */
 function typeFindings(...classNames: readonly string[]): StructureFinding[] {
+  return typedFindings((root) => {
+    root.append(...classNames.map((name) => paragraph(name)))
+  })
+}
+
+/**
+ * Every finding the type check reports over a surface the caller seats.
+ *
+ * The scope, the ladder and the check travel together: a case states the markup
+ * it is about and nothing else, and the conforming paragraphs of each direction
+ * are seated beside it so every case reads what the rule refuses next to what
+ * it leaves.
+ * @param seat - the markup to place on the surface before the check runs.
+ * @returns the findings the check reported.
+ */
+function typedFindings(seat: (root: HTMLElement) => void): StructureFinding[] {
   const root = surface('div')
   root.append(paragraph(AT_RUNG_CLASS), paragraph(DECLARED_CASE_CLASS), paragraph(ON_TRACKING_CLASS))
-  root.append(...classNames.map((name) => paragraph(name)))
-  document.body.append(root)
-  const { findings, add } = collector()
-  checkTypography(add, { scope: '[data-structure-scope]', typography: TYPOGRAPHY })
-  return findings
+  seat(root)
+  return documentTypeFindings(() => {
+    document.body.append(root)
+  })
+}
+
+/**
+ * Every finding the type check reports over a document the caller seats.
+ *
+ * For the cases whose surface is not the one the check is pointed at: a dialog
+ * frame the product surfaces do not cover, and a document that carries a rule
+ * beside the surface it is about.
+ * @param seat - the markup to place in the document before the check runs.
+ * @returns the findings the check reported.
+ */
+function documentTypeFindings(seat: () => void): StructureFinding[] {
+  return findingsOn((add) => checkTypography(add, TYPE_LIMITS), seat)
 }
 
 beforeEach(() => {
@@ -90,14 +126,13 @@ it('reads a keyword the engine reports as nothing as what an absent declaration 
 })
 
 it('reads text on a rung of the shipped ladder as conforming', () => {
-  const root = surface('div')
-  const text = paragraph(AT_RUNG_CLASS)
-  paintType(text, TYPOGRAPHY, RUNG)
-  root.append(text)
-  document.body.append(root)
-  const { findings, add } = collector()
-  checkTypography(add, { scope: '[data-structure-scope]', typography: TYPOGRAPHY })
-  expect(findings).toEqual([])
+  expect(
+    typedFindings((root) => {
+      const text = paragraph(AT_RUNG_CLASS)
+      paintType(text, TYPOGRAPHY, RUNG)
+      root.append(text)
+    }),
+  ).toEqual([])
 })
 
 it('reports a size off the ladder, with the line box that no longer pairs with it', () => {
@@ -162,16 +197,12 @@ it('reports the engine own bold, which is no rung of the shipped weight ladder',
 
 it('reads a dialog frame the product surfaces do not cover', () => {
   const frame = document.createElement('div')
-  frame.setAttribute('data-deeptail-dialog', '')
+  frame.dataset['deeptailDialog'] = ''
   frame.append(paragraph(BETWEEN_RUNGS_CLASS))
-  document.body.append(frame)
-  const { findings, add } = collector()
-  checkTypography(add, { scope: '[data-structure-scope]', typography: TYPOGRAPHY })
-  expect(findings).toEqual(OFF_SCALE_FINDINGS)
+  expect(documentTypeFindings(() => document.body.append(frame))).toEqual(OFF_SCALE_FINDINGS)
 })
 
 it('reads only the element carrying the text, and skips a box its own clip hides', () => {
-  const root = surface('div')
   const holder = document.createElement('div')
   holder.className = BETWEEN_RUNGS_CLASS
   holder.append(paragraph(AT_RUNG_CLASS))
@@ -181,12 +212,13 @@ it('reads only the element carrying the text, and skips a box its own clip hides
   paintType(hidden, TYPOGRAPHY, 0)
   const clip = document.createElement('style')
   clip.textContent = '#hidden-name { clip: rect(0px, 0px, 0px, 0px); }'
-  root.append(holder, hidden)
-  document.body.append(root, clip)
-  const { findings, add } = collector()
-  checkTypography(add, { scope: '[data-structure-scope]', typography: TYPOGRAPHY })
   // The holder is painted at a size off the ladder and carries no text of its
   // own, and the hidden name carries text the reader is never shown: neither
   // has rendered type for a rung to be missing from.
-  expect(findings).toEqual([])
+  expect(
+    documentTypeFindings(() => {
+      document.body.append(surface('div'))
+      document.body.append(holder, hidden, clip)
+    }),
+  ).toEqual([])
 })

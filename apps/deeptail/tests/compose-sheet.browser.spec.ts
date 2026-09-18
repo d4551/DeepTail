@@ -7,9 +7,9 @@
  * provides.
  */
 
-import { afterAll, beforeAll, expect, it } from 'bun:test'
-import { oneHost } from './fixtures.ts'
+import { afterAll, beforeAll, beforeEach, expect, it } from 'bun:test'
 import { type Harness, startHarness } from './harness.ts'
+import { openComposeSheet } from './surfaces.ts'
 import { until } from './wait.ts'
 
 let harness: Harness
@@ -22,70 +22,61 @@ afterAll(async () => {
   await harness?.stop()
 })
 
-/**
- * Open the compose sheet for the running session.
- * @param suite - the suite's browser harness.
- * @param extra - answer-table overrides for the case.
- * @returns the page showing the open sheet.
- */
-async function openedSheet(
-  suite: Harness,
-  extra: Parameters<typeof oneHost>[0] = {},
-): Promise<Awaited<ReturnType<Harness['open']>>> {
-  const page = await suite.open(oneHost(extra))
-  await page.waitForSelector('[data-deeptail-shell]')
-  // The row actions ride behind a hover on a fine pointer, so the pointer is
-  // what reveals them here; the keyboard route into the sheet is the row
-  // suite's subject.
-  await page.locator('[data-deeptail-session="s-running"]').hover()
-  await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-message"]').click()
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'visible' })
-  return page
-}
-
 /** The page object a harness case drives. */
 type SheetPage = Awaited<ReturnType<Harness['open']>>
 
+/**
+ * The sheet the case is driving, opened over the running session's row.
+ *
+ * Stated once as a hook rather than in every case: seven cases want the same
+ * sheet, and two of them want it over a host that refuses the send instead. The
+ * refusal cases reassign this before they use it.
+ */
+let page: SheetPage
+
+beforeEach(async () => {
+  page = await openComposeSheet(harness)
+})
+
 /** The sheet's draft field. */
-function draftField(page: SheetPage): ReturnType<SheetPage['locator']> {
-  return page.locator('[data-deeptail-field="message"]')
+function draftField(sheet: SheetPage): ReturnType<SheetPage['locator']> {
+  return sheet.locator('[data-deeptail-field="message"]')
 }
 
 /** The sheet's send control. */
-function sendControl(page: SheetPage): ReturnType<SheetPage['locator']> {
-  return page.locator('[data-deeptail-action="compose-send"]')
+function sendControl(sheet: SheetPage): ReturnType<SheetPage['locator']> {
+  return sheet.locator('[data-deeptail-action="compose-send"]')
 }
 
 /** The sheet's steer control. */
-function steerControl(page: SheetPage): ReturnType<SheetPage['locator']> {
-  return page.locator('[data-deeptail-action="compose-steer"]')
+function steerControl(sheet: SheetPage): ReturnType<SheetPage['locator']> {
+  return sheet.locator('[data-deeptail-action="compose-steer"]')
 }
 
 /**
  * Fill the draft and send it.
- * @param page - the page the sheet is open on.
+ * @param sheet - the page the sheet is open on.
  * @param draft - the text to send.
  */
-async function sendDraft(page: SheetPage, draft: string): Promise<void> {
-  await draftField(page).fill(draft)
-  await sendControl(page).click()
+async function sendDraft(sheet: SheetPage, draft: string): Promise<void> {
+  await draftField(sheet).fill(draft)
+  await sendControl(sheet).click()
 }
 
 /** The sheet's refusal strip. */
-function refusalStrip(page: SheetPage): ReturnType<SheetPage['locator']> {
-  return page.locator('[data-deeptail-state="compose-error"]')
+function refusalStrip(sheet: SheetPage): ReturnType<SheetPage['locator']> {
+  return sheet.locator('[data-deeptail-state="compose-error"]')
 }
 
 /**
  * Wait until the sheet has closed.
- * @param page - the page the sheet was open on.
+ * @param sheet - the page the sheet was open on.
  */
-async function sheetClosed(page: SheetPage): Promise<void> {
-  await page.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
+async function sheetClosed(sheet: SheetPage): Promise<void> {
+  await sheet.locator('[data-deeptail-dialog]').waitFor({ state: 'detached' })
 }
 
 it('opens with the operator in the draft field, named by its visible label', async () => {
-  const page = await openedSheet(harness)
   // The sheet asks for one thing, so that is where focus lands rather than on
   // the dialog frame or the first button.
   const landed = await page.evaluate(() => ({
@@ -106,7 +97,6 @@ it('opens with the operator in the draft field, named by its visible label', asy
 })
 
 it('refuses an empty draft without reaching the host', async () => {
-  const page = await openedSheet(harness)
   await sendControl(page).click()
   expect(await page.locator('[data-deeptail-state="compose-error"]').textContent()).toContain('Type something to send.')
   // The refusal is about this field, so the field says so and takes focus back.
@@ -117,7 +107,6 @@ it('refuses an empty draft without reaching the host', async () => {
 })
 
 it('sends on Enter and keeps Shift+Enter a newline', async () => {
-  const page = await openedSheet(harness)
   const field = page.locator('[data-deeptail-field="message"]')
   await field.fill('line one')
   await field.press('Shift+Enter')
@@ -133,7 +122,7 @@ it('sends on Enter and keeps Shift+Enter a newline', async () => {
 })
 
 it('hands the sheet back, draft intact, when a send is refused', async () => {
-  const page = await openedSheet(harness, { remoteErrors: { 'session/prompt': 'agent busy' } })
+  page = await openComposeSheet(harness, { remoteErrors: { 'session/prompt': 'agent busy' } })
   await sendDraft(page, 'please rerun the tests')
   await refusalStrip(page).waitFor({ state: 'visible' })
   expect(await refusalStrip(page).textContent()).toContain('agent busy')
@@ -147,7 +136,7 @@ it('hands the sheet back, draft intact, when a send is refused', async () => {
 })
 
 it('holds the sheet still while a send is in flight', async () => {
-  const page = await openedSheet(harness, { remotePending: ['session/prompt'] })
+  page = await openComposeSheet(harness, { remotePending: ['session/prompt'] })
   await sendDraft(page, 'hold the line')
   // The read never settles, so the held state is observable rather than a
   // frame wide: one send cannot be raced by a second.
@@ -160,7 +149,7 @@ it('holds the sheet still while a send is in flight', async () => {
 })
 
 it('tells a refused send through the live region once the sheet has gone', async () => {
-  const page = await openedSheet(harness, { remoteErrors: { 'session/prompt': 'agent busy' } })
+  page = await openComposeSheet(harness, { remoteErrors: { 'session/prompt': 'agent busy' } })
   await draftField(page).fill('escape mid flight')
   // Escape closes the sheet at any time, including mid-flight. The click and
   // the key are delivered in one pass so the dismissal is ordered before the
@@ -184,7 +173,6 @@ it('tells a refused send through the live region once the sheet has gone', async
 })
 
 it('announces a landed send through the live region', async () => {
-  const page = await openedSheet(harness)
   await sendDraft(page, 'announce the send')
   await sheetClosed(page)
   // The sheet closes before the announcement: the live region sits inside the

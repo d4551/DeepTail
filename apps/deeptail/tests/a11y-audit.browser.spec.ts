@@ -18,7 +18,7 @@ import { type Harness, startHarness } from './harness.ts'
 import { openShell } from './surfaces.ts'
 
 /** How long a whole audit may take, which is one browser page per arrangement. */
-const BUDGET_MS = 180_000
+const BUDGET_MS = 60_000
 
 /** The audit program, as the `a11y` script names it. */
 const PROGRAM = new URL('../../../scripts/a11y-audit.ts', import.meta.url).pathname

@@ -11,6 +11,9 @@ import { afterAll, beforeAll, it } from 'bun:test'
 import type { Page } from 'playwright'
 import { HOSTS } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
+import { choosePairHost } from './page-steps.ts'
+import { waitForLiveShell } from './surfaces.ts'
+import { CONNECTION_TRIGGER } from './switcher.ts'
 
 let harness: Harness
 
@@ -24,10 +27,9 @@ afterAll(async () => {
 /** The picker reached from the shell's connection menu, as an operator does. */
 async function openPickerFromShell(): Promise<Page> {
   const page = await harness.open({ hosts: HOSTS, remote: { 'session/list': { items: [] } } })
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-connection="trigger"]').click()
-  await page.getByRole('menuitem', { name: 'Pair a host' }).click()
-  await page.waitForSelector('[data-deeptail-state="ready"]')
+  await waitForLiveShell(page)
+  await page.locator(CONNECTION_TRIGGER).click()
+  await choosePairHost(page)
   return page
 }
 

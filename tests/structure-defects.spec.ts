@@ -25,7 +25,7 @@ import {
 } from '../apps/deeptail/tests/structure.ts'
 import { typographyRamp } from '../apps/deeptail/tests/structure-emit.ts'
 import { resetDocument } from './dom.ts'
-import { collector } from './structure-double.ts'
+import { findingsOn } from './structure-double.ts'
 
 /**
  * The ladder the shipped token sheet declares, read once for the limits below.
@@ -54,59 +54,52 @@ it('reports a repeated id, and stays silent once every id is unique', () => {
   first.id = 'session-pane'
   const second = document.createElement('div')
   second.id = 'picker-pane'
-  document.body.append(first, second)
-  const silent = collector()
-  checkDuplicateIds(silent.add)
-  expect(silent.findings).toEqual([])
+  expect(findingsOn(checkDuplicateIds, () => document.body.append(first, second))).toEqual([])
   second.id = 'session-pane'
-  const { findings, add } = collector()
-  checkDuplicateIds(add)
-  expect(findings).toEqual([{ rule: 'duplicate-id', detail: 'div#session-pane repeats id "session-pane"' }])
+  expect(findingsOn(checkDuplicateIds, () => document.body.append(second, first))).toEqual([
+    { rule: 'duplicate-id', detail: 'div#session-pane repeats id "session-pane"' },
+  ])
 })
 
 it('reports a control nested in another, and stays silent for siblings', () => {
   const link = document.createElement('a')
   link.setAttribute('href', '/sessions')
   const button = document.createElement('button')
-  document.body.append(link, button)
-  const silent = collector()
-  checkNestedInteractive(silent.add, LIMITS)
-  expect(silent.findings).toEqual([])
+  expect(
+    findingsOn(
+      (add) => checkNestedInteractive(add, LIMITS),
+      () => document.body.append(link, button),
+    ),
+  ).toEqual([])
   const card = document.createElement('a')
   card.setAttribute('href', '/sessions')
   card.append(button)
-  document.body.append(card)
-  const { findings, add } = collector()
-  checkNestedInteractive(add, LIMITS)
-  expect(findings).toEqual([{ rule: 'nested-interactive', detail: 'button sits inside a' }])
+  expect(
+    findingsOn(
+      (add) => checkNestedInteractive(add, LIMITS),
+      () => document.body.append(card),
+    ),
+  ).toEqual([{ rule: 'nested-interactive', detail: 'button sits inside a' }])
 })
 
 it('reports a page with no heading at all, and stays silent once one exists', () => {
   const heading = document.createElement('h1')
   heading.textContent = 'Sessions'
-  document.body.append(heading)
-  const silent = collector()
-  checkHeadingOrder(silent.add)
-  expect(silent.findings).toEqual([])
-  heading.remove()
-  const { findings, add } = collector()
-  checkHeadingOrder(add)
-  expect(findings).toEqual([{ rule: 'no-heading', detail: 'the page has no heading at all' }])
+  expect(findingsOn(checkHeadingOrder, () => document.body.append(heading))).toEqual([])
+  expect(findingsOn(checkHeadingOrder, () => document.body.replaceChildren())).toEqual([
+    { rule: 'no-heading', detail: 'the page has no heading at all' },
+  ])
 })
 
 it('reports a page with several h1 elements, and stays silent for one', () => {
-  const first = document.createElement('h1')
-  first.textContent = 'Sessions'
-  document.body.append(first)
-  const silent = collector()
-  checkHeadingOrder(silent.add)
-  expect(silent.findings).toEqual([])
-  const second = document.createElement('h1')
-  second.textContent = 'Picker'
-  document.body.append(second)
-  const { findings, add } = collector()
-  checkHeadingOrder(add)
-  expect(findings).toEqual([{ rule: 'many-h1', detail: 'the page has 2 h1 elements' }])
+  const sessionsHeading = document.createElement('h1')
+  sessionsHeading.textContent = 'Sessions'
+  const pickerHeading = document.createElement('h1')
+  pickerHeading.textContent = 'Picker'
+  expect(findingsOn(checkHeadingOrder, () => document.body.append(sessionsHeading))).toEqual([])
+  expect(findingsOn(checkHeadingOrder, () => document.body.append(sessionsHeading, pickerHeading))).toEqual([
+    { rule: 'many-h1', detail: 'the page has 2 h1 elements' },
+  ])
 })
 
 it('reports a main that opens below h1, and stays silent when it opens at h1', () => {
@@ -114,16 +107,15 @@ it('reports a main that opens below h1, and stays silent when it opens at h1', (
   const heading = document.createElement('h1')
   heading.textContent = 'Sessions'
   main.append(heading)
-  document.body.append(main)
-  const silent = collector()
-  checkHeadingOrder(silent.add)
-  expect(silent.findings).toEqual([])
   const skipped = document.createElement('h2')
   skipped.textContent = 'Roster'
-  main.replaceChildren(skipped)
-  const { findings, add } = collector()
-  checkHeadingOrder(add)
-  expect(findings).toEqual([{ rule: 'heading-start', detail: 'main opens at h2 rather than h1' }])
+  expect(findingsOn(checkHeadingOrder, () => document.body.append(main))).toEqual([])
+  expect(
+    findingsOn(checkHeadingOrder, () => {
+      main.replaceChildren(skipped)
+      document.body.append(main)
+    }),
+  ).toEqual([{ rule: 'heading-start', detail: 'main opens at h2 rather than h1' }])
 })
 
 it('reports a heading level skipped, and stays silent for a stepped outline', () => {
@@ -133,20 +125,18 @@ it('reports a heading level skipped, and stays silent for a stepped outline', ()
   second.textContent = 'DeepTail'
   const third = document.createElement('h3')
   third.textContent = 'Machines'
-  document.body.append(first, second, third)
-  const silent = collector()
-  checkHeadingOrder(silent.add)
-  expect(silent.findings).toEqual([])
-  second.remove()
-  const { findings, add } = collector()
-  checkHeadingOrder(add)
-  expect(findings).toEqual([{ rule: 'heading-skip', detail: 'h1 is followed by h3' }])
+  expect(findingsOn(checkHeadingOrder, () => document.body.append(first, second, third))).toEqual([])
+  expect(findingsOn(checkHeadingOrder, () => document.body.append(first, third))).toEqual([
+    { rule: 'heading-skip', detail: 'h1 is followed by h3' },
+  ])
 })
 
 it('reads the outline the reader hears, so a heading the engine hides is not a step in it', () => {
-  const sheet = document.createElement('style')
-  sheet.textContent = '.off-page { display: none; }'
-  document.head.append(sheet)
+  // The rule is painted through a sheet rather than an element style, which is
+  // an inline style even in a fixture: the case measures what a class rule does.
+  const rule = document.createElement('style')
+  rule.textContent = '.off-page { display: none; }'
+  document.head.append(rule)
   const first = document.createElement('h1')
   first.textContent = 'Topics'
   const hidden = document.createElement('h2')
@@ -156,17 +146,17 @@ it('reads the outline the reader hears, so a heading the engine hides is not a s
   const third = document.createElement('h3')
   third.textContent = 'Machines'
   const shown = document.createElement('div')
-  shown.setAttribute('data-deeptail-dialog', '')
+  shown.dataset['deeptailDialog'] = ''
   const fixed = document.createElement('h2')
   fixed.textContent = 'Roster'
   shown.append(fixed)
   document.body.append(first, hidden, third, shown)
-  const { findings, add } = collector()
-  checkHeadingOrder(add)
   // The h2 the engine hides is not a step the reader hears, so the heading
   // after the h1 is the h3 and the outline skips; the h2 inside a dialog is
   // read even though `offsetParent` is null for everything `position: fixed`.
-  expect(findings).toEqual([{ rule: 'heading-skip', detail: 'h1 is followed by h3' }])
+  expect(findingsOn(checkHeadingOrder, () => document.body.append(first, hidden, third, shown))).toEqual([
+    { rule: 'heading-skip', detail: 'h1 is followed by h3' },
+  ])
   expect(hidden.checkVisibility()).toBe(false)
 })
 
@@ -181,17 +171,14 @@ it('reports an ARIA reference pointing at nothing, and stays silent while every 
   owned.setAttribute('aria-owns', 'session-pane')
   const combined = document.createElement('div')
   combined.setAttribute('aria-labelledby', ' session-pane ')
-  document.body.append(named, labelled, described, owned, combined)
-  const silent = collector()
-  checkAriaReferences(silent.add)
-  expect(silent.findings).toEqual([])
+  expect(
+    findingsOn(checkAriaReferences, () => document.body.append(named, labelled, described, owned, combined)),
+  ).toEqual([])
   const controls = document.createElement('div')
   controls.setAttribute('aria-controls', 'missing-pane')
-  document.body.append(controls)
-  named.remove()
-  const { findings, add } = collector()
-  checkAriaReferences(add)
-  expect(findings).toEqual([
+  expect(
+    findingsOn(checkAriaReferences, () => document.body.append(controls, labelled, described, owned, combined)),
+  ).toEqual([
     { rule: 'dangling-aria-reference', detail: 'div aria-controls points at missing "missing-pane"' },
     { rule: 'dangling-aria-reference', detail: 'div aria-labelledby points at missing "session-pane"' },
     { rule: 'dangling-aria-reference', detail: 'div aria-labelledby points at missing "session-pane"' },
@@ -208,14 +195,11 @@ it('reports a list owning a non-item, and stays silent for a list item', () => {
   item.id = 'machines-row'
   item.setAttribute('role', 'listitem')
   list.append(item)
-  document.body.append(list)
-  const silent = collector()
-  checkListOwnership(silent.add)
-  expect(silent.findings).toEqual([])
+  expect(findingsOn(checkListOwnership, () => document.body.append(list))).toEqual([])
   item.removeAttribute('role')
-  const { findings, add } = collector()
-  checkListOwnership(add)
-  expect(findings).toEqual([{ rule: 'list-owns-non-item', detail: 'div#machines owns div#machines-row' }])
+  expect(findingsOn(checkListOwnership, () => document.body.append(list))).toEqual([
+    { rule: 'list-owns-non-item', detail: 'div#machines owns div#machines-row' },
+  ])
 })
 
 it('reports a menu owning a non-item, and stays silent for the roles a menu admits', () => {
@@ -229,14 +213,11 @@ it('reports a menu owning a non-item, and stays silent for the roles a menu admi
   separator.id = 'actions-separator'
   separator.setAttribute('role', 'separator')
   menu.append(entry, separator)
-  document.body.append(menu)
-  const silent = collector()
-  checkListOwnership(silent.add)
-  expect(silent.findings).toEqual([])
+  expect(findingsOn(checkListOwnership, () => document.body.append(menu))).toEqual([])
   entry.removeAttribute('role')
-  const { findings, add } = collector()
-  checkListOwnership(add)
-  expect(findings).toEqual([{ rule: 'menu-owns-non-item', detail: 'div#actions owns div#actions-entry' }])
+  expect(findingsOn(checkListOwnership, () => document.body.append(menu))).toEqual([
+    { rule: 'menu-owns-non-item', detail: 'div#actions owns div#actions-entry' },
+  ])
 })
 
 it('reports a list item outside a list, and stays silent for one inside it', () => {
@@ -246,14 +227,10 @@ it('reports a list item outside a list, and stays silent for one inside it', () 
   item.id = 'machines-row'
   item.setAttribute('role', 'listitem')
   list.append(item)
-  document.body.append(list)
-  const silent = collector()
-  checkListOwnership(silent.add)
-  expect(silent.findings).toEqual([])
-  document.body.append(item)
-  const { findings, add } = collector()
-  checkListOwnership(add)
-  expect(findings).toEqual([{ rule: 'item-outside-list', detail: 'div#machines-row sits outside a list' }])
+  expect(findingsOn(checkListOwnership, () => document.body.append(list))).toEqual([])
+  expect(findingsOn(checkListOwnership, () => document.body.append(item))).toEqual([
+    { rule: 'item-outside-list', detail: 'div#machines-row sits outside a list' },
+  ])
 })
 
 it('reports a fieldset, a radiogroup, and a group named by nothing, and stays silent once named', () => {
@@ -270,10 +247,7 @@ it('reports a fieldset, a radiogroup, and a group named by nothing, and stays si
   const group = document.createElement('div')
   group.id = 'advanced'
   group.setAttribute('role', 'group')
-  document.body.append(fieldset, blank, radios, group)
-  const { findings, add } = collector()
-  checkGroupNames(add)
-  expect(findings).toEqual([
+  expect(findingsOn(checkGroupNames, () => document.body.append(fieldset, blank, radios, group))).toEqual([
     { rule: 'unnamed-group', detail: 'fieldset#auth groups controls under no name' },
     { rule: 'unnamed-group', detail: 'fieldset#blank groups controls under no name' },
     { rule: 'unnamed-group', detail: 'div#transport groups controls under no name' },
@@ -287,8 +261,7 @@ it('reports a fieldset, a radiogroup, and a group named by nothing, and stays si
   const advancedName = document.createElement('div')
   advancedName.id = 'advanced-name'
   group.setAttribute('aria-labelledby', 'advanced-name')
-  document.body.append(advancedName)
-  const silent = collector()
-  checkGroupNames(silent.add)
-  expect(silent.findings).toEqual([])
+  expect(findingsOn(checkGroupNames, () => document.body.append(fieldset, blank, radios, group, advancedName))).toEqual(
+    [],
+  )
 })

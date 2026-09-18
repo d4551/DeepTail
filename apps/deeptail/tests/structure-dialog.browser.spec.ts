@@ -6,13 +6,14 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
-import type { Page } from 'playwright'
+import type { Locator, Page } from 'playwright'
 import { ACTIONS } from '../src/actions/registry.ts'
 import { dataSelector } from '../src/markers.ts'
 import { fleet } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
+import { DIALOG, DISMISSALS, SHEETS } from './structure-dialog-contract.ts'
 import { defects } from './structure-page.ts'
-import { openDrawerIfPresent } from './surfaces.ts'
+import { openDrawerIfPresent, waitForLiveShell } from './surfaces.ts'
 import { REFLOW_VIEWPORT } from './viewports.ts'
 
 let harness: Harness
@@ -25,36 +26,6 @@ afterAll(async () => {
   await harness?.stop()
 })
 
-/** The dialog root the shared frame portals to `document.body`. */
-const DIALOG = dataSelector('dialog')
-
-/** The sheets the product opens, and how a case reaches each one. */
-const SHEETS: readonly (readonly [string, (page: Page) => Promise<void>])[] = [
-  ['new session', (page) => page.locator(dataSelector('action', ACTIONS['session.spawn'].marker)).click()],
-  [
-    'compose',
-    async (page) => {
-      const row = page.locator(`${dataSelector('host', 'dev-1')}${dataSelector('session', 's-running')}`)
-      await row.waitFor({ state: 'visible' })
-      // The row's actions ride behind a hover on a fine pointer.
-      await row.hover()
-      await row.locator(dataSelector('action', ACTIONS['session.message'].marker)).click()
-    },
-  ],
-]
-
-/**
- * Each dismissal a case drives, and the control focus lands on. The compose
- * sheet is closed by the mask alone: its trigger is a row action revealed by a
- * hover, so the pointer is over the mask when it closes and the frame hands
- * focus to the row's own control.
- */
-const DISMISSALS: readonly (readonly [string, 'Escape' | 'mask', string])[] = [
-  ['compose', 'mask', ACTIONS['session.open'].marker],
-  ['new session', 'Escape', ACTIONS['session.spawn'].marker],
-  ['new session', 'mask', ACTIONS['session.spawn'].marker],
-]
-
 /** Open the shell at the WCAG reflow floor, where the sidebar is a drawer. */
 async function openedAtFloor(): Promise<Page> {
   const page = await harness.open(fleet(), {
@@ -62,7 +33,7 @@ async function openedAtFloor(): Promise<Page> {
     width: REFLOW_VIEWPORT.width,
     height: REFLOW_VIEWPORT.height,
   })
-  await page.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(page)
   await openDrawerIfPresent(page)
   return page
 }
@@ -73,13 +44,26 @@ async function rulesOn(page: Page): Promise<readonly string[]> {
   return lines.map((line) => line.slice(0, line.indexOf(':')))
 }
 
+/**
+ * Wait until a sheet's frame is on the page, and hand back its root.
+ *
+ * Every case here opens a sheet the same way and then reads the one frame that
+ * owns it, so the wait is stated once rather than restated at each call.
+ * @param page - the page the sheet was opened on.
+ * @returns the dialog root, showing.
+ */
+async function shownDialog(page: Page): Promise<Locator> {
+  const dialog = page.locator(DIALOG)
+  await dialog.waitFor({ state: 'visible' })
+  return dialog
+}
+
 it('opens every sheet through the one frame, named, modal, and holding focus', async () => {
   const held = await Promise.all(
     SHEETS.map(async ([label, open]) => {
       const page = await openedAtFloor()
       await open(page)
-      const dialog = page.locator(DIALOG)
-      await dialog.waitFor({ state: 'visible' })
+      const dialog = await shownDialog(page)
       const frame = await dialog.evaluate((node) => {
         const id = node.getAttribute('aria-labelledby') ?? ''
         const heading = [...node.querySelectorAll('[id]')].find((one) => one.id === id)
@@ -125,16 +109,15 @@ it('hands focus back to the control that opened each sheet', async () => {
       const sheet = SHEETS.find(([name]) => name === label)
       if (sheet === undefined) throw new Error(`no sheet is called ${label}`)
       const page = await harness.open(fleet())
-      await page.waitForSelector('[data-deeptail-shell]')
+      await waitForLiveShell(page)
       await sheet[1](page)
-      const dialog = page.locator(DIALOG)
-      await dialog.waitFor({ state: 'visible' })
+      const dialog = await shownDialog(page)
       // The dialog sits over the mask's middle, so the press lands on a corner.
       if (how === 'Escape') await page.keyboard.press('Escape')
       else await page.locator('.modal-mask').click({ position: { x: 4, y: 4 } })
       await dialog.waitFor({ state: 'detached' })
       const landed = await page.evaluate(() =>
-        document.activeElement instanceof HTMLElement ? (document.activeElement.dataset.deeptailAction ?? '') : '',
+        document.activeElement instanceof HTMLElement ? (document.activeElement.dataset['deeptailAction'] ?? '') : '',
       )
       await page.close()
       return `${label} ${how}: ${landed}`
@@ -149,8 +132,7 @@ it('lands focus on a reachable control when the frame closed the drawer its trig
   // reader the control that holds that region instead.
   const page = await openedAtFloor()
   await page.locator(dataSelector('action', ACTIONS['session.message'].marker)).first().click()
-  const dialog = page.locator(DIALOG)
-  await dialog.waitFor({ state: 'visible' })
+  const dialog = await shownDialog(page)
   await page.keyboard.press('Escape')
   await dialog.waitFor({ state: 'detached' })
   expect(
@@ -158,7 +140,7 @@ it('lands focus on a reachable control when the frame closed the drawer its trig
       const active = document.activeElement
       return {
         reached: active instanceof HTMLElement && active !== document.body && active.closest('[inert]') === null,
-        marker: active instanceof HTMLElement ? (active.dataset.deeptailAction ?? '') : '',
+        marker: active instanceof HTMLElement ? (active.dataset['deeptailAction'] ?? '') : '',
       }
     }),
   ).toEqual({ reached: true, marker: ACTIONS['drawer.toggle'].marker })
@@ -172,8 +154,7 @@ it('seats every dialog inside the reflow floor, with its actions reachable', asy
     SHEETS.map(async ([label, open]) => {
       const page = await openedAtFloor()
       await open(page)
-      const dialog = page.locator(DIALOG)
-      await dialog.waitFor({ state: 'visible' })
+      const dialog = await shownDialog(page)
       const reach = await dialog.evaluate((node) => {
         const actions = node.querySelector('.actions')
         if (actions === null) throw new Error('the open dialog has no action row')
@@ -231,7 +212,7 @@ async function plantInsideDialog(page: Page, rule: string): Promise<void> {
     await page.addStyleTag({ content: '[data-deeptail-probe="pane"] { overflow-y: auto; block-size: 20px; }' })
     await page.evaluate(() => {
       const pane = document.createElement('div')
-      pane.dataset.deeptailProbe = 'pane'
+      pane.dataset['deeptailProbe'] = 'pane'
       document.querySelector('.modal-body')?.append(pane)
     })
     return
@@ -250,7 +231,7 @@ it('still reports a defect planted inside the dialog’s own scroller', async ()
     PLANTED.map(async ([rule, detail]) => {
       const page = await openedAtFloor()
       await page.locator(dataSelector('action', ACTIONS['session.spawn'].marker)).click()
-      await page.locator(DIALOG).waitFor({ state: 'visible' })
+      await shownDialog(page)
       const before = await rulesOn(page)
       await plantInsideDialog(page, rule)
       const found = await defects(page)
@@ -273,13 +254,13 @@ it('reports a dialog and an overlay built outside the frame, and drops them', as
   // reported while the promise its author did remember keeps axe quiet.
   await page.evaluate(() => {
     const rogue = document.createElement('div')
-    rogue.dataset.deeptailProbe = 'rogue'
+    rogue.dataset['deeptailProbe'] = 'rogue'
     rogue.setAttribute('role', 'dialog')
     rogue.setAttribute('aria-modal', 'true')
     rogue.textContent = 'Rogue'
     document.body.append(rogue)
     const overlay = document.createElement('div')
-    overlay.dataset.deeptailProbe = 'overlay'
+    overlay.dataset['deeptailProbe'] = 'overlay'
     overlay.setAttribute('role', 'presentation')
     document.body.append(overlay)
   })

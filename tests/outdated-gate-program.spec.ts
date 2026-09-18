@@ -17,14 +17,14 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { chmod, mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { outdatedReport, parseOutdated, rowOf, tablePrinted } from '../scripts/check-outdated.ts'
-import { importRunsNothing, runGateProgram, suiteRoot } from './gate-program.ts'
+import { cleanRun, type GateRun, importRunsNothing, runGateProgram, suiteTree } from './gate-program.ts'
+import { PROGRAMS } from './programs.ts'
+import { substituted } from './substituted.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
-/** The program the merge chain runs, by absolute path. */
-const GATE = new URL('../scripts/check-outdated.ts', import.meta.url).pathname
+/** The program the merge chain runs. */
+const GATE = PROGRAMS.outdatedGate
 
 /** A table bun prints when one package is behind. */
 const BEHIND = [
@@ -34,13 +34,6 @@ const BEHIND = [
   '| oxlint (dev) | 1.81.0 | 1.81.0 | 1.82.0 |',
   '|-------------------------------|',
 ].join('\n')
-
-/** What one run of the gate told the two streams and the shell. */
-interface Run {
-  readonly out: string
-  readonly err: string
-  readonly code: number
-}
 
 /**
  * Run the gate with a bun that prints the table this case wants it to.
@@ -53,17 +46,14 @@ async function runGate(
   table: string,
   code = 0,
   manifest = '{ "devDependencies": { "oxlint": "1.81.0" } }',
-): Promise<Run> {
-  const root = await suiteRoot('outdated-gate-')
-  await writeFile(join(root, 'package.json'), manifest)
+): Promise<GateRun> {
+  const tree = await suiteTree('outdated-gate-')
+  await Bun.write(tree.pathOf('package.json'), manifest)
   // The pins are read through `git ls-files`, so the tree has to be one.
-  Bun.spawnSync(['git', 'init', '--quiet'], { cwd: root })
-  const bin = join(root, 'bin')
-  await mkdir(bin, { recursive: true })
+  Bun.spawnSync(['git', 'init', '--quiet'], { cwd: tree.root })
   const script = ['#!/bin/sh', `cat <<'TABLE'`, table, 'TABLE', `exit ${String(code)}`, ''].join('\n')
-  await writeFile(join(bin, 'bun'), script)
-  await chmod(join(bin, 'bun'), 0o755)
-  return await runGateProgram(GATE, root, bin)
+  const bun = await substituted(tree, 'bun', script)
+  return await runGateProgram(GATE, tree.root, bun.bin)
 }
 
 describe('the line a row is read out of', () => {
@@ -180,12 +170,12 @@ describe('what the gate reports for one table', () => {
   })
 })
 
-describe('the gate as the program the merge chain runs', () => {
+describe('the outdated gate as the program the merge chain runs', () => {
   it(
     'reads what bun printed and says every pin is current',
     async () => {
       const run = await runGate('')
-      expect([run.code, run.err]).toEqual([0, ''])
+      cleanRun(run)
       expect(run.out).toContain('every dependency is at the newest version this workspace can install')
     },
     TREE_SCAN_BUDGET_MS,
@@ -215,7 +205,7 @@ describe('the gate as the program the merge chain runs', () => {
     TREE_SCAN_BUDGET_MS,
   )
 
-  it('runs nothing when it is imported rather than run', async () => {
+  it('runs nothing when the outdated gate is imported rather than run', async () => {
     await importRunsNothing(GATE, 'outdated-gate-')
   })
 })

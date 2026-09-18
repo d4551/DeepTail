@@ -40,9 +40,9 @@ const BROWSER_SUFFIX = '.browser.spec.ts'
  * The suffixes that mark a spec this process drives rather than a browser.
  *
  * The browser directory is where the app's suites live, and most of them need a
- * page: the build, the harness, a real engine. One does not — it drives the
+ * page: the build, the harness, a real engine. Some do not — they drive the
  * installed `Channel` class against the runtime double, with no bundle and no
- * page — and it sits there because the app tree is the only one that resolves
+ * page — and they sit there because the app tree is the only one that resolves
  * the app's own dependencies. Naming the kind in the file name is what keeps
  * that exception from being a directory of them.
  */

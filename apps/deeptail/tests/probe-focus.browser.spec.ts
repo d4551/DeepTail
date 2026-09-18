@@ -16,7 +16,9 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness } from './harness.ts'
+import { clickAction } from './page-steps.ts'
 import { defects } from './structure-page.ts'
+import { openShellWithRoster, waitForLiveShell } from './surfaces.ts'
 
 let harness: Harness
 
@@ -30,19 +32,18 @@ afterAll(async () => {
 
 it('reads every ring on a page the case reached through a pointer press', async () => {
   const page = await harness.open(oneHost({ muxHosts: ['dev-1'] }), { mobile: true })
-  await page.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(page)
   // The pointer press is the point: it is what puts the engine into the
   // modality where script-driven focus paints no ring of its own. The drawer
   // toggle is the control a phone layout keeps visible to click.
-  await page.locator('[data-deeptail-action="drawer"]').click()
+  await clickAction(page, 'drawer')
   const found = await defects(page)
   expect(found.includes('focus-invisible')).toBe(false)
   await page.close()
 })
 
 it('reports no control as buried under the container its rounded corners sit in', async () => {
-  const page = await harness.open(oneHost({ muxHosts: ['dev-1'] }))
-  await page.waitForSelector('[data-deeptail-shell]')
+  const page = await openShellWithRoster(harness, { muxHosts: ['dev-1'] })
   const found = await defects(page)
   expect(found.includes('focus-obscured')).toBe(false)
   await page.close()

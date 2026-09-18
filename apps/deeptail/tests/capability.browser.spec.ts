@@ -13,8 +13,11 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'bun:test'
+import type { Page } from 'playwright'
 import { type Harness, startHarness } from './harness.ts'
-import { openShell } from './surfaces.ts'
+import { action, waitForState } from './page-steps.ts'
+import { openShell, waitForRoster } from './surfaces.ts'
+import { CONNECTION_TRIGGER } from './switcher.ts'
 
 let harness: Harness
 
@@ -26,12 +29,21 @@ afterAll(async () => {
   await harness?.stop()
 })
 
+/**
+ * The calls the page made, in the order it made them.
+ * @param page - the page under test.
+ * @returns the command names the recorded ledger holds.
+ */
+async function callsMade(page: Page): Promise<readonly string[]> {
+  return await harness.commands(page)
+}
+
 it('asks to be issued before it reaches a route the registry prices', async () => {
   const page = await openShell(harness)
-  await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
-  const commands = await harness.commands(page)
-  const issued = commands.indexOf('capability_grants')
-  const fetched = commands.indexOf('carrier_fetch')
+  await waitForRoster(page)
+  const calls = await callsMade(page)
+  const issued = calls.indexOf('capability_grants')
+  const fetched = calls.indexOf('carrier_fetch')
   expect(issued).toBeGreaterThanOrEqual(0)
   expect(fetched).toBeGreaterThanOrEqual(0)
   // Both happened, and issuance came first. An index comparison alone would
@@ -46,18 +58,18 @@ it('asks again whenever the pairing set is read again', async () => {
   // issued once at boot would hold authority over a host it has since
   // forgotten, and none over one it has just paired.
   const page = await openShell(harness)
-  await page.locator('[data-deeptail-host="dev-1"][data-deeptail-session="s-running"]').waitFor({ state: 'visible' })
-  const before = (await harness.commands(page)).filter((name) => name === 'capability_grants').length
-  await page.locator('[data-deeptail-connection="trigger"]').click()
+  await waitForRoster(page)
+  const before = (await callsMade(page)).filter((name) => name === 'capability_grants').length
+  await page.locator(CONNECTION_TRIGGER).click()
   // The switcher's own unpair item, driven by the marker the registry
   // `connection.unpair` carries on it. Forgetting a host reads the registry
   // again, and that read is where the page is issued anew for the hosts that
   // are left.
-  await page.locator('[data-deeptail-action="unpair"]').click()
+  await page.locator(action('unpair')).click()
   await page.locator('[data-deeptail-shell]').waitFor({ state: 'visible' })
-  const commands = await harness.commands(page)
-  expect(commands.filter((name) => name === 'forget_host')).toEqual(['forget_host'])
-  const after = commands.filter((name) => name === 'capability_grants').length
+  const calls = await callsMade(page)
+  expect(calls.filter((name) => name === 'forget_host')).toEqual(['forget_host'])
+  const after = calls.filter((name) => name === 'capability_grants').length
   expect(after).toBeGreaterThan(before)
   await page.close()
 })
@@ -67,10 +79,10 @@ it('reaches a priced route only after the registry read that issues for it', asy
   // first one: the assertion above holds the opening order, and this holds it
   // for the whole run.
   const page = await openShell(harness, { remoteErrors: { 'lab-2:session/list': 'roster unavailable' } })
-  await page.waitForSelector('[data-deeptail-state="partial"]')
-  const commands = await harness.commands(page)
-  const firstIssue = commands.indexOf('capability_grants')
-  const anyFetchBefore = commands.slice(0, firstIssue).includes('carrier_fetch')
+  await waitForState(page, 'partial')
+  const calls = await callsMade(page)
+  const firstIssue = calls.indexOf('capability_grants')
+  const anyFetchBefore = calls.slice(0, firstIssue).includes('carrier_fetch')
   expect([firstIssue >= 0, anyFetchBefore]).toEqual([true, false])
   await page.close()
 })

@@ -227,6 +227,13 @@ declare global {
     readonly deeptailCallbackRegistrations?: () => number
     /** Deliver one frame to the callback registered under an identifier, as the backend does. */
     readonly deeptailDeliver?: (id: string, frame: JsonValue) => boolean
+    /**
+     * How the page's runtime answered one command, settled inside the page.
+     *
+     * Read as data rather than as a live promise: the promise lives in the page,
+     * and only its shape crosses back out through Playwright.
+     */
+    readonly deeptailCommandOutcome?: (command: string) => Promise<{ settled: string; message: string }>
     /** The names of the members the page's runtime object carries, sorted. */
     readonly deeptailRuntimeMembers?: () => string[]
     /**

@@ -20,7 +20,7 @@ import type { AuditedSurface } from './a11y-surfaces.ts'
 import type { Harness } from './harness.ts'
 
 /** How long one surface's case may run: one browser page per designed width. */
-const CASE_BUDGET_MS = 180_000
+const CASE_BUDGET_MS = 60_000
 
 /**
  * The body of one surface's case.

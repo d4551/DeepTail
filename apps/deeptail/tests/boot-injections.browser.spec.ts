@@ -25,6 +25,8 @@ import type { IndexInjection } from '../src/injections.ts'
 import type { JsonValue } from '../src/wire.ts'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
+import { shellMounts, waitForState } from './page-steps.ts'
+import { waitForLiveShell } from './surfaces.ts'
 
 let harness: Harness
 
@@ -39,7 +41,7 @@ afterAll(async () => {
 /** What one injected script records about the page at the moment it ran. */
 interface Observation {
   readonly at: string
-  readonly probe: unknown
+  readonly probe: string | null
   readonly text: string | null
   readonly colour: string
 }
@@ -48,6 +50,8 @@ declare global {
   interface Window {
     /** What each injected script saw, in the order the rows ran. */
     readonly deeptailBootLog?: readonly Observation[]
+    /** The marker the harness seats for an injected script to read back. */
+    readonly deeptailBootProbe?: string
   }
 }
 
@@ -74,6 +78,22 @@ function observer(at: string): string {
   ].join('\n')
 }
 
+/** The marker global every boot table seats first, for a script to read back. */
+const PROBE_ROW: IndexInjection = { kind: 'global', name: 'deeptailBootProbe', value: 'served' }
+
+/**
+ * The boot table a case serves: the marker global first, then the rows the case
+ * is about.
+ *
+ * Every injected script reads the marker back, so seating it first is the
+ * contract rather than a convention each table has to remember and restate.
+ * @param rows - the rows this case seats, after the marker.
+ * @returns the table the harness serves.
+ */
+function bootTable(...rows: readonly IndexInjection[]): readonly IndexInjection[] {
+  return [PROBE_ROW, ...rows]
+}
+
 /**
  * A table carrying one row of every kind the harness serves.
  *
@@ -81,14 +101,13 @@ function observer(at: string): string {
  * style and the markup land before either script measures them, and the
  * `script-src` row is last so its record must come second.
  */
-const EVERY_KIND: readonly IndexInjection[] = [
-  { kind: 'global', name: 'deeptailBootProbe', value: 'served' },
+const EVERY_KIND: readonly IndexInjection[] = bootTable(
   { kind: 'style', text: '#deeptail-boot-probe { color: rgb(1, 2, 3) }' },
   { kind: 'html', placement: 'body', html: '<p id="deeptail-boot-probe">from the boot table</p>' },
   { kind: 'script', placement: 'body', text: observer('script') },
   { kind: 'script-preload', src: WARM },
   { kind: 'script-src', placement: 'body', src: LATE },
-]
+)
 
 /**
  * Open the shell and click through to a session, which is what boots a host.
@@ -103,7 +122,7 @@ async function boot(
   failures: Readonly<Record<string, string>> = {},
 ): Promise<Page> {
   const page = await harness.open(oneHost({ bootInjections: table, bundleSources: sources, bundleErrors: failures }))
-  await page.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(page)
   await page.locator('[data-deeptail-session="s-running"] .session-open').click()
   return page
 }
@@ -149,11 +168,7 @@ it('runs what the preload row fetched, rather than asking the host for it twice'
   // The preload row names the same bundle the `script-src` row runs, which is
   // the shape a served page's preload link has. One request, and the source
   // that request returned is what runs.
-  const table: readonly IndexInjection[] = [
-    { kind: 'global', name: 'deeptailBootProbe', value: 'served' },
-    { kind: 'script-preload', src: LATE },
-    { kind: 'script-src', placement: 'body', src: LATE },
-  ]
+  const table = bootTable({ kind: 'script-preload', src: LATE }, { kind: 'script-src', placement: 'body', src: LATE })
   const page = await boot(table, { [LATE]: observer('script-src') })
   expect((await observations(page, 1)).map((seen) => seen.at)).toEqual(['script-src'])
   expect(await page.evaluate(() => window.deeptailBundlePaths ?? [])).toEqual([LATE])
@@ -165,11 +180,12 @@ it('reports a bundle the host refuses, rather than booting a shell that is missi
   // The first script row still ran: the failure is at the row that failed, not
   // a table abandoned before it started.
   expect((await observations(page, 1)).map((seen) => seen.at)).toEqual(['script'])
-  await page.locator('[data-deeptail-state="shell-error"]').waitFor({ state: 'visible' })
+  await waitForState(page, 'shell-error')
   expect(await textOf(page, '[data-deeptail-state="shell-error"]')).toContain('/assets/late.js')
   // The control plane is still there, so the operator is not left on a blank
   // page with a half-applied table.
-  expect(await page.locator('[data-deeptail-shell]').count()).toBe(1)
+  const mounts = await shellMounts(page)
+  expect(mounts).toBe(1)
   await page.close()
 })
 
@@ -177,11 +193,8 @@ it('refuses a row of a kind it does not know, rather than skipping it in silence
   // A table is a contract with a host that may be ahead of this client. A row
   // this build cannot honour is a shell that would boot missing something, so
   // it stops the boot and says which row it was.
-  const page = await boot([
-    { kind: 'global', name: 'deeptailBootProbe', value: 'served' },
-    { kind: 'chalk-outline', placement: 'body' },
-  ])
-  await page.locator('[data-deeptail-state="shell-error"]').waitFor({ state: 'visible' })
+  const page = await boot([PROBE_ROW, { kind: 'chalk-outline', placement: 'body' }])
+  await waitForState(page, 'shell-error')
   expect(await textOf(page, '[data-deeptail-state="shell-error"]')).toContain('chalk-outline')
   await page.close()
 })

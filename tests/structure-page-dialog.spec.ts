@@ -41,7 +41,7 @@ it('reports a sibling able to take focus behind an open dialog, and an action of
   shell.append(behind)
   const close = document.createElement('button')
   close.id = 'close'
-  close.setAttribute('data-deeptail-action', 'session.spawn')
+  close.dataset['deeptailAction'] = 'session.spawn'
   dialog.append(close)
   const { findings, add } = collector()
   checkDialogContract(add, LIMITS)
@@ -59,7 +59,7 @@ it('reports a second dialog, one the frame did not build, and the promises a fra
   const stalled = document.createElement('div')
   stalled.id = 'stalled'
   stalled.setAttribute('role', 'dialog')
-  stalled.setAttribute('data-deeptail-dialog', '')
+  stalled.dataset['deeptailDialog'] = ''
   document.body.append(rogue, stalled)
   const { findings, add } = collector()
   checkDialogContract(add, LIMITS)
@@ -80,7 +80,7 @@ it('reports a second dialog, one the frame did not build, and the promises a fra
 it('reports an element carrying the dialog marker without the dialog role to go with it', () => {
   const lonely = document.createElement('div')
   lonely.id = 'lonely'
-  lonely.setAttribute('data-deeptail-dialog', '')
+  lonely.dataset['deeptailDialog'] = ''
   document.body.append(lonely)
   const { findings, add } = collector()
   checkDialogContract(add, LIMITS)

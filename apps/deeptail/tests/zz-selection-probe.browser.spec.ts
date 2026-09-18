@@ -75,13 +75,13 @@ it('holds a rule the default selection leaves out, and decides it by tag', async
   // The claim `audit-rules.ts` makes, measured against the shipped release: the
   // default set leaves this rule out and the published tags reach it.
   expect({ byTags, byDefault }).toEqual({ byTags: true, byDefault: false })
-}, 120_000)
+}, 60_000)
 
 it('answers with both selections the suites behind it run, not one of them', async () => {
   const page = await openShell(harness)
   const planted = await page.evaluate(() => {
     const tiny = document.createElement('button')
-    tiny.setAttribute('data-deeptail-probe', 'tiny')
+    tiny.dataset['deeptailProbe'] = 'tiny'
     tiny.textContent = 'x'
     document.querySelector('[data-deeptail-shell]')?.append(tiny)
     return tiny.outerHTML
@@ -100,4 +100,4 @@ it('answers with both selections the suites behind it run, not one of them', asy
   // holding a single selection would report less than the suites it stands
   // behind, and would print the same sentence.
   expect(findingsOf(together)).toEqual(union)
-}, 120_000)
+}, 60_000)

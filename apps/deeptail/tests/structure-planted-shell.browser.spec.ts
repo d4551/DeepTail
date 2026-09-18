@@ -12,8 +12,39 @@
  * `structure-planted.browser.spec.ts`.
  */
 
+import type { Page } from 'playwright'
 import { plantProbe } from './structure-planted-probe.ts'
 import { type Planted, plantedSuite } from './structure-planted-runner.ts'
+
+/** One probe script: the id it is marked with, and the source it loads. */
+interface ProbeScript {
+  /** The `data-deeptail-probe` id, which is also how it is dropped. */
+  readonly probe: string
+  /** The helper it loads, or nothing for an inline script. */
+  readonly src?: string
+  /** Where it lands: inside the shell by default, on the body when asked. */
+  readonly into?: 'body'
+}
+
+/**
+ * Plant one probe script, inline or sourced.
+ *
+ * The three script shapes below differ only in the id, the source and where the
+ * script lands, so the planting is stated once and each shape contributes those
+ * three rather than restating the element it is about.
+ * @param page - the page under test.
+ * @param spec - the id to mark the script with, and the source it loads.
+ */
+async function plantScript(page: Page, spec: ProbeScript): Promise<void> {
+  await page.evaluate((args: ProbeScript) => {
+    const script = document.createElement('script')
+    script.dataset['deeptailProbe'] = args.probe
+    if (args.src === undefined) script.textContent = 'void 0'
+    else script.src = args.src
+    const where = args.into === 'body' ? document.body : document.querySelector('[data-deeptail-shell]')
+    where?.append(script)
+  }, spec)
+}
 
 /** Every shape a check must report, and every lookalike it must stay silent for. */
 const SHELL_SHAPES: readonly Planted[] = [
@@ -25,40 +56,19 @@ const SHELL_SHAPES: readonly Planted[] = [
   },
   {
     label: 'reports an inline script inside a product surface',
-    plant: async (page) => {
-      await page.evaluate(() => {
-        const script = document.createElement('script')
-        script.setAttribute('data-deeptail-probe', 'script')
-        script.textContent = 'void 0'
-        document.querySelector('[data-deeptail-shell]')?.append(script)
-      })
-    },
+    plant: (page) => plantScript(page, { probe: 'script' }),
     reports: ['inline-script'],
     drop: ['script'],
   },
   {
     label: 'reports a sourced helper script hanging off a product surface',
-    plant: async (page) => {
-      await page.evaluate(() => {
-        const script = document.createElement('script')
-        script.setAttribute('data-deeptail-probe', 'src-script')
-        script.src = '/one-off-helper.js'
-        document.querySelector('[data-deeptail-shell]')?.append(script)
-      })
-    },
+    plant: (page) => plantScript(page, { probe: 'src-script', src: '/one-off-helper.js' }),
     reports: ['inline-script', 'one-off-helper.js'],
     drop: ['src-script'],
   },
   {
     label: 'reports a sourced helper script appended to the document body',
-    plant: async (page) => {
-      await page.evaluate(() => {
-        const script = document.createElement('script')
-        script.setAttribute('data-deeptail-probe', 'body-script')
-        script.src = '/body-helper.js'
-        document.body.append(script)
-      })
-    },
+    plant: (page) => plantScript(page, { probe: 'body-script', src: '/body-helper.js', into: 'body' }),
     reports: ['inline-script', 'body-helper.js'],
     drop: ['body-script'],
   },
@@ -72,7 +82,7 @@ const SHELL_SHAPES: readonly Planted[] = [
       ])
       await page.evaluate(() => {
         const inner = document.createElement('button')
-        inner.setAttribute('data-deeptail-action', 'drawer-dismiss')
+        inner.dataset['deeptailAction'] = 'drawer-dismiss'
         document.querySelector('[data-deeptail-probe="unreachable"]')?.append(inner)
       })
     },
@@ -98,10 +108,10 @@ const SHELL_SHAPES: readonly Planted[] = [
       await plantProbe(page, { probe: 'nested-surface', tag: 'div', picker: true })
       await page.evaluate(() => {
         const loose = document.createElement('main')
-        loose.setAttribute('data-deeptail-probe', 'loose-main')
+        loose.dataset['deeptailProbe'] = 'loose-main'
         const elsewhere = document.createElement('div')
-        elsewhere.setAttribute('data-deeptail-shell', '')
-        elsewhere.setAttribute('data-deeptail-probe', 'outside-shell')
+        elsewhere.dataset['deeptailShell'] = ''
+        elsewhere.dataset['deeptailProbe'] = 'outside-shell'
         elsewhere.append(document.createElement('main'))
         document.body.append(loose, elsewhere)
       })

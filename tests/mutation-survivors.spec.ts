@@ -9,10 +9,7 @@
  * @module
  */
 
-import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { describe, expect, it } from 'bun:test'
 import {
   DEFAULT_REPORT,
   DEFAULT_STATUS,
@@ -21,6 +18,9 @@ import {
   type Report,
   renderMutants,
 } from '../scripts/mutation-survivors.ts'
+import { clearTreesAfterEach, type FixtureTree, fixtureTree } from './fixtures.ts'
+import { cleanRun, importRunsNothing, runProgram } from './gate-program.ts'
+import { PROGRAMS } from './programs.ts'
 import { TREE_SCAN_BUDGET_MS } from './tree-budget.ts'
 
 /**
@@ -49,28 +49,37 @@ function report(files: Readonly<Record<string, readonly Mutant[]>>): Report {
   return { files: Object.fromEntries(Object.entries(files).map(([file, mutants]) => [file, { mutants }])) }
 }
 
+/**
+ * One mutant's row as the report prints it: where it sits, what mutated it, and
+ * what it became, in the report's own columns. Stated once, so an expectation
+ * says which rows it is reading rather than repeating the layout three times.
+ * @param line - the line the mutant sits on.
+ * @param replacement - what the mutator put in place of the expression.
+ * @returns the row, without its line ending.
+ */
+function row(line: number, replacement = 'if (true)'): string {
+  return `  ${`${String(line)}:3`.padEnd(10)}ConditionalExpression  -> ${replacement}`
+}
+
 /** The program this module is when it is run rather than imported. */
-const PROGRAM = new URL('../scripts/mutation-survivors.ts', import.meta.url).pathname
+const PROGRAM = PROGRAMS.mutationSurvivors
 
-/** Directories this suite made, removed when it ends. */
-const made: string[] = []
+/** Trees this suite seated, taken down when each of its cases ends. */
+const made: FixtureTree[] = []
 
-afterEach(async () => {
-  await Promise.all(made.splice(0).map(async (root) => await rm(root, { recursive: true, force: true })))
-})
+clearTreesAfterEach(made)
 
 /**
  * Write a report into a directory of this suite's own.
  * @param at - where to write it, relative to that directory.
  * @param files - mutants by file.
- * @returns the directory the program is run in.
+ * @returns the tree the program is run in.
  */
-async function reportOnDisk(at: string, files: Readonly<Record<string, readonly Mutant[]>>): Promise<{ root: string }> {
-  const root = await mkdtemp(join(tmpdir(), 'mutation-survivors-'))
-  made.push(root)
-  await mkdir(dirname(join(root, at)), { recursive: true })
-  await writeFile(join(root, at), JSON.stringify(report(files)))
-  return { root }
+async function reportOnDisk(at: string, files: Readonly<Record<string, readonly Mutant[]>>): Promise<FixtureTree> {
+  const tree = fixtureTree('mutation-survivors')
+  made.push(tree)
+  await Bun.write(tree.pathOf(at), JSON.stringify(report(files)))
+  return tree
 }
 
 /**
@@ -79,14 +88,10 @@ async function reportOnDisk(at: string, files: Readonly<Record<string, readonly 
  * @param args - the arguments a reader would type after the program's name.
  * @returns everything it wrote to the output stream.
  */
-async function runProgram(root: string, args: readonly string[]): Promise<string> {
-  const run = Bun.spawn([process.execPath, PROGRAM, ...args], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
-  const printed = await new Response(run.stdout).text()
-  const complaint = await new Response(run.stderr).text()
-  // Read together, so a program that died having printed nothing cannot pass
-  // as one that found no work.
-  expect([await run.exited, complaint]).toEqual([0, ''])
-  return printed
+async function survivors(root: string, args: readonly string[]): Promise<string> {
+  const run = await runProgram(PROGRAM, args, root)
+  cleanRun(run)
+  return run.out
 }
 
 describe('the open mutants a report carries', () => {
@@ -133,17 +138,7 @@ describe('the report it prints', () => {
       openMutants(report({ 'a.ts': [mutant(2, 'Survived'), mutant(11, 'Survived')] }), 'Survived'),
       'Survived',
     )
-    expect(text).toBe(
-      [
-        '',
-        'a.ts (2)',
-        '  2:3       ConditionalExpression  -> if (true)',
-        '  11:3      ConditionalExpression  -> if (true)',
-        '',
-        '2 survived',
-        '',
-      ].join('\n'),
-    )
+    expect(text).toBe(['', 'a.ts (2)', row(2), row(11), '', '2 survived', ''].join('\n'))
   })
 
   it('counts across every file rather than the last one, and keeps them apart', () => {
@@ -157,20 +152,7 @@ describe('the report it prints', () => {
       ),
       'Survived',
     )
-    expect(text).toBe(
-      [
-        '',
-        'a.ts (1)',
-        '  2:3       ConditionalExpression  -> if (true)',
-        '',
-        'b.ts (2)',
-        '  2:3       ConditionalExpression  -> if (true)',
-        '  3:3       ConditionalExpression  -> if (true)',
-        '',
-        '3 survived',
-        '',
-      ].join('\n'),
-    )
+    expect(text).toBe(['', 'a.ts (1)', row(2), '', 'b.ts (2)', row(2), row(3), '', '3 survived', ''].join('\n'))
   })
 })
 
@@ -204,7 +186,7 @@ describe('the report it prints, line by line', () => {
       location: { start: { line: 2, column: 3 } },
     }
     const text = renderMutants(openMutants(report({ 'a.ts': [bare] }), 'Survived'), 'Survived')
-    expect(text).toContain('ConditionalExpression  -> \n')
+    expect(text).toContain(`${row(2, '')}\n`)
     expect(text).not.toContain('undefined')
   })
 
@@ -234,10 +216,10 @@ describe('the program a reader actually runs', () => {
   it(
     'prints the survivors of the report it is given',
     async () => {
-      const { root } = await reportOnDisk('elsewhere/report.json', {
+      const tree = await reportOnDisk('elsewhere/report.json', {
         'a.ts': [mutant(2, 'Survived'), mutant(3, 'Killed')],
       })
-      const printed = await runProgram(root, ['elsewhere/report.json'])
+      const printed = await survivors(tree.root, ['elsewhere/report.json'])
       expect(printed).toContain('a.ts (1)')
       expect(printed.trimEnd().endsWith('1 survived')).toBe(true)
     },
@@ -247,8 +229,8 @@ describe('the program a reader actually runs', () => {
   it(
     'reads the status it is given, so a run’s other outcomes can be listed',
     async () => {
-      const { root } = await reportOnDisk('elsewhere/report.json', { 'a.ts': [mutant(2, 'NoCoverage')] })
-      expect(await runProgram(root, ['elsewhere/report.json', 'NoCoverage'])).toContain('1 nocoverage')
+      const tree = await reportOnDisk('elsewhere/report.json', { 'a.ts': [mutant(2, 'NoCoverage')] })
+      expect(await survivors(tree.root, ['elsewhere/report.json', 'NoCoverage'])).toContain('1 nocoverage')
     },
     TREE_SCAN_BUDGET_MS,
   )
@@ -258,37 +240,27 @@ describe('the program, run the way a reader runs it', () => {
   it('falls back to the report a run writes, and to the open status', async () => {
     // No arguments at all: this is the invocation a reader types after a run,
     // and the defaults are the whole of what makes it work.
-    const { root } = await reportOnDisk(DEFAULT_REPORT, {
+    const tree = await reportOnDisk(DEFAULT_REPORT, {
       'a.ts': [mutant(2, DEFAULT_STATUS), mutant(4, DEFAULT_STATUS)],
     })
-    const printed = await runProgram(root, [])
+    const printed = await survivors(tree.root, [])
     expect(printed).toContain('a.ts (2)')
     expect(printed.trimEnd().endsWith('2 survived')).toBe(true)
   })
 
-  it('runs nothing when it is imported rather than run', async () => {
+  it('runs nothing when the survivor reader is imported rather than run', async () => {
     // The guard is the whole difference between a module of readers and a
     // program. Dropped, an importing suite runs the program as a side effect
     // of the import — reading whatever report happens to sit at the default
-    // path, or dying on a directory that has none. Imported here from a
-    // directory that has neither, so both outcomes are visible.
-    const root = await mkdtemp(join(tmpdir(), 'mutation-survivors-'))
-    made.push(root)
-    const source = `await import(${JSON.stringify(PROGRAM)})\nprocess.stdout.write('imported')\n`
-    const run = Bun.spawn([process.execPath, '-e', source], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
-    const printed = await new Response(run.stdout).text()
-    expect([await run.exited, printed]).toEqual([0, 'imported'])
+    // path, or dying on a directory that has none. The tree it is imported
+    // from has neither, so either outcome shows up on the streams.
+    await importRunsNothing(PROGRAM, 'mutation-survivors')
   })
 
   it('fails on a report that is not there, rather than printing nothing', async () => {
     // A reader who mistypes a path must not be told there is no work left.
-    const { root } = await reportOnDisk('elsewhere/report.json', {})
-    const run = Bun.spawn([process.execPath, PROGRAM, 'no-such-report.json'], {
-      cwd: root,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    await new Response(run.stdout).text()
-    expect(await run.exited).not.toBe(0)
+    const tree = await reportOnDisk('elsewhere/report.json', {})
+    const missed = await runProgram(PROGRAM, ['no-such-report.json'], tree.root)
+    expect(missed.code).not.toBe(0)
   })
 })

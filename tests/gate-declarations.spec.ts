@@ -14,9 +14,6 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { GATE as BANS } from '../scripts/check-bans.ts'
 import { GATE as ENTRIES } from '../scripts/check-entries.ts'
 import { GATE as INLINE_STYLES } from '../scripts/check-no-inline-styles.ts'
@@ -25,7 +22,7 @@ import { GATE as STYLESHEETS } from '../scripts/check-stylesheets.ts'
 import { GATE as TREE } from '../scripts/check-tree.ts'
 import { type Gate, readGate } from '../scripts/gate-runner.ts'
 import { repositoryFiles, type SourceFile } from '../scripts/source-tree.ts'
-import { joined } from './fixtures.ts'
+import { fixtureTree, joined } from './fixtures.ts'
 
 /** Every gate the chain runs, by the script that runs it. */
 const GATES: readonly (readonly [string, Gate])[] = [
@@ -45,11 +42,11 @@ const GATES: readonly (readonly [string, Gate])[] = [
  * @returns what the gate said.
  */
 async function drive(gate: Gate, name: string, text: string): Promise<{ ok: boolean; text: string }> {
-  const root = await mkdtemp(join(tmpdir(), 'gate-declaration-'))
-  const file: SourceFile = { label: name, path: join(root, 'held') }
-  await writeFile(file.path, text)
+  const tree = fixtureTree('gate-declaration')
+  const file: SourceFile = { label: name, path: tree.pathOf('held') }
+  await Bun.write(file.path, text)
   const said = await readGate(gate, [file])
-  await rm(root, { recursive: true, force: true })
+  await tree.clear()
   return said
 }
 
@@ -123,7 +120,7 @@ describe('every gate in the chain', () => {
     // reader that ignored `only` would answer with the whole tree.
     expect(walkOf(ENTRIES, shipped).every((label) => label.startsWith('scripts/'))).toBe(true)
     expect(walkOf({ ...ENTRIES, only: (file) => file.label.startsWith('nowhere/') }, shipped)).toEqual([])
-  }, 120_000)
+  }, 60_000)
 })
 
 describe('the bans gate', () => {

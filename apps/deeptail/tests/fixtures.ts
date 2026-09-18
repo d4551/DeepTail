@@ -61,3 +61,35 @@ export function oneHost(extra: Partial<AnswerTable> = {}): AnswerTable {
 export function fleet(extra: Partial<AnswerTable> = {}): AnswerTable {
   return { hosts: HOSTS, remote: { 'session/list': { items: sessions() } }, ...extra }
 }
+
+/**
+ * A host that refuses a session preset it does not serve, and says which ones
+ * it has.
+ *
+ * The refusal is stated once: the audit arranges it as a surface and the
+ * control-plane suite reads what the strip says, and both are asserting the
+ * product's answer to the same host, so both have to be answered by the same
+ * one.
+ * @returns the answer-table overrides that refuse the preset.
+ */
+export function refusesUnknownPreset(): Partial<AnswerTable> {
+  return {
+    remoteErrors: { 'session/create': 'no such preset' },
+    remoteErrorCodes: { 'session/create': 'agent-preset-not-found' },
+    remoteErrorDetails: { 'session/create': { available: ['standard', 'ptc'] } },
+  }
+}
+
+/**
+ * A registry that will not read, which is what the boot notice falls back from.
+ *
+ * The read fails on the third, fifth and seventh attempt rather than never, so
+ * a case can drive the retry the notice offers and watch the registry come
+ * back, instead of only asserting that the notice was painted.
+ * @returns the answer table the boot notice is reached over.
+ */
+export function unreadableRegistry(): Partial<AnswerTable> {
+  const [workstation] = HOSTS
+  if (workstation === undefined) throw new Error('deeptail: the host fixture is empty')
+  return { hosts: [], paired: workstation, listError: 'the registry is unreadable', listErrorOn: [3, 5, 7] }
+}

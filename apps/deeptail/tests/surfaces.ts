@@ -3,6 +3,9 @@
  * fixture, wait until it is showing, and settle the page at one designed width.
  * One module, so the suites cannot drift on how a page is opened.
  *
+ * The controls, and the single steps a case takes on one, live above it in
+ * `page-steps.ts`; what is here is the layer that opens a surface.
+ *
  * What "clean" means, and the arrangements the accessibility audit drives, live
  * beside it: `audit.ts` decides it, `a11y-surfaces.ts` names the surfaces, and
  * `a11y-audit.ts` drives them.
@@ -13,6 +16,15 @@
 import type { Page } from 'playwright'
 import { fleet, oneHost } from './fixtures.ts'
 import type { Harness, Violation } from './harness.ts'
+import {
+  action,
+  clickAction,
+  type OpenOptions,
+  openPairForm,
+  openPicker,
+  sessionRow,
+  waitForSheet,
+} from './page-steps.ts'
 import { pointerFlags, VIEWPORTS, type Viewport } from './viewports.ts'
 
 /** One designed width × palette the a11y suite must actually open, not merely list. */
@@ -99,7 +111,7 @@ export async function waitForLiveShell(page: Page): Promise<void> {
   await page.waitForSelector('[data-deeptail-shell]')
   // Attached, not visible: on a drawer width the control sits in the closed
   // sidebar (`visibility: hidden`) until the case opens it.
-  await page.locator('[data-deeptail-action="new-session"]').waitFor({ state: 'attached' })
+  await page.locator(action('new-session')).waitFor({ state: 'attached' })
 }
 
 /**
@@ -111,10 +123,9 @@ export async function waitForLiveShell(page: Page): Promise<void> {
  * @param page - the page showing the shell.
  */
 export async function openDrawerIfPresent(page: Page): Promise<void> {
-  const drawer = page.locator('[data-deeptail-action="drawer"]')
-  if (!(await drawer.isVisible())) return
-  await drawer.click()
-  await page.locator('[data-deeptail-action="drawer"][aria-expanded="true"]').waitFor({ state: 'visible' })
+  if (!(await page.locator(action('drawer')).isVisible())) return
+  await clickAction(page, 'drawer')
+  await page.locator(`${action('drawer')}[aria-expanded="true"]`).waitFor({ state: 'visible' })
 }
 
 /**
@@ -128,21 +139,10 @@ export async function openDrawerIfPresent(page: Page): Promise<void> {
  * @returns the page, showing the pairing form.
  */
 export async function openPairingForm(harness: Harness, view: AuditView): Promise<Page> {
-  const page = await harness.open({ hosts: [] }, view)
-  await page.waitForSelector('[data-deeptail-picker]')
-  await page.getByRole('button', { name: 'Pair a host' }).click()
-  await page.locator('[data-deeptail-field="link"]').waitFor({ state: 'visible' })
+  const page = await openPicker(harness, {}, view)
+  await openPairForm(page)
   return page
 }
-
-/**
- * How a case asks for the page it wants: the viewport, the palette, the writing
- * direction, the locale.
- *
- * Read off the harness rather than restated, so the three openers here accept
- * exactly what `open` accepts and none of them can drift from it.
- */
-type OpenOptions = Parameters<Harness['open']>[1]
 
 /**
  * The registry overrides a case states before the page boots.
@@ -150,7 +150,15 @@ type OpenOptions = Parameters<Harness['open']>[1]
  * Read off the fleet fixture, which is the shape every opener here hands the
  * harness, so no opener can accept a fixture the others do not.
  */
-type FleetFixture = Parameters<typeof fleet>[0]
+export type FleetFixture = Parameters<typeof fleet>[0]
+
+/**
+ * The registry overrides a single-host case states before the page boots.
+ *
+ * Read off the single-host fixture for the same reason `FleetFixture` is read
+ * off the fleet's: no opener can accept a shape the fixture does not produce.
+ */
+type OneHostFixture = Parameters<typeof oneHost>[0]
 
 /**
  * Open the shell over a fleet fixture and wait until it is showing.
@@ -181,58 +189,16 @@ export async function openShellWithDrawer(
   fixture: FleetFixture = {},
   view?: OpenOptions,
 ): Promise<Page> {
-  const page = await openShell(harness, fixture, view)
-  await openDrawerIfPresent(page)
-  return page
+  const shell = await openShell(harness, fixture, view)
+  await openDrawerIfPresent(shell)
+  return shell
 }
 
 /** The row a roster seats for the one running session `oneHost` serves. */
-export const RUNNING_ROW = '[data-deeptail-session="s-running"]'
+export const RUNNING_ROW = sessionRow('s-running')
 
-/** The host switcher's control, which is painted with the shell and lives on. */
-export const CONNECTION_TRIGGER = '[data-deeptail-connection="trigger"]'
-
-/** The switcher's menu, which exists only while the switcher is open. */
-export const CONNECTION_MENU = '[data-deeptail-connection="menu"]'
-
-/**
- * Open the switcher on a page that is already showing the shell.
- *
- * Twelve suites drive this same two-step choreography, and a suite that states
- * it by hand can settle on a menu that has not painted yet — the click lands on
- * the trigger and the assertion races the paint. Stated once, the wait is part
- * of opening rather than something each case has to remember.
- * @param page - the page showing the shell.
- */
-export async function showSwitcher(page: Page): Promise<void> {
-  await page.locator(CONNECTION_TRIGGER).click()
-  await page.locator(CONNECTION_MENU).waitFor({ state: 'visible' })
-}
-
-/**
- * Open the shell and the switcher over it, settled at the open state.
- * @param harness - the suite's browser harness.
- * @param fixture - the registry the page boots against.
- * @param view - the viewport and palette the case is measured under.
- * @returns the page, showing the shell with the switcher open.
- */
-export async function openSwitcher(harness: Harness, fixture: FleetFixture = {}, view?: OpenOptions): Promise<Page> {
-  const page = await openShell(harness, fixture, view)
-  await showSwitcher(page)
-  return page
-}
-
-/**
- * Wait until the switcher's menu has left the document.
- *
- * Dismissal is asserted by absence, and the absence is what the wait states: a
- * case that went on to read the trigger would otherwise read it while the menu
- * is still up.
- * @param page - the page showing the shell.
- */
-export async function dismissSwitcher(page: Page): Promise<void> {
-  await page.locator(CONNECTION_MENU).waitFor({ state: 'detached' })
-}
+/** The same row on the fleet fixture, scoped to the host that seats it. */
+export const FLEET_ROW = `[data-deeptail-host="dev-1"]${RUNNING_ROW}`
 
 /**
  * Open the shell over the single-host fixture and wait until its row is seated.
@@ -242,12 +208,55 @@ export async function dismissSwitcher(page: Page): Promise<void> {
  * registry, the grant table and the roster read all land after it — so a case
  * that went on to assert about a row would race the read it is asserting about.
  * @param harness - the suite's browser harness.
+ * @param fixture - the registry the page boots against.
  * @returns the page, showing the shell with its roster row visible.
  */
-export async function openShellWithRoster(harness: Harness): Promise<Page> {
-  const page = await openShell(harness, oneHost())
+export async function openShellWithRoster(harness: Harness, fixture: OneHostFixture = {}): Promise<Page> {
+  const page = await openShell(harness, oneHost(fixture))
   await page.locator(RUNNING_ROW).waitFor({ state: 'visible' })
   return page
+}
+
+/**
+ * Open the compose sheet for the running session's row.
+ *
+ * The row actions ride behind a hover on a fine pointer, so the pointer is what
+ * reveals them here; the keyboard route into the sheet is the row suite's
+ * subject.
+ * @param harness - the suite's browser harness.
+ * @param fixture - the registry the page boots against.
+ * @returns the page, showing the open sheet.
+ */
+export async function openComposeSheet(harness: Harness, fixture: OneHostFixture = {}): Promise<Page> {
+  const page = await openShellWithRoster(harness, fixture)
+  await pressRowAction(page, 'row-message')
+  await waitForSheet(page)
+  return page
+}
+
+/**
+ * Reveal the running row's own actions and press one.
+ *
+ * The row actions ride behind a hover where the pointer is fine, so the hover
+ * is part of reaching the control rather than something each case restates.
+ * Where the pointer is coarse the page paints them throughout — the harness
+ * emulates `(hover: none)` for a touch context — and a hover would only move a
+ * pointer the reader does not have.
+ * @param page - the page showing the shell with its roster row visible.
+ * @param name - the row action's marker, as the row draws it.
+ * @param coarse - whether the pointer cannot hover, so nothing needs revealing.
+ */
+export async function pressRowAction(page: Page, name: string, coarse = false): Promise<void> {
+  if (!coarse) await page.locator(FLEET_ROW).hover()
+  await page.locator(`${FLEET_ROW} ${action(name)}`).click()
+}
+
+/**
+ * Wait until the roster has seated the row every sibling suite reads.
+ * @param page - the page showing the shell.
+ */
+export async function waitForRoster(page: Page): Promise<void> {
+  await page.locator(FLEET_ROW).waitFor({ state: 'visible' })
 }
 
 /**

@@ -10,11 +10,9 @@
  */
 
 import { describe, expect, it, spyOn } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { CONSOLE, type Gate, type GateOutcome, readGate, renderOffence, reportGate } from '../scripts/gate-runner.ts'
 import type { SourceFile } from '../scripts/source-tree.ts'
+import { fixtureTree } from './fixtures.ts'
 
 /** The module the streams live in, by absolute path. */
 const RUNNER = new URL('../scripts/gate-runner.ts', import.meta.url).pathname
@@ -36,10 +34,10 @@ async function tree(contents: Readonly<Record<string, string>>): Promise<{
   readonly files: SourceFile[]
   readonly dispose: () => Promise<void>
 }> {
-  const root = await mkdtemp(join(tmpdir(), 'gate-runner-'))
-  const files: SourceFile[] = Object.keys(contents).map((name) => ({ label: name, path: join(root, name) }))
-  await Promise.all(files.map(async (file) => await writeFile(file.path, contents[file.label] ?? '')))
-  return { files, dispose: async () => await rm(root, { recursive: true, force: true }) }
+  const fixture = fixtureTree('gate-runner')
+  const files: SourceFile[] = Object.keys(contents).map((name) => ({ label: name, path: fixture.pathOf(name) }))
+  await Promise.all(files.map(async (file) => await Bun.write(file.path, contents[file.label] ?? '')))
+  return { files, dispose: async () => await fixture.clear() }
 }
 
 /** A pair of streams that record what was written to them. */

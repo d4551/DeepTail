@@ -9,6 +9,8 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { oneHost } from './fixtures.ts'
 import { type Harness, startHarness, textOf } from './harness.ts'
+import { action, sessionRow } from './page-steps.ts'
+import { RUNNING_ROW, waitForLiveShell } from './surfaces.ts'
 
 let harness: Harness
 
@@ -40,9 +42,9 @@ it('adds a row from a forwarded roster event without re-reading the list', async
       ],
     }),
   )
-  await page.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(page)
   // The row can only come from the mux: session/list never returned it.
-  expect(await textOf(page, '[data-deeptail-session="s-live"] .session-title')).toBe('Arrived over the stream')
+  expect(await textOf(page, `${sessionRow('s-live')} .session-title`)).toBe('Arrived over the stream')
   await page.close()
 })
 
@@ -53,20 +55,20 @@ it('removes a row when the host forwards a removal', async () => {
       muxEvents: [{ event: 'api-session/removed', args: ['s-idle'] }],
     }),
   )
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-session="s-idle"]').waitFor({ state: 'detached' })
-  expect(await page.locator('[data-deeptail-session="s-running"]').count()).toBe(1)
+  await waitForLiveShell(page)
+  await page.locator(sessionRow('s-idle')).waitFor({ state: 'detached' })
+  expect(await page.locator(RUNNING_ROW).count()).toBe(1)
   await page.close()
 })
 
 it('reports a host online once its stream is ready, and unreachable when it drops', async () => {
   const ready = await harness.open(oneHost({ muxHosts: ['dev-1'] }))
-  await ready.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(ready)
   expect(await textOf(ready, '.connection-trigger')).toContain('Online')
   await ready.close()
 
   const dropped = await harness.open(oneHost({ muxHosts: ['dev-1'], muxClose: ['dev-1'] }))
-  await dropped.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(dropped)
   expect(await textOf(dropped, '.connection-trigger')).toContain('Unreachable')
   await dropped.close()
 })
@@ -78,19 +80,17 @@ it('turns a running row idle when the host forwards its status', async () => {
       muxEvents: [{ event: 'api-session/status', args: ['s-running', false] }],
     }),
   )
-  await page.waitForSelector('[data-deeptail-shell]')
+  await waitForLiveShell(page)
   // Stop is offered only while a session runs, so its absence is the proof.
-  await page.locator('[data-deeptail-session="s-running"] [data-deeptail-action="row-stop"]').waitFor({
-    state: 'detached',
-  })
-  expect(await textOf(page, '[data-deeptail-session="s-running"] .visually-hidden')).toBe('Idle')
+  await page.locator(`${RUNNING_ROW} ${action('row-stop')}`).waitFor({ state: 'detached' })
+  expect(await textOf(page, `${RUNNING_ROW} .visually-hidden`)).toBe('Idle')
   await page.close()
 })
 
 it('keeps keyboard focus on a row when the roster rebuilds beneath it', async () => {
   const page = await harness.open(oneHost({ muxHosts: ['dev-1'] }))
-  await page.waitForSelector('[data-deeptail-shell]')
-  await page.locator('[data-deeptail-session="s-idle"] .session-open').focus()
+  await waitForLiveShell(page)
+  await page.locator(`${sessionRow('s-idle')} .session-open`).focus()
   // The event arrives after focus lands, so the rebuild it causes is the thing
   // under test rather than something that already happened.
   await harness.forward(page, 'api-session/added', [
@@ -102,7 +102,7 @@ it('keeps keyboard focus on a row when the roster rebuilds beneath it', async ()
       projections: { values: { title: 'Arrived over the stream' } },
     },
   ])
-  await page.locator('[data-deeptail-session="s-live"]').waitFor({ state: 'attached' })
+  await page.locator(sessionRow('s-live')).waitFor({ state: 'attached' })
   expect(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? null)).toContain(
     'Write the release notes',
   )
@@ -112,7 +112,7 @@ it('keeps keyboard focus on a row when the roster rebuilds beneath it', async ()
   // the floor would leave nothing focused.
   const order = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>('[data-deeptail-session]')].map(
-      (row) => row.getAttribute('data-deeptail-session') ?? '',
+      (row) => row.dataset['deeptailSession'] ?? '',
     ),
   )
   expect(order).toContain('s-idle')
@@ -122,10 +122,7 @@ it('keeps keyboard focus on a row when the roster rebuilds beneath it', async ()
   await page.keyboard.press('ArrowDown')
   expect(
     await page.evaluate(
-      () =>
-        document.activeElement
-          ?.closest<HTMLElement>('[data-deeptail-session]')
-          ?.getAttribute('data-deeptail-session') ?? null,
+      () => document.activeElement?.closest<HTMLElement>('[data-deeptail-session]')?.dataset['deeptailSession'] ?? null,
     ),
   ).toBe(follows)
   await page.close()

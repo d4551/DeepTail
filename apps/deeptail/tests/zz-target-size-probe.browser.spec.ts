@@ -35,7 +35,7 @@ it('reports what axe reports for the selection it was asked for, neither more no
   const page = await openShell(harness)
   await page.evaluate(() => {
     const tiny = document.createElement('button')
-    tiny.setAttribute('data-deeptail-probe', 'tiny')
+    tiny.dataset['deeptailProbe'] = 'tiny'
     tiny.textContent = 'x'
     document.querySelector('[data-deeptail-shell]')?.append(tiny)
   })

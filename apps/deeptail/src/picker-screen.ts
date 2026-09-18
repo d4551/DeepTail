@@ -11,7 +11,7 @@
 
 import type { HostRecord } from './host.ts'
 import type { PickerKey } from './locales.ts'
-import { DATA } from './markers.ts'
+import { DATA, dataSelector } from './markers.ts'
 import { type PairDraft, type PairingState, pairView } from './picker-pair-form.ts'
 import { type TailnetConnectState, type TailnetDraft, tailnetConnectView } from './picker-tailnet.ts'
 import { type TailnetListState, tailnetListView } from './picker-tailnet-list.ts'
@@ -187,6 +187,42 @@ function phaseNotice(phase: Phase, ctx: PickerContext): string {
 }
 
 /**
+ * The host row holding focus, named by the host it belongs to.
+ *
+ * The card is repainted whenever a phase settles, and each paired host's
+ * reachability answers a few frames after the rows are drawn — so a repaint
+ * lands under a reader who is arrow-keying the list. The swap takes the focused
+ * row out of the document, focus falls to the body, and the next key goes to
+ * the body rather than to the stop: the list answers nothing from then on.
+ * @param card - the card that is about to be repainted.
+ * @returns the host whose row held focus, or undefined when focus was elsewhere.
+ */
+function focusedHost(card: HTMLElement): string | undefined {
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || !card.contains(active)) return undefined
+  return active.closest<HTMLElement>(dataSelector('host'))?.dataset[DATA.host]
+}
+
+/**
+ * Put focus back on the row of the host it was on.
+ *
+ * The roving stop moves with it, so the arrow keys continue from the row the
+ * reader was on rather than from the top of the list.
+ * @param card - the card just repainted.
+ * @param host - the host whose row held focus, or undefined.
+ */
+function restoreHostFocus(card: HTMLElement, host: string | undefined): void {
+  if (host === undefined) return
+  const row = card.querySelector<HTMLButtonElement>(dataSelector('host', CSS.escape(host)))
+  // A row that is gone, or is drawn disabled, cannot take focus: a refused
+  // focus is silent, and the stop would be left on nothing at all.
+  if (row === null || row.disabled) return
+  for (const other of card.querySelectorAll<HTMLButtonElement>(dataSelector('host'))) other.tabIndex = -1
+  row.tabIndex = 0
+  row.focus()
+}
+
+/**
  * Repaint the card for one phase.
  *
  * The live region is laid down again with every phase so an announcement is
@@ -198,10 +234,12 @@ function phaseNotice(phase: Phase, ctx: PickerContext): string {
  * @returns nothing.
  */
 export function paintScreen(frame: PickerFrame, phase: Phase, ctx: PickerContext, actions: PickerActions): void {
+  const held = focusedHost(frame.card)
   frame.card.replaceChildren(
     el('h1', { className: 'wordmark', text: ctx.t('app.name') }),
     ...phaseViews(phase, ctx, actions),
     frame.live,
   )
+  restoreHostFocus(frame.card, held)
   frame.live.textContent = phaseNotice(phase, ctx)
 }
